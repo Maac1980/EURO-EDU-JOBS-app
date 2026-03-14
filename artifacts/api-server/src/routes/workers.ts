@@ -3,6 +3,7 @@ import multer from "multer";
 import OpenAI from "openai";
 import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, createRecord, ensureEejSchema, getTableSchema } from "../lib/airtable.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
+import { MOCK_WORKERS, getMockWorker, isMockMode } from "../lib/mockData.js";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -204,10 +205,15 @@ router.post("/apply", applyUpload.single("cv"), async (req, res) => {
 router.get("/workers", async (req, res) => {
   try {
     const { search, specialization, status } = req.query as Record<string, string>;
-    const records = await fetchAllRecords();
-    const allWorkers = records.map(mapRecordToWorker).filter(
-      (w) => w.name && w.name !== "Unknown" && w.name.trim() !== ""
-    );
+    let allWorkers: Worker[];
+    if (isMockMode()) {
+      allWorkers = MOCK_WORKERS;
+    } else {
+      const records = await fetchAllRecords();
+      allWorkers = records.map(mapRecordToWorker).filter(
+        (w) => w.name && w.name !== "Unknown" && w.name.trim() !== ""
+      );
+    }
     const filtered = filterWorkers(allWorkers, search, specialization, status);
     res.json({ workers: filtered, total: filtered.length });
   } catch (err) {
@@ -219,8 +225,9 @@ router.get("/workers", async (req, res) => {
 // GET /workers/stats
 router.get("/workers/stats", async (_req, res) => {
   try {
-    const records = await fetchAllRecords();
-    const workers = records.map(mapRecordToWorker);
+    const workers: Worker[] = isMockMode()
+      ? MOCK_WORKERS
+      : (await fetchAllRecords()).map(mapRecordToWorker);
 
     const stats = {
       total: workers.length,
@@ -240,8 +247,9 @@ router.get("/workers/stats", async (_req, res) => {
 // GET /workers/report
 router.get("/workers/report", async (_req, res) => {
   try {
-    const records = await fetchAllRecords();
-    const workers = records.map(mapRecordToWorker);
+    const workers: Worker[] = isMockMode()
+      ? MOCK_WORKERS
+      : (await fetchAllRecords()).map(mapRecordToWorker);
 
     const now = new Date();
     const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -505,6 +513,12 @@ router.post("/workers/bulk-create", bulkUpload.fields([
 // GET /workers/:id
 router.get("/workers/:id", async (req, res) => {
   try {
+    if (isMockMode()) {
+      const worker = getMockWorker(req.params.id);
+      if (!worker) { res.status(404).json({ error: "Worker not found" }); return; }
+      res.json(worker);
+      return;
+    }
     const record = await fetchRecord(req.params.id);
     res.json(mapRecordToWorker(record));
   } catch (err) {

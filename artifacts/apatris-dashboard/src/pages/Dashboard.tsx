@@ -30,7 +30,7 @@ function LanguageToggle() {
         onClick={() => toggle("en")}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
           current === "en"
-            ? "bg-primary text-white shadow-[0_0_12px_rgba(196,30,24,0.5)]"
+            ? "bg-primary text-white shadow-[0_0_12px_rgba(30,64,175,0.5)]"
             : "text-muted-foreground hover:text-white"
         }`}
         title="English"
@@ -42,7 +42,7 @@ function LanguageToggle() {
         onClick={() => toggle("pl")}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
           current === "pl"
-            ? "bg-primary text-white shadow-[0_0_12px_rgba(196,30,24,0.5)]"
+            ? "bg-primary text-white shadow-[0_0_12px_rgba(30,64,175,0.5)]"
             : "text-muted-foreground hover:text-white"
         }`}
         title="Polski"
@@ -101,33 +101,27 @@ export default function Dashboard() {
       {/* Header */}
       <header
         className="h-16 border-b border-slate-700 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between"
-        style={{ boxShadow: "0 1px 0 rgba(196,30,24,0.08), 0 4px 20px rgba(0,0,0,0.3)" }}
+        style={{ boxShadow: "0 1px 0 rgba(30,64,175,0.08), 0 4px 20px rgba(0,0,0,0.3)" }}
       >
         <div className="flex items-center gap-3">
           <div
             className="w-12 h-12 rounded-full bg-white flex-shrink-0 flex items-center justify-center"
-            style={{ boxShadow: "0 0 0 2px rgba(196,30,24,0.35), 0 0 12px rgba(196,30,24,0.2)" }}
-            aria-label="Apatris Logo"
+            style={{ boxShadow: "0 0 0 2px rgba(30,64,175,0.5), 0 0 12px rgba(30,64,175,0.25)" }}
+            aria-label="Euro Edu Jobs Logo"
           >
             <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M19 2 L33 8.5 L33 21 Q33 30 19 36 Q5 30 5 21 L5 8.5 Z"
-                fill="#fef2f2"
-                stroke="#C41E18"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-              />
+              <circle cx="19" cy="19" r="19" fill="white" />
               <text
                 x="19"
-                y="28"
+                y="25"
                 textAnchor="middle"
-                fontSize="19"
+                fontSize="12"
                 fontWeight="900"
                 fontFamily="Arial Black, Arial, sans-serif"
-                fill="#C41E18"
+                fill="#1e40af"
                 letterSpacing="-0.5"
               >
-                A
+                EEJ
               </text>
             </svg>
           </div>
@@ -136,10 +130,10 @@ export default function Dashboard() {
               {t("header.title")}
             </h1>
             <p
-              className="text-[9px] text-red-500 font-bold font-mono tracking-[0.2em] uppercase leading-none mt-0.5"
-              style={{ textShadow: "0 0 8px rgba(239,68,68,0.7)" }}
+              className="text-[9px] font-bold font-mono tracking-[0.2em] uppercase leading-none mt-0.5"
+              style={{ color: "#60a5fa", textShadow: "0 0 8px rgba(30,64,175,0.7)" }}
             >
-              OUTSOURCING · CERTIFIED WELDERS
+              GLOBAL RECRUITMENT · TALENT SOLUTIONS
             </p>
           </div>
         </div>

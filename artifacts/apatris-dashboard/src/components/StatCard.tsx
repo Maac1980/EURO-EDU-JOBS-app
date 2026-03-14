@@ -17,7 +17,7 @@ export function StatCard({ title, value, icon: Icon, variant = "default" }: Stat
   let accentLine = "bg-gradient-to-r from-transparent via-primary/60 to-transparent";
 
   if (variant === "critical") {
-    colors = "border-red-500/30 shadow-lg";
+    colors = "border-blue-600/30 shadow-lg";
     iconBg = "bg-destructive/10 text-destructive border-destructive/20";
     valueColor = "text-white";
     glowColor = "bg-destructive/15";

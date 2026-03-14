@@ -73,8 +73,8 @@
 }
 
 /* ============================================
-   APATRIS BRAND THEME
-   Primary:     Crimson Red  (#C41E1E / hsl 0 72% 44%)
+   EURO EDU JOBS BRAND THEME
+   Primary:     Agency Blue  (#1e40af / hsl 226 71% 40%)
    Steel:       Metallic Silver (#8A9BB0)
    Background:  Deep charcoal steel (#0D0F14)
    Accent:      Warm steel grey
@@ -92,7 +92,7 @@
   --foreground: 210 18% 90%;
   --border: 216 16% 16%;
   --input: 216 16% 20%;
-  --ring: 2 72% 44%;
+  --ring: 226 71% 40%;
 
   /* Cards */
   --card: 218 22% 10%;
@@ -103,19 +103,19 @@
   --sidebar: 218 24% 8%;
   --sidebar-foreground: 210 18% 82%;
   --sidebar-border: 216 16% 16%;
-  --sidebar-primary: 2 72% 44%;
+  --sidebar-primary: 226 71% 40%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 218 20% 14%;
   --sidebar-accent-foreground: 210 18% 82%;
-  --sidebar-ring: 2 72% 44%;
+  --sidebar-ring: 226 71% 40%;
 
   /* Popover */
   --popover: 218 24% 9%;
   --popover-foreground: 210 18% 88%;
   --popover-border: 216 16% 18%;
 
-  /* Primary: Apatris Crimson Red */
-  --primary: 2 72% 44%;
+  /* Primary: Agency Blue */
+  --primary: 226 71% 40%;
   --primary-foreground: 0 0% 100%;
 
   /* Secondary: Steel dark */
@@ -143,7 +143,7 @@
   --warning-foreground: 0 0% 100%;
 
   /* Charts */
-  --chart-1: 2 72% 44%;
+  --chart-1: 226 71% 40%;
   --chart-2: 216 20% 52%;
   --chart-3: 141 65% 42%;
   --chart-4: 0 85% 58%;
@@ -185,7 +185,7 @@
   --foreground: 210 18% 90%;
   --border: 216 16% 16%;
   --input: 216 16% 20%;
-  --ring: 2 72% 44%;
+  --ring: 226 71% 40%;
 
   --card: 218 22% 10%;
   --card-foreground: 210 18% 88%;
@@ -194,17 +194,17 @@
   --sidebar: 218 24% 8%;
   --sidebar-foreground: 210 18% 82%;
   --sidebar-border: 216 16% 16%;
-  --sidebar-primary: 2 72% 44%;
+  --sidebar-primary: 226 71% 40%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 218 20% 14%;
   --sidebar-accent-foreground: 210 18% 82%;
-  --sidebar-ring: 2 72% 44%;
+  --sidebar-ring: 226 71% 40%;
 
   --popover: 218 24% 9%;
   --popover-foreground: 210 18% 88%;
   --popover-border: 216 16% 18%;
 
-  --primary: 2 72% 44%;
+  --primary: 226 71% 40%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 218 16% 15%;
@@ -225,7 +225,7 @@
   --warning: 28 95% 52%;
   --warning-foreground: 0 0% 100%;
 
-  --chart-1: 2 72% 44%;
+  --chart-1: 226 71% 40%;
   --chart-2: 216 20% 52%;
   --chart-3: 141 65% 42%;
   --chart-4: 0 85% 58%;
@@ -255,7 +255,7 @@
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 4px 10px -6px rgba(0, 0, 0, 0.3);
   }
 
-  /* Tech border — Apatris crimson glow */
+  /* Tech border — Agency Blue accent */
   .tech-border {
     border: 1px solid #334155;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
@@ -275,14 +275,14 @@
 
   /* Shield pulse for logo */
   @keyframes shieldPulse {
-    0%, 100% { box-shadow: 0 0 20px rgba(196, 30, 24, 0.3); }
-    50%       { box-shadow: 0 0 40px rgba(196, 30, 24, 0.6), 0 0 60px rgba(196, 30, 24, 0.2); }
+    0%, 100% { box-shadow: 0 0 20px rgba(30, 64, 175, 0.3); }
+    50%       { box-shadow: 0 0 40px rgba(30, 64, 175, 0.6), 0 0 60px rgba(30, 64, 175, 0.2); }
   }
   .shield-pulse { animation: shieldPulse 3s ease-in-out infinite; }
 
   /* Glow text */
   .text-glow-primary {
-    text-shadow: 0 0 20px rgba(196, 30, 24, 0.7);
+    text-shadow: 0 0 20px rgba(30, 64, 175, 0.7);
   }
   .text-glow-destructive {
     text-shadow: 0 0 20px rgba(220, 60, 60, 0.6);

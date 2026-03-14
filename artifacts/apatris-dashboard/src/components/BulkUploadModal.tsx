@@ -253,7 +253,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
               </div>
 
               {status === "error" && (
-                <div className="mb-4 p-3 rounded-lg bg-red-900/30 border border-red-500/30 text-red-300 text-sm font-mono">
+                <div className="mb-4 p-3 rounded-lg bg-blue-900/30 border border-blue-700/40 text-blue-300 text-sm font-mono">
                   {errorMsg}
                 </div>
               )}
@@ -280,7 +280,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
             </>
           ) : status === "scanning" || status === "creating" ? (
             <div className="py-12 flex flex-col items-center gap-4">
-              <Loader2 className="w-12 h-12 text-red-400 animate-spin" />
+              <Loader2 className="w-12 h-12 text-blue-400 animate-spin" />
               <p className="text-white font-bold text-lg">
                 {status === "scanning" ? "AI Scanning Documents…" : "Creating Worker Record…"}
               </p>
@@ -312,7 +312,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                   {result.specialization && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Specialization</span>
-                      <span className="text-red-300 font-bold">{result.specialization}</span>
+                      <span className="text-blue-300 font-bold">{result.specialization}</span>
                     </div>
                   )}
                   {result.trcExpiry && (

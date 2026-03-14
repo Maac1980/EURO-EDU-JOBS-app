@@ -35,7 +35,7 @@ function DocRow({ label, date }: { label: string; date?: string | null }) {
     <div
       className={`flex items-center justify-between p-3 rounded-lg bg-slate-800 border ${
         isExpired
-          ? "border-red-500/40"
+          ? "border-blue-600/40"
           : isWarning
             ? "border-yellow-500/40"
             : "border-slate-700"
@@ -44,7 +44,7 @@ function DocRow({ label, date }: { label: string; date?: string | null }) {
       <span className="text-sm font-medium text-gray-300">{label}</span>
       <span
         className={`text-sm font-mono font-semibold ${
-          isExpired ? "text-red-400" : isWarning ? "text-yellow-400" : "text-green-400"
+          isExpired ? "text-blue-400" : isWarning ? "text-yellow-400" : "text-green-400"
         }`}
       >
         {format(d, "MMM d, yyyy")}
@@ -59,9 +59,9 @@ function AttachmentCard({ title, filename, url }: { title: string; filename: str
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="relative p-4 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-red-500/30 transition-all cursor-pointer group flex flex-col items-center justify-center text-center gap-2"
+      className="relative p-4 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-blue-500/30 transition-all cursor-pointer group flex flex-col items-center justify-center text-center gap-2"
     >
-      <div className="w-10 h-10 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+      <div className="w-10 h-10 rounded-full bg-blue-700/10 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
         <FileText className="w-5 h-5" />
       </div>
       <div>
@@ -128,8 +128,8 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
       done
         ? "bg-green-500/15 border-green-500/60 text-green-400"
         : uploading
-          ? "bg-red-500/10 border-red-500/40 text-red-400 cursor-not-allowed"
-          : "bg-slate-800 border-gray-500 text-white hover:border-red-500/70 hover:bg-red-500/10 hover:text-white"
+          ? "bg-blue-700/10 border-blue-600/40 text-blue-400 cursor-not-allowed"
+          : "bg-slate-800 border-gray-500 text-white hover:border-blue-500/70 hover:bg-blue-700/10 hover:text-white"
     }`}>
       <input ref={inputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFile} disabled={uploading} />
       {uploading
@@ -232,7 +232,7 @@ export function WorkerProfilePanel({
       >
         {isLoading || !worker ? (
           <div className="flex h-full items-center justify-center">
-            <div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <div className="flex flex-col h-full">
@@ -340,13 +340,13 @@ export function WorkerProfilePanel({
               {/* Contact */}
               <div className="grid grid-cols-1 gap-3 p-4 rounded-xl bg-slate-800 border border-slate-700">
                 <div className="flex items-center gap-3 text-sm">
-                  <Mail className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  <Mail className="w-4 h-4 text-blue-400 flex-shrink-0" />
                   <span className="text-gray-300 font-mono">
                     {worker.email || t("panel.noEmail")}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <Phone className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  <Phone className="w-4 h-4 text-blue-400 flex-shrink-0" />
                   <span className="text-gray-300 font-mono">
                     {worker.phone || t("panel.noPhone")}
                   </span>
@@ -365,7 +365,7 @@ export function WorkerProfilePanel({
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
                     <span className="text-sm font-medium text-gray-300">{t("panel.bhpStatus")}</span>
                     <span className={`text-sm font-mono font-semibold ${
-                      worker.bhpStatus === "Active" ? "text-green-400" : "text-red-400"
+                      worker.bhpStatus === "Active" ? "text-green-400" : "text-blue-400"
                     }`}>
                       {worker.bhpStatus || "Unknown"}
                     </span>

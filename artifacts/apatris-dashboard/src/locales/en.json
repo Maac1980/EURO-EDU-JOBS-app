@@ -1,6 +1,6 @@
 {
   "login": {
-    "title": "Apatris",
+    "title": "EURO EDU JOBS",
     "subtitle": "Compliance",
     "terminal": "SECURE COMPLIANCE TERMINAL",
     "operatorId": "Operator ID",
@@ -11,8 +11,8 @@
     "invalidCredentials": "Invalid security credentials. Access denied."
   },
   "header": {
-    "title": "Apatris",
-    "subtitle": "Compliance",
+    "title": "EURO EDU JOBS",
+    "subtitle": "Global Recruitment",
     "generateReport": "Generate Report",
     "logout": "Logout"
   },

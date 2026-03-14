@@ -91,14 +91,14 @@ export default function Apply() {
             className="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-2xl space-y-5"
           >
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+              <div className="p-3 rounded-lg bg-blue-700/10 border border-blue-600/30 text-blue-400 text-sm">
                 {error}
               </div>
             )}
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Full Name <span className="text-red-400">*</span>
+                Full Name <span className="text-blue-400">*</span>
               </label>
               <input
                 type="text"
@@ -112,7 +112,7 @@ export default function Apply() {
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Email Address <span className="text-red-400">*</span>
+                Email Address <span className="text-blue-400">*</span>
               </label>
               <input
                 type="email"

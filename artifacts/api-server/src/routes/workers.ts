@@ -24,7 +24,13 @@ interface ScannedContract {
   workerName: string | null;
 }
 
-type ScannedData = ScannedPassport | ScannedContract;
+interface ScannedCV {
+  type: "cv";
+  yearsOfExperience: string | null;
+  highestQualification: string | null;
+}
+
+type ScannedData = ScannedPassport | ScannedContract | ScannedCV;
 
 async function scanDocument(fileBuffer: Buffer, mimeType: string, docType: "passport" | "contract"): Promise<ScannedData | null> {
   const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -102,9 +108,97 @@ async function scanDocument(fileBuffer: Buffer, mimeType: string, docType: "pass
   }
 }
 
+async function scanCV(fileBuffer: Buffer, mimeType: string): Promise<ScannedCV | null> {
+  const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  if (!imageTypes.includes(mimeType)) return null;
+
+  try {
+    const base64 = fileBuffer.toString("base64");
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 300,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            {
+              type: "text",
+              text: `Analyze this CV/Resume document. Return ONLY valid JSON with these fields (use null if not found):
+{
+  "yearsOfExperience": "a string like '5' or '10+' or '3-5' extracted from patterns near words like 'years', 'experience', 'exp', or numeric patterns. null if not found",
+  "highestQualification": "the highest academic degree or qualification found, e.g. 'Bachelor', 'Master', 'Diploma', 'PhD', 'MBA', 'BEng', 'MSc'. null if not found"
+}`,
+            },
+          ],
+        },
+      ],
+    });
+    const text = response.choices[0]?.message?.content ?? "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+    return { type: "cv", yearsOfExperience: parsed.yearsOfExperience ?? null, highestQualification: parsed.highestQualification ?? null };
+  } catch (e) {
+    console.error("[scanCV] AI error:", e);
+    return null;
+  }
+}
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 const router: IRouter = Router();
+
+const applyUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// POST /apply — Public candidate application form
+router.post("/apply", applyUpload.single("cv"), async (req, res) => {
+  try {
+    const { name, email, phone } = req.body as Record<string, string>;
+    if (!name?.trim() || !email?.trim()) {
+      res.status(400).json({ error: "Name and Email are required." });
+      return;
+    }
+
+    const airtableFields: Record<string, unknown> = {
+      "Name": name.trim(),
+      "Email": email.trim(),
+    };
+    if (phone?.trim()) airtableFields["Phone"] = phone.trim();
+
+    // Scan the CV if uploaded (image only)
+    if (req.file) {
+      try {
+        const cvScan = await scanCV(req.file.buffer, req.file.mimetype);
+        if (cvScan) {
+          if (cvScan.yearsOfExperience) airtableFields["Years of Experience"] = cvScan.yearsOfExperience;
+          if (cvScan.highestQualification) airtableFields["Highest Qualification"] = cvScan.highestQualification;
+        }
+      } catch (scanErr) {
+        console.warn("[apply] CV scan failed (non-fatal):", scanErr);
+      }
+    }
+
+    const newRecord = await createRecord(airtableFields);
+
+    // Upload the file as attachment if provided
+    if (req.file) {
+      try {
+        await uploadAttachmentToRecord(newRecord.id, "Passport", req.file.buffer, req.file.originalname, req.file.mimetype);
+      } catch (attachErr) {
+        console.warn("[apply] Attachment upload failed (non-fatal):", attachErr);
+      }
+    }
+
+    res.json({ success: true, id: newRecord.id });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[apply] Error:", message);
+    res.status(500).json({ error: message });
+  }
+});
 
 // GET /workers
 router.get("/workers", async (req, res) => {
@@ -243,7 +337,7 @@ const bulkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 async function scanBulkDocument(
   fileBuffer: Buffer,
   mimeType: string,
-  category: "passport" | "bhp" | "certificate" | "contract"
+  category: "passport" | "bhp" | "certificate" | "contract" | "cv"
 ): Promise<Record<string, string | null>> {
   const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   if (!imageTypes.includes(mimeType)) return {};
@@ -257,6 +351,8 @@ async function scanBulkDocument(
 {"name":"worker full name or null","trcExpiry":"YYYY-MM-DD or null","specialization":"Scan for welding process keywords: TIG, MIG, MAG, MMA, FCAW, ARC, FABRICATOR, electrode. Return the matched keyword exactly as written (e.g. 'TIG' or 'MIG' or 'MAG' or 'FABRICATOR') or null if none found"}`,
     contract: `Extract from this employment contract. Return ONLY valid JSON:
 {"name":"worker full name or null","contractEndDate":"YYYY-MM-DD or null"}`,
+    cv: `Analyze this CV/Resume document. Return ONLY valid JSON:
+{"name":"candidate full name or null","yearsOfExperience":"a string like '5' or '10+' extracted from patterns near words like years/experience/exp, or null","highestQualification":"highest academic degree found e.g. Bachelor, Master, Diploma, PhD, MBA, BEng, MSc, or null"}`,
   };
 
   try {
@@ -290,6 +386,7 @@ router.post("/workers/bulk-create", bulkUpload.fields([
   { name: "bhp", maxCount: 1 },
   { name: "certificate", maxCount: 1 },
   { name: "contract", maxCount: 1 },
+  { name: "cv", maxCount: 1 },
 ]), async (req, res) => {
   try {
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
@@ -308,12 +405,15 @@ router.post("/workers/bulk-create", bulkUpload.fields([
       files?.contract?.[0]
         ? scanBulkDocument(files.contract[0].buffer, files.contract[0].mimetype, "contract")
         : Promise.resolve({}),
+      files?.cv?.[0]
+        ? scanBulkDocument(files.cv[0].buffer, files.cv[0].mimetype, "cv")
+        : Promise.resolve({}),
     ]);
 
-    const [passportData, bhpData, certData, contractData] = scans;
+    const [passportData, bhpData, certData, contractData, cvData] = scans;
 
-    // Merge: later keys win, but name priority: passport > certificate > contract > bhp
-    const merged = { ...bhpData, ...contractData, ...certData, ...passportData };
+    // Merge: later keys win, but name priority: passport > certificate > contract > bhp > cv
+    const merged = { ...cvData, ...bhpData, ...contractData, ...certData, ...passportData };
 
     // Build Airtable fields
     const airtableFields: Record<string, unknown> = {};
@@ -355,6 +455,18 @@ router.post("/workers/bulk-create", bulkUpload.fields([
       extractedSummary.specialization = finalSpecialization;
     }
 
+    // CV Screening: Years of Experience & Highest Qualification
+    const yearsOfExp = typeof cvData.yearsOfExperience === "string" ? cvData.yearsOfExperience.trim() : "";
+    const highestQual = typeof cvData.highestQualification === "string" ? cvData.highestQualification.trim() : "";
+    if (yearsOfExp) {
+      airtableFields["Years of Experience"] = yearsOfExp;
+      extractedSummary.yearsOfExperience = yearsOfExp;
+    }
+    if (highestQual) {
+      airtableFields["Highest Qualification"] = highestQual;
+      extractedSummary.highestQualification = highestQual;
+    }
+
     // Create the new Airtable record
     const newRecord = await createRecord(airtableFields);
     const recordId = newRecord.id;
@@ -366,6 +478,7 @@ router.post("/workers/bulk-create", bulkUpload.fields([
       bhp: "BHP Certificate",
       certificate: "Certificate",
       contract: "Contract",
+      cv: "Passport",
     };
 
     for (const [category, fieldName] of Object.entries(attachmentMap)) {
@@ -421,6 +534,8 @@ router.patch("/workers/:id", async (req, res) => {
     if (body.email !== undefined) airtableFields["Email"] = body.email;
     if (body.phone !== undefined) airtableFields["Phone"] = body.phone;
     if (body.specialization !== undefined) airtableFields["Specialization"] = body.specialization;
+    if (body.yearsOfExperience !== undefined) airtableFields["Years of Experience"] = body.yearsOfExperience;
+    if (body.highestQualification !== undefined) airtableFields["Highest Qualification"] = body.highestQualification;
 
     const updated = await updateRecord(req.params.id, airtableFields);
     res.json(mapRecordToWorker(updated));

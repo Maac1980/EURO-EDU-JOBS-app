@@ -410,10 +410,11 @@ export function WorkerProfilePanel({
                 {t("panel.notify")}
               </button>
               <button
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)]"
+                className="flex-1 py-2.5 text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all hover:opacity-90"
+                style={{ background: "#1e40af" }}
                 onClick={() => onRenew(worker)}
               >
-                {t("panel.renewDoc")}
+                Update Status
               </button>
             </div>
           </div>

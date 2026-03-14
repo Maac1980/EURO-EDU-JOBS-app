@@ -148,7 +148,8 @@ export default function Dashboard() {
           {/* ⚡ AI Smart Upload */}
           <button
             onClick={() => setBulkUploadOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-red-600/70 text-red-400 hover:bg-red-600 hover:text-white rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:shadow-[0_0_15px_rgba(196,30,24,0.4)]"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all text-white hover:opacity-90"
+            style={{ background: "#1e40af" }}
           >
             <Zap className="w-4 h-4" />
             <span className="hidden sm:inline">AI Smart Upload</span>
@@ -156,7 +157,10 @@ export default function Dashboard() {
 
           <button
             onClick={() => setReportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-red-600/70 text-red-400 hover:bg-red-600 hover:text-white rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:shadow-[0_0_15px_rgba(196,30,24,0.4)]"
+            className="flex items-center gap-2 px-4 py-2 border border-blue-700/60 text-blue-400 hover:text-white rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:opacity-90"
+            style={{ }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e40af"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; }}
           >
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">{t("header.generateReport")}</span>
@@ -245,6 +249,8 @@ export default function Dashboard() {
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white text-right">{t("table.actions")}</th>
                 </tr>
@@ -253,14 +259,14 @@ export default function Dashboard() {
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={7} className="px-6 py-6">
+                      <td colSpan={9} className="px-6 py-6">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
                   ))
                 ) : workersData?.workers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground font-sans">
+                    <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground font-sans">
                       {t("table.noResults")}
                     </td>
                   </tr>
@@ -307,6 +313,20 @@ export default function Dashboard() {
                           );
                         })()}
                       </td>
+                      <td className="px-6 py-4 text-sm">
+                        {(worker as any).yearsOfExperience ? (
+                          <span className="px-2 py-1 rounded bg-blue-900/30 border border-blue-700/40 text-blue-300 text-xs font-bold font-mono">
+                            {(worker as any).yearsOfExperience} yrs
+                          </span>
+                        ) : <span className="text-gray-500">—</span>}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {(worker as any).highestQualification ? (
+                          <span className="px-2 py-1 rounded bg-indigo-900/30 border border-indigo-700/40 text-indigo-300 text-xs font-bold font-mono">
+                            {(worker as any).highestQualification}
+                          </span>
+                        ) : <span className="text-gray-500">—</span>}
+                      </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={worker.complianceStatus} />
                       </td>
@@ -314,14 +334,18 @@ export default function Dashboard() {
                         <div className="flex justify-end items-center gap-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); setPanelEditMode(false); setSelectedWorkerId(worker.id); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 hover:border-blue-400/60 text-xs font-bold uppercase tracking-wide transition-all"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
+                            style={{ background: "#1e40af" }}
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>View</span>
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setPanelEditMode(true); setSelectedWorkerId(worker.id); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 border border-amber-500/30 hover:border-amber-400/60 text-xs font-bold uppercase tracking-wide transition-all"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-700/50 text-blue-300 text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
+                            style={{ }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e40af"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = ""; }}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             <span>Edit</span>
@@ -336,7 +360,8 @@ export default function Dashboard() {
                             </button>
                             <button 
                               onClick={(e) => handleRenew(e, worker)}
-                              className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
+                              className="p-1.5 rounded-lg text-white border border-blue-700/40 transition-colors hover:opacity-90"
+                              style={{ background: "#1e40af" }}
                               title={t("table.renewDocument")}
                             >
                               <RefreshCcw className="w-3.5 h-3.5" />

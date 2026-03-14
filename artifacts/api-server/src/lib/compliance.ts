@@ -22,6 +22,8 @@ export interface Worker {
   daysUntilNextExpiry: number | null;
   passportAttachments: Attachment[];
   contractAttachments: Attachment[];
+  yearsOfExperience: string | null;
+  highestQualification: string | null;
 }
 
 function getString(val: unknown): string | null {
@@ -171,6 +173,14 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     resolveField(f, ["Contract", "Contract Attachment", "Contract Document", "Contract File"])
   );
 
+  const yearsOfExperience = getString(
+    resolveField(f, ["Years of Experience", "Experience", "YearsOfExperience", "Years Experience"])
+  );
+
+  const highestQualification = getString(
+    resolveField(f, ["Highest Qualification", "Qualification", "HighestQualification", "Education"])
+  );
+
   const partial: Partial<Worker> = {
     trcExpiry,
     workPermitExpiry,
@@ -194,6 +204,8 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     daysUntilNextExpiry,
     passportAttachments,
     contractAttachments,
+    yearsOfExperience,
+    highestQualification,
   };
 }
 

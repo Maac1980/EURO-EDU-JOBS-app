@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { X, Upload, Loader2, CheckCircle2, Zap, FileText, Shield, Award, Briefcase } from "lucide-react";
+import { X, Upload, Loader2, CheckCircle2, Zap, FileText, Shield, Award, Briefcase, GraduationCap } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -8,7 +8,7 @@ interface BulkUploadModalProps {
   onClose: () => void;
 }
 
-type Category = "passport" | "bhp" | "certificate" | "contract";
+type Category = "passport" | "bhp" | "certificate" | "contract" | "cv";
 
 interface DropZoneFile {
   file: File;
@@ -20,6 +20,7 @@ const CATEGORIES: { key: Category; label: string; icon: React.ElementType; color
   { key: "bhp", label: "BHP Certificate", icon: Shield, color: "orange", hint: "Extracts: BHP Expiry Date" },
   { key: "certificate", label: "TRC Certificate", icon: Award, color: "green", hint: "Extracts: TRC Expiry + Specialization (MIG/TIG)" },
   { key: "contract", label: "Contract", icon: Briefcase, color: "purple", hint: "Extracts: Contract End Date" },
+  { key: "cv", label: "CV / Resume", icon: GraduationCap, color: "indigo", hint: "Extracts: Experience & Qualification" },
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -27,6 +28,7 @@ const COLOR_MAP: Record<string, string> = {
   orange: "border-orange-500/40 bg-orange-500/10 hover:border-orange-400/70 text-orange-400",
   green:  "border-green-500/40 bg-green-500/10 hover:border-green-400/70 text-green-400",
   purple: "border-purple-500/40 bg-purple-500/10 hover:border-purple-400/70 text-purple-400",
+  indigo: "border-indigo-500/40 bg-indigo-500/10 hover:border-indigo-400/70 text-indigo-400",
 };
 
 const SPEC_OPTIONS = ["TIG", "MIG", "MAG", "MMA", "ARC / Electrode", "FCAW", "FABRICATOR"];
@@ -102,7 +104,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
   const [profession, setProfession] = useState("");
   const [customProfession, setCustomProfession] = useState("");
   const [status, setStatus] = useState<"idle" | "scanning" | "creating" | "done" | "error">("idle");
-  const [result, setResult] = useState<{ name?: string; trcExpiry?: string; bhpExpiry?: string; contractEndDate?: string; specialization?: string } | null>(null);
+  const [result, setResult] = useState<{ name?: string; trcExpiry?: string; bhpExpiry?: string; contractEndDate?: string; specialization?: string; yearsOfExperience?: string; highestQualification?: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -202,7 +204,17 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
           {status === "idle" || status === "error" ? (
             <>
               <div className="grid grid-cols-2 gap-3 mb-4">
-                {CATEGORIES.map((cat) => (
+                {CATEGORIES.filter(c => c.key !== "cv").map((cat) => (
+                  <DropZone
+                    key={cat.key}
+                    category={cat}
+                    file={files[cat.key] ?? null}
+                    onFile={setFile(cat.key)}
+                  />
+                ))}
+              </div>
+              <div className="mb-4">
+                {CATEGORIES.filter(c => c.key === "cv").map((cat) => (
                   <DropZone
                     key={cat.key}
                     category={cat}
@@ -258,8 +270,9 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                 className={`w-full py-3 rounded-xl font-bold text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
                   totalFiles === 0
                     ? "bg-white/5 text-gray-600 cursor-not-allowed border border-white/5"
-                    : "bg-red-600 hover:bg-red-700 text-white shadow-[0_0_20px_rgba(220,38,38,0.4)]"
+                    : "text-white hover:opacity-90"
                 }`}
+                style={totalFiles > 0 ? { background: "#1e40af" } : {}}
               >
                 <Zap className="w-4 h-4" />
                 Create Worker with AI Scan
@@ -318,6 +331,18 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Contract End</span>
                       <span className="text-green-400 font-medium">{result.contractEndDate}</span>
+                    </div>
+                  )}
+                  {result.yearsOfExperience && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Experience</span>
+                      <span className="text-blue-300 font-bold">{result.yearsOfExperience} yrs</span>
+                    </div>
+                  )}
+                  {result.highestQualification && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Qualification</span>
+                      <span className="text-indigo-300 font-bold">{result.highestQualification}</span>
                     </div>
                   )}
                 </div>

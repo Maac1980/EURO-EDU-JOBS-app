@@ -76,7 +76,7 @@ function AttachmentCard({ title, filename, url }: { title: string; filename: str
   );
 }
 
-function UploadButton({ workerId, docType, label }: { workerId: string; docType: "passport" | "contract"; label: string }) {
+function UploadButton({ workerId, docType, label }: { workerId: string; docType: "passport" | "contract" | "trc" | "bhp"; label: string }) {
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -109,14 +109,17 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
       if (filled?.name) filledLines.push(`Name: ${filled.name}`);
       if (filled?.dateOfBirth) filledLines.push(`DOB: ${filled.dateOfBirth}`);
       if (filled?.passportExpiry) filledLines.push(`Expires: ${filled.passportExpiry}`);
+      if (filled?.trcExpiry) filledLines.push(`TRC: ${filled.trcExpiry}`);
+      if (filled?.bhpExpiry) filledLines.push(`BHP: ${filled.bhpExpiry}`);
+      if (filled?.specialization) filledLines.push(`Job Role: ${filled.specialization}`);
       if (filled?.contractEndDate) filledLines.push(`Contract end: ${filled.contractEndDate}`);
       if (filled?.nationality) filledLines.push(`Nationality: ${filled.nationality}`);
 
       const description = filledLines.length > 0
         ? `AI auto-filled: ${filledLines.join(" · ")}`
-        : `${label} saved successfully.`;
+        : `${label} saved to Airtable successfully.`;
 
-      toast({ title: data.scanned ? "✓ Document Scanned & Saved" : "✓ Document Uploaded", description });
+      toast({ title: data.scanned ? "✓ Document Scanned & Updated" : "✓ Document Pushed to Airtable", description, variant: "success" as any });
       setTimeout(() => setDone(false), 4000);
     } catch (err) {
       toast({ title: "Upload Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
@@ -207,7 +210,7 @@ export function WorkerProfilePanel({
         throw new Error(err.error ?? "Save failed");
       }
       await queryClient.invalidateQueries({ queryKey: getGetWorkerQueryKey(workerId) });
-      toast({ title: "✓ Profile Updated", description: `Specialization set to ${editSpec || editProfession}` });
+      toast({ title: "✓ Profile Updated", description: `Job Role set to: ${editSpec || editProfession}`, variant: "success" as any });
       setIsEditing(false);
     } catch (err) {
       toast({ title: "Save Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
@@ -291,7 +294,7 @@ export function WorkerProfilePanel({
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
-                        Specialization / Spec
+                        Job Role
                       </label>
                       <select
                         value={editSpec}
@@ -307,7 +310,7 @@ export function WorkerProfilePanel({
 
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
-                        Profession (free text)
+                        Job Title (free text)
                       </label>
                       <input
                         type="text"
@@ -394,11 +397,13 @@ export function WorkerProfilePanel({
                 )}
 
                 <div className="space-y-3">
-                  <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Upload Document</p>
+                  <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Push Document to Airtable</p>
                   <UploadButton workerId={worker.id} docType="passport" label="Passport" />
+                  <UploadButton workerId={worker.id} docType="trc" label="TRC Certificate" />
+                  <UploadButton workerId={worker.id} docType="bhp" label="BHP Certificate" />
                   <UploadButton workerId={worker.id} docType="contract" label="Contract" />
                   <p className="text-xs text-gray-600 text-center">
-                    PDF, JPG, PNG or WebP · AI scans images automatically
+                    PDF, JPG, PNG or WebP · AI scans &amp; updates existing record
                   </p>
                 </div>
               </div>

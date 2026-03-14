@@ -156,10 +156,11 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
 
       await queryClient.invalidateQueries();
       toast({
-        title: "✓ Worker Created via AI Scan",
+        title: "✓ New Worker Created in Airtable",
         description: data.extracted?.name
-          ? `New worker "${data.extracted.name}" added to Airtable.`
-          : "New worker record created and documents attached.",
+          ? `"${data.extracted.name}" added as a new candidate record.`
+          : "New candidate record created with documents attached.",
+        variant: "success" as any,
       });
     } catch (err) {
       setStatus("error");
@@ -227,7 +228,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
               {/* PROFESSION / SPEC field */}
               <div className="mb-4 p-3 rounded-xl bg-slate-800 border border-slate-700 space-y-2">
                 <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  Profession / Spec
+                  Job Role
                   <span className="ml-1 text-gray-600 normal-case font-normal">(AI auto-detects from certificate)</span>
                 </label>
                 <select

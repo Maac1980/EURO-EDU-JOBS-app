@@ -24,7 +24,7 @@
   },
   "table": {
     "searchPlaceholder": "Search by Operator Name...",
-    "allSpecs": "All Specs",
+    "allSpecs": "All Job Roles",
     "tigWelders": "TIG Welders",
     "migWelders": "MIG Welders",
     "arcWelders": "ARC Welders",
@@ -34,7 +34,7 @@
     "critical": "Critical",
     "nonCompliant": "Non-Compliant",
     "operator": "Operator",
-    "spec": "Spec",
+    "spec": "Job Role",
     "trcExpiry": "TRC Expiry",
     "workPermit": "Work Permit",
     "bhp": "BHP",

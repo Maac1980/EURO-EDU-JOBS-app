@@ -554,77 +554,71 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
     }
 
     const { docType } = req.body as { docType?: string };
-    if (!docType || !["passport", "contract"].includes(docType)) {
-      res.status(400).json({ error: "docType must be 'passport' or 'contract'" });
+    const validDocTypes = ["passport", "contract", "trc", "bhp"];
+    if (!docType || !validDocTypes.includes(docType)) {
+      res.status(400).json({ error: "docType must be 'passport', 'contract', 'trc', or 'bhp'" });
       return;
     }
 
-    const fieldName = docType === "passport" ? "Passport" : "Contract";
-
-    // 1. Scan document with AI (runs in parallel with nothing yet — start it now)
-    const scanPromise = scanDocument(req.file.buffer, req.file.mimetype, docType as "passport" | "contract");
-
-    // 2. Upload the attachment to Airtable
-    await uploadAttachmentToRecord(
-      req.params.id,
-      fieldName,
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype
-    );
-
-    // 3. Wait for AI scan result
-    const scanned = await scanPromise;
+    const airtableFieldMap: Record<string, string> = {
+      passport: "Passport",
+      contract: "Contract",
+      trc: "Certificate",
+      bhp: "BHP Certificate",
+    };
+    const fieldName = airtableFieldMap[docType];
     let autoFilledFields: Record<string, string> = {};
 
-    if (scanned) {
-      const airtableUpdates: Record<string, unknown> = {};
+    // 1. Scan + upload in parallel
+    const [, scannedRaw] = await Promise.all([
+      uploadAttachmentToRecord(req.params.id, fieldName, req.file.buffer, req.file.originalname, req.file.mimetype),
+      (docType === "passport" || docType === "contract")
+        ? scanDocument(req.file.buffer, req.file.mimetype, docType)
+            .then((s) => s ? { _legacy: true, data: s } : null)
+        : scanBulkDocument(req.file.buffer, req.file.mimetype, docType === "trc" ? "certificate" : "bhp")
+            .then((s) => ({ _legacy: false, data: s })),
+    ]);
 
-      if (scanned.type === "passport") {
-        if (scanned.name) {
-          airtableUpdates["Name"] = scanned.name;
-          autoFilledFields["name"] = scanned.name;
-        }
-        if (scanned.dateOfBirth) {
-          airtableUpdates["Date of Birth"] = scanned.dateOfBirth;
-          autoFilledFields["dateOfBirth"] = scanned.dateOfBirth;
-        }
-        if (scanned.passportExpiry) {
-          airtableUpdates["Passport Expiry"] = scanned.passportExpiry;
-          autoFilledFields["passportExpiry"] = scanned.passportExpiry;
-        }
-        if (scanned.passportNumber) {
-          airtableUpdates["Passport Number"] = scanned.passportNumber;
-          autoFilledFields["passportNumber"] = scanned.passportNumber;
-        }
-        if (scanned.nationality) {
-          airtableUpdates["Nationality"] = scanned.nationality;
-          autoFilledFields["nationality"] = scanned.nationality;
-        }
-      } else if (scanned.type === "contract") {
-        if (scanned.contractEndDate) {
-          airtableUpdates["Contract End Date"] = scanned.contractEndDate;
-          autoFilledFields["contractEndDate"] = scanned.contractEndDate;
-        }
-        if (scanned.workerName) {
-          airtableUpdates["Name"] = scanned.workerName;
-          autoFilledFields["name"] = scanned.workerName;
-        }
-      }
+    // 2. Build Airtable update fields from scan result
+    const airtableUpdates: Record<string, unknown> = {};
 
-      if (Object.keys(airtableUpdates).length > 0) {
-        try {
-          await updateRecord(req.params.id, airtableUpdates);
-        } catch (updateErr) {
-          // Log but don't fail — some fields may not exist in the user's Airtable
-          console.warn("[upload] Auto-fill partial failure:", updateErr instanceof Error ? updateErr.message : updateErr);
+    if (scannedRaw) {
+      if ((scannedRaw as any)._legacy) {
+        const scanned = (scannedRaw as any).data;
+        if (scanned.type === "passport") {
+          if (scanned.name) { airtableUpdates["Name"] = scanned.name; autoFilledFields["name"] = scanned.name; }
+          if (scanned.dateOfBirth) { airtableUpdates["Date of Birth"] = scanned.dateOfBirth; autoFilledFields["dateOfBirth"] = scanned.dateOfBirth; }
+          if (scanned.passportExpiry) { airtableUpdates["Passport Expiry"] = scanned.passportExpiry; autoFilledFields["passportExpiry"] = scanned.passportExpiry; }
+          if (scanned.passportNumber) { airtableUpdates["Passport Number"] = scanned.passportNumber; autoFilledFields["passportNumber"] = scanned.passportNumber; }
+          if (scanned.nationality) { airtableUpdates["Nationality"] = scanned.nationality; autoFilledFields["nationality"] = scanned.nationality; }
+        } else if (scanned.type === "contract") {
+          if (scanned.contractEndDate) { airtableUpdates["Contract End Date"] = scanned.contractEndDate; autoFilledFields["contractEndDate"] = scanned.contractEndDate; }
+          if (scanned.workerName) { airtableUpdates["Name"] = scanned.workerName; autoFilledFields["name"] = scanned.workerName; }
+        }
+      } else {
+        const s = (scannedRaw as any).data as Record<string, string | null>;
+        if (docType === "trc") {
+          if (s.trcExpiry) { airtableUpdates["TRC Expiry"] = s.trcExpiry; autoFilledFields["trcExpiry"] = s.trcExpiry; }
+          if (s.specialization) { airtableUpdates["Specialization"] = s.specialization; autoFilledFields["specialization"] = s.specialization; }
+          if (s.name) { autoFilledFields["name"] = s.name; }
+        } else if (docType === "bhp") {
+          if (s.bhpExpiry) { airtableUpdates["BHP EXPIRY"] = s.bhpExpiry; autoFilledFields["bhpExpiry"] = s.bhpExpiry; }
+          if (s.name) { autoFilledFields["name"] = s.name; }
         }
       }
     }
 
-    // 4. Return updated worker + what was auto-filled
+    if (Object.keys(airtableUpdates).length > 0) {
+      try {
+        await updateRecord(req.params.id, airtableUpdates);
+      } catch (updateErr) {
+        console.warn("[upload] Auto-fill partial failure:", updateErr instanceof Error ? updateErr.message : updateErr);
+      }
+    }
+
+    // 3. Return updated worker + what was auto-filled
     const record = await fetchRecord(req.params.id);
-    res.json({ worker: mapRecordToWorker(record), autoFilled: autoFilledFields, scanned: !!scanned });
+    res.json({ worker: mapRecordToWorker(record), autoFilled: autoFilledFields, scanned: Object.keys(autoFilledFields).length > 0 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: message });

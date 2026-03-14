@@ -1,0 +1,18 @@
+packages:
+  "framer-motion": "For premium page transitions, side panels, and micro-interactions"
+  "date-fns": "For parsing and formatting expiry dates"
+  "clsx": "For conditional class merging"
+  "tailwind-merge": "For merging tailwind utility classes safely"
+
+images:
+  - path: "artifacts/apatris-dashboard/public/images/login-bg.png"
+    description: "Dark, moody industrial command center background with glowing neon blue and safety orange light leaks, abstract, tech vibe, out of focus"
+    aspect_ratio: "16:9"
+  - path: "artifacts/apatris-dashboard/public/images/logo.png"
+    description: "Minimalist, sharp geometric logo symbol for 'Apatris', tech/industrial style, glowing electric blue on solid black background"
+    aspect_ratio: "1:1"
+
+notes:
+  - "Using provided @workspace/api-client-react hooks for all API interactions"
+  - "Implementing a custom Framer Motion side panel for maximum visual polish and reliability"
+  - "Hardcoded authentication for 'admin@apatris.com' / 'apatris2024' as requested"

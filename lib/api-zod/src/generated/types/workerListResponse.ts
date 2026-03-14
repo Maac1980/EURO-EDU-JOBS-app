@@ -5,7 +5,9 @@
  * Apatris Compliance Dashboard API
  * OpenAPI spec version: 0.1.0
  */
+import type { Worker } from "./worker";
 
-export interface HealthStatus {
-  status: string;
+export interface WorkerListResponse {
+  workers: Worker[];
+  total: number;
 }

@@ -334,4 +334,27 @@
   .border.active-elevate:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after { inset: -1px; }
+
+  /* Table scroll container utility */
+  .table-scroll-container {
+    overflow-x: scroll;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Scrollbar styling — outside layer so webkit pseudo-elements apply reliably */
+.table-scroll-container::-webkit-scrollbar {
+  height: 8px;
+}
+.table-scroll-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+.table-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(233, 255, 112, 0.4);
+  border-radius: 4px;
+}
+.table-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(233, 255, 112, 0.7);
 }

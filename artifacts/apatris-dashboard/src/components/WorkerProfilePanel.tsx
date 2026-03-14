@@ -1,10 +1,13 @@
-import React, { useEffect, useRef } from "react";
-import { X, Mail, Phone, FileText, Download } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useGetWorker } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetWorkerQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "./ui/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
+import { useToast } from "@/hooks/use-toast";
 
 interface WorkerProfilePanelProps {
   workerId: string | null;
@@ -65,6 +68,55 @@ function AttachmentCard({ title, filename, url }: { title: string; filename: str
       </div>
       <Download className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
     </a>
+  );
+}
+
+function UploadButton({ workerId, docType, label }: { workerId: string; docType: "passport" | "contract"; label: string }) {
+  const [uploading, setUploading] = useState(false);
+  const [done, setDone] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setDone(false);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("docType", docType);
+      const res = await fetch(`${import.meta.env.BASE_URL}api/workers/${workerId}/upload`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error ?? "Upload failed");
+      }
+      await queryClient.invalidateQueries({ queryKey: getGetWorkerQueryKey(workerId) });
+      setDone(true);
+      toast({ title: "Document Uploaded", description: `${label} saved successfully.` });
+      setTimeout(() => setDone(false), 3000);
+    } catch (err) {
+      toast({ title: "Upload Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono uppercase tracking-wider cursor-pointer transition-all select-none ${
+      done
+        ? "bg-success/10 border-success/30 text-success"
+        : "bg-white/5 border-white/10 text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5"
+    }`}>
+      <input ref={inputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFile} disabled={uploading} />
+      {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : done ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Upload className="w-3.5 h-3.5" />}
+      {uploading ? "Uploading..." : done ? "Saved!" : label}
+    </label>
   );
 }
 
@@ -178,9 +230,15 @@ export function WorkerProfilePanel({
               </div>
 
               <div>
-                <h3 className="text-xs font-bold tracking-widest text-muted-foreground uppercase mb-4">
-                  {t("panel.documentVault")}
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                    {t("panel.documentVault")}
+                  </h3>
+                  <div className="flex gap-2">
+                    <UploadButton workerId={worker.id} docType="passport" label={t("panel.passport")} />
+                    <UploadButton workerId={worker.id} docType="contract" label={t("panel.contract")} />
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   {worker.passportAttachments?.map((att: any) => (
                     <AttachmentCard

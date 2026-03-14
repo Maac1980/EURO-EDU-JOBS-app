@@ -1,6 +1,9 @@
 import { Router, type IRouter } from "express";
-import { fetchAllRecords, fetchRecord, updateRecord } from "../lib/airtable.js";
+import multer from "multer";
+import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord } from "../lib/airtable.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 const router: IRouter = Router();
 
@@ -167,6 +170,40 @@ router.patch("/workers/:id", async (req, res) => {
 
     const updated = await updateRecord(req.params.id, airtableFields);
     res.json(mapRecordToWorker(updated));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /workers/:id/upload
+router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "No file provided" });
+      return;
+    }
+
+    const { docType } = req.body as { docType?: string };
+    if (!docType || !["passport", "contract"].includes(docType)) {
+      res.status(400).json({ error: "docType must be 'passport' or 'contract'" });
+      return;
+    }
+
+    // Map docType to Airtable field name
+    const fieldName = docType === "passport" ? "Passport" : "Contract";
+
+    await uploadAttachmentToRecord(
+      req.params.id,
+      fieldName,
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype
+    );
+
+    // Return the updated worker record
+    const record = await fetchRecord(req.params.id);
+    res.json(mapRecordToWorker(record));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: message });

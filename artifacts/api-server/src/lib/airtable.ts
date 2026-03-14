@@ -102,3 +102,35 @@ export async function updateRecord(
 
   return (await res.json()) as AirtableRecord;
 }
+
+export async function uploadAttachmentToRecord(
+  recordId: string,
+  fieldName: string,
+  fileBuffer: Buffer,
+  filename: string,
+  mimeType: string
+): Promise<void> {
+  if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
+    throw new Error("Airtable credentials are not set");
+  }
+
+  const contentUrl = `https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(fieldName)}/uploadAttachment`;
+
+  const form = new FormData();
+  form.append("file", new Blob([fileBuffer], { type: mimeType }), filename);
+  form.append("filename", filename);
+  form.append("contentType", mimeType);
+
+  const res = await fetch(contentUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+    },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Airtable upload error ${res.status}: ${text}`);
+  }
+}

@@ -426,9 +426,9 @@ export default function Dashboard() {
         </div>
 
         {/* Data Table */}
-        <div className="glass-panel rounded-xl overflow-hidden tech-border">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left whitespace-nowrap">
+        <div className="glass-panel rounded-xl tech-border" style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table className="text-left whitespace-nowrap" style={{ minWidth: "1200px", width: "100%" }}>
               <thead className="bg-slate-700/60 border-b border-slate-600">
                 <tr>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>

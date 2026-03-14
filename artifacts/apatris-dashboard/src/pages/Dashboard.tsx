@@ -15,6 +15,7 @@ import { NotifyDialog, RenewDialog } from "@/components/ActionDialogs";
 import { ComplianceReportModal } from "@/components/ComplianceReportModal";
 import { BulkUploadModal } from "@/components/BulkUploadModal";
 import { NotificationBell } from "@/components/NotificationBell";
+import { CandidateEditPanel } from "@/components/CandidateEditPanel";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -64,6 +65,7 @@ export default function Dashboard() {
 
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [panelEditMode, setPanelEditMode] = useState(false);
+  const [editPanelWorkerId, setEditPanelWorkerId] = useState<string | null>(null);
   const [actionWorker, setActionWorker] = useState<any | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [renewOpen, setRenewOpen] = useState(false);
@@ -331,22 +333,21 @@ export default function Dashboard() {
                       <td className="px-6 py-4">
                         <StatusBadge status={worker.complianceStatus} />
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end items-center gap-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); setPanelEditMode(false); setSelectedWorkerId(worker.id); }}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
-                            style={{ background: "#E9FF70", color: "#333333" }}
+                            style={{ border: "1px solid rgba(233,255,112,0.3)", color: "#E9FF70" }}
+                            title="View full profile"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>View</span>
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); setPanelEditMode(true); setSelectedWorkerId(worker.id); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
-                            style={{ border: "1px solid rgba(233,255,112,0.35)", color: "#E9FF70" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#E9FF70"; (e.currentTarget as HTMLButtonElement).style.color = "#333333"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = "#E9FF70"; }}
+                            onClick={(e) => { e.stopPropagation(); setEditPanelWorkerId(worker.id); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wide transition-all hover:opacity-90"
+                            style={{ background: "#E9FF70", color: "#333333" }}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             <span>Edit</span>
@@ -385,6 +386,11 @@ export default function Dashboard() {
         onClose={() => { setSelectedWorkerId(null); setPanelEditMode(false); }} 
         onRenew={(w) => { setSelectedWorkerId(null); setPanelEditMode(false); setActionWorker(w); setRenewOpen(true); }}
         onNotify={(w) => { setSelectedWorkerId(null); setPanelEditMode(false); setActionWorker(w); setNotifyOpen(true); }}
+      />
+
+      <CandidateEditPanel
+        workerId={editPanelWorkerId}
+        onClose={() => setEditPanelWorkerId(null)}
       />
       
       {actionWorker && (

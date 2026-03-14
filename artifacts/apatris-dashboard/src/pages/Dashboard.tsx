@@ -103,9 +103,18 @@ export default function Dashboard() {
         style={{ boxShadow: "0 1px 0 rgba(196,30,24,0.08), 0 4px 20px rgba(0,0,0,0.3)" }}
       >
         <div className="flex items-center gap-3">
-          <div className="bg-white w-12 h-12 rounded-sm flex items-center justify-center flex-shrink-0">
-            <img src={`${import.meta.env.BASE_URL}images/logo.png`} alt="Logo" className="w-full h-full object-contain block" />
-          </div>
+          <div
+            className="w-12 h-12 rounded-sm flex-shrink-0"
+            style={{
+              backgroundImage: `url(${import.meta.env.BASE_URL}images/logo.png)`,
+              backgroundSize: "130%",
+              backgroundPosition: "top center",
+              backgroundRepeat: "no-repeat",
+              backgroundColor: "white",
+            }}
+            role="img"
+            aria-label="Apatris Logo"
+          />
           <div>
             <h1 className="text-lg font-bold tracking-[0.15em] uppercase leading-none text-white">
               {t("header.title")}

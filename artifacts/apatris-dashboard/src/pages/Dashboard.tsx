@@ -220,7 +220,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 lg:p-8 z-10 max-w-[1600px] mx-auto w-full space-y-6">
+      <main className="flex-1 p-6 lg:p-8 z-10 max-w-[1600px] mx-auto w-full space-y-6" style={{ minWidth: 0, overflowX: "hidden" }}>
 
         {/* ── Tab Bar ── */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit">

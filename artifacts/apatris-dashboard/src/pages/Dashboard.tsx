@@ -108,7 +108,7 @@ export default function Dashboard() {
             className="w-12 h-12 rounded-full flex-shrink-0"
             style={{
               backgroundImage: `url(${import.meta.env.BASE_URL}images/logo.png)`,
-              backgroundSize: "145%",
+              backgroundSize: "160%",
               backgroundPosition: "top center",
               backgroundRepeat: "no-repeat",
               backgroundColor: "white",
@@ -120,7 +120,10 @@ export default function Dashboard() {
             <h1 className="text-lg font-bold tracking-[0.15em] uppercase leading-none text-white">
               {t("header.title")}
             </h1>
-            <p className="text-[9px] text-red-300 font-bold font-mono tracking-[0.2em] uppercase leading-none mt-0.5">
+            <p
+              className="text-[9px] text-red-500 font-bold font-mono tracking-[0.2em] uppercase leading-none mt-0.5"
+              style={{ textShadow: "0 0 8px rgba(239,68,68,0.7)" }}
+            >
               OUTSOURCING · CERTIFIED WELDERS
             </p>
           </div>
@@ -223,13 +226,13 @@ export default function Dashboard() {
             <table className="w-full text-left whitespace-nowrap">
               <thead className="bg-slate-700/60 border-b border-slate-600">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.operator")}</th>
-                  <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.spec")}</th>
-                  <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.trcExpiry")}</th>
-                  <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.workPermit")}</th>
-                  <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.bhp")}</th>
-                  <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.status")}</th>
-                  <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground text-right">{t("table.actions")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white text-right">{t("table.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono text-sm">
@@ -259,20 +262,20 @@ export default function Dashboard() {
                         <div className="text-xs text-muted-foreground">{worker.email}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="px-2 py-1 rounded bg-white/5 border border-white/10 text-xs">
-                          {worker.specialization}
+                        <span className="px-2 py-1 rounded bg-white/10 border border-white/20 text-xs font-bold text-white">
+                          {worker.specialization || '—'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-muted-foreground">
-                        {worker.trcExpiry ? format(parseISO(worker.trcExpiry), 'MMM d, yyyy') : '-'}
+                      <td className="px-6 py-4 text-white font-mono text-sm">
+                        {worker.trcExpiry ? format(parseISO(worker.trcExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}
                       </td>
-                      <td className="px-6 py-4 text-muted-foreground">
-                        {worker.workPermitExpiry ? format(parseISO(worker.workPermitExpiry), 'MMM d, yyyy') : '-'}
+                      <td className="px-6 py-4 text-white font-mono text-sm">
+                        {worker.workPermitExpiry ? format(parseISO(worker.workPermitExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}
                       </td>
                       <td className="px-6 py-4 font-mono text-sm">
                         {(() => {
                           const v = worker.bhpStatus;
-                          if (!v) return <span className="text-muted-foreground">-</span>;
+                          if (!v) return <span className="text-gray-500">—</span>;
                           const d = new Date(v);
                           if (!isNaN(d.getTime()) && v.includes('-')) {
                             const expired = d < new Date();

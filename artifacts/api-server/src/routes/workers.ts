@@ -254,7 +254,7 @@ async function scanBulkDocument(
     bhp: `Extract from this BHP/safety certificate. Return ONLY valid JSON:
 {"name":"worker full name or null","bhpExpiry":"YYYY-MM-DD or null"}`,
     certificate: `Extract from this TRC/welding certificate. Return ONLY valid JSON:
-{"name":"worker full name or null","trcExpiry":"YYYY-MM-DD or null","specialization":"Look for keywords MIG, TIG, ARC, FCAW, MMA, electrode. Return the matched keyword exactly (e.g. 'MIG' or 'TIG') or null if not found"}`,
+{"name":"worker full name or null","trcExpiry":"YYYY-MM-DD or null","specialization":"Scan for welding process keywords: TIG, MIG, MAG, MMA, FCAW, ARC, FABRICATOR, electrode. Return the matched keyword exactly as written (e.g. 'TIG' or 'MIG' or 'MAG' or 'FABRICATOR') or null if none found"}`,
     contract: `Extract from this employment contract. Return ONLY valid JSON:
 {"name":"worker full name or null","contractEndDate":"YYYY-MM-DD or null"}`,
   };

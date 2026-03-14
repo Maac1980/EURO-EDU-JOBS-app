@@ -8,7 +8,7 @@ import { StatusBadge } from "./ui/StatusBadge";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 
-const SPEC_OPTIONS = ["TIG", "MIG", "ARC / Electrode", "FCAW", "MMA"];
+const SPEC_OPTIONS = ["TIG", "MIG", "MAG", "MMA", "ARC / Electrode", "FCAW", "FABRICATOR"];
 
 interface WorkerProfilePanelProps {
   workerId: string | null;

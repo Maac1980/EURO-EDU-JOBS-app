@@ -29,7 +29,7 @@ const COLOR_MAP: Record<string, string> = {
   purple: "border-purple-500/40 bg-purple-500/10 hover:border-purple-400/70 text-purple-400",
 };
 
-const SPEC_OPTIONS = ["", "TIG", "MIG", "ARC / Electrode", "FCAW", "MMA"];
+const SPEC_OPTIONS = ["TIG", "MIG", "MAG", "MMA", "ARC / Electrode", "FCAW", "FABRICATOR"];
 
 function DropZone({
   category,

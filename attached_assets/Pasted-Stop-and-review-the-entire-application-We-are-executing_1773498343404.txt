@@ -1,0 +1,19 @@
+Stop and review the entire application. We are executing a massive, enterprise-grade upgrade covering UI accessibility, bulk AI onboarding, and automated compliance tracking. Execute these exact steps flawlessly:
+
+PART 1: INDIVIDUAL DRAWER UI & CONTRAST (Accessibility Polish)
+1. Lighten the Drawer: Change the side panel's background to a rich dark slate (`bg-slate-900`).
+2. High-Contrast Cards: Inside the drawer, change the 'COMPLIANCE TIMELINE' and 'DOCUMENT VAULT' section backgrounds to a lighter slate (`bg-slate-800`) with a subtle border (`border-slate-700`).
+3. Typography: Make all labels (e.g., 'TRC Expiry') a legible light gray (`text-gray-300`). Make the actual data values (dates, names) pure white and semi-bold (`text-white font-medium`).
+4. Buttons: Update 'Upload' buttons inside the drawer to have a brighter, dashed border (`border-2 border-dashed border-gray-500 hover:text-white`). Make the 'RENEW DOC' button pop with bright Apatris Red (`bg-red-600 hover:bg-red-700 text-white`).
+
+PART 2: GLOBAL 'AI SMART BULK UPLOAD' (Zero-Touch Onboarding)
+1. Global Button: Add a highly visible button at the top of the dashboard labeled '⚡ AI SMART UPLOAD' with an Apatris Red outline (`border border-red-600 text-red-500 hover:bg-red-600 hover:text-white`).
+2. Bulk Dropzone Modal: When clicked, open a modal with categorized drop zones for: 'Passport', 'BHP', 'Certificate', and 'Contract'.
+3. Extraction & Creation: When files are dropped, use OCR/Vision AI to extract the 'Full Name', 'TRC Expiry', and 'BHP EXPIRY'. Compile this into ONE single POST request to Airtable to create the row and attach all uploaded files to their respective columns.
+
+PART 3: EXPIRY NOTIFICATION ENGINE
+1. Dashboard Bell Icon: Add a notification bell icon in the top right header. Display a red dot if there are active expiry alerts.
+2. Tracking Logic: Build logic to check all 'TRC Expiry' and 'BHP EXPIRY' dates. If any date is exactly 30 days away or expired, flag it.
+3. Alert Dropdown: When the bell is clicked, show a dropdown list of all workers who are Critical or Non-Compliant.
+
+Do not break the existing table logic. Execute these UI, AI, and Notification updates simultaneously and confirm when the system is stable.

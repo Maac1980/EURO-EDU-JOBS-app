@@ -103,6 +103,23 @@ export async function updateRecord(
   return (await res.json()) as AirtableRecord;
 }
 
+export async function createRecord(fields: Record<string, unknown>): Promise<AirtableRecord> {
+  if (!AIRTABLE_BASE_ID) {
+    throw new Error("AIRTABLE_BASE_ID environment variable is not set");
+  }
+  const url = `${BASE_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE_NAME)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ fields }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Airtable error ${res.status}: ${text}`);
+  }
+  return (await res.json()) as AirtableRecord;
+}
+
 export async function uploadAttachmentToRecord(
   recordId: string,
   fieldName: string,

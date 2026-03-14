@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
 import { 
   Users, AlertTriangle, ShieldAlert, Clock, 
-  Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye
+  Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WorkerProfilePanel } from "@/components/WorkerProfilePanel";
 import { NotifyDialog, RenewDialog } from "@/components/ActionDialogs";
 import { ComplianceReportModal } from "@/components/ComplianceReportModal";
+import { BulkUploadModal } from "@/components/BulkUploadModal";
+import { NotificationBell } from "@/components/NotificationBell";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -65,6 +67,7 @@ export default function Dashboard() {
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [renewOpen, setRenewOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
   const { data: workersData, isLoading: isLoadingWorkers } = useGetWorkers({ 
     search: search || undefined, 
@@ -114,7 +117,17 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* ⚡ AI Smart Upload */}
+          <button
+            onClick={() => setBulkUploadOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white rounded-lg text-sm font-mono uppercase tracking-wide transition-all font-bold"
+          >
+            <Zap className="w-4 h-4" />
+            <span className="hidden sm:inline">AI Smart Upload</span>
+          </button>
+
+          {/* Report */}
           <button 
             onClick={() => setReportOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg text-sm font-mono uppercase tracking-wide transition-all text-primary hover:shadow-[0_0_15px_rgba(196,30,24,0.3)]"
@@ -122,6 +135,9 @@ export default function Dashboard() {
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">{t("header.generateReport")}</span>
           </button>
+
+          {/* Notification Bell */}
+          <NotificationBell onSelectWorker={(id) => setSelectedWorkerId(id)} />
 
           <LanguageToggle />
           
@@ -319,6 +335,7 @@ export default function Dashboard() {
       )}
 
       <ComplianceReportModal isOpen={reportOpen} onClose={() => setReportOpen(false)} />
+      <BulkUploadModal isOpen={bulkUploadOpen} onClose={() => setBulkUploadOpen(false)} />
     </div>
   );
 }

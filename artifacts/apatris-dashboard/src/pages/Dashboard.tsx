@@ -104,14 +104,15 @@ export default function Dashboard() {
       >
         <div className="flex items-center gap-3">
           <div className="relative">
-            <img src={`${import.meta.env.BASE_URL}images/logo.png`} alt="Logo" className="w-9 h-9 object-contain relative z-10" />
-            <div className="absolute inset-0 bg-primary/25 blur-lg rounded-full" />
+            <div className="bg-white p-1 rounded-md">
+              <img src={`${import.meta.env.BASE_URL}images/logo.png`} alt="Logo" className="w-9 h-9 object-contain block" />
+            </div>
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-[0.15em] uppercase leading-none text-white">
               {t("header.title")}
             </h1>
-            <p className="text-[9px] text-primary font-mono tracking-[0.2em] uppercase leading-none mt-0.5 opacity-80">
+            <p className="text-[9px] text-red-400 font-semibold font-mono tracking-[0.2em] uppercase leading-none mt-0.5">
               OUTSOURCING · CERTIFIED WELDERS
             </p>
           </div>
@@ -173,7 +174,7 @@ export default function Dashboard() {
               placeholder={t("table.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm font-mono text-white focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-500"
             />
           </div>
           
@@ -183,7 +184,7 @@ export default function Dashboard() {
               <select 
                 value={specialization}
                 onChange={(e) => setSpecialization(e.target.value)}
-                className="w-full pl-10 pr-8 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
               >
                 <option value="">{t("table.allSpecs")}</option>
                 <option value="TIG">{t("table.tigWelders")}</option>
@@ -196,7 +197,7 @@ export default function Dashboard() {
               <select 
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full pl-10 pr-8 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
               >
                 <option value="">{t("table.allStatuses")}</option>
                 <option value="compliant">{t("table.compliant")}</option>

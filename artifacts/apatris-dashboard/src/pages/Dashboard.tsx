@@ -426,22 +426,49 @@ export default function Dashboard() {
         </div>
 
         {/* Data Table */}
-        <div className="glass-panel rounded-xl tech-border table-scroll-container">
-          <div>
-            <table className="text-left whitespace-nowrap" style={{ minWidth: "1400px", width: "100%", tableLayout: "auto" }}>
+        {/* v=2026_FINAL */}
+        <div style={{
+          overflowX: "scroll",
+          overflowY: "visible",
+          WebkitOverflowScrolling: "touch",
+          borderRadius: "0.75rem",
+          border: "1px solid #334155",
+          background: "#1e293b",
+          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.4)",
+          width: "100%",
+        }} className="table-scroll-container">
+          <table style={{
+            tableLayout: "fixed",
+            width: "100%",
+            minWidth: "1500px",
+            borderCollapse: "collapse",
+          }} className="text-left">
+            <colgroup>
+              <col style={{ width: "210px" }} />
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "170px" }} />
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "150px" }} />
+            </colgroup>
               <thead className="bg-slate-700/60 border-b border-slate-600">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Total Hours</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned Site</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center min-w-[120px] border-l border-white/10" style={{ color: "#E9FF70" }}>ACTIONS</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Total Hours</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned Site</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono text-sm">
@@ -605,8 +632,7 @@ export default function Dashboard() {
                   ))
                 )}
               </tbody>
-            </table>
-          </div>
+          </table>
         </div>
 
         {/* ── Settings Tab ── */}

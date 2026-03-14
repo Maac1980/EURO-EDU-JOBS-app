@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useGetWorker } from "@workspace/api-client-react";
+import { useGetWorker, getGetWorkerQueryKey, getGetWorkersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetWorkerQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "./ui/StatusBadge";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
@@ -168,6 +167,7 @@ export function WorkerProfilePanel({
   const [isEditing, setIsEditing] = useState(false);
   const [editSpec, setEditSpec] = useState("");
   const [editProfession, setEditProfession] = useState("");
+  const [editSiteLocation, setEditSiteLocation] = useState("");
   const [saving, setSaving] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -182,6 +182,7 @@ export function WorkerProfilePanel({
     if (worker && isEditing) {
       setEditSpec(worker.specialization || "");
       setEditProfession(worker.specialization || "");
+      setEditSiteLocation((worker as any).siteLocation || "");
     }
   }, [worker, isEditing]);
 
@@ -200,17 +201,25 @@ export function WorkerProfilePanel({
     if (!workerId) return;
     setSaving(true);
     try {
+      const payload: Record<string, string> = {};
+      if (editSpec || editProfession) payload.specialization = editSpec || editProfession;
+      payload.siteLocation = editSiteLocation.trim();
       const res = await fetch(`${import.meta.env.BASE_URL}api/workers/${workerId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ specialization: editSpec || editProfession }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Save failed" }));
         throw new Error(err.error ?? "Save failed");
       }
       await queryClient.invalidateQueries({ queryKey: getGetWorkerQueryKey(workerId) });
-      toast({ title: "✓ Profile Updated", description: `Job Role set to: ${editSpec || editProfession}`, variant: "success" as any });
+      await queryClient.invalidateQueries({ queryKey: getGetWorkersQueryKey() });
+      const saved: string[] = [];
+      if (payload.specialization) saved.push(`Role: ${payload.specialization}`);
+      if (payload.siteLocation) saved.push(`Client: ${payload.siteLocation}`);
+      else saved.push("Client: Available");
+      toast({ title: "✓ Profile Updated", description: saved.join(" · "), variant: "success" as any });
       setIsEditing(false);
     } catch (err) {
       toast({ title: "Save Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
@@ -250,6 +259,7 @@ export function WorkerProfilePanel({
                     onClick={() => {
                       setEditSpec(worker.specialization || "");
                       setEditProfession(worker.specialization || "");
+                      setEditSiteLocation((worker as any).siteLocation || "");
                       setIsEditing(true);
                     }}
                     className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
@@ -320,6 +330,33 @@ export function WorkerProfilePanel({
                         className="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-amber-500/60 placeholder:text-gray-600"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: "#E9FF70" }}>
+                        <MapPin className="w-3 h-3" />
+                        Assigned Client / Site
+                      </label>
+                      <input
+                        type="text"
+                        value={editSiteLocation}
+                        onChange={(e) => setEditSiteLocation(e.target.value)}
+                        placeholder='Type any company name, e.g. Amazon, Berlin Hospital…'
+                        className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none placeholder:text-gray-600 transition-colors"
+                        style={{ border: "1px solid rgba(233,255,112,0.3)" }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = "#E9FF70"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(233,255,112,0.15)"; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.3)"; e.currentTarget.style.boxShadow = "none"; }}
+                      />
+                      {editSiteLocation.trim() && editSiteLocation.trim() !== "Available" && (
+                        <p className="text-[10px] font-mono mt-1.5" style={{ color: "#E9FF70" }}>
+                          Will save as: {editSiteLocation.trim()}
+                        </p>
+                      )}
+                      {(!editSiteLocation.trim() || editSiteLocation.trim() === "Available") && (
+                        <p className="text-[10px] font-mono mt-1.5 text-gray-600">
+                          Leave blank to mark as Available / Bench
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex gap-2 pt-1">
@@ -345,6 +382,19 @@ export function WorkerProfilePanel({
 
               {/* Contact */}
               <div className="grid grid-cols-1 gap-3 p-4 rounded-xl bg-slate-800 border border-slate-700">
+                <div className="flex items-center gap-3 text-sm">
+                  <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: "#E9FF70" }} />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Site</span>
+                    {(worker as any).siteLocation && (worker as any).siteLocation !== "Available" ? (
+                      <span className="font-mono text-sm font-semibold truncate" style={{ color: "#E9FF70" }}>
+                        {(worker as any).siteLocation}
+                      </span>
+                    ) : (
+                      <span className="font-mono text-sm text-gray-500 italic">Available / Bench</span>
+                    )}
+                  </div>
+                </div>
                 <div className="flex items-center gap-3 text-sm">
                   <Mail className="w-4 h-4 flex-shrink-0" style={{ color: "#E9FF70" }} />
                   <span className="text-gray-300 font-mono">

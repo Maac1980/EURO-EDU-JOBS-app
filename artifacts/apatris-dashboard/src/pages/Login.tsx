@@ -48,8 +48,14 @@ export default function Login() {
           <img
             src={`${import.meta.env.BASE_URL}images/logo_backup.png`}
             alt="Apatris Logo"
-            className="mx-auto mb-4 shield-pulse"
-            style={{ width: 160, height: 160, objectFit: "contain" }}
+            className="mx-auto mb-2 shield-pulse"
+            style={{
+              width: 200,
+              height: 200,
+              objectFit: "contain",
+              mixBlendMode: "screen",
+              filter: "contrast(2) brightness(1.6) saturate(1.2)",
+            }}
           />
           <h1 className="text-4xl font-bold text-white tracking-widest uppercase mb-1">
             APATRIS

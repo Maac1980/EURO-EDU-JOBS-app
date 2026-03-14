@@ -202,20 +202,7 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Credentials hint */}
-          <div
-            className="mt-6 p-3 rounded-xl text-center space-y-1"
-            style={{ background: "#f5f5f5", border: "1px solid #e5e5e5" }}
-          >
-            <p className="text-xs font-mono" style={{ color: "#aaa" }}>
-              {t("login.defaultCredentials")}
-            </p>
-            <p className="text-xs font-mono font-bold" style={{ color: DARK }}>
-              {(import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? "admin@euro-edu-jobs.eu"} &nbsp;/&nbsp; ••••••
-            </p>
-          </div>
-
-          <p className="text-center text-[10px] font-mono mt-5" style={{ color: "#ccc" }}>
+          <p className="text-center text-[10px] font-mono mt-6" style={{ color: "#ccc" }}>
             {t("login.unauthorized")}
           </p>
         </div>

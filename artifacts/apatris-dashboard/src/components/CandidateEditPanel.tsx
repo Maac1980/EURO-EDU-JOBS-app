@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, Plus } from "lucide-react";
+import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, MapPin, Clock, Plus } from "lucide-react";
 import { useGetWorker } from "@workspace/api-client-react";
 import { getGetWorkerQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -478,41 +478,35 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               </p>
             </div>
 
-            {/* ── SECTION 4: Deployment ── */}
+            {/* ── SECTION 4: Client Assignment ── */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-px flex-1" style={{ background: LIME_BORDER }} />
-                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>Assign To Site</span>
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>Assign To Client</span>
                 <div className="h-px flex-1" style={{ background: LIME_BORDER }} />
               </div>
               <p className="text-[10px] text-gray-500 font-mono mb-3">
-                Track where this candidate is currently deployed or mark as available.
+                Enter any company name (e.g. "Amazon Logistics", "Berlin Hospital"). Leave blank or type "Available" to mark as unassigned.
               </p>
               <div className="relative">
-                <select
+                <input
+                  type="text"
                   value={siteLocation}
                   onChange={(e) => setSiteLocation(e.target.value)}
-                  className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono appearance-none focus:outline-none transition-colors pr-8"
+                  placeholder='e.g. Amazon Logistics, Berlin Hospital, Available…'
+                  className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none placeholder:text-gray-600 transition-colors"
                   style={{ border: `1px solid ${LIME_BORDER}` }}
                   onFocus={(e) => { e.currentTarget.style.borderColor = LIME; }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = LIME_BORDER; }}
-                >
-                  <option value="">— Select Deployment Status —</option>
-                  <option value="Available">Available / Bench</option>
-                  <option value="Site A">Site A</option>
-                  <option value="Site B">Site B</option>
-                  <option value="Site C">Site C</option>
-                  <option value="Internal Project">Internal Project</option>
-                </select>
-                <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                />
               </div>
-              {siteLocation && siteLocation !== "Available" && (
+              {siteLocation && siteLocation.trim() !== "" && siteLocation !== "Available" && (
                 <div
                   className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold"
                   style={{ background: "#E9FF70", color: "#333333" }}
                 >
                   <MapPin className="w-3.5 h-3.5" />
-                  Deploying to: {siteLocation}
+                  Assigning to: {siteLocation}
                 </div>
               )}
             </div>

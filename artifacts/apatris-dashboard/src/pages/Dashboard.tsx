@@ -105,6 +105,15 @@ export default function Dashboard() {
   
   const { data: stats } = useGetWorkerStats();
 
+  // Derive unique client/site names dynamically from live data
+  const uniqueClients = Array.from(
+    new Set(
+      (workersData?.workers ?? [])
+        .map((w) => (w as any).siteLocation as string | undefined)
+        .filter((s): s is string => !!s && s !== "Available")
+    )
+  ).sort();
+
   const handleNotify = (e: React.MouseEvent, worker: any) => {
     e.stopPropagation();
     setActionWorker(worker);
@@ -398,7 +407,7 @@ export default function Dashboard() {
                 <option value="non-compliant">{t("table.nonCompliant")}</option>
               </select>
             </div>
-            <div className="relative flex-1 md:w-44">
+            <div className="relative flex-1 md:w-52">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <select
                 value={siteFilter}
@@ -406,12 +415,11 @@ export default function Dashboard() {
                 className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
                 style={siteFilter ? { borderColor: "rgba(233,255,112,0.5)", color: "#E9FF70" } : {}}
               >
-                <option value="">All Sites</option>
+                <option value="">All Clients</option>
                 <option value="Available">Available / Bench</option>
-                <option value="Site A">Site A</option>
-                <option value="Site B">Site B</option>
-                <option value="Site C">Site C</option>
-                <option value="Internal Project">Internal Project</option>
+                {uniqueClients.map((client) => (
+                  <option key={client} value={client}>{client}</option>
+                ))}
               </select>
             </div>
           </div>

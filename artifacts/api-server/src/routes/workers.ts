@@ -536,6 +536,7 @@ router.patch("/workers/:id", async (req, res) => {
     if (body.specialization !== undefined) airtableFields["Specialization"] = body.specialization;
     if (body.yearsOfExperience !== undefined) airtableFields["Years of Experience"] = body.yearsOfExperience;
     if (body.highestQualification !== undefined) airtableFields["Highest Qualification"] = body.highestQualification;
+    if (body.siteLocation !== undefined) airtableFields["Site Location"] = body.siteLocation;
 
     const updated = await updateRecord(req.params.id, airtableFields);
     res.json(mapRecordToWorker(updated));

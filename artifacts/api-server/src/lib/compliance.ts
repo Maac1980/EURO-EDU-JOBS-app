@@ -24,6 +24,7 @@ export interface Worker {
   contractAttachments: Attachment[];
   yearsOfExperience: string | null;
   highestQualification: string | null;
+  siteLocation: string | null;
 }
 
 function getString(val: unknown): string | null {
@@ -181,6 +182,10 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     resolveField(f, ["Highest Qualification", "Qualification", "HighestQualification", "Education"])
   );
 
+  const siteLocation = getString(
+    resolveField(f, ["Site Location", "Assigned To", "SiteLocation", "AssignedTo", "Site", "Location"])
+  );
+
   const partial: Partial<Worker> = {
     trcExpiry,
     workPermitExpiry,
@@ -206,6 +211,7 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     contractAttachments,
     yearsOfExperience,
     highestQualification,
+    siteLocation,
   };
 }
 

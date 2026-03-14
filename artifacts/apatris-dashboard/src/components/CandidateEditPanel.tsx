@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown } from "lucide-react";
+import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin } from "lucide-react";
 import { useGetWorker } from "@workspace/api-client-react";
 import { getGetWorkerQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -164,6 +164,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const [customJobRole, setCustomJobRole] = useState("");
   const [experience, setExperience] = useState("");
   const [qualification, setQualification] = useState("");
+  const [siteLocation, setSiteLocation] = useState("");
   const [saving, setSaving] = useState(false);
 
   const isOpen = !!workerId;
@@ -174,6 +175,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       setCustomJobRole("");
       setExperience((worker as any).yearsOfExperience || "");
       setQualification((worker as any).highestQualification || "");
+      setSiteLocation((worker as any).siteLocation || "");
     }
   }, [worker]);
 
@@ -194,6 +196,8 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       if (experience.trim()) payload.yearsOfExperience = experience.trim();
       if (qualification.trim()) payload.highestQualification = qualification.trim();
 
+      if (siteLocation !== undefined) payload.siteLocation = siteLocation;
+
       if (Object.keys(payload).length === 0) {
         toast({ title: "Nothing to save", description: "Fill in at least one field before saving.", variant: "destructive" });
         return;
@@ -213,6 +217,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       if (payload.specialization) saved.push(`Job Role: ${payload.specialization}`);
       if (payload.yearsOfExperience) saved.push(`Experience: ${payload.yearsOfExperience} yrs`);
       if (payload.highestQualification) saved.push(`Qualification: ${payload.highestQualification}`);
+      if (payload.siteLocation !== undefined) saved.push(`Site: ${payload.siteLocation || "Available"}`);
       toast({
         title: "✓ Candidate Record Updated",
         description: saved.join(" · "),
@@ -406,6 +411,45 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                   />
                 </div>
               </div>
+            </div>
+
+            {/* ── SECTION 3: Deployment ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-px flex-1" style={{ background: LIME_BORDER }} />
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>Assign To Site</span>
+                <div className="h-px flex-1" style={{ background: LIME_BORDER }} />
+              </div>
+              <p className="text-[10px] text-gray-500 font-mono mb-3">
+                Track where this candidate is currently deployed or mark as available.
+              </p>
+              <div className="relative">
+                <select
+                  value={siteLocation}
+                  onChange={(e) => setSiteLocation(e.target.value)}
+                  className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono appearance-none focus:outline-none transition-colors pr-8"
+                  style={{ border: `1px solid ${LIME_BORDER}` }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = LIME; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = LIME_BORDER; }}
+                >
+                  <option value="">— Select Deployment Status —</option>
+                  <option value="Available">Available / Bench</option>
+                  <option value="Site A">Site A</option>
+                  <option value="Site B">Site B</option>
+                  <option value="Site C">Site C</option>
+                  <option value="Internal Project">Internal Project</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              {siteLocation && siteLocation !== "Available" && (
+                <div
+                  className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold"
+                  style={{ background: "#E9FF70", color: "#333333" }}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  Deploying to: {siteLocation}
+                </div>
+              )}
             </div>
           </div>
         )}

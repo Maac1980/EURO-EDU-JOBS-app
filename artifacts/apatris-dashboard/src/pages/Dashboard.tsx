@@ -3,7 +3,8 @@ import { useAuth } from "@/lib/auth";
 import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
 import { 
   Users, AlertTriangle, ShieldAlert, Clock, 
-  Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink
+  Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
+  MapPin, UserCheck, UserMinus, Building2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -59,9 +60,11 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   
+  const [activeTab, setActiveTab] = useState<"compliance" | "deployment">("compliance");
   const [search, setSearch] = useState("");
   const [specialization, setSpecialization] = useState("");
   const [status, setStatus] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
 
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [panelEditMode, setPanelEditMode] = useState(false);
@@ -186,17 +189,141 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 lg:p-8 z-10 max-w-[1600px] mx-auto w-full space-y-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard title={t("stats.totalWorkforce")} value={stats?.total || "0"} icon={Users} />
-          <StatCard title={t("stats.critical")} value={stats?.critical || "0"} icon={ShieldAlert} variant="critical" />
-          <StatCard title={t("stats.upcomingRenewals")} value={stats?.warning || "0"} icon={Clock} variant="warning" />
-          <StatCard title={t("stats.nonCompliant")} value={stats?.nonCompliant || "0"} icon={AlertTriangle} variant="critical" />
+      <main className="flex-1 p-6 lg:p-8 z-10 max-w-[1600px] mx-auto w-full space-y-6">
+
+        {/* ── Tab Bar ── */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit">
+          {(["compliance", "deployment"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+              style={
+                activeTab === tab
+                  ? { background: "#E9FF70", color: "#333333", boxShadow: "0 0 14px rgba(233,255,112,0.25)" }
+                  : { color: "rgba(255,255,255,0.45)" }
+              }
+            >
+              {tab === "compliance" ? <ShieldAlert className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
+              {tab === "compliance" ? "Compliance" : "Deployment"}
+            </button>
+          ))}
         </div>
 
+        {/* Stats Grid — Compliance view */}
+        {activeTab === "compliance" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard title={t("stats.totalWorkforce")} value={stats?.total || "0"} icon={Users} />
+            <StatCard title={t("stats.critical")} value={stats?.critical || "0"} icon={ShieldAlert} variant="critical" />
+            <StatCard title={t("stats.upcomingRenewals")} value={stats?.warning || "0"} icon={Clock} variant="warning" />
+            <StatCard title={t("stats.nonCompliant")} value={stats?.nonCompliant || "0"} icon={AlertTriangle} variant="critical" />
+          </div>
+        )}
+
+        {/* Deployment summary cards */}
+        {activeTab === "deployment" && (() => {
+          const all = workersData?.workers ?? [];
+          const deployed = all.filter((w) => (w as any).siteLocation && (w as any).siteLocation !== "Available");
+          const bench = all.filter((w) => !(w as any).siteLocation || (w as any).siteLocation === "Available");
+          const sites = Array.from(new Set(deployed.map((w) => (w as any).siteLocation as string))).filter(Boolean);
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Total Deployed */}
+                <div className="glass-panel rounded-xl p-5 border" style={{ borderColor: "rgba(233,255,112,0.25)" }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Deployed</p>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#E9FF70" }}>
+                      <UserCheck className="w-4 h-4" style={{ color: "#333333" }} />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-white">{deployed.length}</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">Active site assignments</p>
+                </div>
+
+                {/* Bench / Available */}
+                <div className="glass-panel rounded-xl p-5 border border-white/8">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bench / Available</p>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700">
+                      <UserMinus className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-white">{bench.length}</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">No site assigned</p>
+                </div>
+
+                {/* Total Candidates */}
+                <div className="glass-panel rounded-xl p-5 border border-white/8">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Candidates</p>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700">
+                      <Users className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-white">{all.length}</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">Across all statuses</p>
+                </div>
+
+                {/* Active Sites */}
+                <div className="glass-panel rounded-xl p-5 border border-white/8">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Sites</p>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700">
+                      <Building2 className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-white">{sites.length}</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">Distinct locations</p>
+                </div>
+              </div>
+
+              {/* Per-site breakdown */}
+              {sites.length > 0 && (
+                <div className="glass-panel rounded-xl p-5 border" style={{ borderColor: "rgba(233,255,112,0.12)" }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-4" style={{ color: "#E9FF70" }}>Site Breakdown</p>
+                  <div className="flex flex-wrap gap-3">
+                    {sites.map((site) => {
+                      const count = deployed.filter((w) => (w as any).siteLocation === site).length;
+                      return (
+                        <button
+                          key={site}
+                          onClick={() => { setSiteFilter(siteFilter === site ? "" : site); }}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all"
+                          style={
+                            siteFilter === site
+                              ? { background: "#E9FF70", color: "#333333" }
+                              : { background: "rgba(233,255,112,0.08)", border: "1px solid rgba(233,255,112,0.22)", color: "#E9FF70" }
+                          }
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          {site}
+                          <span
+                            className="px-1.5 py-0.5 rounded text-[10px] font-black"
+                            style={siteFilter === site ? { background: "#333333", color: "#E9FF70" } : { background: "rgba(233,255,112,0.2)", color: "#E9FF70" }}
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {siteFilter && (
+                      <button
+                        onClick={() => setSiteFilter("")}
+                        className="px-3 py-2 rounded-lg text-xs font-bold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-all"
+                      >
+                        Clear filter ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Command Bar */}
-        <div className="glass-panel p-4 rounded-xl flex flex-col md:flex-row gap-4 items-center justify-between mt-8">
+        <div className="glass-panel p-4 rounded-xl flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="flex-1 w-full relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input 
@@ -210,8 +337,8 @@ export default function Dashboard() {
             />
           </div>
           
-          <div className="flex gap-4 w-full md:w-auto">
-            <div className="relative flex-1 md:w-48">
+          <div className="flex gap-3 w-full md:w-auto flex-wrap">
+            <div className="relative flex-1 md:w-44">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <select 
                 value={specialization}
@@ -224,7 +351,7 @@ export default function Dashboard() {
                 <option value="ARC">{t("table.arcWelders")}</option>
               </select>
             </div>
-            <div className="relative flex-1 md:w-48">
+            <div className="relative flex-1 md:w-44">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <select 
                 value={status}
@@ -236,6 +363,22 @@ export default function Dashboard() {
                 <option value="warning">{t("table.warning")}</option>
                 <option value="critical">{t("table.critical")}</option>
                 <option value="non-compliant">{t("table.nonCompliant")}</option>
+              </select>
+            </div>
+            <div className="relative flex-1 md:w-44">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <select
+                value={siteFilter}
+                onChange={(e) => setSiteFilter(e.target.value)}
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
+                style={siteFilter ? { borderColor: "rgba(233,255,112,0.5)", color: "#E9FF70" } : {}}
+              >
+                <option value="">All Sites</option>
+                <option value="Available">Available / Bench</option>
+                <option value="Site A">Site A</option>
+                <option value="Site B">Site B</option>
+                <option value="Site C">Site C</option>
+                <option value="Internal Project">Internal Project</option>
               </select>
             </div>
           </div>
@@ -254,6 +397,7 @@ export default function Dashboard() {
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned To</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white text-right">{t("table.actions")}</th>
                 </tr>
@@ -262,19 +406,26 @@ export default function Dashboard() {
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={9} className="px-6 py-6">
+                      <td colSpan={10} className="px-6 py-6">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
                   ))
                 ) : workersData?.workers.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground font-sans">
+                    <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground font-sans">
                       {t("table.noResults")}
                     </td>
                   </tr>
                 ) : (
-                  workersData?.workers.map((worker) => (
+                  (workersData?.workers ?? [])
+                    .filter((w) => {
+                      if (!siteFilter) return true;
+                      const site = (w as any).siteLocation as string | null;
+                      if (siteFilter === "Available") return !site || site === "Available";
+                      return site === siteFilter;
+                    })
+                    .map((worker) => (
                     <tr 
                       key={worker.id} 
                       onClick={() => setSelectedWorkerId(worker.id)}
@@ -329,6 +480,30 @@ export default function Dashboard() {
                             {(worker as any).highestQualification}
                           </span>
                         ) : <span className="text-gray-500">—</span>}
+                      </td>
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const site = (worker as any).siteLocation as string | null;
+                          if (!site || site === "Available") {
+                            return (
+                              <span className="flex items-center gap-1.5 text-xs font-mono text-gray-500">
+                                <UserMinus className="w-3 h-3" />
+                                Available
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSiteFilter(siteFilter === site ? "" : site); }}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black transition-all hover:opacity-80"
+                              style={{ background: "#E9FF70", color: "#333333" }}
+                              title={`Filter by ${site}`}
+                            >
+                              <MapPin className="w-3 h-3" />
+                              {site}
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={worker.complianceStatus} />

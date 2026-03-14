@@ -45,16 +45,30 @@ export default function Login() {
 
       <div className="w-full max-w-md z-10 p-8 animate-fadeIn">
         <div className="mb-10 text-center">
-          <div className="mx-auto w-36 h-36 bg-black/60 border border-primary/30 rounded-3xl flex items-center justify-center mb-6 shield-pulse">
+          <div className="mx-auto mb-2 shield-pulse" style={{
+            width: 220,
+            height: 150,
+            overflow: "hidden",
+            position: "relative",
+            WebkitMaskImage: "radial-gradient(ellipse 80% 90% at 50% 55%, black 55%, transparent 85%)",
+            maskImage: "radial-gradient(ellipse 80% 90% at 50% 55%, black 55%, transparent 85%)",
+          }}>
             <img
-              src={`${import.meta.env.BASE_URL}images/logo.png`}
+              src={`${import.meta.env.BASE_URL}images/logo_backup.png`}
               alt="Apatris Logo"
-              className="w-28 h-28 object-contain"
+              style={{
+                width: 220,
+                height: 280,
+                objectFit: "cover",
+                objectPosition: "50% 12%",
+                mixBlendMode: "screen",
+                filter: "contrast(3) brightness(1.3)",
+                position: "absolute",
+                top: -15,
+                left: 0,
+              }}
             />
           </div>
-          <h1 className="text-4xl font-bold text-white tracking-widest uppercase">
-            {t("login.title")}
-          </h1>
           <p className="text-primary font-bold tracking-[0.25em] text-sm uppercase mt-1">
             OUTSOURCING · CERTIFIED WELDERS
           </p>

@@ -45,31 +45,16 @@ export default function Login() {
 
       <div className="w-full max-w-md z-10 p-8 animate-fadeIn">
         <div className="mb-10 text-center">
-          <div className="mx-auto mb-2 shield-pulse" style={{
-            width: 200,
-            height: 115,
-            overflow: "hidden",
-            position: "relative",
-            WebkitMaskImage: "radial-gradient(ellipse 75% 85% at 50% 45%, black 50%, transparent 80%)",
-            maskImage: "radial-gradient(ellipse 75% 85% at 50% 45%, black 50%, transparent 80%)",
-          }}>
-            <img
-              src={`${import.meta.env.BASE_URL}images/logo_backup.png`}
-              alt="Apatris Logo"
-              style={{
-                width: 200,
-                height: 200,
-                objectFit: "cover",
-                objectPosition: "50% 5%",
-                mixBlendMode: "screen",
-                filter: "contrast(4) brightness(1.4)",
-                position: "absolute",
-                top: 0,
-                left: 0,
-              }}
-            />
-          </div>
-          <p className="text-primary font-bold tracking-[0.25em] text-sm uppercase mt-1">
+          <img
+            src={`${import.meta.env.BASE_URL}images/logo_backup.png`}
+            alt="Apatris Logo"
+            className="mx-auto mb-4 shield-pulse"
+            style={{ width: 160, height: 160, objectFit: "contain" }}
+          />
+          <h1 className="text-4xl font-bold text-white tracking-widest uppercase mb-1">
+            APATRIS
+          </h1>
+          <p className="text-primary font-bold tracking-[0.25em] text-sm uppercase">
             OUTSOURCING · CERTIFIED WELDERS
           </p>
           <div className="mt-4 flex items-center gap-3 justify-center">

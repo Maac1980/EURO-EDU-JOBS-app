@@ -62,10 +62,10 @@ export default function Login() {
             EURO EDU JOBS
           </h1>
           <p
-            className="text-2xl font-semibold mt-4"
-            style={{ color: DARK, opacity: 0.75 }}
+            className="text-sm font-bold mt-4 uppercase tracking-widest leading-relaxed text-center"
+            style={{ color: DARK, opacity: 0.65 }}
           >
-            Hiring is simple.
+            Your reliable HR partner in Europe.<br />We make hiring simple.
           </p>
           <div className="mt-10 flex items-center gap-4 justify-center">
             <div className="h-px w-16" style={{ background: DARK, opacity: 0.2 }} />

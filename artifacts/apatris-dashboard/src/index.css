@@ -149,7 +149,7 @@
   --chart-4: 0 85% 58%;
   --chart-5: 28 95% 52%;
 
-  --app-font-sans: 'Inter', system-ui, sans-serif;
+  --app-font-sans: 'Montserrat', 'Inter', system-ui, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --radius: 0.5rem;

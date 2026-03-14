@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
 import { 
   Users, AlertTriangle, ShieldAlert, Clock, 
-  Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil
+  Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -123,9 +123,9 @@ export default function Dashboard() {
             </h1>
             <p
               className="text-[9px] font-bold font-mono tracking-[0.18em] uppercase leading-none mt-0.5"
-              style={{ color: "#E9FF70", opacity: 0.7 }}
+              style={{ color: "#E9FF70", opacity: 0.75 }}
             >
-              Hiring is simple.
+              YOUR RELIABLE HR PARTNER IN EUROPE. WE MAKE HIRING SIMPLE.
             </p>
           </div>
         </div>
@@ -164,6 +164,19 @@ export default function Dashboard() {
               <p className="text-sm font-bold text-white leading-tight">{user?.name}</p>
               <p className="text-xs text-primary font-mono">{user?.role}</p>
             </div>
+            <a
+              href="https://edu-jobs.eu"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
+              style={{ border: "1px solid rgba(233,255,112,0.35)", color: "#E9FF70" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "#E9FF70"; (e.currentTarget as HTMLAnchorElement).style.color = "#333333"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = ""; (e.currentTarget as HTMLAnchorElement).style.color = "#E9FF70"; }}
+              title="Back to Main Website"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Main Website</span>
+            </a>
             <button onClick={logout} title={t("header.logout")} className="p-2 text-muted-foreground hover:text-white transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
@@ -189,7 +202,9 @@ export default function Dashboard() {
               placeholder={t("table.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-500"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white focus:outline-none transition-colors placeholder:text-gray-500"
+              onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.7)"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(233,255,112,0.12)"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.boxShadow = ""; }}
             />
           </div>
           

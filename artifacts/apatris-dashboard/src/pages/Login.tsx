@@ -29,15 +29,15 @@ export default function Login() {
       {/* ── Left: Brand image ───────────────────────────────── */}
       <div className="hidden lg:flex flex-1 relative overflow-hidden">
         <img
-          src={`${import.meta.env.BASE_URL}images/brand-bg.png`}
-          alt="Apatris Brand"
+          src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80"
+          alt="EURO EDU JOBS"
           className="w-full h-full object-cover object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-background" />
         <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-background/20" />
         <div className="absolute bottom-10 left-10 right-16">
           <p className="text-white/30 font-mono text-xs tracking-widest uppercase">
-            APATRIS · SPECIALIST WELDING · EST. WARSAW
+            EURO EDU JOBS · INTERNATIONAL EDUCATION RECRUITMENT · EST. EUROPE
           </p>
         </div>
       </div>
@@ -59,12 +59,23 @@ export default function Login() {
 
           {/* Brand mark */}
           <div className="text-center mb-8">
-            <div className="w-14 h-1 bg-red-600 mx-auto mb-6 rounded-full" />
-            <h1 className="text-4xl font-bold text-white tracking-[0.2em] uppercase leading-none">
-              APATRIS
+            <div className="w-14 h-1 mx-auto mb-6 rounded-full" style={{ background: "#1e40af" }} />
+            <div
+              className="w-16 h-16 rounded-full bg-white flex items-center justify-center mx-auto mb-4"
+              style={{ boxShadow: "0 0 0 3px #1e40af, 0 0 20px rgba(30,64,175,0.25)" }}
+            >
+              <span
+                className="text-2xl font-black tracking-tighter"
+                style={{ color: "#1e40af", fontFamily: "Arial Black, Arial, sans-serif" }}
+              >
+                EEJ
+              </span>
+            </div>
+            <h1 className="text-3xl font-bold text-white tracking-[0.15em] uppercase leading-none">
+              EURO EDU JOBS
             </h1>
             <p className="text-gray-400 text-sm tracking-wider uppercase mt-3 leading-snug">
-              Precision Welding Outsourcing.&nbsp;Your vision, expertly welded.
+              International Education Recruitment Portal
             </p>
             <div className="flex items-center gap-3 mt-5">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/10" />
@@ -80,7 +91,7 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="space-y-5">
 
               {error && (
-                <div className="p-3 rounded-lg bg-red-900/30 border border-red-500/40 text-red-400 text-sm text-center">
+                <div className="p-3 rounded-lg border text-sm text-center" style={{ background: "rgba(30,64,175,0.15)", borderColor: "rgba(30,64,175,0.4)", color: "#93c5fd" }}>
                   {error}
                 </div>
               )}
@@ -93,8 +104,11 @@ export default function Login() {
                 <input
                   type="email"
                   required
-                  className="w-full bg-gray-800 border border-gray-500 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50 transition-all placeholder:text-gray-500"
-                  placeholder="admin@apatris.com"
+                  className="w-full bg-gray-800 border border-gray-500 rounded-lg px-4 py-3 text-white text-sm transition-all placeholder:text-gray-500"
+                  style={{ outline: "none" }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "#1e40af"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(30,64,175,0.3)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.boxShadow = ""; }}
+                  placeholder="admin@euroedu.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -108,7 +122,10 @@ export default function Login() {
                 <input
                   type="password"
                   required
-                  className="w-full bg-gray-800 border border-gray-500 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50 transition-all placeholder:text-gray-500"
+                  className="w-full bg-gray-800 border border-gray-500 rounded-lg px-4 py-3 text-white text-sm transition-all placeholder:text-gray-500"
+                  style={{ outline: "none" }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "#1e40af"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(30,64,175,0.3)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.boxShadow = ""; }}
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -118,7 +135,8 @@ export default function Login() {
               {/* Submit */}
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 transition-colors rounded-lg px-4 py-3 text-white font-bold uppercase tracking-widest text-sm mt-2 shadow-lg shadow-red-900/30"
+                className="w-full flex items-center justify-center gap-2 transition-all rounded-lg px-4 py-3 text-white font-bold uppercase tracking-widest text-sm mt-2 shadow-lg hover:opacity-90"
+                style={{ background: "#1e40af", boxShadow: "0 4px 20px rgba(30,64,175,0.35)" }}
               >
                 <Shield className="w-4 h-4" />
                 <span>{t("login.submit")}</span>
@@ -129,7 +147,7 @@ export default function Login() {
           {/* Default credentials hint */}
           <div className="mt-5 p-3 rounded-lg border border-white/5 bg-white/3 text-center space-y-1">
             <p className="text-xs font-mono text-gray-500">{t("login.defaultCredentials")}</p>
-            <p className="text-xs font-mono text-red-400/80">admin@apatris.com &nbsp;/&nbsp; apatris2024</p>
+            <p className="text-xs font-mono" style={{ color: "rgba(147,197,253,0.8)" }}>admin@apatris.com &nbsp;/&nbsp; apatris2024</p>
           </div>
 
           <p className="text-center text-xs font-mono text-gray-600 mt-4">

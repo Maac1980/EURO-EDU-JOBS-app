@@ -184,10 +184,10 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleClose} />
       <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-white/10 bg-gradient-to-r from-red-900/20 to-transparent">
+        <div className="flex items-center justify-between p-5 border-b border-white/10 bg-gradient-to-r from-blue-900/20 to-transparent">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-red-600/20 border border-red-500/30 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-red-400" />
+            <div className="w-9 h-9 rounded-lg bg-blue-700/20 border border-blue-600/30 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <h2 className="text-base font-bold text-white tracking-wide">AI SMART BULK UPLOAD</h2>
@@ -233,7 +233,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                 <select
                   value={profession}
                   onChange={(e) => setProfession(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-red-500/60"
+                  className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-500/60"
                 >
                   <option value="">— Select or leave for AI —</option>
                   {SPEC_OPTIONS.filter(Boolean).map((o) => (
@@ -247,7 +247,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                     placeholder="Type specialization…"
                     value={customProfession}
                     onChange={(e) => setCustomProfession(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-red-500/60 placeholder:text-gray-600"
+                    className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-500/60 placeholder:text-gray-600"
                   />
                 )}
               </div>

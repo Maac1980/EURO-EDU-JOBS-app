@@ -260,7 +260,7 @@ export function WorkerProfilePanel({
                 </button>
               </div>
               <div className="flex items-center gap-4 mt-4">
-                <div className="w-16 h-16 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-400 text-xl font-bold uppercase">
+                <div className="w-16 h-16 rounded-xl bg-blue-700/20 border border-blue-600/30 flex items-center justify-center text-blue-400 text-xl font-bold uppercase">
                   {worker.name.split(" ").map((n: string) => n[0]).join("")}
                 </div>
                 <div>

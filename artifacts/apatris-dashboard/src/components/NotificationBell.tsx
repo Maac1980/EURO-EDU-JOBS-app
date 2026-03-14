@@ -97,7 +97,7 @@ export function NotificationBell({ onSelectWorker }: { onSelectWorker: (id: stri
               <span className="text-sm font-bold text-white tracking-wide">EXPIRY ALERTS</span>
             </div>
             {hasAlerts && (
-              <span className="px-2 py-0.5 bg-red-600/30 text-red-400 text-xs font-bold rounded-full border border-red-500/30">
+              <span className="px-2 py-0.5 bg-blue-700/30 text-blue-400 text-xs font-bold rounded-full border border-blue-600/30">
                 {alerts.length}
               </span>
             )}

@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Ar5YmVdn5tYCJYkjcka5G"
+uri = "file:///tmp/apatris-dashboard.tar.gz"
+type = "unspecified"
+title = "EEJ Dashboard (Frontend)"
+
+[[outputs]]
+id = "DgRsYDkxCUpigoFoftqlj"
+uri = "file:///tmp/api-server.tar.gz"
+type = "unspecified"
+title = "EEJ API Server (Backend)"

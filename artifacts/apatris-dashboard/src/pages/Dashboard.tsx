@@ -431,23 +431,23 @@ export default function Dashboard() {
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Total Hours</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned To</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned Site</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center min-w-[100px]" style={{ color: "#E9FF70" }}>Actions</th>
+                  <th className="sticky right-0 z-10 px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center min-w-[110px] bg-slate-700/95 border-l border-white/10" style={{ color: "#E9FF70" }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono text-sm">
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={10} className="px-6 py-6">
+                      <td colSpan={11} className="px-6 py-6">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
                   ))
                 ) : workersData?.workers.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground font-sans">
+                    <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground font-sans">
                       {t("table.noResults")}
                     </td>
                   </tr>
@@ -556,13 +556,13 @@ export default function Dashboard() {
                       <td className="px-6 py-4">
                         <StatusBadge status={worker.complianceStatus} />
                       </td>
-                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="sticky right-0 z-10 px-4 py-3 text-center border-l border-white/10 bg-slate-900/95 group-hover:bg-slate-800/95 transition-colors" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-col items-center gap-1.5">
-                          {/* Primary EDIT action — always visible, lime-filled */}
+                          {/* Primary EDIT action — sticky, always visible, lime-filled */}
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditPanelWorkerId(worker.id); }}
-                            className="flex items-center justify-center gap-1.5 w-full px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all hover:opacity-85 active:scale-95"
-                            style={{ background: "#E9FF70", color: "#333333", minWidth: "80px", boxShadow: "0 2px 8px rgba(233,255,112,0.25)" }}
+                            className="flex items-center justify-center gap-1.5 w-full px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all hover:brightness-110 active:scale-95"
+                            style={{ background: "#E9FF70", color: "#333333", minWidth: "84px", boxShadow: "0 2px 12px rgba(233,255,112,0.35)" }}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             EDIT

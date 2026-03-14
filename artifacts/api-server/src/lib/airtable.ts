@@ -158,6 +158,7 @@ const EEJ_DESIRED_FIELDS: Array<{ name: string; type: string; options?: Record<s
   { name: "Assigned Site", type: "singleLineText" },
   { name: "Email", type: "email" },
   { name: "Phone", type: "phoneNumber" },
+  { name: "TOTAL HOURS", type: "number", options: { precision: 1 } },
 ];
 
 export async function ensureEejSchema(): Promise<{ created: string[]; existing: string[]; errors: string[] }> {

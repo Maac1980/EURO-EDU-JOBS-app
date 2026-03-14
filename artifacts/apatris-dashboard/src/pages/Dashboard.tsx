@@ -430,6 +430,7 @@ export default function Dashboard() {
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
+                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Total Hours</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned To</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center min-w-[100px]" style={{ color: "#E9FF70" }}>Actions</th>
@@ -513,6 +514,20 @@ export default function Dashboard() {
                             {(worker as any).highestQualification}
                           </span>
                         ) : <span className="text-gray-500">—</span>}
+                      </td>
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const hrs = (worker as any).totalHours as number | null;
+                          if (hrs === null || hrs === undefined) return <span className="text-gray-500">—</span>;
+                          return (
+                            <span
+                              className="px-2.5 py-1 rounded-lg text-xs font-black font-mono tabular-nums"
+                              style={{ background: "#E9FF70", color: "#333333" }}
+                            >
+                              {hrs % 1 === 0 ? hrs : hrs.toFixed(1)} h
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         {(() => {
@@ -677,23 +692,54 @@ export default function Dashboard() {
               )}
             </div>
 
+            {/* Email Alert System Card */}
+            <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <Bell className="w-5 h-5" style={{ color: "#E9FF70" }} />
+                <div>
+                  <h2 className="text-base font-black uppercase tracking-widest text-white">Automatic Expiry Alerts</h2>
+                  <p className="text-xs text-white/40 mt-0.5">Daily email alerts for documents expiring within 14 days.</p>
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 text-xs space-y-3">
+                <p className="text-white/60 font-mono text-[10px] uppercase tracking-widest font-bold">Required Replit Secrets</p>
+                {[
+                  { name: "AIRTABLE_API_KEY", desc: "Enables live data checks" },
+                  { name: "ALERT_EMAIL_TO", desc: "Recipient email for alerts" },
+                  { name: "SMTP_HOST", desc: "e.g. smtp.gmail.com" },
+                  { name: "SMTP_PORT", desc: "e.g. 587 (TLS) or 465 (SSL)" },
+                  { name: "SMTP_USER", desc: "SMTP account username" },
+                  { name: "SMTP_PASS", desc: "SMTP account password / app password" },
+                  { name: "SMTP_FROM", desc: "Sender address (optional — defaults to SMTP_USER)" },
+                ].map((s) => (
+                  <div key={s.name} className="flex items-start gap-2">
+                    <code className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0" style={{ background: "rgba(233,255,112,0.1)", color: "#E9FF70" }}>{s.name}</code>
+                    <span className="text-white/40">{s.desc}</span>
+                  </div>
+                ))}
+                <p className="text-white/30 text-[10px] font-mono pt-1 border-t border-white/8">
+                  Once configured, the system checks daily at 08:00 and sends an email listing every candidate with TRC, BHP, or Work Permit expiring within 14 days.
+                </p>
+              </div>
+            </div>
+
             {/* Credentials Info Card */}
             <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <Settings className="w-5 h-5" style={{ color: "#E9FF70" }} />
                 <div>
                   <h2 className="text-base font-black uppercase tracking-widest text-white">Portal Credentials</h2>
-                  <p className="text-xs text-white/40 mt-0.5">Admin login details for this EEJ portal.</p>
+                  <p className="text-xs text-white/40 mt-0.5">Set <code className="text-[10px] px-1 rounded" style={{ background: "rgba(233,255,112,0.1)", color: "#E9FF70" }}>VITE_ADMIN_EMAIL</code> and <code className="text-[10px] px-1 rounded" style={{ background: "rgba(233,255,112,0.1)", color: "#E9FF70" }}>VITE_ADMIN_PASSWORD</code> in Replit Secrets to change.</p>
                 </div>
               </div>
               <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 font-mono text-xs space-y-2">
                 <div className="flex items-center gap-3">
                   <span className="text-white/40 w-20">Email</span>
-                  <span className="text-white/80">admin@euro-edu-jobs.eu</span>
+                  <span className="text-white/80">{(import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? "admin@euro-edu-jobs.eu"}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-white/40 w-20">Password</span>
-                  <span className="text-white/80">eej2024</span>
+                  <span className="text-white/50 italic">configured via secret</span>
                 </div>
               </div>
             </div>

@@ -211,7 +211,7 @@ export default function Login() {
               {t("login.defaultCredentials")}
             </p>
             <p className="text-xs font-mono font-bold" style={{ color: DARK }}>
-              admin@euro-edu-jobs.eu &nbsp;/&nbsp; eej2024
+              {(import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? "admin@euro-edu-jobs.eu"} &nbsp;/&nbsp; ••••••
             </p>
           </div>
 

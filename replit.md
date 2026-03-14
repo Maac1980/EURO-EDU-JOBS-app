@@ -37,19 +37,20 @@ lib/
 
 ## Key Features
 
-- **Login screen** — `admin@euro-edu-jobs.eu` / `eej2024` (also accepts legacy `admin@apatris.com` / `apatris2024`)
+- **Login screen** — Credentials configurable via `VITE_ADMIN_EMAIL` / `VITE_ADMIN_PASSWORD` secrets; defaults to `admin@euro-edu-jobs.eu` / `eej2024`
 - **Public Apply Form** — `/apply` route — no auth required; EEJ branding; submits to Airtable with AI CV screening
 - **4 Stats Cards** — Total Workers, Critical (<30 days), Upcoming Renewals (30-60 days), Non-Compliant
 - **Deployment Tab** — Per-site breakdown, deployed/bench/total stats, "Assigned To" column with lime badges
-- **Settings Tab** — Airtable Schema Sync button (creates EEJ fields), portal credentials reference
-- **Worker Table** — Searchable, filterable by Job Role and Compliance Status; includes Experience and Qualification columns
+- **Settings Tab** — Airtable Schema Sync button, Email Alert config reference, Portal Credentials section
+- **Worker Table** — Searchable, filterable; columns: Name, Job Role, TRC Expiry, Work Permit, BHP, Experience, Qualification, **Total Hours** (lime badge), Assigned To, Status, Actions
 - **Color-coded rows** — Red (critical), Orange (warning), Green (safe)
 - **Worker Profile Panel** — Click row for full profile + Document Vault
-- **Candidate Edit Panel** — EDIT button → slide-over with doc uploads (Passport/TRC/BHP), Job Role, Experience, Qualification, Assign To Site
+- **Candidate Edit Panel** — EDIT button → slide-over with doc uploads (Passport/TRC/BHP), Job Role, Experience, Qualification, **Hours Tracker** (Add Shift Hours → accumulates to TOTAL HOURS in Airtable), Assign To Site
 - **Action Buttons** — Notify, Renew, EDIT per row
 - **Compliance Report** — Generate report button with modal summary
 - **AI Smart Upload** — Bulk upload with CV/Resume scan zone; extracts Experience and Qualification
 - **AI CV Screening** — Extracts Experience and Qualification from CV/Resume images
+- **Automatic Expiry Alerts** — Background cron job (daily at 08:00) checks TRC/BHP/Work Permit expiry dates; emails admin if any candidate's document expires within 14 days
 
 ## Airtable Integration
 
@@ -86,6 +87,40 @@ Secrets required:
 - `POST /api/workers/admin/ensure-schema` — creates missing EEJ fields via Airtable Metadata API
 - `GET /api/workers/admin/schema` — inspect current table schema
 - Settings tab in dashboard has a "Sync Airtable Schema" button to trigger this
+
+## Hours Tracker
+
+- `TOTAL HOURS` field added to `EEJ_DESIRED_FIELDS` (number, precision 1 decimal)
+- `PATCH /api/workers/:id` with `{ shiftHours: N }` → reads current total from Airtable, adds N, writes new total back
+- Frontend: "Add Shift Hours" input in the EDIT slide-over panel (accumulates — never replaces)
+- Dashboard table shows Total Hours as a lime badge
+
+## Automatic Expiry Alert System
+
+File: `artifacts/api-server/src/lib/alerter.ts`
+
+Required secrets:
+- `AIRTABLE_API_KEY` — data access
+- `ALERT_EMAIL_TO` — recipient address
+- `SMTP_HOST` — e.g. `smtp.gmail.com`
+- `SMTP_PORT` — e.g. `587`
+- `SMTP_USER` — SMTP username / Gmail address
+- `SMTP_PASS` — SMTP password or App Password
+- `SMTP_FROM` — optional sender address
+
+Behaviour:
+- Runs once 15s after server start (to catch issues immediately)
+- Then daily at 08:00 via cron
+- Checks TRC Expiry, BHP Expiry (date-format bhpStatus), Work Permit Expiry
+- Threshold: 14 days
+- Email: EEJ-branded HTML table with Candidate Name, Document Type, Expiry Date, Days Left
+
+## Credentials System
+
+Frontend credentials are now configurable via Vite env vars:
+- `VITE_ADMIN_EMAIL` (default: `admin@euro-edu-jobs.eu`)
+- `VITE_ADMIN_PASSWORD` (default: `eej2024`)
+- Set these in Replit Secrets to override; `apatris.com` credentials completely removed
 
 ## Compliance Logic
 

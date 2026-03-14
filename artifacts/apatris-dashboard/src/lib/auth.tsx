@@ -30,12 +30,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = (email: string, pass: string) => {
-    const validCredentials = [
-      { email: "admin@euro-edu-jobs.eu", pass: "eej2024" },
-      { email: "admin@apatris.com", pass: "apatris2024" },
-    ];
-    const match = validCredentials.find((c) => c.email === email && c.pass === pass);
-    if (match) {
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL ?? "admin@euro-edu-jobs.eu";
+    const adminPass = import.meta.env.VITE_ADMIN_PASSWORD ?? "eej2024";
+    if (email === adminEmail && pass === adminPass) {
       const mockUser = { email, name: "EEJ Admin", role: "Superadmin" };
       setUser(mockUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));

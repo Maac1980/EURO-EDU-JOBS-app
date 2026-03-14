@@ -25,10 +25,20 @@ export interface Worker {
   yearsOfExperience: string | null;
   highestQualification: string | null;
   siteLocation: string | null;
+  totalHours: number | null;
 }
 
 function getString(val: unknown): string | null {
   if (typeof val === "string" && val.trim() !== "") return val.trim();
+  return null;
+}
+
+function getNumber(val: unknown): number | null {
+  if (typeof val === "number" && !isNaN(val)) return val;
+  if (typeof val === "string") {
+    const n = parseFloat(val);
+    if (!isNaN(n)) return n;
+  }
   return null;
 }
 
@@ -186,6 +196,10 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     resolveField(f, ["Assigned Site", "ASSIGNED SITE", "AssignedSite", "Site Location", "Assigned To", "SiteLocation", "AssignedTo", "Site", "Location"])
   );
 
+  const totalHours = getNumber(
+    resolveField(f, ["TOTAL HOURS", "Total Hours", "TotalHours", "Hours Worked", "Hours"])
+  );
+
   const partial: Partial<Worker> = {
     trcExpiry,
     workPermitExpiry,
@@ -212,6 +226,7 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     yearsOfExperience,
     highestQualification,
     siteLocation,
+    totalHours,
   };
 }
 

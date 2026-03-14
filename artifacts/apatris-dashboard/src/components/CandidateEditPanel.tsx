@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin } from "lucide-react";
+import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, Plus } from "lucide-react";
 import { useGetWorker } from "@workspace/api-client-react";
 import { getGetWorkerQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -165,6 +165,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const [experience, setExperience] = useState("");
   const [qualification, setQualification] = useState("");
   const [siteLocation, setSiteLocation] = useState("");
+  const [shiftHours, setShiftHours] = useState("");
   const [saving, setSaving] = useState(false);
 
   const isOpen = !!workerId;
@@ -176,6 +177,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       setExperience((worker as any).yearsOfExperience || "");
       setQualification((worker as any).highestQualification || "");
       setSiteLocation((worker as any).siteLocation || "");
+      setShiftHours("");
     }
   }, [worker]);
 
@@ -191,12 +193,13 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
     if (!workerId) return;
     setSaving(true);
     try {
-      const payload: Record<string, string> = {};
+      const payload: Record<string, string | number> = {};
       if (effectiveJobRole) payload.specialization = effectiveJobRole;
       if (experience.trim()) payload.yearsOfExperience = experience.trim();
       if (qualification.trim()) payload.highestQualification = qualification.trim();
-
       if (siteLocation !== undefined) payload.siteLocation = siteLocation;
+      const shiftHrsNum = parseFloat(shiftHours);
+      if (!isNaN(shiftHrsNum) && shiftHrsNum > 0) payload.shiftHours = shiftHrsNum;
 
       if (Object.keys(payload).length === 0) {
         toast({ title: "Nothing to save", description: "Fill in at least one field before saving.", variant: "destructive" });
@@ -218,6 +221,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       if (payload.yearsOfExperience) saved.push(`Experience: ${payload.yearsOfExperience} yrs`);
       if (payload.highestQualification) saved.push(`Qualification: ${payload.highestQualification}`);
       if (payload.siteLocation !== undefined) saved.push(`Site: ${payload.siteLocation || "Available"}`);
+      if (payload.shiftHours) saved.push(`+${payload.shiftHours}h added to Total Hours`);
       toast({
         title: "✓ Candidate Record Updated",
         description: saved.join(" · "),
@@ -413,7 +417,68 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               </div>
             </div>
 
-            {/* ── SECTION 3: Deployment ── */}
+            {/* ── SECTION 3: Hours Tracker ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-px flex-1" style={{ background: LIME_BORDER }} />
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>Hours Tracker</span>
+                <div className="h-px flex-1" style={{ background: LIME_BORDER }} />
+              </div>
+
+              {/* Current total display */}
+              {(worker as any).totalHours !== null && (worker as any).totalHours !== undefined && (
+                <div
+                  className="flex items-center gap-3 p-3 rounded-xl mb-3"
+                  style={{ background: "rgba(233,255,112,0.06)", border: `1px solid ${LIME_BORDER}` }}
+                >
+                  <Clock className="w-4 h-4 flex-shrink-0" style={{ color: LIME }} />
+                  <div>
+                    <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Current Total</p>
+                    <p className="text-lg font-black tabular-nums" style={{ color: LIME }}>
+                      {(worker as any).totalHours % 1 === 0
+                        ? (worker as any).totalHours
+                        : Number((worker as any).totalHours).toFixed(1)}{" "}
+                      <span className="text-sm font-mono text-gray-400">hours</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>
+                Add Shift Hours
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={shiftHours}
+                    onChange={(e) => setShiftHours(e.target.value)}
+                    placeholder="e.g. 8  or  8.5"
+                    className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none placeholder:text-gray-600 pr-12"
+                    style={{ border: `1px solid ${LIME_BORDER}` }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = LIME; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = LIME_BORDER; }}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">hrs</span>
+                </div>
+                {shiftHours && !isNaN(parseFloat(shiftHours)) && parseFloat(shiftHours) > 0 && (
+                  <div
+                    className="flex items-center gap-1 px-3 py-2.5 rounded-lg text-xs font-black whitespace-nowrap"
+                    style={{ background: LIME, color: "#333333" }}
+                  >
+                    <Plus className="w-3 h-3" />
+                    {parseFloat(shiftHours)}h
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] font-mono text-gray-600 mt-1.5">
+                This value will be ADDED to the existing total — not replaced.
+              </p>
+            </div>
+
+            {/* ── SECTION 4: Deployment ── */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-px flex-1" style={{ background: LIME_BORDER }} />

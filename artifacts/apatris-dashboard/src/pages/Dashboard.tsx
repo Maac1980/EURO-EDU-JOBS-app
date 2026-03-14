@@ -220,7 +220,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 lg:p-8 z-10 max-w-[1600px] mx-auto w-full space-y-6" style={{ minWidth: 0, overflowX: "hidden" }}>
+      <main className="flex-1 p-6 lg:p-8 z-10 max-w-[1600px] mx-auto w-full space-y-6" style={{ minWidth: 0, overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
 
         {/* ── Tab Bar ── */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit">
@@ -428,13 +428,13 @@ export default function Dashboard() {
         {/* Data Table */}
         {/* v=2026_FINAL */}
         <div style={{
-          overflowX: "scroll",
-          WebkitOverflowScrolling: "touch",
           borderRadius: "0.75rem",
           border: "1px solid #334155",
           background: "#1e293b",
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.4)",
-        }} className="table-scroll-container">
+          display: "inline-block",
+          minWidth: "100%",
+        }}>
           <table style={{
             width: "max-content",
             minWidth: "100%",

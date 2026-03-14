@@ -338,17 +338,26 @@ export default function Dashboard() {
           </div>
           
           <div className="flex gap-3 w-full md:w-auto flex-wrap">
-            <div className="relative flex-1 md:w-44">
+            <div className="relative flex-1 md:w-52">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <select 
+              <select
                 value={specialization}
                 onChange={(e) => setSpecialization(e.target.value)}
                 className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
+                style={specialization ? { borderColor: "rgba(233,255,112,0.5)", color: "#E9FF70" } : {}}
               >
-                <option value="">{t("table.allSpecs")}</option>
-                <option value="TIG">{t("table.tigWelders")}</option>
-                <option value="MIG">{t("table.migWelders")}</option>
-                <option value="ARC">{t("table.arcWelders")}</option>
+                <option value="">All Job Roles</option>
+                {Array.from(
+                  new Set(
+                    (workersData?.workers ?? [])
+                      .map((w) => w.specialization)
+                      .filter((s): s is string => !!s && s.trim() !== "")
+                  )
+                )
+                  .sort()
+                  .map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
               </select>
             </div>
             <div className="relative flex-1 md:w-44">
@@ -399,7 +408,7 @@ export default function Dashboard() {
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned To</th>
                   <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
-                  <th className="px-6 py-4 text-xs font-display font-bold uppercase tracking-widest text-white text-right">{t("table.actions")}</th>
+                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center min-w-[100px]" style={{ color: "#E9FF70" }}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono text-sm">
@@ -508,40 +517,39 @@ export default function Dashboard() {
                       <td className="px-6 py-4">
                         <StatusBadge status={worker.complianceStatus} />
                       </td>
-                      <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-end items-center gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setPanelEditMode(false); setSelectedWorkerId(worker.id); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
-                            style={{ border: "1px solid rgba(233,255,112,0.3)", color: "#E9FF70" }}
-                            title="View full profile"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>View</span>
-                          </button>
+                      <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-col items-center gap-1.5">
+                          {/* Primary EDIT action — always visible, lime-filled */}
                           <button
                             onClick={(e) => { e.stopPropagation(); setEditPanelWorkerId(worker.id); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wide transition-all hover:opacity-90"
-                            style={{ background: "#E9FF70", color: "#333333" }}
+                            className="flex items-center justify-center gap-1.5 w-full px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all hover:opacity-85 active:scale-95"
+                            style={{ background: "#E9FF70", color: "#333333", minWidth: "80px", boxShadow: "0 2px 8px rgba(233,255,112,0.25)" }}
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                            <span>Edit</span>
+                            EDIT
                           </button>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* Secondary actions — always visible as small icons */}
+                          <div className="flex gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPanelEditMode(false); setSelectedWorkerId(worker.id); }}
+                              className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                              title="View full profile"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
                             <button 
                               onClick={(e) => handleNotify(e, worker)}
-                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white transition-colors"
+                              className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
                               title={t("table.notifyWorker")}
                             >
-                              <Bell className="w-3.5 h-3.5" />
+                              <Bell className="w-3 h-3" />
                             </button>
                             <button 
                               onClick={(e) => handleRenew(e, worker)}
-                              className="p-1.5 rounded-lg transition-colors hover:opacity-90"
-                              style={{ background: "#E9FF70", color: "#333333" }}
+                              className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
                               title={t("table.renewDocument")}
                             >
-                              <RefreshCcw className="w-3.5 h-3.5" />
+                              <RefreshCcw className="w-3 h-3" />
                             </button>
                           </div>
                         </div>

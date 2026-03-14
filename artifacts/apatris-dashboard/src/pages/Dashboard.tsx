@@ -450,7 +450,6 @@ export default function Dashboard() {
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Total Hours</th>
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned Site</th>
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>ACTIONS</th>
@@ -460,14 +459,14 @@ export default function Dashboard() {
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={11} className="px-6 py-6">
+                      <td colSpan={10} className="px-6 py-6">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
                   ))
                 ) : workersData?.workers.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground font-sans">
+                    <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground font-sans">
                       {t("table.noResults")}
                     </td>
                   </tr>
@@ -534,20 +533,6 @@ export default function Dashboard() {
                             {(worker as any).highestQualification}
                           </span>
                         ) : <span className="text-gray-500">—</span>}
-                      </td>
-                      <td className="px-6 py-4">
-                        {(() => {
-                          const hrs = (worker as any).totalHours as number | null;
-                          if (hrs === null || hrs === undefined) return <span className="text-gray-500">—</span>;
-                          return (
-                            <span
-                              className="px-2.5 py-1 rounded-lg text-xs font-black font-mono tabular-nums"
-                              style={{ background: "#E9FF70", color: "#333333" }}
-                            >
-                              {hrs % 1 === 0 ? hrs : hrs.toFixed(1)} h
-                            </span>
-                          );
-                        })()}
                       </td>
                       <td className="px-6 py-4">
                         {(() => {

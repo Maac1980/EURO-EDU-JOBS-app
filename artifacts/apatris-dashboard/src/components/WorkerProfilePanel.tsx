@@ -108,11 +108,11 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
       if (filled?.nationality) filledLines.push(`Nationality: ${filled.nationality}`);
 
       const description = filledLines.length > 0
-        ? `Auto-filled: ${filledLines.join(" · ")}`
+        ? `AI auto-filled: ${filledLines.join(" · ")}`
         : `${label} saved successfully.`;
 
-      toast({ title: data.scanned ? "Document Scanned & Saved" : "Document Uploaded", description });
-      setTimeout(() => setDone(false), 3000);
+      toast({ title: data.scanned ? "✓ Document Scanned & Saved" : "✓ Document Uploaded", description });
+      setTimeout(() => setDone(false), 4000);
     } catch (err) {
       toast({ title: "Upload Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
@@ -121,15 +121,27 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
     }
   };
 
+  const isDone = done;
+  const isUploading = uploading;
+
   return (
-    <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono uppercase tracking-wider cursor-pointer transition-all select-none ${
-      done
-        ? "bg-success/10 border-success/30 text-success"
-        : "bg-white/5 border-white/10 text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5"
+    <label className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all select-none font-semibold text-sm ${
+      isDone
+        ? "bg-green-500/15 border-green-500/50 text-green-400"
+        : isUploading
+          ? "bg-primary/10 border-primary/40 text-primary cursor-not-allowed"
+          : "bg-white/5 border-dashed border-white/20 text-white hover:bg-primary/10 hover:border-primary/60 hover:text-primary"
     }`}>
-      <input ref={inputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFile} disabled={uploading} />
-      {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : done ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Upload className="w-3.5 h-3.5" />}
-      {uploading ? "Uploading..." : done ? "Saved!" : label}
+      <input ref={inputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFile} disabled={isUploading} />
+      {isUploading
+        ? <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
+        : isDone
+          ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+          : <Upload className="w-5 h-5 flex-shrink-0" />
+      }
+      <span>
+        {isUploading ? `Uploading ${label}…` : isDone ? `${label} Saved!` : `Upload ${label}`}
+      </span>
     </label>
   );
 }
@@ -244,38 +256,42 @@ export function WorkerProfilePanel({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-                    {t("panel.documentVault")}
-                  </h3>
-                  <div className="flex gap-2">
-                    <UploadButton workerId={worker.id} docType="passport" label={t("panel.passport")} />
-                    <UploadButton workerId={worker.id} docType="contract" label={t("panel.contract")} />
+                <h3 className="text-xs font-bold tracking-widest text-muted-foreground uppercase mb-4">
+                  {t("panel.documentVault")}
+                </h3>
+
+                {/* Existing attachments */}
+                {(worker.passportAttachments?.length > 0 || worker.contractAttachments?.length > 0) && (
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {worker.passportAttachments?.map((att: any) => (
+                      <AttachmentCard
+                        key={att.id}
+                        title={t("panel.passport")}
+                        filename={att.filename}
+                        url={att.url}
+                      />
+                    ))}
+                    {worker.contractAttachments?.map((att: any) => (
+                      <AttachmentCard
+                        key={att.id}
+                        title={t("panel.contract")}
+                        filename={att.filename}
+                        url={att.url}
+                      />
+                    ))}
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {worker.passportAttachments?.map((att: any) => (
-                    <AttachmentCard
-                      key={att.id}
-                      title={t("panel.passport")}
-                      filename={att.filename}
-                      url={att.url}
-                    />
-                  ))}
-                  {worker.contractAttachments?.map((att: any) => (
-                    <AttachmentCard
-                      key={att.id}
-                      title={t("panel.contract")}
-                      filename={att.filename}
-                      url={att.url}
-                    />
-                  ))}
-                  {!worker.passportAttachments?.length &&
-                    !worker.contractAttachments?.length && (
-                      <div className="col-span-2 p-6 text-center rounded-xl border border-dashed border-white/10 text-muted-foreground text-sm font-mono">
-                        {t("panel.noDocuments")}
-                      </div>
-                    )}
+                )}
+
+                {/* Upload buttons — always visible */}
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
+                    Upload Document
+                  </p>
+                  <UploadButton workerId={worker.id} docType="passport" label="Passport" />
+                  <UploadButton workerId={worker.id} docType="contract" label="Contract" />
+                  <p className="text-xs text-muted-foreground/50 text-center">
+                    PDF, JPG, PNG or WebP · AI scans images automatically
+                  </p>
                 </div>
               </div>
             </div>

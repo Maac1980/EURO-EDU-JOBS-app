@@ -110,7 +110,12 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center text-xs font-mono text-muted-foreground mt-8 opacity-50">
+        <div className="mt-6 p-3 rounded-lg border border-white/5 bg-white/3 text-center space-y-1">
+          <p className="text-xs font-mono text-muted-foreground/70">Default credentials</p>
+          <p className="text-xs font-mono text-primary/80">admin@apatris.com &nbsp;/&nbsp; apatris2024</p>
+        </div>
+
+        <p className="text-center text-xs font-mono text-muted-foreground mt-4 opacity-40">
           UNAUTHORIZED ACCESS IS STRICTLY PROHIBITED
         </p>
       </div>

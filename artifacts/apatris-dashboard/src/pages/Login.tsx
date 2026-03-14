@@ -27,7 +27,7 @@ export default function Login() {
     <div className="min-h-screen w-full flex bg-background">
       <div className="hidden lg:flex flex-1 relative overflow-hidden">
         <img
-          src={`${import.meta.env.BASE_URL}images/brand-bg-rustic.png`}
+          src={`${import.meta.env.BASE_URL}images/brand-bg.png`}
           alt="Apatris Brand"
           className="w-full h-full object-cover object-center"
         />

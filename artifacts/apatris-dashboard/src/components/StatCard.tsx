@@ -10,22 +10,22 @@ interface StatCardProps {
 }
 
 export function StatCard({ title, value, icon: Icon, variant = "default" }: StatCardProps) {
-  let colors = "border-primary/25 shadow-[0_0_20px_rgba(196,30,24,0.12)]";
+  let colors = "border-slate-700 shadow-lg";
   let iconBg = "bg-primary/10 text-primary border-primary/20";
-  let valueColor = "text-primary";
+  let valueColor = "text-white";
   let glowColor = "bg-primary/15";
   let accentLine = "bg-gradient-to-r from-transparent via-primary/60 to-transparent";
 
   if (variant === "critical") {
-    colors = "border-destructive/30 shadow-[0_0_20px_rgba(220,60,60,0.15)]";
+    colors = "border-red-500/30 shadow-lg";
     iconBg = "bg-destructive/10 text-destructive border-destructive/20";
-    valueColor = "text-destructive";
+    valueColor = "text-white";
     glowColor = "bg-destructive/15";
     accentLine = "bg-gradient-to-r from-transparent via-destructive/60 to-transparent";
   } else if (variant === "warning") {
-    colors = "border-warning/30 shadow-[0_0_20px_rgba(255,140,0,0.12)]";
+    colors = "border-yellow-500/30 shadow-lg";
     iconBg = "bg-warning/10 text-warning border-warning/20";
-    valueColor = "text-warning";
+    valueColor = "text-white";
     glowColor = "bg-warning/15";
     accentLine = "bg-gradient-to-r from-transparent via-warning/60 to-transparent";
   } else if (variant === "success") {

@@ -90,7 +90,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col relative">
+    <div className="min-h-screen bg-slate-900 text-foreground flex flex-col relative">
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/8 blur-[140px] rounded-full" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[40%] h-[40%] bg-primary/5 blur-[120px] rounded-full" />
@@ -99,7 +99,7 @@ export default function Dashboard() {
 
       {/* Header */}
       <header
-        className="h-16 border-b border-primary/10 bg-background/90 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between"
+        className="h-16 border-b border-slate-700 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between"
         style={{ boxShadow: "0 1px 0 rgba(196,30,24,0.08), 0 4px 20px rgba(0,0,0,0.3)" }}
       >
         <div className="flex items-center gap-3">
@@ -173,7 +173,7 @@ export default function Dashboard() {
               placeholder={t("table.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-black/40 border border-white/5 rounded-lg text-sm font-mono text-white focus:outline-none focus:border-primary/50 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm font-mono text-white focus:outline-none focus:border-primary/60 transition-colors placeholder:text-gray-500"
             />
           </div>
           
@@ -183,7 +183,7 @@ export default function Dashboard() {
               <select 
                 value={specialization}
                 onChange={(e) => setSpecialization(e.target.value)}
-                className="w-full pl-10 pr-8 py-2.5 bg-black/40 border border-white/5 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/50 transition-colors"
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
               >
                 <option value="">{t("table.allSpecs")}</option>
                 <option value="TIG">{t("table.tigWelders")}</option>
@@ -196,7 +196,7 @@ export default function Dashboard() {
               <select 
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full pl-10 pr-8 py-2.5 bg-black/40 border border-white/5 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/50 transition-colors"
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
               >
                 <option value="">{t("table.allStatuses")}</option>
                 <option value="compliant">{t("table.compliant")}</option>
@@ -212,7 +212,7 @@ export default function Dashboard() {
         <div className="glass-panel rounded-xl overflow-hidden tech-border">
           <div className="overflow-x-auto">
             <table className="w-full text-left whitespace-nowrap">
-              <thead className="bg-black/40 border-b border-white/10">
+              <thead className="bg-slate-700/60 border-b border-slate-600">
                 <tr>
                   <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.operator")}</th>
                   <th className="px-6 py-4 text-xs font-display uppercase tracking-widest text-muted-foreground">{t("table.spec")}</th>

@@ -249,15 +249,16 @@
 @layer utilities {
   /* Glass morphism panel */
   .glass-panel {
-    background: rgba(255, 255, 255, 0.025);
+    background: #1e293b;
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid #334155;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 4px 10px -6px rgba(0, 0, 0, 0.3);
   }
 
   /* Tech border — Apatris crimson glow */
   .tech-border {
-    border: 1px solid rgba(196, 30, 24, 0.18);
-    box-shadow: 0 0 0 1px rgba(196, 30, 24, 0.06) inset;
+    border: 1px solid #334155;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
   }
 
   /* Steel divider line */

@@ -74,7 +74,7 @@
 
 /* ============================================
    EURO EDU JOBS BRAND THEME
-   Primary:     Agency Blue  (#1e40af / hsl 226 71% 40%)
+   Primary:     EEJ Lime Yellow (#E9FF70 / hsl 69 100% 72%)
    Steel:       Metallic Silver (#8A9BB0)
    Background:  Deep charcoal steel (#0D0F14)
    Accent:      Warm steel grey
@@ -92,7 +92,7 @@
   --foreground: 210 18% 90%;
   --border: 216 16% 16%;
   --input: 216 16% 20%;
-  --ring: 226 71% 40%;
+  --ring: 69 100% 72%;
 
   /* Cards */
   --card: 218 22% 10%;
@@ -103,20 +103,20 @@
   --sidebar: 218 24% 8%;
   --sidebar-foreground: 210 18% 82%;
   --sidebar-border: 216 16% 16%;
-  --sidebar-primary: 226 71% 40%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: 69 100% 72%;
+  --sidebar-primary-foreground: 0 0% 20%;
   --sidebar-accent: 218 20% 14%;
   --sidebar-accent-foreground: 210 18% 82%;
-  --sidebar-ring: 226 71% 40%;
+  --sidebar-ring: 69 100% 72%;
 
   /* Popover */
   --popover: 218 24% 9%;
   --popover-foreground: 210 18% 88%;
   --popover-border: 216 16% 18%;
 
-  /* Primary: Agency Blue */
-  --primary: 226 71% 40%;
-  --primary-foreground: 0 0% 100%;
+  /* Primary: EEJ Lime Yellow */
+  --primary: 69 100% 72%;
+  --primary-foreground: 0 0% 20%;
 
   /* Secondary: Steel dark */
   --secondary: 218 16% 15%;
@@ -143,7 +143,7 @@
   --warning-foreground: 0 0% 100%;
 
   /* Charts */
-  --chart-1: 226 71% 40%;
+  --chart-1: 69 100% 72%;
   --chart-2: 216 20% 52%;
   --chart-3: 141 65% 42%;
   --chart-4: 0 85% 58%;
@@ -185,7 +185,7 @@
   --foreground: 210 18% 90%;
   --border: 216 16% 16%;
   --input: 216 16% 20%;
-  --ring: 226 71% 40%;
+  --ring: 69 100% 72%;
 
   --card: 218 22% 10%;
   --card-foreground: 210 18% 88%;
@@ -194,18 +194,18 @@
   --sidebar: 218 24% 8%;
   --sidebar-foreground: 210 18% 82%;
   --sidebar-border: 216 16% 16%;
-  --sidebar-primary: 226 71% 40%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: 69 100% 72%;
+  --sidebar-primary-foreground: 0 0% 20%;
   --sidebar-accent: 218 20% 14%;
   --sidebar-accent-foreground: 210 18% 82%;
-  --sidebar-ring: 226 71% 40%;
+  --sidebar-ring: 69 100% 72%;
 
   --popover: 218 24% 9%;
   --popover-foreground: 210 18% 88%;
   --popover-border: 216 16% 18%;
 
-  --primary: 226 71% 40%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 69 100% 72%;
+  --primary-foreground: 0 0% 20%;
 
   --secondary: 218 16% 15%;
   --secondary-foreground: 210 18% 78%;
@@ -225,7 +225,7 @@
   --warning: 28 95% 52%;
   --warning-foreground: 0 0% 100%;
 
-  --chart-1: 226 71% 40%;
+  --chart-1: 69 100% 72%;
   --chart-2: 216 20% 52%;
   --chart-3: 141 65% 42%;
   --chart-4: 0 85% 58%;
@@ -275,14 +275,14 @@
 
   /* Shield pulse for logo */
   @keyframes shieldPulse {
-    0%, 100% { box-shadow: 0 0 20px rgba(30, 64, 175, 0.3); }
-    50%       { box-shadow: 0 0 40px rgba(30, 64, 175, 0.6), 0 0 60px rgba(30, 64, 175, 0.2); }
+    0%, 100% { box-shadow: 0 0 20px rgba(233, 255, 112, 0.3); }
+    50%       { box-shadow: 0 0 40px rgba(233, 255, 112, 0.6), 0 0 60px rgba(233, 255, 112, 0.2); }
   }
   .shield-pulse { animation: shieldPulse 3s ease-in-out infinite; }
 
   /* Glow text */
   .text-glow-primary {
-    text-shadow: 0 0 20px rgba(30, 64, 175, 0.7);
+    text-shadow: 0 0 20px rgba(233, 255, 112, 0.7);
   }
   .text-glow-destructive {
     text-shadow: 0 0 20px rgba(220, 60, 60, 0.6);

@@ -24,7 +24,7 @@ const CATEGORIES: { key: Category; label: string; icon: React.ElementType; color
 ];
 
 const COLOR_MAP: Record<string, string> = {
-  blue:   "border-blue-500/40 bg-blue-500/10 hover:border-blue-400/70 text-blue-400",
+  blue:   "border-lime-400/40 bg-lime-400/10 hover:border-lime-300/70 text-lime-300",
   orange: "border-orange-500/40 bg-orange-500/10 hover:border-orange-400/70 text-orange-400",
   green:  "border-green-500/40 bg-green-500/10 hover:border-green-400/70 text-green-400",
   purple: "border-purple-500/40 bg-purple-500/10 hover:border-purple-400/70 text-purple-400",
@@ -184,10 +184,10 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleClose} />
       <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-white/10 bg-gradient-to-r from-blue-900/20 to-transparent">
+        <div className="flex items-center justify-between p-5 border-b border-white/10 bg-gradient-to-r from-yellow-900/10 to-transparent">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-blue-700/20 border border-blue-600/30 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-blue-400" />
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.25)" }}>
+              <Zap className="w-5 h-5" style={{ color: "#E9FF70" }} />
             </div>
             <div>
               <h2 className="text-base font-bold text-white tracking-wide">AI SMART BULK UPLOAD</h2>
@@ -233,7 +233,10 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                 <select
                   value={profession}
                   onChange={(e) => setProfession(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-500/60"
+                  className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none"
+                  style={{ transition: "border-color 0.2s" }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
                 >
                   <option value="">— Select or leave for AI —</option>
                   {SPEC_OPTIONS.filter(Boolean).map((o) => (
@@ -247,13 +250,15 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                     placeholder="Type specialization…"
                     value={customProfession}
                     onChange={(e) => setCustomProfession(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-blue-500/60 placeholder:text-gray-600"
+                    className="w-full bg-slate-900 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none placeholder:text-gray-600"
+                    onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
                   />
                 )}
               </div>
 
               {status === "error" && (
-                <div className="mb-4 p-3 rounded-lg bg-blue-900/30 border border-blue-700/40 text-blue-300 text-sm font-mono">
+                <div className="mb-4 p-3 rounded-lg text-sm font-mono" style={{ background: "rgba(233,255,112,0.08)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}>
                   {errorMsg}
                 </div>
               )}
@@ -272,7 +277,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                     ? "bg-white/5 text-gray-600 cursor-not-allowed border border-white/5"
                     : "text-white hover:opacity-90"
                 }`}
-                style={totalFiles > 0 ? { background: "#1e40af" } : {}}
+                style={totalFiles > 0 ? { background: "#E9FF70", color: "#333333" } : {}}
               >
                 <Zap className="w-4 h-4" />
                 Create Worker with AI Scan
@@ -280,7 +285,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
             </>
           ) : status === "scanning" || status === "creating" ? (
             <div className="py-12 flex flex-col items-center gap-4">
-              <Loader2 className="w-12 h-12 text-blue-400 animate-spin" />
+              <Loader2 className="w-12 h-12 animate-spin" style={{ color: "#E9FF70" }} />
               <p className="text-white font-bold text-lg">
                 {status === "scanning" ? "AI Scanning Documents…" : "Creating Worker Record…"}
               </p>
@@ -312,7 +317,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                   {result.specialization && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Specialization</span>
-                      <span className="text-blue-300 font-bold">{result.specialization}</span>
+                      <span className="font-bold" style={{ color: "#E9FF70" }}>{result.specialization}</span>
                     </div>
                   )}
                   {result.trcExpiry && (
@@ -336,7 +341,7 @@ export function BulkUploadModal({ isOpen, onClose }: BulkUploadModalProps) {
                   {result.yearsOfExperience && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Experience</span>
-                      <span className="text-blue-300 font-bold">{result.yearsOfExperience} yrs</span>
+                      <span className="font-bold" style={{ color: "#E9FF70" }}>{result.yearsOfExperience} yrs</span>
                     </div>
                   )}
                   {result.highestQualification && (

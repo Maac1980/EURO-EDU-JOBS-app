@@ -44,22 +44,20 @@ export default function Apply() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4 py-12">
-      {/* Background glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-700/8 blur-[140px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-800/6 blur-[120px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] blur-[140px] rounded-full" style={{ background: "rgba(233,255,112,0.04)" }} />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] blur-[120px] rounded-full" style={{ background: "rgba(233,255,112,0.03)" }} />
       </div>
 
       <div className="w-full max-w-md z-10">
-        {/* Logo + Header */}
         <div className="flex flex-col items-center mb-8">
           <div
-            className="w-20 h-20 rounded-full bg-white flex items-center justify-center mb-4"
-            style={{ boxShadow: "0 0 0 3px #1e40af, 0 0 24px rgba(30,64,175,0.25)" }}
+            className="w-16 h-16 rounded-xl flex items-center justify-center mb-4"
+            style={{ background: "#E9FF70", boxShadow: "0 0 0 2px rgba(233,255,112,0.3), 0 0 24px rgba(233,255,112,0.15)" }}
           >
             <span
-              className="text-3xl font-black tracking-tighter"
-              style={{ color: "#1e40af", fontFamily: "Arial Black, Arial, sans-serif" }}
+              className="text-xl font-black tracking-tighter"
+              style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}
             >
               EEJ
             </span>
@@ -73,12 +71,15 @@ export default function Apply() {
         </div>
 
         {submitted ? (
-          <div className="bg-slate-800 border border-blue-600/40 rounded-2xl p-10 flex flex-col items-center text-center shadow-xl">
+          <div
+            className="bg-slate-800 rounded-2xl p-10 flex flex-col items-center text-center shadow-xl"
+            style={{ border: "1px solid rgba(233,255,112,0.25)" }}
+          >
             <div
               className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
-              style={{ background: "rgba(30,64,175,0.15)", border: "2px solid #1e40af" }}
+              style={{ background: "rgba(233,255,112,0.12)", border: "2px solid rgba(233,255,112,0.5)" }}
             >
-              <CheckCircle2 className="w-8 h-8" style={{ color: "#1e40af" }} />
+              <CheckCircle2 className="w-8 h-8" style={{ color: "#E9FF70" }} />
             </div>
             <h2 className="text-xl font-bold text-white mb-3">Application Received</h2>
             <p className="text-slate-300 leading-relaxed">
@@ -91,14 +92,17 @@ export default function Apply() {
             className="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-2xl space-y-5"
           >
             {error && (
-              <div className="p-3 rounded-lg bg-blue-700/10 border border-blue-600/30 text-blue-400 text-sm">
+              <div
+                className="p-3 rounded-lg text-sm"
+                style={{ background: "rgba(233,255,112,0.08)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}
+              >
                 {error}
               </div>
             )}
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Full Name <span className="text-blue-400">*</span>
+                Full Name <span style={{ color: "#E9FF70" }}>*</span>
               </label>
               <input
                 type="text"
@@ -106,13 +110,15 @@ export default function Apply() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Maria Kowalski"
                 required
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-colors font-mono"
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Email Address <span className="text-blue-400">*</span>
+                Email Address <span style={{ color: "#E9FF70" }}>*</span>
               </label>
               <input
                 type="email"
@@ -120,7 +126,9 @@ export default function Apply() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-colors font-mono"
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
               />
             </div>
 
@@ -133,7 +141,9 @@ export default function Apply() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+48 000 000 000"
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-colors font-mono"
+                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
               />
             </div>
 
@@ -143,11 +153,13 @@ export default function Apply() {
               </label>
               <div
                 onClick={() => fileRef.current?.click()}
-                className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                  file
-                    ? "border-blue-500/60 bg-blue-500/5"
-                    : "border-slate-600 bg-slate-900 hover:border-blue-500/50 hover:bg-blue-500/5"
-                }`}
+                className="w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all"
+                style={{
+                  borderColor: file ? "rgba(233,255,112,0.5)" : "rgba(100,116,139,0.6)",
+                  background: file ? "rgba(233,255,112,0.04)" : "#0f172a",
+                }}
+                onMouseEnter={(e) => { if (!file) (e.currentTarget as HTMLElement).style.borderColor = "rgba(233,255,112,0.3)"; }}
+                onMouseLeave={(e) => { if (!file) (e.currentTarget as HTMLElement).style.borderColor = "rgba(100,116,139,0.6)"; }}
               >
                 <input
                   ref={fileRef}
@@ -159,7 +171,7 @@ export default function Apply() {
                 <Upload className="w-6 h-6 text-slate-400" />
                 <span className="text-sm text-slate-400 text-center">
                   {file ? (
-                    <span className="text-blue-400 font-mono font-semibold">{file.name}</span>
+                    <span className="font-mono font-semibold" style={{ color: "#E9FF70" }}>{file.name}</span>
                   ) : (
                     <>
                       <span className="text-white font-semibold">Click to upload</span> your CV or Passport
@@ -173,10 +185,8 @@ export default function Apply() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3.5 rounded-xl text-white font-bold uppercase tracking-wider text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-70"
-              style={{ background: "#1e40af" }}
-              onMouseEnter={(e) => { if (!submitting) (e.currentTarget as HTMLButtonElement).style.background = "#1d3a9a"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e40af"; }}
+              className="w-full py-3.5 rounded-xl font-bold uppercase tracking-wider text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-70 hover:opacity-90"
+              style={{ background: "#E9FF70", color: "#333333" }}
             >
               {submitting ? (
                 <>

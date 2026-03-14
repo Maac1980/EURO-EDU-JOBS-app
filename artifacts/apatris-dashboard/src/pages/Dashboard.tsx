@@ -30,7 +30,7 @@ function LanguageToggle() {
         onClick={() => toggle("en")}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
           current === "en"
-            ? "bg-primary text-white shadow-[0_0_12px_rgba(30,64,175,0.5)]"
+            ? "bg-primary text-primary-foreground shadow-[0_0_12px_rgba(233,255,112,0.4)]"
             : "text-muted-foreground hover:text-white"
         }`}
         title="English"
@@ -42,7 +42,7 @@ function LanguageToggle() {
         onClick={() => toggle("pl")}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all ${
           current === "pl"
-            ? "bg-primary text-white shadow-[0_0_12px_rgba(30,64,175,0.5)]"
+            ? "bg-primary text-primary-foreground shadow-[0_0_12px_rgba(233,255,112,0.4)]"
             : "text-muted-foreground hover:text-white"
         }`}
         title="Polski"
@@ -101,39 +101,31 @@ export default function Dashboard() {
       {/* Header */}
       <header
         className="h-16 border-b border-slate-700 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between"
-        style={{ boxShadow: "0 1px 0 rgba(30,64,175,0.08), 0 4px 20px rgba(0,0,0,0.3)" }}
+        style={{ boxShadow: "0 1px 0 rgba(233,255,112,0.08), 0 4px 20px rgba(0,0,0,0.3)" }}
       >
         <div className="flex items-center gap-3">
+          {/* EEJ Lime Square Logo */}
           <div
-            className="w-12 h-12 rounded-full bg-white flex-shrink-0 flex items-center justify-center"
-            style={{ boxShadow: "0 0 0 2px rgba(30,64,175,0.5), 0 0 12px rgba(30,64,175,0.25)" }}
+            className="w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center"
+            style={{ background: "#E9FF70", boxShadow: "0 0 0 1px rgba(233,255,112,0.3), 0 4px 12px rgba(233,255,112,0.2)" }}
             aria-label="Euro Edu Jobs Logo"
           >
-            <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="19" cy="19" r="19" fill="white" />
-              <text
-                x="19"
-                y="25"
-                textAnchor="middle"
-                fontSize="12"
-                fontWeight="900"
-                fontFamily="Arial Black, Arial, sans-serif"
-                fill="#1e40af"
-                letterSpacing="-0.5"
-              >
-                EEJ
-              </text>
-            </svg>
+            <span
+              className="text-sm font-black tracking-tighter"
+              style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}
+            >
+              EEJ
+            </span>
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-[0.15em] uppercase leading-none text-white">
+            <h1 className="text-lg font-black tracking-[0.12em] uppercase leading-none text-white">
               {t("header.title")}
             </h1>
             <p
-              className="text-[9px] font-bold font-mono tracking-[0.2em] uppercase leading-none mt-0.5"
-              style={{ color: "#60a5fa", textShadow: "0 0 8px rgba(30,64,175,0.7)" }}
+              className="text-[9px] font-bold font-mono tracking-[0.18em] uppercase leading-none mt-0.5"
+              style={{ color: "#E9FF70", opacity: 0.7 }}
             >
-              GLOBAL RECRUITMENT · TALENT SOLUTIONS
+              Hiring is simple.
             </p>
           </div>
         </div>
@@ -142,8 +134,8 @@ export default function Dashboard() {
           {/* ⚡ AI Smart Upload */}
           <button
             onClick={() => setBulkUploadOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all text-white hover:opacity-90"
-            style={{ background: "#1e40af" }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
+            style={{ background: "#E9FF70", color: "#333333" }}
           >
             <Zap className="w-4 h-4" />
             <span className="hidden sm:inline">AI Smart Upload</span>
@@ -151,10 +143,10 @@ export default function Dashboard() {
 
           <button
             onClick={() => setReportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-blue-700/60 text-blue-400 hover:text-white rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:opacity-90"
-            style={{ }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e40af"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:opacity-90"
+            style={{ border: "1px solid rgba(233,255,112,0.4)", color: "#E9FF70" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#E9FF70"; (e.currentTarget as HTMLButtonElement).style.color = "#333333"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = "#E9FF70"; }}
           >
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">{t("header.generateReport")}</span>
@@ -309,14 +301,14 @@ export default function Dashboard() {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {(worker as any).yearsOfExperience ? (
-                          <span className="px-2 py-1 rounded bg-blue-900/30 border border-blue-700/40 text-blue-300 text-xs font-bold font-mono">
+                          <span className="px-2 py-1 rounded text-xs font-bold font-mono" style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}>
                             {(worker as any).yearsOfExperience} yrs
                           </span>
                         ) : <span className="text-gray-500">—</span>}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {(worker as any).highestQualification ? (
-                          <span className="px-2 py-1 rounded bg-indigo-900/30 border border-indigo-700/40 text-indigo-300 text-xs font-bold font-mono">
+                          <span className="px-2 py-1 rounded text-xs font-bold font-mono" style={{ background: "rgba(233,255,112,0.07)", border: "1px solid rgba(233,255,112,0.18)", color: "rgba(233,255,112,0.85)" }}>
                             {(worker as any).highestQualification}
                           </span>
                         ) : <span className="text-gray-500">—</span>}
@@ -328,18 +320,18 @@ export default function Dashboard() {
                         <div className="flex justify-end items-center gap-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); setPanelEditMode(false); setSelectedWorkerId(worker.id); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
-                            style={{ background: "#1e40af" }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
+                            style={{ background: "#E9FF70", color: "#333333" }}
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>View</span>
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setPanelEditMode(true); setSelectedWorkerId(worker.id); }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-700/50 text-blue-300 text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
-                            style={{ }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e40af"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = ""; }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
+                            style={{ border: "1px solid rgba(233,255,112,0.35)", color: "#E9FF70" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#E9FF70"; (e.currentTarget as HTMLButtonElement).style.color = "#333333"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = "#E9FF70"; }}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             <span>Edit</span>
@@ -354,8 +346,8 @@ export default function Dashboard() {
                             </button>
                             <button 
                               onClick={(e) => handleRenew(e, worker)}
-                              className="p-1.5 rounded-lg text-white border border-blue-700/40 transition-colors hover:opacity-90"
-                              style={{ background: "#1e40af" }}
+                              className="p-1.5 rounded-lg transition-colors hover:opacity-90"
+                              style={{ background: "#E9FF70", color: "#333333" }}
                               title={t("table.renewDocument")}
                             >
                               <RefreshCcw className="w-3.5 h-3.5" />

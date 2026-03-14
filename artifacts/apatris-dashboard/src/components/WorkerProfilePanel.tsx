@@ -35,7 +35,7 @@ function DocRow({ label, date }: { label: string; date?: string | null }) {
     <div
       className={`flex items-center justify-between p-3 rounded-lg bg-slate-800 border ${
         isExpired
-          ? "border-blue-600/40"
+          ? "border-yellow-400/40"
           : isWarning
             ? "border-yellow-500/40"
             : "border-slate-700"
@@ -44,7 +44,7 @@ function DocRow({ label, date }: { label: string; date?: string | null }) {
       <span className="text-sm font-medium text-gray-300">{label}</span>
       <span
         className={`text-sm font-mono font-semibold ${
-          isExpired ? "text-blue-400" : isWarning ? "text-yellow-400" : "text-green-400"
+          isExpired ? "text-yellow-300" : isWarning ? "text-yellow-400" : "text-green-400"
         }`}
       >
         {format(d, "MMM d, yyyy")}
@@ -59,9 +59,12 @@ function AttachmentCard({ title, filename, url }: { title: string; filename: str
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="relative p-4 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 hover:border-blue-500/30 transition-all cursor-pointer group flex flex-col items-center justify-center text-center gap-2"
+      className="relative p-4 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 transition-all cursor-pointer group flex flex-col items-center justify-center text-center gap-2"
+      style={{ borderColor: "rgba(233,255,112,0)" }}
+      onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(233,255,112,0.25)"}
+      onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.borderColor = "rgba(233,255,112,0)"}
     >
-      <div className="w-10 h-10 rounded-full bg-blue-700/10 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+      <div className="w-10 h-10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform" style={{ background: "rgba(233,255,112,0.1)", color: "#E9FF70" }}>
         <FileText className="w-5 h-5" />
       </div>
       <div>
@@ -128,8 +131,8 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
       done
         ? "bg-green-500/15 border-green-500/60 text-green-400"
         : uploading
-          ? "bg-blue-700/10 border-blue-600/40 text-blue-400 cursor-not-allowed"
-          : "bg-slate-800 border-gray-500 text-white hover:border-blue-500/70 hover:bg-blue-700/10 hover:text-white"
+          ? "cursor-not-allowed opacity-50 bg-slate-800 border-slate-600 text-gray-400"
+          : "bg-slate-800 border-slate-600 text-white hover:text-white"
     }`}>
       <input ref={inputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={handleFile} disabled={uploading} />
       {uploading
@@ -232,7 +235,7 @@ export function WorkerProfilePanel({
       >
         {isLoading || !worker ? (
           <div className="flex h-full items-center justify-center">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#E9FF70", borderTopColor: "transparent" }} />
           </div>
         ) : (
           <div className="flex flex-col h-full">
@@ -260,7 +263,7 @@ export function WorkerProfilePanel({
                 </button>
               </div>
               <div className="flex items-center gap-4 mt-4">
-                <div className="w-16 h-16 rounded-xl bg-blue-700/20 border border-blue-600/30 flex items-center justify-center text-blue-400 text-xl font-bold uppercase">
+                <div className="w-16 h-16 rounded-xl flex items-center justify-center text-xl font-bold uppercase" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}>
                   {worker.name.split(" ").map((n: string) => n[0]).join("")}
                 </div>
                 <div>
@@ -340,13 +343,13 @@ export function WorkerProfilePanel({
               {/* Contact */}
               <div className="grid grid-cols-1 gap-3 p-4 rounded-xl bg-slate-800 border border-slate-700">
                 <div className="flex items-center gap-3 text-sm">
-                  <Mail className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <Mail className="w-4 h-4 flex-shrink-0" style={{ color: "#E9FF70" }} />
                   <span className="text-gray-300 font-mono">
                     {worker.email || t("panel.noEmail")}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
-                  <Phone className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  <Phone className="w-4 h-4 flex-shrink-0" style={{ color: "#E9FF70" }} />
                   <span className="text-gray-300 font-mono">
                     {worker.phone || t("panel.noPhone")}
                   </span>
@@ -365,7 +368,7 @@ export function WorkerProfilePanel({
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
                     <span className="text-sm font-medium text-gray-300">{t("panel.bhpStatus")}</span>
                     <span className={`text-sm font-mono font-semibold ${
-                      worker.bhpStatus === "Active" ? "text-green-400" : "text-blue-400"
+                      worker.bhpStatus === "Active" ? "text-green-400" : "text-yellow-300"
                     }`}>
                       {worker.bhpStatus || "Unknown"}
                     </span>
@@ -411,7 +414,7 @@ export function WorkerProfilePanel({
               </button>
               <button
                 className="flex-1 py-2.5 text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all hover:opacity-90"
-                style={{ background: "#1e40af" }}
+                style={{ background: "#E9FF70", color: "#333333" }}
                 onClick={() => onRenew(worker)}
               >
                 Update Status

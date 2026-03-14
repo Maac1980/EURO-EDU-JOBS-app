@@ -220,7 +220,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 lg:p-8 z-10 max-w-[1600px] mx-auto w-full space-y-6" style={{ minWidth: 0, overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
+      <main className="flex-1 p-4 lg:p-6 z-10 max-w-[1600px] mx-auto w-full space-y-4">
 
         {/* ── Tab Bar ── */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit">
@@ -426,40 +426,34 @@ export default function Dashboard() {
         </div>
 
         {/* Data Table */}
-        {/* v=2026_FINAL */}
         <div style={{
           borderRadius: "0.75rem",
           border: "1px solid #334155",
           background: "#1e293b",
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.4)",
-          display: "inline-block",
-          minWidth: "100%",
+          overflowX: "auto",
+          width: "100%",
         }}>
-          <table style={{
-            width: "max-content",
-            minWidth: "100%",
-            borderCollapse: "collapse",
-            whiteSpace: "nowrap",
-          }} className="text-left">
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }} className="text-left text-xs">
               <thead className="bg-slate-700/60 border-b border-slate-600">
                 <tr>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Experience</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">Qualification</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned Site</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
-                  <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>ACTIONS</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">Exp.</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">Qual.</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned Site</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 font-mono text-sm">
+              <tbody className="divide-y divide-white/5 font-mono text-xs">
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={10} className="px-6 py-6">
+                      <td colSpan={10} className="px-2 py-2">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
@@ -484,11 +478,11 @@ export default function Dashboard() {
                       onClick={() => setSelectedWorkerId(worker.id)}
                       className="hover:bg-white/5 transition-colors cursor-pointer group"
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-2 py-2">
                         <div className="font-sans font-medium text-white">{worker.name}</div>
                         <div className="text-xs text-muted-foreground">{worker.email}</div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-2 py-2">
                         <span className="px-2 py-1 rounded bg-white/10 border border-white/20 text-xs font-bold text-white">
                           {worker.specialization || '—'}
                         </span>
@@ -534,7 +528,7 @@ export default function Dashboard() {
                           </span>
                         ) : <span className="text-gray-500">—</span>}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-2 py-2">
                         {(() => {
                           const site = (worker as any).siteLocation as string | null;
                           if (!site || site === "Available") {
@@ -558,7 +552,7 @@ export default function Dashboard() {
                           );
                         })()}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-2 py-2">
                         <StatusBadge status={worker.complianceStatus} />
                       </td>
                       <td className="px-4 py-3 text-center border-l border-white/10" onClick={(e) => e.stopPropagation()}>

@@ -429,33 +429,18 @@ export default function Dashboard() {
         {/* v=2026_FINAL */}
         <div style={{
           overflowX: "scroll",
-          overflowY: "visible",
           WebkitOverflowScrolling: "touch",
           borderRadius: "0.75rem",
           border: "1px solid #334155",
           background: "#1e293b",
           boxShadow: "0 10px 25px -5px rgba(0,0,0,0.4)",
-          width: "100%",
         }} className="table-scroll-container">
           <table style={{
-            tableLayout: "fixed",
-            width: "100%",
-            minWidth: "1500px",
+            width: "max-content",
+            minWidth: "100%",
             borderCollapse: "collapse",
+            whiteSpace: "nowrap",
           }} className="text-left">
-            <colgroup>
-              <col style={{ width: "210px" }} />
-              <col style={{ width: "130px" }} />
-              <col style={{ width: "130px" }} />
-              <col style={{ width: "130px" }} />
-              <col style={{ width: "110px" }} />
-              <col style={{ width: "110px" }} />
-              <col style={{ width: "130px" }} />
-              <col style={{ width: "120px" }} />
-              <col style={{ width: "170px" }} />
-              <col style={{ width: "110px" }} />
-              <col style={{ width: "150px" }} />
-            </colgroup>
               <thead className="bg-slate-700/60 border-b border-slate-600">
                 <tr>
                   <th className="px-4 py-4 text-xs font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>

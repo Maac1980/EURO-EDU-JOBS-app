@@ -95,9 +95,23 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
         const err = await res.json().catch(() => ({ error: "Upload failed" }));
         throw new Error(err.error ?? "Upload failed");
       }
+      const data = await res.json();
       await queryClient.invalidateQueries({ queryKey: getGetWorkerQueryKey(workerId) });
       setDone(true);
-      toast({ title: "Document Uploaded", description: `${label} saved successfully.` });
+
+      const filled = data.autoFilled as Record<string, string> | undefined;
+      const filledLines: string[] = [];
+      if (filled?.name) filledLines.push(`Name: ${filled.name}`);
+      if (filled?.dateOfBirth) filledLines.push(`DOB: ${filled.dateOfBirth}`);
+      if (filled?.passportExpiry) filledLines.push(`Expires: ${filled.passportExpiry}`);
+      if (filled?.contractEndDate) filledLines.push(`Contract end: ${filled.contractEndDate}`);
+      if (filled?.nationality) filledLines.push(`Nationality: ${filled.nationality}`);
+
+      const description = filledLines.length > 0
+        ? `Auto-filled: ${filledLines.join(" · ")}`
+        : `${label} saved successfully.`;
+
+      toast({ title: data.scanned ? "Document Scanned & Saved" : "Document Uploaded", description });
       setTimeout(() => setDone(false), 3000);
     } catch (err) {
       toast({ title: "Upload Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });

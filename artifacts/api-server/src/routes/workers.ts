@@ -1,7 +1,106 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
+import OpenAI from "openai";
 import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord } from "../lib/airtable.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
+
+const openai = new OpenAI({
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? "placeholder",
+});
+
+interface ScannedPassport {
+  type: "passport";
+  name: string | null;
+  dateOfBirth: string | null;
+  passportExpiry: string | null;
+  passportNumber: string | null;
+  nationality: string | null;
+}
+
+interface ScannedContract {
+  type: "contract";
+  contractEndDate: string | null;
+  workerName: string | null;
+}
+
+type ScannedData = ScannedPassport | ScannedContract;
+
+async function scanDocument(fileBuffer: Buffer, mimeType: string, docType: "passport" | "contract"): Promise<ScannedData | null> {
+  const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  if (!imageTypes.includes(mimeType)) return null;
+
+  try {
+    const base64 = fileBuffer.toString("base64");
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    if (docType === "passport") {
+      const response = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        max_completion_tokens: 512,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: dataUrl, detail: "high" },
+              },
+              {
+                type: "text",
+                text: `Extract data from this passport. Return ONLY valid JSON with these fields (use null for any field not found):
+{
+  "name": "full name exactly as on passport (surname + given names)",
+  "dateOfBirth": "YYYY-MM-DD or null",
+  "passportExpiry": "YYYY-MM-DD or null",
+  "passportNumber": "passport number or null",
+  "nationality": "nationality or null"
+}`,
+              },
+            ],
+          },
+        ],
+      });
+      const text = response.choices[0]?.message?.content ?? "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+      const parsed = JSON.parse(jsonMatch[0]);
+      return { type: "passport", ...parsed };
+    } else {
+      const response = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        max_completion_tokens: 256,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: dataUrl, detail: "high" },
+              },
+              {
+                type: "text",
+                text: `Extract data from this employment contract. Return ONLY valid JSON:
+{
+  "contractEndDate": "YYYY-MM-DD or null (contract end / expiry date)",
+  "workerName": "full name of the worker/employee or null"
+}`,
+              },
+            ],
+          },
+        ],
+      });
+      const text = response.choices[0]?.message?.content ?? "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+      const parsed = JSON.parse(jsonMatch[0]);
+      return { type: "contract", ...parsed };
+    }
+  } catch (e) {
+    console.error("[scanDocument] AI error:", e);
+    return null;
+  }
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -190,9 +289,12 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
       return;
     }
 
-    // Map docType to Airtable field name
     const fieldName = docType === "passport" ? "Passport" : "Contract";
 
+    // 1. Scan document with AI (runs in parallel with nothing yet — start it now)
+    const scanPromise = scanDocument(req.file.buffer, req.file.mimetype, docType as "passport" | "contract");
+
+    // 2. Upload the attachment to Airtable
     await uploadAttachmentToRecord(
       req.params.id,
       fieldName,
@@ -201,9 +303,58 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
       req.file.mimetype
     );
 
-    // Return the updated worker record
+    // 3. Wait for AI scan result
+    const scanned = await scanPromise;
+    let autoFilledFields: Record<string, string> = {};
+
+    if (scanned) {
+      const airtableUpdates: Record<string, unknown> = {};
+
+      if (scanned.type === "passport") {
+        if (scanned.name) {
+          airtableUpdates["Name"] = scanned.name;
+          autoFilledFields["name"] = scanned.name;
+        }
+        if (scanned.dateOfBirth) {
+          airtableUpdates["Date of Birth"] = scanned.dateOfBirth;
+          autoFilledFields["dateOfBirth"] = scanned.dateOfBirth;
+        }
+        if (scanned.passportExpiry) {
+          airtableUpdates["Passport Expiry"] = scanned.passportExpiry;
+          autoFilledFields["passportExpiry"] = scanned.passportExpiry;
+        }
+        if (scanned.passportNumber) {
+          airtableUpdates["Passport Number"] = scanned.passportNumber;
+          autoFilledFields["passportNumber"] = scanned.passportNumber;
+        }
+        if (scanned.nationality) {
+          airtableUpdates["Nationality"] = scanned.nationality;
+          autoFilledFields["nationality"] = scanned.nationality;
+        }
+      } else if (scanned.type === "contract") {
+        if (scanned.contractEndDate) {
+          airtableUpdates["Contract End Date"] = scanned.contractEndDate;
+          autoFilledFields["contractEndDate"] = scanned.contractEndDate;
+        }
+        if (scanned.workerName) {
+          airtableUpdates["Name"] = scanned.workerName;
+          autoFilledFields["name"] = scanned.workerName;
+        }
+      }
+
+      if (Object.keys(airtableUpdates).length > 0) {
+        try {
+          await updateRecord(req.params.id, airtableUpdates);
+        } catch (updateErr) {
+          // Log but don't fail — some fields may not exist in the user's Airtable
+          console.warn("[upload] Auto-fill partial failure:", updateErr instanceof Error ? updateErr.message : updateErr);
+        }
+      }
+    }
+
+    // 4. Return updated worker + what was auto-filled
     const record = await fetchRecord(req.params.id);
-    res.json(mapRecordToWorker(record));
+    res.json({ worker: mapRecordToWorker(record), autoFilled: autoFilledFields, scanned: !!scanned });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: message });

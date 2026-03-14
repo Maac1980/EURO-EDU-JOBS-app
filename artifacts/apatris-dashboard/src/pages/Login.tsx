@@ -45,11 +45,11 @@ export default function Login() {
 
       <div className="w-full max-w-md z-10 p-8 animate-fadeIn">
         <div className="mb-10 text-center">
-          <div className="mx-auto w-24 h-24 bg-black/60 border border-primary/30 rounded-2xl flex items-center justify-center mb-6 shield-pulse">
+          <div className="mx-auto w-36 h-36 bg-black/60 border border-primary/30 rounded-3xl flex items-center justify-center mb-6 shield-pulse">
             <img
               src={`${import.meta.env.BASE_URL}images/logo.png`}
               alt="Apatris Logo"
-              className="w-16 h-16 object-contain"
+              className="w-28 h-28 object-contain"
             />
           </div>
           <h1 className="text-4xl font-bold text-white tracking-widest uppercase">

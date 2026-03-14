@@ -120,6 +120,88 @@ export async function createRecord(fields: Record<string, unknown>): Promise<Air
   return (await res.json()) as AirtableRecord;
 }
 
+export interface AirtableField {
+  id: string;
+  name: string;
+  type: string;
+}
+
+export interface TableSchema {
+  id: string;
+  name: string;
+  fields: AirtableField[];
+}
+
+export async function getTableSchema(): Promise<TableSchema> {
+  if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
+    throw new Error("Airtable credentials are not set");
+  }
+  const url = `https://api.airtable.com/v0/meta/bases/${AIRTABLE_BASE_ID}/tables`;
+  const res = await fetch(url, { headers: headers() });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Airtable meta error ${res.status}: ${text}`);
+  }
+  const data = (await res.json()) as { tables: TableSchema[] };
+  let table = data.tables.find(
+    (t) => t.name === AIRTABLE_TABLE_NAME ||
+      t.id === process.env.AIRTABLE_TABLE_NAME
+  ) ?? data.tables[0];
+  if (!table) throw new Error("Table not found in Airtable base");
+  return table;
+}
+
+const EEJ_DESIRED_FIELDS: Array<{ name: string; type: string; options?: Record<string, unknown> }> = [
+  { name: "Job Role", type: "singleLineText" },
+  { name: "Experience", type: "singleLineText" },
+  { name: "Qualification", type: "singleLineText" },
+  { name: "Assigned Site", type: "singleLineText" },
+  { name: "Email", type: "email" },
+  { name: "Phone", type: "phoneNumber" },
+];
+
+export async function ensureEejSchema(): Promise<{ created: string[]; existing: string[]; errors: string[] }> {
+  if (!AIRTABLE_BASE_ID || !AIRTABLE_API_KEY) {
+    throw new Error("AIRTABLE_API_KEY is required to manage schema");
+  }
+
+  const schema = await getTableSchema();
+  const existingNames = new Set(schema.fields.map((f) => f.name.toLowerCase()));
+
+  const created: string[] = [];
+  const existing: string[] = [];
+  const errors: string[] = [];
+
+  const createUrl = `https://api.airtable.com/v0/meta/bases/${AIRTABLE_BASE_ID}/tables/${schema.id}/fields`;
+
+  for (const desired of EEJ_DESIRED_FIELDS) {
+    if (existingNames.has(desired.name.toLowerCase())) {
+      existing.push(desired.name);
+      continue;
+    }
+    const body: Record<string, unknown> = { name: desired.name, type: desired.type };
+    if (desired.options) body.options = desired.options;
+
+    try {
+      const res = await fetch(createUrl, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        errors.push(`${desired.name}: ${text.slice(0, 120)}`);
+      } else {
+        created.push(desired.name);
+      }
+    } catch (e) {
+      errors.push(`${desired.name}: ${(e as Error).message}`);
+    }
+  }
+
+  return { created, existing, errors };
+}
+
 export async function uploadAttachmentToRecord(
   recordId: string,
   fieldName: string,

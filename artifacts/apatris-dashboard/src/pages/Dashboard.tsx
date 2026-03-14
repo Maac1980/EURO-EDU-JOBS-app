@@ -4,7 +4,7 @@ import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
 import { 
   Users, AlertTriangle, ShieldAlert, Clock, 
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
-  MapPin, UserCheck, UserMinus, Building2
+  MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -60,7 +60,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   
-  const [activeTab, setActiveTab] = useState<"compliance" | "deployment">("compliance");
+  const [activeTab, setActiveTab] = useState<"compliance" | "deployment" | "settings">("compliance");
   const [search, setSearch] = useState("");
   const [specialization, setSpecialization] = useState("");
   const [status, setStatus] = useState("");
@@ -74,6 +74,28 @@ export default function Dashboard() {
   const [renewOpen, setRenewOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+
+  const [schemaSyncing, setSchemaSyncing] = useState(false);
+  const [schemaSyncResult, setSchemaSyncResult] = useState<{
+    created: string[]; existing: string[]; errors: string[]; message: string;
+  } | null>(null);
+  const [schemaSyncError, setSchemaSyncError] = useState<string | null>(null);
+
+  const syncSchema = async () => {
+    setSchemaSyncing(true);
+    setSchemaSyncResult(null);
+    setSchemaSyncError(null);
+    try {
+      const res = await fetch("/api/workers/admin/ensure-schema", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Schema sync failed");
+      setSchemaSyncResult(json);
+    } catch (e) {
+      setSchemaSyncError((e as Error).message);
+    } finally {
+      setSchemaSyncing(false);
+    }
+  };
 
   const { data: workersData, isLoading: isLoadingWorkers } = useGetWorkers({ 
     search: search || undefined, 
@@ -193,7 +215,7 @@ export default function Dashboard() {
 
         {/* ── Tab Bar ── */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit">
-          {(["compliance", "deployment"] as const).map((tab) => (
+          {(["compliance", "deployment", "settings"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -204,8 +226,10 @@ export default function Dashboard() {
                   : { color: "rgba(255,255,255,0.45)" }
               }
             >
-              {tab === "compliance" ? <ShieldAlert className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
-              {tab === "compliance" ? "Compliance" : "Deployment"}
+              {tab === "compliance" && <ShieldAlert className="w-3.5 h-3.5" />}
+              {tab === "deployment" && <MapPin className="w-3.5 h-3.5" />}
+              {tab === "settings" && <Settings className="w-3.5 h-3.5" />}
+              {tab === "compliance" ? "Compliance" : tab === "deployment" ? "Deployment" : "Settings"}
             </button>
           ))}
         </div>
@@ -561,6 +585,120 @@ export default function Dashboard() {
             </table>
           </div>
         </div>
+
+        {/* ── Settings Tab ── */}
+        {activeTab === "settings" && (
+          <div className="space-y-6">
+            {/* Airtable Schema Sync Card */}
+            <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <Database className="w-5 h-5" style={{ color: "#E9FF70" }} />
+                <div>
+                  <h2 className="text-base font-black uppercase tracking-widest text-white">Airtable Schema Sync</h2>
+                  <p className="text-xs text-white/40 mt-0.5">Create missing EEJ columns in your Airtable base automatically.</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 space-y-1.5 text-xs font-mono">
+                <p className="text-white/60 uppercase tracking-widest text-[10px] font-bold mb-2">Fields to sync</p>
+                {[
+                  { name: "Job Role", type: "Single line text" },
+                  { name: "Experience", type: "Single line text" },
+                  { name: "Qualification", type: "Single line text" },
+                  { name: "Assigned Site", type: "Single line text" },
+                  { name: "Email", type: "Email" },
+                  { name: "Phone", type: "Phone number" },
+                ].map((f) => (
+                  <div key={f.name} className="flex items-center gap-2">
+                    <span className="w-32 text-white/80 font-bold">{f.name}</span>
+                    <span className="text-white/30">{f.type}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={syncSchema}
+                disabled={schemaSyncing}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-60"
+                style={{ background: "#E9FF70", color: "#333333" }}
+              >
+                {schemaSyncing ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                {schemaSyncing ? "Syncing…" : "Sync Airtable Schema"}
+              </button>
+
+              {schemaSyncResult && (
+                <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 space-y-2 text-xs">
+                  <p className="text-white/60 font-mono">{schemaSyncResult.message}</p>
+                  {schemaSyncResult.created.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-white/40 uppercase tracking-widest text-[10px] font-bold">Created</p>
+                      {schemaSyncResult.created.map((f) => (
+                        <div key={f} className="flex items-center gap-2 text-white/80">
+                          <CheckCircle className="w-3 h-3 text-green-400" />{f}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {schemaSyncResult.existing.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-white/40 uppercase tracking-widest text-[10px] font-bold">Already Exist</p>
+                      {schemaSyncResult.existing.map((f) => (
+                        <div key={f} className="flex items-center gap-2 text-white/60">
+                          <CheckCircle className="w-3 h-3 text-white/30" />{f}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {schemaSyncResult.errors.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-white/40 uppercase tracking-widest text-[10px] font-bold">Errors</p>
+                      {schemaSyncResult.errors.map((e, i) => (
+                        <div key={i} className="flex items-start gap-2 text-red-400">
+                          <XCircle className="w-3 h-3 mt-0.5 shrink-0" />{e}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {schemaSyncError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-400">
+                  <div className="flex items-start gap-2">
+                    <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{schemaSyncError}</span>
+                  </div>
+                  {schemaSyncError.includes("AIRTABLE_API_KEY") && (
+                    <p className="mt-2 text-red-400/70">
+                      Add <span className="font-mono bg-red-500/20 px-1 rounded">AIRTABLE_API_KEY</span> in your Replit Secrets to enable schema management.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Credentials Info Card */}
+            <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <Settings className="w-5 h-5" style={{ color: "#E9FF70" }} />
+                <div>
+                  <h2 className="text-base font-black uppercase tracking-widest text-white">Portal Credentials</h2>
+                  <p className="text-xs text-white/40 mt-0.5">Admin login details for this EEJ portal.</p>
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 font-mono text-xs space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-white/40 w-20">Email</span>
+                  <span className="text-white/80">admin@euro-edu-jobs.eu</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-white/40 w-20">Password</span>
+                  <span className="text-white/80">eej2024</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <WorkerProfilePanel 

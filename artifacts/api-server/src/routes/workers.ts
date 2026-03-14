@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import OpenAI from "openai";
-import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, createRecord } from "../lib/airtable.js";
+import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, createRecord, ensureEejSchema, getTableSchema } from "../lib/airtable.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 
 const openai = new OpenAI({
@@ -173,8 +173,8 @@ router.post("/apply", applyUpload.single("cv"), async (req, res) => {
       try {
         const cvScan = await scanCV(req.file.buffer, req.file.mimetype);
         if (cvScan) {
-          if (cvScan.yearsOfExperience) airtableFields["Years of Experience"] = cvScan.yearsOfExperience;
-          if (cvScan.highestQualification) airtableFields["Highest Qualification"] = cvScan.highestQualification;
+          if (cvScan.yearsOfExperience) airtableFields["Experience"] = cvScan.yearsOfExperience;
+          if (cvScan.highestQualification) airtableFields["Qualification"] = cvScan.highestQualification;
         }
       } catch (scanErr) {
         console.warn("[apply] CV scan failed (non-fatal):", scanErr);
@@ -451,19 +451,19 @@ router.post("/workers/bulk-create", bulkUpload.fields([
     const aiSpecialization = typeof certData.specialization === "string" ? certData.specialization.trim() : "";
     const finalSpecialization = manualProfession || aiSpecialization;
     if (finalSpecialization) {
-      airtableFields["Specialization"] = finalSpecialization;
+      airtableFields["Job Role"] = finalSpecialization;
       extractedSummary.specialization = finalSpecialization;
     }
 
-    // CV Screening: Years of Experience & Highest Qualification
+    // CV Screening: Experience & Qualification
     const yearsOfExp = typeof cvData.yearsOfExperience === "string" ? cvData.yearsOfExperience.trim() : "";
     const highestQual = typeof cvData.highestQualification === "string" ? cvData.highestQualification.trim() : "";
     if (yearsOfExp) {
-      airtableFields["Years of Experience"] = yearsOfExp;
+      airtableFields["Experience"] = yearsOfExp;
       extractedSummary.yearsOfExperience = yearsOfExp;
     }
     if (highestQual) {
-      airtableFields["Highest Qualification"] = highestQual;
+      airtableFields["Qualification"] = highestQual;
       extractedSummary.highestQualification = highestQual;
     }
 
@@ -533,10 +533,10 @@ router.patch("/workers/:id", async (req, res) => {
       airtableFields["Contract End Date"] = body.contractEndDate;
     if (body.email !== undefined) airtableFields["Email"] = body.email;
     if (body.phone !== undefined) airtableFields["Phone"] = body.phone;
-    if (body.specialization !== undefined) airtableFields["Specialization"] = body.specialization;
-    if (body.yearsOfExperience !== undefined) airtableFields["Years of Experience"] = body.yearsOfExperience;
-    if (body.highestQualification !== undefined) airtableFields["Highest Qualification"] = body.highestQualification;
-    if (body.siteLocation !== undefined) airtableFields["Site Location"] = body.siteLocation;
+    if (body.specialization !== undefined) airtableFields["Job Role"] = body.specialization;
+    if (body.yearsOfExperience !== undefined) airtableFields["Experience"] = body.yearsOfExperience;
+    if (body.highestQualification !== undefined) airtableFields["Qualification"] = body.highestQualification;
+    if (body.siteLocation !== undefined) airtableFields["Assigned Site"] = body.siteLocation;
 
     const updated = await updateRecord(req.params.id, airtableFields);
     res.json(mapRecordToWorker(updated));
@@ -600,7 +600,7 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
         const s = (scannedRaw as any).data as Record<string, string | null>;
         if (docType === "trc") {
           if (s.trcExpiry) { airtableUpdates["TRC Expiry"] = s.trcExpiry; autoFilledFields["trcExpiry"] = s.trcExpiry; }
-          if (s.specialization) { airtableUpdates["Specialization"] = s.specialization; autoFilledFields["specialization"] = s.specialization; }
+          if (s.specialization) { airtableUpdates["Job Role"] = s.specialization; autoFilledFields["specialization"] = s.specialization; }
           if (s.name) { autoFilledFields["name"] = s.name; }
         } else if (docType === "bhp") {
           if (s.bhpExpiry) { airtableUpdates["BHP EXPIRY"] = s.bhpExpiry; autoFilledFields["bhpExpiry"] = s.bhpExpiry; }
@@ -642,6 +642,37 @@ router.post("/workers/:id/notify", async (req, res) => {
     res.json({
       success: true,
       message: `Notification queued for ${worker.name} via ${body.channel ?? "email"}.`,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /admin/ensure-schema — creates missing EEJ Airtable fields
+router.post("/admin/ensure-schema", async (_req, res) => {
+  try {
+    const result = await ensureEejSchema();
+    res.json({
+      success: true,
+      ...result,
+      message: `Schema sync complete. Created: ${result.created.length}, Already existed: ${result.existing.length}, Errors: ${result.errors.length}`,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /admin/schema — inspect current Airtable table schema
+router.get("/admin/schema", async (_req, res) => {
+  try {
+    const schema = await getTableSchema();
+    res.json({
+      tableName: schema.name,
+      tableId: schema.id,
+      fieldCount: schema.fields.length,
+      fields: schema.fields.map((f) => ({ name: f.name, type: f.type })),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

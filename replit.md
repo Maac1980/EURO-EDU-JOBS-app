@@ -1,8 +1,8 @@
-# Apatris Compliance Dashboard
+# EURO EDU JOBS — Compliance & Recruitment Portal
 
 ## Overview
 
-Full-stack compliance portal for managing 200+ welders. Built as a pnpm workspace monorepo with TypeScript.
+Full-stack international recruitment and compliance management portal (EEJ brand). Built as a pnpm workspace monorepo with TypeScript.
 
 ## Stack
 
@@ -16,52 +16,76 @@ Full-stack compliance portal for managing 200+ welders. Built as a pnpm workspac
 - **API codegen**: Orval (from OpenAPI spec)
 - **External Data**: Airtable (via REST API, server-side)
 
+## Brand Identity
+
+- **Primary Color**: `#E9FF70` (Lime Yellow)
+- **Foreground on Lime**: `#333333` (Dark Grey)
+- **Portal Name**: EURO EDU JOBS (EEJ)
+
 ## Structure
 
 ```text
-artifacts-monorepo/
-├── artifacts/
-│   ├── api-server/       # Express API server — Airtable proxy + compliance logic
-│   └── apatris-dashboard/# React + Vite frontend — compliance dashboard
-├── lib/
-│   ├── api-spec/         # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/ # Generated React Query hooks
-│   ├── api-zod/          # Generated Zod schemas from OpenAPI
-│   └── db/               # Drizzle ORM (not used — Airtable is the data source)
-├── scripts/              # Utility scripts
-└── pnpm-workspace.yaml
+artifacts/
+├── api-server/           # Express API server — Airtable proxy + compliance logic
+└── apatris-dashboard/    # React + Vite frontend — compliance + recruitment dashboard
+lib/
+├── api-spec/             # OpenAPI spec + Orval codegen config
+├── api-client-react/     # Generated React Query hooks
+├── api-zod/              # Generated Zod schemas from OpenAPI
+└── db/                   # Drizzle ORM (not used — Airtable is the data source)
 ```
 
 ## Key Features
 
-- **Login screen** — `admin@apatris.com` / `apatris2024`
-- **Public Apply Form** — `/apply` route — no auth required; EEJ branding; submits to Airtable CANDIDATES table with AI CV screening
+- **Login screen** — `admin@euro-edu-jobs.eu` / `eej2024` (also accepts legacy `admin@apatris.com` / `apatris2024`)
+- **Public Apply Form** — `/apply` route — no auth required; EEJ branding; submits to Airtable with AI CV screening
 - **4 Stats Cards** — Total Workers, Critical (<30 days), Upcoming Renewals (30-60 days), Non-Compliant
-- **Worker Table** — Searchable, filterable by Specialization (TIG/MIG/ARC) and Compliance Status; includes Experience and Qualification columns
+- **Deployment Tab** — Per-site breakdown, deployed/bench/total stats, "Assigned To" column with lime badges
+- **Settings Tab** — Airtable Schema Sync button (creates EEJ fields), portal credentials reference
+- **Worker Table** — Searchable, filterable by Job Role and Compliance Status; includes Experience and Qualification columns
 - **Color-coded rows** — Red (critical), Orange (warning), Green (safe)
-- **Side Panel** — Click any row for full worker profile + Document Vault; footer has "Update Status" button
-- **Action Buttons** — Notify Worker (email/SMS) and Update Status per row; all buttons use Agency Blue (#1e40af)
+- **Worker Profile Panel** — Click row for full profile + Document Vault
+- **Candidate Edit Panel** — EDIT button → slide-over with doc uploads (Passport/TRC/BHP), Job Role, Experience, Qualification, Assign To Site
+- **Action Buttons** — Notify, Renew, EDIT per row
 - **Compliance Report** — Generate report button with modal summary
-- **AI Smart Upload** — Bulk upload with CV/Resume scan zone; extracts Experience and Qualification alongside compliance docs
-- **AI CV Screening** — Extracts Years of Experience and Highest Qualification from CV/Resume images
+- **AI Smart Upload** — Bulk upload with CV/Resume scan zone; extracts Experience and Qualification
+- **AI CV Screening** — Extracts Experience and Qualification from CV/Resume images
 
 ## Airtable Integration
 
 Secrets required:
-- `AIRTABLE_API_KEY` — Personal Access Token
-- `AIRTABLE_BASE_ID` — Base ID (starts with `app`)
+- `AIRTABLE_API_KEY` — Personal Access Token (**CURRENTLY MISSING — must be added to Replit Secrets**)
+- `AIRTABLE_BASE_ID` — Base ID (starts with `app`) — set
 - `AIRTABLE_TABLE_NAME` — Table name (default: `Welders`)
 
-Expected Airtable field names (flexible mapping):
-- Name / Full Name / Worker Name
-- Specialization / Type / Welding Type
-- TRC Expiry / TRC_Expiry
-- Work Permit Expiry / Work_Permit_Expiry
-- BHP Status / BHP_Status
-- Contract End Date / Contract_End_Date
-- Email, Phone
-- Passport (attachment field)
-- Contract (attachment field)
+### EEJ Preferred Field Names (written on save):
+- `Job Role` — candidate profession / welding process
+- `Experience` — years of experience string
+- `Qualification` — highest academic degree
+- `Assigned Site` — deployment site location
+- `Email` — email address
+- `Phone` — phone number
+- `Name` — full name
+- `TRC Expiry` — TRC document expiry date
+- `Work Permit Expiry` — work permit expiry date
+- `BHP EXPIRY` — BHP document expiry date
+- `BHP Status` — BHP compliance status text
+- `Contract End Date` — contract end date
+- `Passport` (attachment) — passport scan
+- `Certificate` (attachment) — TRC scan
+- `BHP Certificate` (attachment) — BHP scan
+- `Contract` (attachment) — contract document
+
+### Flexible Read Resolution (tries both new and old names):
+- Job Role / Specialization / Type / Welding Type / Skill / Role
+- Experience / Years of Experience / YearsOfExperience
+- Qualification / Highest Qualification / HighestQualification / Education
+- Assigned Site / Site Location / Assigned To / SiteLocation
+
+### Schema Management:
+- `POST /api/workers/admin/ensure-schema` — creates missing EEJ fields via Airtable Metadata API
+- `GET /api/workers/admin/schema` — inspect current table schema
+- Settings tab in dashboard has a "Sync Airtable Schema" button to trigger this
 
 ## Compliance Logic
 
@@ -69,12 +93,6 @@ Expected Airtable field names (flexible mapping):
 - **Warning**: any document expires in 30-60 days
 - **Non-Compliant**: BHP Status = "Expired" OR any document already expired
 - **Compliant**: all documents > 60 days from expiry
-
-## Airtable Fields for AI Screening
-
-New fields (set by AI scanning):
-- `Years of Experience` / `Experience` / `YearsOfExperience`
-- `Highest Qualification` / `Qualification` / `HighestQualification`
 
 ## API Endpoints
 
@@ -85,6 +103,8 @@ All at `/api`:
 - `GET /workers/report` — compliance report
 - `POST /workers/bulk-create` — AI Smart Upload (passport, bhp, cert, contract, cv)
 - `GET /workers/:id` — worker detail
-- `PATCH /workers/:id` — update worker fields including yearsOfExperience, highestQualification
+- `PATCH /workers/:id` — update worker fields (writes to EEJ field names)
 - `POST /workers/:id/upload` — upload & AI-scan document
 - `POST /workers/:id/notify` — send notification
+- `POST /workers/admin/ensure-schema` — create missing Airtable fields
+- `GET /workers/admin/schema` — view table schema

@@ -16,22 +16,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const STORAGE_KEY = "eej_auth";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    const stored = localStorage.getItem("apatris_auth");
+    const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       setUser(JSON.parse(stored));
     }
   }, []);
 
   const login = (email: string, pass: string) => {
-    if (email === "admin@apatris.com" && pass === "apatris2024") {
-      const mockUser = { email, name: "Admin", role: "Superadmin" };
+    const validCredentials = [
+      { email: "admin@euro-edu-jobs.eu", pass: "eej2024" },
+      { email: "admin@apatris.com", pass: "apatris2024" },
+    ];
+    const match = validCredentials.find((c) => c.email === email && c.pass === pass);
+    if (match) {
+      const mockUser = { email, name: "EEJ Admin", role: "Superadmin" };
       setUser(mockUser);
-      localStorage.setItem("apatris_auth", JSON.stringify(mockUser));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));
       return true;
     }
     return false;
@@ -39,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("apatris_auth");
+    localStorage.removeItem(STORAGE_KEY);
     setLocation("/login");
   };
 

@@ -125,8 +125,8 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
   ) ?? "Unknown";
 
   const specialization = getString(
-    resolveField(f, ["Specialization", "Type", "Welding Type", "Skill", "Role"])
-  ) ?? "TIG";
+    resolveField(f, ["Job Role", "JobRole", "JOB ROLE", "Specialization", "Type", "Welding Type", "Skill", "Role"])
+  ) ?? "";
 
   const trcExpiry = getDate(
     resolveField(f, ["TRC Expiry", "TRC_Expiry", "TRCExpiry", "TRC Expiration", "TRC"])
@@ -175,15 +175,15 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
   );
 
   const yearsOfExperience = getString(
-    resolveField(f, ["Years of Experience", "Experience", "YearsOfExperience", "Years Experience"])
+    resolveField(f, ["Experience", "EXPERIENCE", "Years of Experience", "YearsOfExperience", "Years Experience"])
   );
 
   const highestQualification = getString(
-    resolveField(f, ["Highest Qualification", "Qualification", "HighestQualification", "Education"])
+    resolveField(f, ["Qualification", "QUALIFICATION", "Highest Qualification", "HighestQualification", "Education"])
   );
 
   const siteLocation = getString(
-    resolveField(f, ["Site Location", "Assigned To", "SiteLocation", "AssignedTo", "Site", "Location"])
+    resolveField(f, ["Assigned Site", "ASSIGNED SITE", "AssignedSite", "Site Location", "Assigned To", "SiteLocation", "AssignedTo", "Site", "Location"])
   );
 
   const partial: Partial<Worker> = {

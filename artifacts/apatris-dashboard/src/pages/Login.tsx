@@ -154,7 +154,7 @@ export default function Login() {
                   e.currentTarget.style.borderColor = "#e5e5e5";
                   e.currentTarget.style.boxShadow = "none";
                 }}
-                placeholder="admin@apatris.com"
+                placeholder="admin@euro-edu-jobs.eu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -211,7 +211,7 @@ export default function Login() {
               {t("login.defaultCredentials")}
             </p>
             <p className="text-xs font-mono font-bold" style={{ color: DARK }}>
-              admin@apatris.com &nbsp;/&nbsp; apatris2024
+              admin@euro-edu-jobs.eu &nbsp;/&nbsp; eej2024
             </p>
           </div>
 

@@ -18,7 +18,7 @@ i18n
     detection: {
       order: ["localStorage", "navigator"],
       caches: ["localStorage"],
-      lookupLocalStorage: "apatris_lang",
+      lookupLocalStorage: "eej_lang",
     },
     interpolation: {
       escapeValue: false,

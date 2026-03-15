@@ -373,14 +373,25 @@ export default function Dashboard() {
       w.hourlyNettoRate, w.totalHours, w.advancePayment, w.penalties,
       w.status,
     ].map(esc).join(","));
-    const csv = [headers.join(","), ...rows].join("\n");
+    const csv = [headers.join(","), ...rows].join("\r\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const filename = `EEJ_workers_${new Date().toISOString().slice(0, 10)}.csv`;
+
+    if ((navigator as any).msSaveBlob) {
+      (navigator as any).msSaveBlob(blob, filename);
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `EEJ_workers_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 200);
   };
 
   const handleNotify = (e: React.MouseEvent, worker: any) => {
@@ -493,14 +504,14 @@ export default function Dashboard() {
 
           <button
             onClick={exportCsv}
-            title="Export all workers to Excel/CSV"
+            title="Save worker list to your device — opens in Microsoft Excel or Google Sheets"
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:opacity-90"
             style={{ border: "1px solid rgba(233,255,112,0.4)", color: "#E9FF70" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#E9FF70"; (e.currentTarget as HTMLButtonElement).style.color = "#333333"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = "#E9FF70"; }}
           >
             <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">CSV</span>
+            <span className="hidden sm:inline">Export</span>
           </button>
 
           <PdfDownloadButton sites={uniqueClients} />

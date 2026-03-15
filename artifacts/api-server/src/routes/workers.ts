@@ -552,6 +552,16 @@ router.patch("/workers/:id", async (req, res) => {
     if (body.highestQualification !== undefined) airtableFields["Qualification"] = body.highestQualification;
     if (body.siteLocation !== undefined) airtableFields["Assigned Site"] = body.siteLocation;
 
+    if (body.hourlyNettoRate !== undefined) {
+      const rate = Number(body.hourlyNettoRate);
+      if (!isNaN(rate) && rate >= 0) airtableFields["HOURLY NETTO RATE"] = rate;
+    }
+
+    if (body.advancePayment !== undefined) {
+      const adv = Number(body.advancePayment);
+      if (!isNaN(adv) && adv >= 0) airtableFields["ADVANCE PAYMENT"] = adv;
+    }
+
     // Hours tracker: ADD shift hours to existing total (read-then-write)
     if (body.shiftHours !== undefined) {
       const shiftHrs = Number(body.shiftHours);

@@ -26,6 +26,8 @@ export interface Worker {
   highestQualification: string | null;
   siteLocation: string | null;
   totalHours: number | null;
+  hourlyNettoRate: number | null;
+  advancePayment: number | null;
 }
 
 function getString(val: unknown): string | null {
@@ -203,6 +205,14 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     resolveField(f, ["TOTAL HOURS", "Total Hours", "TotalHours", "Hours Worked", "Hours"])
   );
 
+  const hourlyNettoRate = getNumber(
+    resolveField(f, ["HOURLY NETTO RATE", "Hourly Netto Rate", "Hourly Rate", "HourlyNettoRate", "Rate"])
+  );
+
+  const advancePayment = getNumber(
+    resolveField(f, ["ADVANCE PAYMENT", "Advance Payment", "AdvancePayment", "Zaliczka", "Advance"])
+  );
+
   const partial: Partial<Worker> = {
     trcExpiry,
     workPermitExpiry,
@@ -229,6 +239,8 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     yearsOfExperience,
     highestQualification,
     siteLocation,
+    hourlyNettoRate,
+    advancePayment,
     totalHours,
   };
 }

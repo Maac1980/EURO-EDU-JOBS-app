@@ -25,6 +25,7 @@ import { PdfDownloadButton } from "@/components/PdfDownloadButton";
 import { AuditTrailPanel } from "@/components/AuditTrailPanel";
 import { AddWorkerModal } from "@/components/AddWorkerModal";
 import { PayrollRunPage } from "@/components/PayrollRunPage";
+import { TeamManagementCard } from "@/components/TeamManagementCard";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -163,7 +164,7 @@ function ContactIcons({ worker }: { worker: any }) {
 }
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isCoordinator, isManager } = useAuth();
   const { t } = useTranslation();
   
   const [activeTab, setActiveTab] = useState<"compliance" | "payroll" | "deployment" | "alerts" | "settings">("compliance");
@@ -382,7 +383,8 @@ export default function Dashboard() {
         </div>
         
         <div className="flex items-center gap-2">
-          {/* + Add Worker */}
+          {/* + Add Worker — admin and coordinator only */}
+          {(isAdmin || isCoordinator) && (
           <button
             onClick={() => setAddWorkerOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
@@ -392,6 +394,7 @@ export default function Dashboard() {
             <UserPlus className="w-4 h-4" />
             <span className="hidden sm:inline">{t("addWorker.title")}</span>
           </button>
+          )}
 
           {/* ⚡ AI Smart Upload */}
           <button
@@ -453,7 +456,13 @@ export default function Dashboard() {
         {/* ── Tab Bar ── */}
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit min-w-max">
-          {(["compliance", "payroll", "deployment", "alerts", "settings"] as const).map((tab) => (
+          {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)
+            .filter((tab) => {
+              if (tab === "settings") return isAdmin;
+              if (tab === "payroll") return isAdmin || isCoordinator;
+              return true;
+            })
+            .map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -474,6 +483,14 @@ export default function Dashboard() {
           ))}
         </div>
         </div>
+
+        {/* Site-restriction badge for managers */}
+        {isManager && user?.site && (
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest w-fit" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.3)", color: "#E9FF70" }}>
+            <MapPin className="w-3.5 h-3.5" />
+            {t("roles.siteView")}: {user.site}
+          </div>
+        )}
 
         {/* Stats Grid — Compliance view */}
         {activeTab === "compliance" && (
@@ -841,7 +858,7 @@ export default function Dashboard() {
                             >
                               <RefreshCcw className="w-3 h-3" />
                             </button>
-                            {confirmDeleteId === worker.id ? (
+                            {isAdmin && (confirmDeleteId === worker.id ? (
                               <button
                                 onClick={(e) => handleDelete(e, worker.id)}
                                 disabled={deletingId === worker.id}
@@ -859,7 +876,7 @@ export default function Dashboard() {
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
-                            )}
+                            ))}
                           </div>
                         </div>
                       </td>
@@ -1295,6 +1312,9 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Team Access / User Management */}
+            <TeamManagementCard />
 
             {/* Audit Trail */}
             <AuditTrailPanel />

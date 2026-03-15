@@ -16,17 +16,11 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [hintEmail, setHintEmail] = useState("");
 
-  // Pre-fill email from server so user always knows which address to use
   useEffect(() => {
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
     fetch(`${base}/api/auth/whoami`)
       .then((r) => r.json())
-      .then((d) => {
-        if (d?.allowedEmail) {
-          setHintEmail(d.allowedEmail);
-          setEmail((prev) => prev || d.allowedEmail);
-        }
-      })
+      .then((d) => { if (d?.allowedEmail) setHintEmail(d.allowedEmail); })
       .catch(() => {});
   }, []);
 

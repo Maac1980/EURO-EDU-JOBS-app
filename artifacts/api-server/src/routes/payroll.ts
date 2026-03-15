@@ -1,5 +1,4 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -7,18 +6,11 @@ import { randomUUID } from "crypto";
 import { fetchAllRecords, updateRecord } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
 import { appendAuditEntry } from "./audit.js";
+import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
 
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PAYROLL_FILE = join(__dirname, "../../data/payroll-records.json");
-const JWT_SECRET = process.env.JWT_SECRET ?? "eej-jwt-fallback-secret-2024";
-
-function requireAdmin(req: any, res: any): boolean {
-  const authHeader = req.headers.authorization as string | undefined;
-  if (!authHeader?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return false; }
-  try { jwt.verify(authHeader.slice(7), JWT_SECRET); return true; }
-  catch { res.status(401).json({ error: "Invalid token" }); return false; }
-}
 
 export interface PayrollRecord {
   id: string;
@@ -51,8 +43,7 @@ function writePayrollRecords(records: PayrollRecord[]): void {
 
 // ── GET /api/payroll/workers ─────────────────────────────────────────────────
 // Returns all workers with their payroll-relevant fields
-router.get("/payroll/workers", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+router.get("/payroll/workers", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const records = await fetchAllRecords();
     const workers = records.map(mapRecordToWorker).map((w) => ({
@@ -73,8 +64,7 @@ router.get("/payroll/workers", async (req, res) => {
 
 // ── PATCH /api/payroll/workers/batch ─────────────────────────────────────────
 // Batch-update totalHours / advancePayment / penalties for multiple workers
-router.patch("/payroll/workers/batch", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+router.patch("/payroll/workers/batch", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const updates = req.body.updates as Array<{
       workerId: string;
@@ -100,8 +90,7 @@ router.patch("/payroll/workers/batch", async (req, res) => {
 
 // ── POST /api/payroll/close-month ─────────────────────────────────────────────
 // Commits the payroll snapshot to the ledger and resets worker fields to 0
-router.post("/payroll/close-month", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { monthYear } = req.body as { monthYear?: string };
     if (!monthYear) return res.status(400).json({ error: "monthYear is required (e.g. 2026-03)" });
@@ -178,8 +167,7 @@ router.post("/payroll/close-month", async (req, res) => {
 
 // ── GET /api/payroll/history/:workerId ────────────────────────────────────────
 // Returns all ledger records for a specific worker
-router.get("/payroll/history/:workerId", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+router.get("/payroll/history/:workerId", authenticateToken, async (req, res) => {
   try {
     const { workerId } = req.params;
     const all = readPayrollRecords();
@@ -194,8 +182,7 @@ router.get("/payroll/history/:workerId", async (req, res) => {
 
 // ── GET /api/payroll/summary ──────────────────────────────────────────────────
 // Returns all records (for admin overview / cross-worker analytics)
-router.get("/payroll/summary", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+router.get("/payroll/summary", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const all = readPayrollRecords();
     return res.json({ records: all });

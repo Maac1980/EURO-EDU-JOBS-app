@@ -5,6 +5,7 @@ import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, c
 import { appendAuditEntry } from "./audit.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { MOCK_WORKERS, getMockWorker, isMockMode } from "../lib/mockData.js";
+import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -203,7 +204,7 @@ router.post("/apply", applyUpload.single("cv"), async (req, res) => {
 });
 
 // POST /workers — manually create a new worker record
-router.post("/workers", async (req, res) => {
+router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -230,7 +231,7 @@ router.post("/workers", async (req, res) => {
 });
 
 // GET /workers
-router.get("/workers", async (req, res) => {
+router.get("/workers", authenticateToken, async (req, res) => {
   try {
     const { search, specialization, status } = req.query as Record<string, string>;
     let allWorkers: Worker[];
@@ -242,7 +243,14 @@ router.get("/workers", async (req, res) => {
         (w) => w.name && w.name !== "Unknown" && w.name.trim() !== ""
       );
     }
-    const filtered = filterWorkers(allWorkers, search, specialization, status);
+    let filtered = filterWorkers(allWorkers, search, specialization, status);
+    // Managers are scoped to their assigned site
+    if (req.user?.role === "manager" && req.user.site) {
+      const managerSite = req.user.site.toLowerCase();
+      filtered = filtered.filter(
+        (w) => (w as any).siteLocation?.toLowerCase() === managerSite
+      );
+    }
     res.json({ workers: filtered, total: filtered.length });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -560,7 +568,7 @@ router.get("/workers/:id", async (req, res) => {
 });
 
 // PATCH /workers/:id
-router.patch("/workers/:id", async (req, res) => {
+router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>;
 
@@ -632,7 +640,7 @@ router.patch("/workers/:id", async (req, res) => {
 });
 
 // DELETE /workers/:id
-router.delete("/workers/:id", async (req, res) => {
+router.delete("/workers/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "Worker ID required." });
@@ -749,7 +757,7 @@ router.post("/workers/:id/notify", async (req, res) => {
 });
 
 // POST /admin/ensure-schema — creates missing EEJ Airtable fields
-router.post("/admin/ensure-schema", async (_req, res) => {
+router.post("/admin/ensure-schema", authenticateToken, requireAdmin, async (_req, res) => {
   try {
     const result = await ensureEejSchema();
     res.json({
@@ -764,7 +772,7 @@ router.post("/admin/ensure-schema", async (_req, res) => {
 });
 
 // GET /admin/schema — inspect current Airtable table schema
-router.get("/admin/schema", async (_req, res) => {
+router.get("/admin/schema", authenticateToken, requireAdmin, async (_req, res) => {
   try {
     const schema = await getTableSchema();
     res.json({

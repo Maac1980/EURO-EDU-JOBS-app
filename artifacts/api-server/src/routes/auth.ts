@@ -3,63 +3,94 @@ import jwt from "jsonwebtoken";
 import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { JWT_SECRET, type AuthUser } from "../lib/authMiddleware.js";
 
 const router = Router();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const USERS_FILE = join(__dirname, "../../data/users.json");
 const PROFILE_FILE = join(__dirname, "../../data/admin-profile.json");
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "eej-jwt-fallback-secret-2024";
+interface StoredUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "coordinator" | "manager";
+  site: string | null;
+  password: string | null;
+}
 
-function getAllowedEmail(): string {
-  // 1. Env var override
+function readUsers(): StoredUser[] {
+  try {
+    if (existsSync(USERS_FILE)) {
+      return JSON.parse(readFileSync(USERS_FILE, "utf-8")).users as StoredUser[];
+    }
+  } catch {}
+  return [];
+}
+
+function getAdminEmail(): string {
   if (process.env.EEJ_ADMIN_EMAIL) return process.env.EEJ_ADMIN_EMAIL.trim().toLowerCase();
-  // 2. Admin profile file
   try {
     if (existsSync(PROFILE_FILE)) {
       const profile = JSON.parse(readFileSync(PROFILE_FILE, "utf-8"));
       if (profile?.email) return profile.email.trim().toLowerCase();
     }
   } catch {}
-  // 3. Hard-coded fallback
   return "anna.b@edu-jobs.eu";
 }
 
 router.post("/auth/login", (req, res) => {
   const { email, password } = req.body as { email?: string; password?: string };
-
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
-  const allowedEmail = getAllowedEmail();
+  const emailLower = email.trim().toLowerCase();
+  const users = readUsers();
+  const found = users.find((u) => u.email.toLowerCase() === emailLower);
 
-  if (email.trim().toLowerCase() !== allowedEmail) {
-    console.warn(`[auth] Login rejected: unknown email "${email.trim()}" (allowed: "${allowedEmail}")`);
+  if (!found) {
+    console.warn(`[auth] Login rejected: unknown email "${emailLower}"`);
     return res.status(403).json({ error: "Access Denied: Contact Administrator." });
   }
 
-  const adminPassword = process.env.EEJ_ADMIN_PASSWORD;
-  if (!adminPassword) {
-    return res.status(503).json({ error: "Server not configured. Set EEJ_ADMIN_PASSWORD in Secrets." });
+  let passwordOk = false;
+
+  if (found.role === "admin") {
+    const adminEmail = getAdminEmail();
+    if (emailLower !== adminEmail) {
+      return res.status(403).json({ error: "Access Denied: Contact Administrator." });
+    }
+    const adminPassword = process.env.EEJ_ADMIN_PASSWORD;
+    if (!adminPassword) {
+      return res.status(503).json({ error: "Server not configured. Set EEJ_ADMIN_PASSWORD in Secrets." });
+    }
+    passwordOk = password === adminPassword;
+  } else {
+    if (!found.password) {
+      return res.status(503).json({ error: "Account not configured. Contact Administrator." });
+    }
+    passwordOk = password === found.password;
   }
 
-  if (password !== adminPassword) {
-    console.warn(`[auth] Login rejected: incorrect password for "${email.trim()}"`);
+  if (!passwordOk) {
+    console.warn(`[auth] Login rejected: incorrect password for "${emailLower}"`);
     return res.status(401).json({ error: "Incorrect password." });
   }
 
-  const token = jwt.sign(
-    { email: allowedEmail, name: "Anna B", role: "Admin" },
-    JWT_SECRET,
-    { expiresIn: "24h" }
-  );
+  const payload: AuthUser = {
+    id: found.id,
+    email: found.email,
+    name: found.name,
+    role: found.role,
+    site: found.site,
+  };
 
-  console.log(`[auth] ✓ Login successful for ${allowedEmail}`);
-  return res.json({
-    token,
-    user: { email: allowedEmail, name: "Anna B", role: "Admin" },
-  });
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
+
+  console.log(`[auth] ✓ Login: ${found.email} (${found.role}${found.site ? " @ " + found.site : ""})`);
+  return res.json({ token, user: payload });
 });
 
 router.post("/auth/verify", (req, res) => {
@@ -76,9 +107,12 @@ router.post("/auth/verify", (req, res) => {
   }
 });
 
-// GET /api/auth/whoami — tells the frontend what email is accepted
 router.get("/auth/whoami", (_req, res) => {
-  return res.json({ allowedEmail: getAllowedEmail() });
+  const users = readUsers();
+  return res.json({
+    allowedEmail: getAdminEmail(),
+    userCount: users.length,
+  });
 });
 
 export default router;

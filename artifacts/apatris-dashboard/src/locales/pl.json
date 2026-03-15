@@ -367,6 +367,27 @@
     "nameRequired": "Imię i nazwisko jest wymagane",
     "documents": "Daty dokumentów (opcjonalne)"
   },
+  "roles": {
+    "teamAccess": "Dostęp Zespołu",
+    "teamSubtitle": "Zarządzaj kontami koordynatorów i kierowników",
+    "addUser": "Dodaj użytkownika",
+    "newMember": "Nowy członek zespołu",
+    "name": "Imię i nazwisko",
+    "email": "Adres e-mail",
+    "site": "Przypisana lokalizacja",
+    "optional": "opcjonalne",
+    "password": "Hasło",
+    "newPassword": "Nowe hasło",
+    "role": "Rola",
+    "save": "Zapisz",
+    "cancel": "Anuluj",
+    "create": "Utwórz",
+    "fieldsMissing": "Wymagane: imię, e-mail i hasło.",
+    "createFailed": "Nie udało się utworzyć użytkownika.",
+    "updateFailed": "Nie udało się zaktualizować użytkownika.",
+    "deleteFailed": "Nie udało się usunąć użytkownika.",
+    "siteView": "Widok lokalizacji"
+  },
   "payroll": {
     "title": "Miesięczna Lista Płac",
     "subtitle": "Edytuj godziny, zaliczki i kary, następnie zamknij miesiąc, aby zatwierdzić do ksiąg.",

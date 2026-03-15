@@ -367,6 +367,27 @@
     "nameRequired": "Worker name is required",
     "documents": "Document Dates (Optional)"
   },
+  "roles": {
+    "teamAccess": "Team Access",
+    "teamSubtitle": "Manage coordinator and manager accounts",
+    "addUser": "Add User",
+    "newMember": "New Team Member",
+    "name": "Full Name",
+    "email": "Email Address",
+    "site": "Assigned Site",
+    "optional": "optional",
+    "password": "Password",
+    "newPassword": "New Password",
+    "role": "Role",
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "fieldsMissing": "Name, email, and password are required.",
+    "createFailed": "Failed to create user.",
+    "updateFailed": "Failed to update user.",
+    "deleteFailed": "Failed to delete user.",
+    "siteView": "Site View"
+  },
   "payroll": {
     "title": "Monthly Payroll Run",
     "subtitle": "Edit hours, advances and penalties, then close the month to commit to the ledger.",

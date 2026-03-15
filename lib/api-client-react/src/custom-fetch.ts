@@ -285,6 +285,12 @@ export async function customFetch<T = unknown>(
 
   const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
 
+  // Inject EEJ auth token automatically for all API requests
+  if (!headers.has("authorization") && typeof localStorage !== "undefined") {
+    const token = localStorage.getItem("eej_token");
+    if (token) headers.set("authorization", `Bearer ${token}`);
+  }
+
   if (
     typeof init.body === "string" &&
     !headers.has("content-type") &&

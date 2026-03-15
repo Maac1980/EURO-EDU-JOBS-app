@@ -1,0 +1,29 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "email": "anna.b@edu-jobs.eu",
+      "name": "Anna B.",
+      "role": "admin",
+      "site": null,
+      "password": null,
+      "note": "Admin password is set via EEJ_ADMIN_PASSWORD secret"
+    },
+    {
+      "id": "2",
+      "email": "coordinator@edu-jobs.eu",
+      "name": "Coordinator",
+      "role": "coordinator",
+      "site": null,
+      "password": "EEJ2024!"
+    },
+    {
+      "id": "3",
+      "email": "manager@edu-jobs.eu",
+      "name": "Site Manager",
+      "role": "manager",
+      "site": null,
+      "password": "EEJ2024!"
+    }
+  ]
+}

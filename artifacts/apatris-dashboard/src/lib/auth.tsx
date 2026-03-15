@@ -1,18 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
-interface User {
+export type UserRole = "admin" | "coordinator" | "manager";
+
+export interface User {
+  id?: string;
   email: string;
   name: string;
-  role: string;
+  role: UserRole;
+  site: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   login: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAdmin: boolean;
+  isCoordinator: boolean;
+  isManager: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -27,6 +35,7 @@ function getApiBase() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [, setLocation] = useLocation();
 
@@ -36,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (stored && token) {
       try {
         setUser(JSON.parse(stored));
+        setAuthToken(token);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(TOKEN_KEY);
@@ -61,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(TOKEN_KEY, data.token);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data.user));
       setUser(data.user);
+      setAuthToken(data.token);
       return { success: true };
     } catch (err) {
       console.error("Login fetch error:", err);
@@ -70,13 +81,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setAuthToken(null);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(TOKEN_KEY);
     setLocation("/login");
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={{
+      user,
+      token: authToken,
+      login,
+      logout,
+      isAuthenticated: !!user,
+      isLoading,
+      isAdmin: user?.role === "admin",
+      isCoordinator: user?.role === "coordinator",
+      isManager: user?.role === "manager",
+    }}>
       {children}
     </AuthContext.Provider>
   );

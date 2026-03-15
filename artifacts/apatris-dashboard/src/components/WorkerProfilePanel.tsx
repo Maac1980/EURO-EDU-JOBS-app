@@ -75,12 +75,19 @@ function AttachmentCard({ title, filename, url }: { title: string; filename: str
   );
 }
 
-function UploadButton({ workerId, docType, label }: { workerId: string; docType: "passport" | "contract" | "trc" | "bhp"; label: string }) {
+function UploadButton({ workerId, docType, label, uploadingText, doneText }: {
+  workerId: string;
+  docType: "passport" | "contract" | "trc" | "bhp";
+  label: string;
+  uploadingText: string;
+  doneText: string;
+}) {
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,15 +117,15 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
       if (filled?.passportExpiry) filledLines.push(`Expires: ${filled.passportExpiry}`);
       if (filled?.trcExpiry) filledLines.push(`TRC: ${filled.trcExpiry}`);
       if (filled?.bhpExpiry) filledLines.push(`BHP: ${filled.bhpExpiry}`);
-      if (filled?.specialization) filledLines.push(`Job Role: ${filled.specialization}`);
-      if (filled?.contractEndDate) filledLines.push(`Contract end: ${filled.contractEndDate}`);
+      if (filled?.specialization) filledLines.push(`${t("table.spec")}: ${filled.specialization}`);
+      if (filled?.contractEndDate) filledLines.push(`${t("panel.contractEndDate")}: ${filled.contractEndDate}`);
       if (filled?.nationality) filledLines.push(`Nationality: ${filled.nationality}`);
 
       const description = filledLines.length > 0
-        ? `AI auto-filled: ${filledLines.join(" · ")}`
-        : `${label} saved to Airtable successfully.`;
+        ? `AI: ${filledLines.join(" · ")}`
+        : `${label} → Airtable`;
 
-      toast({ title: data.scanned ? "✓ Document Scanned & Updated" : "✓ Document Pushed to Airtable", description, variant: "success" as any });
+      toast({ title: data.scanned ? "✓ " + label : "✓ " + label, description, variant: "success" as any });
       setTimeout(() => setDone(false), 4000);
     } catch (err) {
       toast({ title: "Upload Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
@@ -144,7 +151,7 @@ function UploadButton({ workerId, docType, label }: { workerId: string; docType:
           : <Upload className="w-5 h-5 flex-shrink-0" />
       }
       <span>
-        {uploading ? `Uploading ${label}…` : done ? `${label} Saved!` : `Upload ${label}`}
+        {uploading ? uploadingText : done ? doneText : label}
       </span>
     </label>
   );
@@ -215,11 +222,7 @@ export function WorkerProfilePanel({
       }
       await queryClient.invalidateQueries({ queryKey: getGetWorkerQueryKey(workerId) });
       await queryClient.invalidateQueries({ queryKey: getGetWorkersQueryKey() });
-      const saved: string[] = [];
-      if (payload.specialization) saved.push(`Role: ${payload.specialization}`);
-      if (payload.siteLocation) saved.push(`Client: ${payload.siteLocation}`);
-      else saved.push("Client: Available");
-      toast({ title: "✓ Profile Updated", description: saved.join(" · "), variant: "success" as any });
+      toast({ title: "✓ " + t("panel.saveChanges"), description: payload.specialization || payload.siteLocation, variant: "success" as any });
       setIsEditing(false);
     } catch (err) {
       toast({ title: "Save Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
@@ -263,7 +266,7 @@ export function WorkerProfilePanel({
                       setIsEditing(true);
                     }}
                     className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
-                    title="Edit worker"
+                    title={t("panel.editWorkerDetails")}
                   >
                     <Pencil className="w-4 h-4 text-amber-400" />
                   </button>
@@ -298,20 +301,20 @@ export function WorkerProfilePanel({
                 <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-4">
                   <p className="text-xs font-bold uppercase tracking-widest text-amber-400 flex items-center gap-2">
                     <Pencil className="w-3.5 h-3.5" />
-                    Edit Worker Details
+                    {t("panel.editWorkerDetails")}
                   </p>
 
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
-                        Job Role
+                        {t("panel.jobRole")}
                       </label>
                       <select
                         value={editSpec}
                         onChange={(e) => setEditSpec(e.target.value)}
                         className="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-amber-500/60"
                       >
-                        <option value="">— Select Spec —</option>
+                        <option value="">{t("panel.selectSpec")}</option>
                         {SPEC_OPTIONS.map((o) => (
                           <option key={o} value={o}>{o}</option>
                         ))}
@@ -320,13 +323,13 @@ export function WorkerProfilePanel({
 
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
-                        Job Title (free text)
+                        {t("panel.jobTitleFreeText")}
                       </label>
                       <input
                         type="text"
                         value={editProfession}
                         onChange={(e) => setEditProfession(e.target.value)}
-                        placeholder="e.g. Certified Welder, Pipe Fitter…"
+                        placeholder={t("panel.jobTitlePlaceholder")}
                         className="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-amber-500/60 placeholder:text-gray-600"
                       />
                     </div>
@@ -334,13 +337,13 @@ export function WorkerProfilePanel({
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: "#E9FF70" }}>
                         <MapPin className="w-3 h-3" />
-                        Assigned Client / Site
+                        {t("panel.assignedClient")}
                       </label>
                       <input
                         type="text"
                         value={editSiteLocation}
                         onChange={(e) => setEditSiteLocation(e.target.value)}
-                        placeholder='Type any company name, e.g. Amazon, Berlin Hospital…'
+                        placeholder={t("panel.assignedClientPlaceholder")}
                         className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none placeholder:text-gray-600 transition-colors"
                         style={{ border: "1px solid rgba(233,255,112,0.3)" }}
                         onFocus={(e) => { e.currentTarget.style.borderColor = "#E9FF70"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(233,255,112,0.15)"; }}
@@ -348,12 +351,12 @@ export function WorkerProfilePanel({
                       />
                       {editSiteLocation.trim() && editSiteLocation.trim() !== "Available" && (
                         <p className="text-[10px] font-mono mt-1.5" style={{ color: "#E9FF70" }}>
-                          Will save as: {editSiteLocation.trim()}
+                          {t("panel.willSaveAs")}{editSiteLocation.trim()}
                         </p>
                       )}
                       {(!editSiteLocation.trim() || editSiteLocation.trim() === "Available") && (
                         <p className="text-[10px] font-mono mt-1.5 text-gray-600">
-                          Leave blank to mark as Available / Bench
+                          {t("panel.leaveBlank")}
                         </p>
                       )}
                     </div>
@@ -366,7 +369,7 @@ export function WorkerProfilePanel({
                       className="flex-1 py-2 border border-white/15 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
                     >
                       <XCircle className="w-3.5 h-3.5" />
-                      Cancel
+                      {t("panel.cancel")}
                     </button>
                     <button
                       onClick={handleSave}
@@ -374,7 +377,7 @@ export function WorkerProfilePanel({
                       className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(217,119,6,0.3)]"
                     >
                       {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                      {saving ? "Saving…" : "Save Changes"}
+                      {saving ? t("panel.saving") : t("panel.saveChanges")}
                     </button>
                   </div>
                 </div>
@@ -385,13 +388,13 @@ export function WorkerProfilePanel({
                 <div className="flex items-center gap-3 text-sm">
                   <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: "#E9FF70" }} />
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Site</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{t("panel.site")}</span>
                     {(worker as any).siteLocation && (worker as any).siteLocation !== "Available" ? (
                       <span className="font-mono text-sm font-semibold truncate" style={{ color: "#E9FF70" }}>
                         {(worker as any).siteLocation}
                       </span>
                     ) : (
-                      <span className="font-mono text-sm text-gray-500 italic">Available / Bench</span>
+                      <span className="font-mono text-sm text-gray-500 italic">{t("panel.availableBench")}</span>
                     )}
                   </div>
                 </div>
@@ -423,7 +426,7 @@ export function WorkerProfilePanel({
                     <span className={`text-sm font-mono font-semibold ${
                       worker.bhpStatus === "Active" ? "text-green-400" : "text-yellow-300"
                     }`}>
-                      {worker.bhpStatus || "Unknown"}
+                      {worker.bhpStatus || t("status.unknown")}
                     </span>
                   </div>
                 </div>
@@ -447,13 +450,13 @@ export function WorkerProfilePanel({
                 )}
 
                 <div className="space-y-3">
-                  <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Push Document to Airtable</p>
-                  <UploadButton workerId={worker.id} docType="passport" label="Passport" />
-                  <UploadButton workerId={worker.id} docType="trc" label="TRC Certificate" />
-                  <UploadButton workerId={worker.id} docType="bhp" label="BHP Certificate" />
-                  <UploadButton workerId={worker.id} docType="contract" label="Contract" />
+                  <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">{t("panel.pushDocToAirtable")}</p>
+                  <UploadButton workerId={worker.id} docType="passport" label={t("panel.updatePassport")} uploadingText={t("panel.uploading")} doneText={t("panel.updatePassport")} />
+                  <UploadButton workerId={worker.id} docType="trc" label={t("panel.updateTrc")} uploadingText={t("panel.uploading")} doneText={t("panel.updateTrc")} />
+                  <UploadButton workerId={worker.id} docType="bhp" label={t("panel.updateBhp")} uploadingText={t("panel.uploading")} doneText={t("panel.updateBhp")} />
+                  <UploadButton workerId={worker.id} docType="contract" label={t("panel.contract")} uploadingText={t("panel.uploading")} doneText={t("panel.contract")} />
                   <p className="text-xs text-gray-600 text-center">
-                    PDF, JPG, PNG or WebP · AI scans &amp; updates existing record
+                    {t("panel.aiScanNote")}
                   </p>
                 </div>
               </div>
@@ -472,7 +475,7 @@ export function WorkerProfilePanel({
                 style={{ background: "#E9FF70", color: "#333333" }}
                 onClick={() => onRenew(worker)}
               >
-                Update Status
+                {t("panel.updateStatus")}
               </button>
             </div>
           </div>

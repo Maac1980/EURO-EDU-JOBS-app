@@ -13,6 +13,7 @@
   "header": {
     "title": "EURO EDU JOBS",
     "subtitle": "Międzynarodowy Rekruter",
+    "tagline": "TWÓJ PARTNER HR W EUROPIE",
     "generateReport": "Generuj Raport",
     "logout": "Wyloguj",
     "aiUpload": "AI Wgraj Dokumenty",
@@ -27,7 +28,7 @@
   "stats": {
     "totalWorkforce": "Wszyscy kandydaci",
     "critical": "Krytyczni (<30 dni)",
-    "upcomingRenewals": "Nadchodzące odnowienia",
+    "upcomingRenewals": "Wkrótce wygasną",
     "nonCompliant": "Niezgodni"
   },
   "table": {
@@ -48,6 +49,11 @@
     "trcExpiry": "Ważność TRC",
     "workPermit": "Zezwolenie",
     "bhp": "BHP",
+    "exp": "Dośw.",
+    "qual": "Kwal.",
+    "assignedSite": "Obiekt",
+    "yrs": "lat",
+    "edit": "EDYTUJ",
     "status": "Status",
     "actions": "Akcje",
     "noResults": "Nie znaleziono kandydatów spełniających kryteria.",

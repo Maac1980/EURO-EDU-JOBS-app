@@ -42,15 +42,18 @@ export function StatCard({ title, value, icon: Icon, variant = "default" }: Stat
       <div className={cn("absolute top-0 left-0 right-0 h-px opacity-60", accentLine)} />
 
       <div className="flex items-start justify-between relative z-10">
-        <div className="flex-1">
-          <p className="text-xs font-mono font-bold tracking-widest uppercase text-white mb-3">
+        <div className="flex-1 flex flex-col">
+          <p
+            className="text-[10px] font-mono font-bold tracking-widest uppercase text-white leading-tight mb-3"
+            style={{ minHeight: "2.5rem", display: "flex", alignItems: "flex-start" }}
+          >
             {title}
           </p>
           <h3 className={cn("text-4xl font-mono font-bold tracking-tight", valueColor)}>
             {value}
           </h3>
         </div>
-        <div className={cn("p-3 rounded-xl border backdrop-blur-md", iconBg)}>
+        <div className={cn("p-3 rounded-xl border backdrop-blur-md flex-shrink-0", iconBg)}>
           <Icon className="w-6 h-6" />
         </div>
       </div>

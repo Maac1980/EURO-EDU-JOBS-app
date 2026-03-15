@@ -343,7 +343,7 @@ export default function Dashboard() {
               className="text-[9px] font-bold font-mono tracking-[0.18em] uppercase leading-none mt-0.5"
               style={{ color: "#E9FF70", opacity: 0.75 }}
             >
-              YOUR RELIABLE HR PARTNER IN EUROPE. WE MAKE HIRING SIMPLE.
+              {t("header.tagline")}
             </p>
           </div>
         </div>
@@ -356,7 +356,7 @@ export default function Dashboard() {
             style={{ background: "#E9FF70", color: "#333333" }}
           >
             <Zap className="w-4 h-4" />
-            <span className="hidden sm:inline">AI Smart Upload</span>
+            <span className="hidden sm:inline">{t("header.aiUpload")}</span>
           </button>
 
           <button
@@ -562,7 +562,7 @@ export default function Dashboard() {
                 className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
                 style={specialization ? { borderColor: "rgba(233,255,112,0.5)", color: "#E9FF70" } : {}}
               >
-                <option value="">All Job Roles</option>
+                <option value="">{t("table.allSpecs")}</option>
                 {Array.from(
                   new Set(
                     (workersData?.workers ?? [])
@@ -625,11 +625,11 @@ export default function Dashboard() {
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">Exp.</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">Qual.</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Assigned Site</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.exp")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.qual")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>{t("table.assignedSite")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>Actions</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>{t("table.actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono text-xs">
@@ -701,7 +701,7 @@ export default function Dashboard() {
                       <td className="px-6 py-4 text-sm">
                         {(worker as any).yearsOfExperience ? (
                           <span className="px-2 py-1 rounded text-xs font-bold font-mono" style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}>
-                            {(worker as any).yearsOfExperience} yrs
+                            {(worker as any).yearsOfExperience} {t("table.yrs")}
                           </span>
                         ) : <span className="text-gray-500">—</span>}
                       </td>
@@ -748,7 +748,7 @@ export default function Dashboard() {
                             style={{ background: "#E9FF70", color: "#333333", minWidth: "84px", boxShadow: "0 2px 12px rgba(233,255,112,0.35)" }}
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                            EDIT
+                            {t("table.edit")}
                           </button>
                           {/* Secondary actions — always visible as small icons */}
                           <div className="flex gap-1">

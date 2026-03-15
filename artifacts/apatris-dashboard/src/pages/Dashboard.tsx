@@ -4,7 +4,8 @@ import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
 import { 
   Users, AlertTriangle, ShieldAlert, Clock, 
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
-  MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle
+  MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
+  AlertOctagon
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -60,7 +61,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   
-  const [activeTab, setActiveTab] = useState<"compliance" | "deployment" | "settings">("compliance");
+  const [activeTab, setActiveTab] = useState<"compliance" | "deployment" | "alerts" | "settings">("compliance");
   const [search, setSearch] = useState("");
   const [specialization, setSpecialization] = useState("");
   const [status, setStatus] = useState("");
@@ -100,6 +101,27 @@ export default function Dashboard() {
       })
       .catch(() => {});
   }, []);
+
+  // Compliance documents state
+  const [complianceDocs, setComplianceDocs] = useState<any[]>([]);
+  const [complianceSummary, setComplianceSummary] = useState<{ total: number; expired: number; red: number; yellow: number; green: number } | null>(null);
+  const [complianceLoading, setComplianceLoading] = useState(false);
+
+  const fetchCompliance = async () => {
+    setComplianceLoading(true);
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/compliance/documents`);
+      const data = await res.json();
+      setComplianceDocs(data.documents ?? []);
+      setComplianceSummary(data.summary ?? null);
+    } catch {}
+    setComplianceLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === "alerts") fetchCompliance();
+  }, [activeTab]);
 
   const saveAdminProfile = async () => {
     setAdminSaving(true);
@@ -266,7 +288,7 @@ export default function Dashboard() {
 
         {/* ── Tab Bar ── */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit">
-          {(["compliance", "deployment", "settings"] as const).map((tab) => (
+          {(["compliance", "deployment", "alerts", "settings"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -279,8 +301,9 @@ export default function Dashboard() {
             >
               {tab === "compliance" && <ShieldAlert className="w-3.5 h-3.5" />}
               {tab === "deployment" && <MapPin className="w-3.5 h-3.5" />}
+              {tab === "alerts" && <AlertOctagon className="w-3.5 h-3.5" />}
               {tab === "settings" && <Settings className="w-3.5 h-3.5" />}
-              {tab === "compliance" ? "Compliance" : tab === "deployment" ? "Deployment" : "Settings"}
+              {tab === "compliance" ? "Compliance" : tab === "deployment" ? "Deployment" : tab === "alerts" ? "Doc Alerts" : "Settings"}
             </button>
           ))}
         </div>
@@ -640,6 +663,103 @@ export default function Dashboard() {
               </tbody>
           </table>
         </div>
+
+        {/* ── Compliance Alerts Tab ── */}
+        {activeTab === "alerts" && (
+          <div className="space-y-5">
+            {/* Summary strip */}
+            {complianceSummary && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Expired", value: complianceSummary.expired, bg: "#1e1e1e", border: "#ef4444", text: "#ef4444" },
+                  { label: "Critical (< 30d)", value: complianceSummary.red, bg: "#1e1010", border: "#dc2626", text: "#f87171" },
+                  { label: "Warning (< 60d)", value: complianceSummary.yellow, bg: "#1e1800", border: "#d97706", text: "#fbbf24" },
+                  { label: "Compliant (60d+)", value: complianceSummary.green, bg: "#0d1e0f", border: "#16a34a", text: "#4ade80" },
+                ].map((s) => (
+                  <div key={s.label} className="rounded-xl p-4 border" style={{ background: s.bg, borderColor: s.border }}>
+                    <p className="text-2xl font-black" style={{ color: s.text }}>{s.value}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: s.text, opacity: 0.7 }}>{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Refresh button */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black uppercase tracking-widest text-white/60">Document Expiry Grid</h2>
+              <button
+                onClick={fetchCompliance}
+                disabled={complianceLoading}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                style={{ background: "#E9FF70", color: "#333333" }}
+              >
+                <RefreshCcw className={`w-3 h-3 ${complianceLoading ? "animate-spin" : ""}`} />
+                {complianceLoading ? "Scanning…" : "Refresh Scan"}
+              </button>
+            </div>
+
+            {/* Document grid */}
+            {complianceLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-28 rounded-2xl bg-white/5 animate-pulse" />
+                ))}
+              </div>
+            ) : complianceDocs.length === 0 ? (
+              <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-12 text-center">
+                <CheckCircle className="w-10 h-10 mx-auto mb-3 text-green-400" />
+                <p className="text-white font-bold">All documents are compliant</p>
+                <p className="text-white/40 text-xs mt-1">No expiry dates found in the system.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {complianceDocs.map((doc) => {
+                  const isExpired = doc.zone === "expired";
+                  const isRed = doc.zone === "red";
+                  const isYellow = doc.zone === "yellow";
+                  const bg = isExpired ? "rgba(30,10,10,0.9)" : isRed ? "rgba(30,10,10,0.7)" : isYellow ? "rgba(30,24,0,0.7)" : "rgba(10,20,12,0.7)";
+                  const borderColor = isExpired ? "#7f1d1d" : isRed ? "#dc2626" : isYellow ? "#d97706" : "#16a34a";
+                  const badgeBg = isExpired ? "#7f1d1d" : isRed ? "#dc2626" : isYellow ? "#d97706" : "#16a34a";
+                  const badgeText = isExpired ? "EXPIRED" : isRed ? `🔴 ${doc.daysRemaining}d LEFT` : isYellow ? `⚠ ${doc.daysRemaining}d LEFT` : `✓ ${doc.daysRemaining}d`;
+                  return (
+                    <div
+                      key={doc.id}
+                      className="rounded-2xl p-4 border space-y-2"
+                      style={{ background: bg, borderColor, borderWidth: isRed || isExpired ? 2 : 1 }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-black text-white leading-tight">{doc.workerName}</p>
+                        <span
+                          className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0"
+                          style={{ background: badgeBg, color: "#fff" }}
+                        >
+                          {badgeText}
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: borderColor }}>{doc.documentType}</p>
+                      <p className="text-[10px] font-mono text-white/40">Expiry: {doc.expiryDate}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Legend */}
+            <div className="flex items-center gap-6 pt-2">
+              {[
+                { color: "#16a34a", label: "Green — 60+ days" },
+                { color: "#d97706", label: "Yellow — 30–60 days" },
+                { color: "#dc2626", label: "Red — < 30 days (Critical)" },
+                { color: "#7f1d1d", label: "Expired" },
+              ].map((l) => (
+                <div key={l.label} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
+                  <span className="text-[10px] text-white/40">{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Settings Tab ── */}
         {activeTab === "settings" && (

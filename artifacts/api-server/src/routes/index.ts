@@ -3,11 +3,13 @@ import healthRouter from "./health.js";
 import workersRouter from "./workers.js";
 import authRouter from "./auth.js";
 import adminRouter from "./admin.js";
+import complianceRouter from "./compliance.js";
 
 const router: IRouter = Router();
 
 router.use(authRouter);
 router.use(adminRouter);
+router.use(complianceRouter);
 router.use(healthRouter);
 router.use(workersRouter);
 

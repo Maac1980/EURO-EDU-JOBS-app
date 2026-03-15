@@ -14,7 +14,15 @@
     "title": "EURO EDU JOBS",
     "subtitle": "Global Recruitment",
     "generateReport": "Generate Report",
-    "logout": "Logout"
+    "logout": "Logout",
+    "aiUpload": "AI Smart Upload",
+    "mainWebsite": "Main Website"
+  },
+  "tabs": {
+    "compliance": "Compliance",
+    "deployment": "Deployment",
+    "alerts": "Doc Alerts",
+    "settings": "Settings"
   },
   "stats": {
     "totalWorkforce": "Total Workforce",
@@ -29,6 +37,8 @@
     "migWelders": "MIG Welders",
     "arcWelders": "ARC Welders",
     "allStatuses": "All Statuses",
+    "allClients": "All Clients",
+    "available": "Available / Bench",
     "compliant": "Compliant",
     "warning": "Warning",
     "critical": "Critical",
@@ -45,6 +55,42 @@
     "renewDocument": "Renew Document",
     "uploadDocuments": "Upload Documents",
     "viewProfile": "View Profile"
+  },
+  "contact": {
+    "call": "Call: ",
+    "sms": "SMS: ",
+    "whatsapp": "WhatsApp: ",
+    "urgentTitle": "Send urgent WhatsApp alert"
+  },
+  "deployment": {
+    "totalDeployed": "Total Deployed",
+    "activeSites": "Active site assignments",
+    "bench": "Bench / Available",
+    "noSite": "No site assigned",
+    "totalCandidates": "Total Candidates",
+    "allStatuses": "Across all statuses",
+    "activeSiteCount": "Active Sites",
+    "distinctLocations": "Distinct locations",
+    "siteBreakdown": "Site Breakdown",
+    "clearFilter": "Clear filter ×"
+  },
+  "alerts": {
+    "docExpiryGrid": "Document Expiry Grid",
+    "sendTestAlert": "Send Test Alert",
+    "sending": "Sending…",
+    "refreshScan": "Refresh Scan",
+    "scanning": "Scanning…",
+    "allCompliant": "All documents are compliant",
+    "noExpiry": "No expiry dates found in the system.",
+    "legend60": "Green — 60+ days",
+    "legend30": "Yellow — 30–60 days",
+    "legendRed": "Red — < 30 days (Critical)",
+    "legendExp": "Expired",
+    "critical": "critical",
+    "warning": "warning",
+    "compliantCount": "compliant",
+    "allIncluded": "→ all included in test email",
+    "expiry": "Expiry"
   },
   "status": {
     "critical": "CRITICAL",
@@ -67,6 +113,36 @@
     "renewDoc": "Renew Doc",
     "passport": "Passport",
     "contract": "Contract"
+  },
+  "settings": {
+    "adminProfile": "Administrator Profile",
+    "adminProfileDesc": "Contact details used for automated system alerts.",
+    "fullName": "Full Name",
+    "email": "Email",
+    "phone": "Phone",
+    "role": "Role",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "savedSuccess": "Saved successfully.",
+    "edit": "EDIT",
+    "schemaSync": "Airtable Schema Sync",
+    "schemaSyncDesc": "Create missing EEJ columns in your Airtable base automatically.",
+    "fieldsToSync": "Fields to sync",
+    "syncBtn": "Sync Airtable Schema",
+    "syncing": "Syncing…",
+    "created": "Created",
+    "alreadyExist": "Already Exist",
+    "errors": "Errors",
+    "autoAlerts": "Automatic Expiry Alerts",
+    "autoAlertsDesc": "Daily email alerts for documents expiring within 14 days.",
+    "requiredSecrets": "Required Replit Secrets",
+    "alertsConfigNote": "Once configured, the system checks daily at 08:00 and sends an email listing every candidate with TRC, BHP, or Work Permit expiring within 14 days.",
+    "credentials": "Portal Credentials",
+    "credentialsDesc": "Set VITE_ADMIN_EMAIL and VITE_ADMIN_PASSWORD in Replit Secrets to change.",
+    "credPassword": "Password",
+    "credPasswordNote": "configured via secret",
+    "loadingProfile": "Loading profile…"
   },
   "notify": {
     "title": "Notify Worker",

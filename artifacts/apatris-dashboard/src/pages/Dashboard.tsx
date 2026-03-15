@@ -5,7 +5,7 @@ import {
   Users, AlertTriangle, ShieldAlert, Clock, 
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
   MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
-  AlertOctagon, Mail
+  AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -53,6 +53,104 @@ function LanguageToggle() {
         <span className="text-sm leading-none">🇵🇱</span>
         <span>PL</span>
       </button>
+    </div>
+  );
+}
+
+/* ── Phone number auto-formatter for WhatsApp ─────────────────────── */
+function formatWANumber(phone: string): string {
+  const clean = phone.replace(/[\s\-().]/g, "");
+  if (clean.startsWith("+")) return clean;
+  if (clean.startsWith("00")) return "+" + clean.slice(2);
+  if (clean.startsWith("0")) return "+48" + clean.slice(1);
+  return "+48" + clean;
+}
+
+/* ── Determine which documents are in the critical zone ──────────────*/
+function getCriticalDocType(worker: any): string {
+  const now = new Date();
+  const candidates: Array<{ label: string; date: string | null }> = [
+    { label: "TRC", date: worker.trcExpiry },
+    { label: "Zezwolenie na pracę", date: worker.workPermitExpiry },
+    { label: "BHP", date: worker.bhpStatus },
+    { label: "Umowa", date: worker.contractEndDate },
+  ];
+  const critical = candidates
+    .filter((d) => {
+      if (!d.date) return false;
+      const dt = new Date(d.date);
+      return !isNaN(dt.getTime()) && d.date.includes("-");
+    })
+    .map((d) => ({
+      label: d.label,
+      days: Math.ceil((new Date(d.date!).getTime() - now.getTime()) / 86_400_000),
+    }))
+    .filter((d) => d.days <= 30)
+    .sort((a, b) => a.days - b.days);
+  if (critical.length === 0) return "dokument";
+  return critical.map((d) => d.label).join(", ");
+}
+
+/* ── Contact icons strip ─────────────────────────────────────────────*/
+function ContactIcons({ worker }: { worker: any }) {
+  const phone = worker.phone as string | null;
+  if (!phone) return null;
+  const waNumber = formatWANumber(phone);
+  const isCritical = worker.complianceStatus === "critical";
+  const docType = isCritical ? getCriticalDocType(worker) : "";
+  const urgentMsg = isCritical
+    ? `Dzień dobry ${worker.name}, Twoje dokumenty (${docType}) wygasają. Prosimy o pilny kontakt z biurem EEJ.`
+    : "";
+
+  return (
+    <div className="flex items-center gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
+      {/* Phone */}
+      <a
+        href={`tel:${phone}`}
+        title={`Zadzwoń: ${phone}`}
+        className="p-1 rounded transition-colors hover:bg-white/10"
+        style={{ color: "#4ade80" }}
+      >
+        <Phone className="w-3 h-3" />
+      </a>
+      {/* SMS */}
+      <a
+        href={`sms:${phone}`}
+        title={`SMS: ${phone}`}
+        className="p-1 rounded transition-colors hover:bg-white/10"
+        style={{ color: "#60a5fa" }}
+      >
+        <MessageSquare className="w-3 h-3" />
+      </a>
+      {/* WhatsApp — urgent alert if critical, normal link otherwise */}
+      {isCritical ? (
+        <a
+          href={`https://wa.me/${waNumber}?text=${encodeURIComponent(urgentMsg)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Wyślij pilny alert WhatsApp"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wide animate-pulse"
+          style={{ background: "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.5)", color: "#f87171" }}
+        >
+          <AlertCircle className="w-2.5 h-2.5" />
+          PILNE
+        </a>
+      ) : (
+        <a
+          href={`https://wa.me/${waNumber}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`WhatsApp: ${waNumber}`}
+          className="p-1 rounded transition-colors hover:bg-white/10"
+          style={{ color: "#25D366" }}
+        >
+          {/* WhatsApp SVG icon */}
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+        </a>
+      )}
     </div>
   );
 }
@@ -157,7 +255,7 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(data.error ?? "Save failed");
       setAdminProfile(data);
       setAdminEditing(false);
-      setAdminSaveMsg("Saved successfully.");
+      setAdminSaveMsg(t("settings.savedSuccess"));
     } catch (e) {
       setAdminSaveMsg((e as Error).message);
     } finally {
@@ -323,7 +421,7 @@ export default function Dashboard() {
               {tab === "deployment" && <MapPin className="w-3.5 h-3.5" />}
               {tab === "alerts" && <AlertOctagon className="w-3.5 h-3.5" />}
               {tab === "settings" && <Settings className="w-3.5 h-3.5" />}
-              {tab === "compliance" ? "Compliance" : tab === "deployment" ? "Deployment" : tab === "alerts" ? "Doc Alerts" : "Settings"}
+              {tab === "compliance" ? t("tabs.compliance") : tab === "deployment" ? t("tabs.deployment") : tab === "alerts" ? t("tabs.alerts") : t("tabs.settings")}
             </button>
           ))}
         </div>
@@ -350,56 +448,56 @@ export default function Dashboard() {
                 {/* Total Deployed */}
                 <div className="glass-panel rounded-xl p-5 border" style={{ borderColor: "rgba(233,255,112,0.25)" }}>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Deployed</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t("deployment.totalDeployed")}</p>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "#E9FF70" }}>
                       <UserCheck className="w-4 h-4" style={{ color: "#333333" }} />
                     </div>
                   </div>
                   <p className="text-3xl font-black text-white">{deployed.length}</p>
-                  <p className="text-xs font-mono text-gray-500 mt-1">Active site assignments</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">{t("deployment.activeSites")}</p>
                 </div>
 
                 {/* Bench / Available */}
                 <div className="glass-panel rounded-xl p-5 border border-white/8">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bench / Available</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t("deployment.bench")}</p>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700">
                       <UserMinus className="w-4 h-4 text-gray-400" />
                     </div>
                   </div>
                   <p className="text-3xl font-black text-white">{bench.length}</p>
-                  <p className="text-xs font-mono text-gray-500 mt-1">No site assigned</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">{t("deployment.noSite")}</p>
                 </div>
 
                 {/* Total Candidates */}
                 <div className="glass-panel rounded-xl p-5 border border-white/8">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Candidates</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t("deployment.totalCandidates")}</p>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700">
                       <Users className="w-4 h-4 text-gray-400" />
                     </div>
                   </div>
                   <p className="text-3xl font-black text-white">{all.length}</p>
-                  <p className="text-xs font-mono text-gray-500 mt-1">Across all statuses</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">{t("deployment.allStatuses")}</p>
                 </div>
 
                 {/* Active Sites */}
                 <div className="glass-panel rounded-xl p-5 border border-white/8">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Sites</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t("deployment.activeSiteCount")}</p>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700">
                       <Building2 className="w-4 h-4 text-gray-400" />
                     </div>
                   </div>
                   <p className="text-3xl font-black text-white">{sites.length}</p>
-                  <p className="text-xs font-mono text-gray-500 mt-1">Distinct locations</p>
+                  <p className="text-xs font-mono text-gray-500 mt-1">{t("deployment.distinctLocations")}</p>
                 </div>
               </div>
 
               {/* Per-site breakdown */}
               {sites.length > 0 && (
                 <div className="glass-panel rounded-xl p-5 border" style={{ borderColor: "rgba(233,255,112,0.12)" }}>
-                  <p className="text-[10px] font-black uppercase tracking-widest mb-4" style={{ color: "#E9FF70" }}>Site Breakdown</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-4" style={{ color: "#E9FF70" }}>{t("deployment.siteBreakdown")}</p>
                   <div className="flex flex-wrap gap-3">
                     {sites.map((site) => {
                       const count = deployed.filter((w) => (w as any).siteLocation === site).length;
@@ -430,7 +528,7 @@ export default function Dashboard() {
                         onClick={() => setSiteFilter("")}
                         className="px-3 py-2 rounded-lg text-xs font-bold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-all"
                       >
-                        Clear filter ×
+                        {t("deployment.clearFilter")}
                       </button>
                     )}
                   </div>
@@ -500,8 +598,8 @@ export default function Dashboard() {
                 className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
                 style={siteFilter ? { borderColor: "rgba(233,255,112,0.5)", color: "#E9FF70" } : {}}
               >
-                <option value="">All Clients</option>
-                <option value="Available">Available / Bench</option>
+                <option value="">{t("table.allClients")}</option>
+                <option value="Available">{t("table.available")}</option>
                 {uniqueClients.map((client) => (
                   <option key={client} value={client}>{client}</option>
                 ))}
@@ -566,6 +664,7 @@ export default function Dashboard() {
                       <td className="px-2 py-2">
                         <div className="font-sans font-medium text-white">{worker.name}</div>
                         <div className="text-xs text-muted-foreground">{worker.email}</div>
+                        <ContactIcons worker={worker} />
                       </td>
                       <td className="px-2 py-2">
                         <span className="px-2 py-1 rounded bg-white/10 border border-white/20 text-xs font-bold text-white">
@@ -706,7 +805,7 @@ export default function Dashboard() {
 
             {/* Buttons row */}
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-sm font-black uppercase tracking-widest text-white/60">Document Expiry Grid</h2>
+              <h2 className="text-sm font-black uppercase tracking-widest text-white/60">{t("alerts.docExpiryGrid")}</h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={triggerTestAlert}
@@ -715,7 +814,7 @@ export default function Dashboard() {
                   style={{ borderColor: "#E9FF70", color: "#E9FF70", background: "rgba(233,255,112,0.08)" }}
                 >
                   <Mail className={`w-3 h-3 ${alertTriggering ? "animate-pulse" : ""}`} />
-                  {alertTriggering ? "Sending…" : "Send Test Alert"}
+                  {alertTriggering ? t("alerts.sending") : t("alerts.sendTestAlert")}
                 </button>
                 <button
                   onClick={fetchCompliance}
@@ -724,7 +823,7 @@ export default function Dashboard() {
                   style={{ background: "#E9FF70", color: "#333333" }}
                 >
                   <RefreshCcw className={`w-3 h-3 ${complianceLoading ? "animate-spin" : ""}`} />
-                  {complianceLoading ? "Scanning…" : "Refresh Scan"}
+                  {complianceLoading ? t("alerts.scanning") : t("alerts.refreshScan")}
                 </button>
               </div>
             </div>
@@ -788,10 +887,10 @@ export default function Dashboard() {
 
                 {alertResult.docsFound > 0 && (
                   <div className="text-xs text-white/50 flex gap-4 pt-1">
-                    <span className="text-red-400 font-bold">🔴 {alertResult.redCount} critical</span>
-                    <span className="text-yellow-400 font-bold">⚠ {alertResult.yellowCount} warning</span>
-                    <span className="text-green-400 font-bold">✓ {alertResult.greenCount} compliant</span>
-                    <span className="text-white/30">→ all included in test email</span>
+                    <span className="text-red-400 font-bold">🔴 {alertResult.redCount} {t("alerts.critical")}</span>
+                    <span className="text-yellow-400 font-bold">⚠ {alertResult.yellowCount} {t("alerts.warning")}</span>
+                    <span className="text-green-400 font-bold">✓ {alertResult.greenCount} {t("alerts.compliantCount")}</span>
+                    <span className="text-white/30">{t("alerts.allIncluded")}</span>
                   </div>
                 )}
               </div>
@@ -807,8 +906,8 @@ export default function Dashboard() {
             ) : complianceDocs.length === 0 ? (
               <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-12 text-center">
                 <CheckCircle className="w-10 h-10 mx-auto mb-3 text-green-400" />
-                <p className="text-white font-bold">All documents are compliant</p>
-                <p className="text-white/40 text-xs mt-1">No expiry dates found in the system.</p>
+                <p className="text-white font-bold">{t("alerts.allCompliant")}</p>
+                <p className="text-white/40 text-xs mt-1">{t("alerts.noExpiry")}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -836,7 +935,7 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: borderColor }}>{doc.documentType}</p>
-                      <p className="text-[10px] font-mono text-white/40">Expiry: {doc.expiryDate}</p>
+                      <p className="text-[10px] font-mono text-white/40">{t("alerts.expiry")}: {doc.expiryDate}</p>
                     </div>
                   );
                 })}
@@ -846,10 +945,10 @@ export default function Dashboard() {
             {/* Legend */}
             <div className="flex items-center gap-6 pt-2">
               {[
-                { color: "#16a34a", label: "Green — 60+ days" },
-                { color: "#d97706", label: "Yellow — 30–60 days" },
-                { color: "#dc2626", label: "Red — < 30 days (Critical)" },
-                { color: "#7f1d1d", label: "Expired" },
+                { color: "#16a34a", label: t("alerts.legend60") },
+                { color: "#d97706", label: t("alerts.legend30") },
+                { color: "#dc2626", label: t("alerts.legendRed") },
+                { color: "#7f1d1d", label: t("alerts.legendExp") },
               ].map((l) => (
                 <div key={l.label} className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
@@ -865,15 +964,23 @@ export default function Dashboard() {
           <div className="space-y-6">
 
             {/* Administrator Profile Card */}
-            <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-6 space-y-4">
+            <div className="rounded-2xl border p-6 space-y-4" style={{ borderColor: "rgba(233,255,112,0.25)", background: "rgba(233,255,112,0.03)" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm" style={{ background: "#E9FF70", color: "#333333" }}>
-                    {adminProfile?.fullName?.charAt(0) ?? "A"}
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg" style={{ background: "#E9FF70", color: "#333333" }}>
+                      {adminProfile?.fullName?.charAt(0) ?? "A"}
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#333", border: "2px solid #E9FF70" }}>
+                      <Shield className="w-2.5 h-2.5" style={{ color: "#E9FF70" }} />
+                    </div>
                   </div>
                   <div>
-                    <h2 className="text-base font-black uppercase tracking-widest text-white">Administrator Profile</h2>
-                    <p className="text-xs text-white/40 mt-0.5">Contact details used for automated system alerts.</p>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-black uppercase tracking-widest text-white">{t("settings.adminProfile")}</h2>
+                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: "#E9FF70", color: "#333333" }}>ADMIN</span>
+                    </div>
+                    <p className="text-xs text-white/40 mt-0.5">{t("settings.adminProfileDesc")}</p>
                   </div>
                 </div>
                 {!adminEditing && (
@@ -892,14 +999,14 @@ export default function Dashboard() {
                 <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 space-y-3">
                   {/* Full Name — read only */}
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24">Full Name</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24">{t("settings.fullName")}</span>
                     <span className="text-sm font-mono text-white">{adminProfile.fullName}</span>
                     <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest" style={{ background: "rgba(233,255,112,0.12)", color: "#E9FF70" }}>{adminProfile.role}</span>
                   </div>
 
                   {/* Email */}
                   <div className="flex items-start gap-3">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24 pt-2">Email</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24 pt-2">{t("settings.email")}</span>
                     {adminEditing ? (
                       <input
                         type="email"
@@ -915,7 +1022,7 @@ export default function Dashboard() {
 
                   {/* Phone */}
                   <div className="flex items-start gap-3">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24 pt-2">Phone</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24 pt-2">{t("settings.phone")}</span>
                     {adminEditing ? (
                       <input
                         type="tel"
@@ -940,13 +1047,13 @@ export default function Dashboard() {
                         style={{ background: "#E9FF70", color: "#333333" }}
                       >
                         {adminSaving ? <RefreshCcw className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
-                        {adminSaving ? "Saving…" : "Save"}
+                        {adminSaving ? t("settings.saving") : t("settings.save")}
                       </button>
                       <button
                         onClick={() => { setAdminEditing(false); setAdminEditEmail(adminProfile.email); setAdminEditPhone(adminProfile.phone); }}
                         className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-white/50 hover:text-white transition-all border border-white/10"
                       >
-                        Cancel
+                        {t("settings.cancel")}
                       </button>
                     </div>
                   )}
@@ -967,13 +1074,13 @@ export default function Dashboard() {
               <div className="flex items-center gap-3">
                 <Database className="w-5 h-5" style={{ color: "#E9FF70" }} />
                 <div>
-                  <h2 className="text-base font-black uppercase tracking-widest text-white">Airtable Schema Sync</h2>
-                  <p className="text-xs text-white/40 mt-0.5">Create missing EEJ columns in your Airtable base automatically.</p>
+                  <h2 className="text-base font-black uppercase tracking-widest text-white">{t("settings.schemaSync")}</h2>
+                  <p className="text-xs text-white/40 mt-0.5">{t("settings.schemaSyncDesc")}</p>
                 </div>
               </div>
 
               <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 space-y-1.5 text-xs font-mono">
-                <p className="text-white/60 uppercase tracking-widest text-[10px] font-bold mb-2">Fields to sync</p>
+                <p className="text-white/60 uppercase tracking-widest text-[10px] font-bold mb-2">{t("settings.fieldsToSync")}</p>
                 {[
                   { name: "Job Role", type: "Single line text" },
                   { name: "Experience", type: "Single line text" },
@@ -996,7 +1103,7 @@ export default function Dashboard() {
                 style={{ background: "#E9FF70", color: "#333333" }}
               >
                 {schemaSyncing ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
-                {schemaSyncing ? "Syncing…" : "Sync Airtable Schema"}
+                {schemaSyncing ? t("settings.syncing") : t("settings.syncBtn")}
               </button>
 
               {schemaSyncResult && (
@@ -1055,12 +1162,12 @@ export default function Dashboard() {
               <div className="flex items-center gap-3">
                 <Bell className="w-5 h-5" style={{ color: "#E9FF70" }} />
                 <div>
-                  <h2 className="text-base font-black uppercase tracking-widest text-white">Automatic Expiry Alerts</h2>
-                  <p className="text-xs text-white/40 mt-0.5">Daily email alerts for documents expiring within 14 days.</p>
+                  <h2 className="text-base font-black uppercase tracking-widest text-white">{t("settings.autoAlerts")}</h2>
+                  <p className="text-xs text-white/40 mt-0.5">{t("settings.autoAlertsDesc")}</p>
                 </div>
               </div>
               <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 text-xs space-y-3">
-                <p className="text-white/60 font-mono text-[10px] uppercase tracking-widest font-bold">Required Replit Secrets</p>
+                <p className="text-white/60 font-mono text-[10px] uppercase tracking-widest font-bold">{t("settings.requiredSecrets")}</p>
                 {[
                   { name: "AIRTABLE_API_KEY", desc: "Enables live data checks" },
                   { name: "ALERT_EMAIL_TO", desc: "Recipient email for alerts" },
@@ -1086,18 +1193,18 @@ export default function Dashboard() {
               <div className="flex items-center gap-3">
                 <Settings className="w-5 h-5" style={{ color: "#E9FF70" }} />
                 <div>
-                  <h2 className="text-base font-black uppercase tracking-widest text-white">Portal Credentials</h2>
+                  <h2 className="text-base font-black uppercase tracking-widest text-white">{t("settings.credentials")}</h2>
                   <p className="text-xs text-white/40 mt-0.5">Set <code className="text-[10px] px-1 rounded" style={{ background: "rgba(233,255,112,0.1)", color: "#E9FF70" }}>VITE_ADMIN_EMAIL</code> and <code className="text-[10px] px-1 rounded" style={{ background: "rgba(233,255,112,0.1)", color: "#E9FF70" }}>VITE_ADMIN_PASSWORD</code> in Replit Secrets to change.</p>
                 </div>
               </div>
               <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 font-mono text-xs space-y-2">
                 <div className="flex items-center gap-3">
-                  <span className="text-white/40 w-20">Email</span>
+                  <span className="text-white/40 w-20">{t("settings.email")}</span>
                   <span className="text-white/80">{(import.meta.env.VITE_ADMIN_EMAIL as string | undefined) ?? "admin@euro-edu-jobs.eu"}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-white/40 w-20">Password</span>
-                  <span className="text-white/50 italic">configured via secret</span>
+                  <span className="text-white/40 w-20">{t("settings.credPassword")}</span>
+                  <span className="text-white/50 italic">{t("settings.credPasswordNote")}</span>
                 </div>
               </div>
             </div>

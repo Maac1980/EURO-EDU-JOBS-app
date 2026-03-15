@@ -1,4 +1,4 @@
-const CACHE_NAME = "eej-portal-v1";
+const CACHE_NAME = "eej-portal-v2";
 
 const STATIC_ASSETS = [
   "/",

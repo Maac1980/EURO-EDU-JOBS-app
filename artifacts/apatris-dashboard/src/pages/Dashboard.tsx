@@ -7,7 +7,8 @@ import {
   Users, AlertTriangle, ShieldAlert, Clock, 
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
   MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
-  AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield, UserPlus, Trash2, Calculator
+  AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield, UserPlus, Trash2, Calculator,
+  Download, CalendarDays
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -26,6 +27,8 @@ import { AuditTrailPanel } from "@/components/AuditTrailPanel";
 import { AddWorkerModal } from "@/components/AddWorkerModal";
 import { PayrollRunPage } from "@/components/PayrollRunPage";
 import { TeamManagementCard } from "@/components/TeamManagementCard";
+import { ExpiringThisWeekPanel } from "@/components/ExpiringThisWeekPanel";
+import { ExpiryCalendar } from "@/components/ExpiryCalendar";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -309,6 +312,38 @@ export default function Dashboard() {
     )
   ).sort();
 
+  const exportCsv = () => {
+    const workers = workersData?.workers ?? [];
+    if (workers.length === 0) return;
+    const headers = [
+      "Name","Email","Phone","Job Role","Site","TRC Expiry","Work Permit Expiry",
+      "BHP Status","Contract End","Badania Lekarskie","Oświadczenie Expiry",
+      "UDT Cert Expiry","PESEL","NIP","ZUS Status","Visa Type",
+      "Hourly Rate (zł)","Total Hours","Advance Payment","Penalties","Compliance Status",
+    ];
+    const esc = (v: unknown) => {
+      const s = v == null ? "" : String(v).replace(/"/g, '""');
+      return /[",\n]/.test(s) ? `"${s}"` : s;
+    };
+    const rows = workers.map((w: any) => [
+      w.name, w.email, w.phone,
+      w.specialization, w.siteLocation,
+      w.trcExpiry, w.workPermitExpiry, w.bhpStatus, w.contractEndDate,
+      w.badaniaLekExpiry, w.oswiadczenieExpiry, w.udtCertExpiry,
+      w.pesel, w.nip, w.zusStatus, w.visaType,
+      w.hourlyNettoRate, w.totalHours, w.advancePayment, w.penalties,
+      w.status,
+    ].map(esc).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `EEJ_workers_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleNotify = (e: React.MouseEvent, worker: any) => {
     e.stopPropagation();
     setActionWorker(worker);
@@ -417,6 +452,18 @@ export default function Dashboard() {
             <span className="hidden sm:inline">{t("header.generateReport")}</span>
           </button>
 
+          <button
+            onClick={exportCsv}
+            title="Export all workers to Excel/CSV"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:opacity-90"
+            style={{ border: "1px solid rgba(233,255,112,0.4)", color: "#E9FF70" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#E9FF70"; (e.currentTarget as HTMLButtonElement).style.color = "#333333"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = "#E9FF70"; }}
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">CSV</span>
+          </button>
+
           <PdfDownloadButton sites={uniqueClients} />
 
           {/* Notification Bell */}
@@ -501,6 +548,10 @@ export default function Dashboard() {
               <StatCard title={t("stats.upcomingRenewals")} value={stats?.warning || "0"} icon={Clock} variant="warning" />
               <StatCard title={t("stats.nonCompliant")} value={stats?.nonCompliant || "0"} icon={AlertTriangle} variant="critical" />
             </div>
+            <ExpiringThisWeekPanel
+              workers={workersData?.workers ?? []}
+              onSelectWorker={(id) => setSelectedWorkerId(id)}
+            />
             <ComplianceTrendChart />
           </div>
         )}
@@ -906,6 +957,12 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
+
+            {/* Expiry Calendar */}
+            <ExpiryCalendar
+              workers={workersData?.workers ?? []}
+              onSelectWorker={(id) => setSelectedWorkerId(id)}
+            />
 
             {/* Buttons row */}
             <div className="flex items-center justify-between flex-wrap gap-3">

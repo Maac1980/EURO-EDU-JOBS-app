@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, TrendingUp, History } from "lucide-react";
+import { X, Upload, CheckCircle2, AlertTriangle, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, TrendingUp, History } from "lucide-react";
 import { PayrollHistoryTab } from "./PayrollHistoryTab";
 import { useGetWorker } from "@workspace/api-client-react";
 import { getGetWorkerQueryKey } from "@workspace/api-client-react";
@@ -328,6 +328,50 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               <PayrollHistoryTab workerId={workerId!} workerName={worker.name} />
             ) : (
             <>
+            {/* ONBOARDING CHECKLIST */}
+            {(() => {
+              const checks = [
+                { label: "TRC", ok: !!(worker as any).trcExpiry, field: "trcExpiry" },
+                { label: "Work Permit", ok: !!(worker as any).workPermitExpiry, field: "workPermitExpiry" },
+                { label: "BHP", ok: !!(worker as any).bhpStatus && (worker as any).bhpStatus !== "Unknown", field: "bhpStatus" },
+                { label: "Contract", ok: !!(worker as any).contractEndDate, field: "contractEndDate" },
+                { label: "Badania Lek.", ok: !!(worker as any).badaniaLekExpiry, field: "badaniaLekExpiry" },
+                { label: "Email", ok: !!worker.email, field: "email" },
+              ];
+              const missing = checks.filter((c) => !c.ok);
+              if (missing.length === 0) {
+                return (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-green-400">All required documents on file</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(234,179,8,0.25)" }}>
+                  <div className="flex items-center gap-2 px-3 py-2" style={{ background: "rgba(234,179,8,0.08)" }}>
+                    <AlertTriangle className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400">{missing.length} field{missing.length !== 1 ? "s" : ""} missing</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 px-3 py-2">
+                    {checks.map((c) => (
+                      <span
+                        key={c.label}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide"
+                        style={{
+                          background: c.ok ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                          color: c.ok ? "#4ade80" : "#f87171",
+                          border: `1px solid ${c.ok ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                        }}
+                      >
+                        {c.ok ? "✓" : "✗"} {c.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* SECTION 1: Document Upload */}
             <div>
               <SectionDivider label={t("edit.pushDocuments")} />

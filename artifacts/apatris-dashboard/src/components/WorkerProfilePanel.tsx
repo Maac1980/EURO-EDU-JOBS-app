@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle } from "lucide-react";
 import { PIPInspectionModal } from "./PIPInspectionModal";
 import { format, parseISO } from "date-fns";
 import { useGetWorker, getGetWorkerQueryKey, getGetWorkersQueryKey } from "@workspace/api-client-react";
@@ -444,9 +444,23 @@ export function WorkerProfilePanel({
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <Phone className="w-4 h-4 flex-shrink-0" style={{ color: "#E9FF70" }} />
-                  <span className="text-gray-300 font-mono">
+                  <span className="text-gray-300 font-mono flex-1">
                     {worker.phone || t("panel.noPhone")}
                   </span>
+                  {worker.phone && (
+                    <a
+                      href={`https://wa.me/${worker.phone.replace(/[\s\-().+]/g, "").replace(/^00/, "").replace(/^0/, "48")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open WhatsApp chat"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all hover:opacity-90 flex-shrink-0"
+                      style={{ background: "#25D366", color: "white" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      WA
+                    </a>
+                  )}
                 </div>
               </div>
 

@@ -8,6 +8,18 @@ import { mapRecordToWorker } from "./compliance.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROFILE_FILE = join(__dirname, "../../data/admin-profile.json");
+const USERS_FILE = join(__dirname, "../../data/users.json");
+
+function getCoordinatorEmails(): string[] {
+  try {
+    if (!existsSync(USERS_FILE)) return [];
+    const data = JSON.parse(readFileSync(USERS_FILE, "utf-8")) as { users: Array<{ email: string; role: string; site?: string | null }> };
+    return data.users
+      .filter((u) => u.role === "coordinator" && u.email)
+      .map((u) => u.email)
+      .filter(Boolean);
+  } catch { return []; }
+}
 
 interface AdminProfile {
   fullName: string;
@@ -216,9 +228,12 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
       auth: { user: smtpUser, pass: smtpPass },
     });
 
+    const coordinatorEmails = getCoordinatorEmails().filter((e) => e !== emailTo);
+
     await transporter.sendMail({
       from: `EURO EDU JOBS Compliance <${smtpFrom}>`,
       to: emailTo,
+      ...(coordinatorEmails.length > 0 ? { cc: coordinatorEmails.join(", ") } : {}),
       subject: testMode
         ? `🧪 EEJ Test Alert — ${result.docsFound} documents found across ${result.scanned} workers`
         : `⚠ EEJ Alert: ${result.redCount} Critical + ${result.yellowCount} Warning documents`,

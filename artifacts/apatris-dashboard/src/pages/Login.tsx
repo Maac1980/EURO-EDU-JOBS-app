@@ -13,15 +13,18 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const success = login(email, password);
-    if (success) {
+    setLoading(true);
+    const result = await login(email, password);
+    setLoading(false);
+    if (result.success) {
       setLocation("/");
     } else {
-      setError(t("login.invalidCredentials"));
+      setError(result.error ?? t("login.invalidCredentials"));
     }
   };
 
@@ -33,7 +36,6 @@ export default function Login() {
         className="hidden lg:flex flex-col justify-center items-center flex-1 relative"
         style={{ background: LIME }}
       >
-        {/* Subtle grid texture */}
         <div
           className="absolute inset-0 opacity-10"
           style={{
@@ -43,7 +45,6 @@ export default function Login() {
           }}
         />
         <div className="relative z-10 text-center px-12 select-none">
-          {/* Logo square */}
           <div
             className="w-28 h-28 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl"
             style={{ background: DARK }}
@@ -75,7 +76,6 @@ export default function Login() {
             <div className="h-px w-16" style={{ background: DARK, opacity: 0.2 }} />
           </div>
         </div>
-        {/* Bottom tagline */}
         <div className="absolute bottom-8 left-8">
           <p className="text-xs font-mono uppercase tracking-widest" style={{ color: DARK, opacity: 0.4 }}>
             Est. Europe · Global Talent Solutions
@@ -90,7 +90,7 @@ export default function Login() {
       >
         <div className="w-full max-w-sm">
 
-          {/* Mobile logo (shown on small screens) */}
+          {/* Mobile logo */}
           <div className="lg:hidden text-center mb-8">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3"
@@ -116,7 +116,6 @@ export default function Login() {
             <p className="text-sm text-gray-400 mt-1">
               {t("login.terminal")}
             </p>
-            {/* Lime accent bar */}
             <div className="mt-3 h-1 w-12 rounded-full" style={{ background: LIME }} />
           </div>
 
@@ -126,13 +125,13 @@ export default function Login() {
             {error && (
               <div
                 className="p-3 rounded-lg text-sm font-medium"
-                style={{ background: `${LIME}22`, border: `1px solid ${LIME}88`, color: DARK }}
+                style={{ background: "#fff0f0", border: "1px solid #ffcccc", color: "#c0392b" }}
               >
                 {error}
               </div>
             )}
 
-            {/* Operator ID */}
+            {/* Email */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-widest" style={{ color: "#888" }}>
                 {t("login.operatorId")}
@@ -140,11 +139,13 @@ export default function Login() {
               <input
                 type="email"
                 required
+                disabled={loading}
                 className="w-full rounded-xl px-4 py-3 text-sm transition-all outline-none"
                 style={{
                   background: "#f5f5f5",
                   border: "2px solid #e5e5e5",
                   color: DARK,
+                  opacity: loading ? 0.6 : 1,
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = LIME;
@@ -154,13 +155,13 @@ export default function Login() {
                   e.currentTarget.style.borderColor = "#e5e5e5";
                   e.currentTarget.style.boxShadow = "none";
                 }}
-                placeholder="admin@euro-edu-jobs.eu"
+                placeholder="you@euro-edu-jobs.eu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
 
-            {/* Passcode */}
+            {/* Password */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-widest" style={{ color: "#888" }}>
                 {t("login.passcode")}
@@ -168,11 +169,13 @@ export default function Login() {
               <input
                 type="password"
                 required
+                disabled={loading}
                 className="w-full rounded-xl px-4 py-3 text-sm transition-all outline-none"
                 style={{
                   background: "#f5f5f5",
                   border: "2px solid #e5e5e5",
                   color: DARK,
+                  opacity: loading ? 0.6 : 1,
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = LIME;
@@ -191,14 +194,26 @@ export default function Login() {
             {/* Submit */}
             <button
               type="submit"
+              disabled={loading}
               className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 font-black uppercase tracking-widest text-sm transition-all hover:opacity-90 shadow-lg mt-2"
               style={{
-                background: LIME,
+                background: loading ? "#ccc" : LIME,
                 color: DARK,
-                boxShadow: `0 4px 20px ${LIME}55`,
+                boxShadow: loading ? "none" : `0 4px 20px ${LIME}55`,
+                cursor: loading ? "not-allowed" : "pointer",
               }}
             >
-              <span>{t("login.submit")}</span>
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke={DARK} strokeWidth="4" />
+                    <path className="opacity-75" fill={DARK} d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  <span>Verifying…</span>
+                </>
+              ) : (
+                <span>{t("login.submit")}</span>
+              )}
             </button>
           </form>
 

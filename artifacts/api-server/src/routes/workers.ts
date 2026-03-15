@@ -562,15 +562,9 @@ router.patch("/workers/:id", async (req, res) => {
       if (!isNaN(adv) && adv >= 0) airtableFields["ADVANCE PAYMENT"] = adv;
     }
 
-    // Hours tracker: ADD shift hours to existing total (read-then-write)
-    if (body.shiftHours !== undefined) {
-      const shiftHrs = Number(body.shiftHours);
-      if (!isNaN(shiftHrs) && shiftHrs > 0) {
-        const currentRecord = await fetchRecord(req.params.id);
-        const existingHours = Number(currentRecord.fields["TOTAL HOURS"] ?? 0);
-        const newTotal = isNaN(existingHours) ? shiftHrs : existingHours + shiftHrs;
-        airtableFields["TOTAL HOURS"] = Math.round(newTotal * 10) / 10;
-      }
+    if (body.totalHours !== undefined) {
+      const hrs = Number(body.totalHours);
+      if (!isNaN(hrs) && hrs >= 0) airtableFields["TOTAL HOURS"] = Math.round(hrs * 10) / 10;
     }
 
     const updated = await updateRecord(req.params.id, airtableFields);

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, Plus, Euro, TrendingUp } from "lucide-react";
+import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, TrendingUp } from "lucide-react";
 import { useGetWorker } from "@workspace/api-client-react";
 import { getGetWorkerQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -126,7 +126,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const [qualification, setQualification] = useState("");
   const [siteLocation, setSiteLocation] = useState("");
   const [hourlyNettoRate, setHourlyNettoRate] = useState("");
-  const [shiftHours, setShiftHours] = useState("");
+  const [totalHoursInput, setTotalHoursInput] = useState("");
   const [advancePayment, setAdvancePayment] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -141,7 +141,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       setSiteLocation((worker as any).siteLocation || "");
       setHourlyNettoRate((worker as any).hourlyNettoRate != null ? String((worker as any).hourlyNettoRate) : "");
       setAdvancePayment((worker as any).advancePayment != null ? String((worker as any).advancePayment) : "");
-      setShiftHours("");
+      setTotalHoursInput((worker as any).totalHours != null ? String((worker as any).totalHours) : "");
     }
   }, [worker]);
 
@@ -154,7 +154,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const effectiveJobRole = jobRole === "__custom__" ? customJobRole : jobRole;
 
   /* ── Monthly summary calculations ── */
-  const totalHrs = (worker as any)?.totalHours ?? 0;
+  const totalHrs = parseFloat(totalHoursInput) || (worker as any)?.totalHours || 0;
   const rateNum = parseFloat(hourlyNettoRate) || 0;
   const advNum = parseFloat(advancePayment) || 0;
   const grossPay = totalHrs * rateNum;
@@ -177,8 +177,8 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       const advVal = parseFloat(advancePayment);
       if (!isNaN(advVal) && advVal >= 0) payload.advancePayment = advVal;
 
-      const shiftHrsNum = parseFloat(shiftHours);
-      if (!isNaN(shiftHrsNum) && shiftHrsNum > 0) payload.shiftHours = shiftHrsNum;
+      const totalHrsNum = parseFloat(totalHoursInput);
+      if (!isNaN(totalHrsNum) && totalHrsNum >= 0) payload.totalHours = totalHrsNum;
 
       if (Object.keys(payload).length === 0) {
         toast({ title: "Nothing to save", description: "Fill in at least one field before saving.", variant: "destructive" });
@@ -200,7 +200,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       if (payload.siteLocation !== undefined) saved.push(`Site: ${payload.siteLocation || "Available"}`);
       if (payload.hourlyNettoRate !== undefined) saved.push(`Rate: zł${payload.hourlyNettoRate}/hr`);
       if (payload.advancePayment !== undefined) saved.push(`Advance: zł${payload.advancePayment}`);
-      if (payload.shiftHours) saved.push(`+${payload.shiftHours}h added`);
+      if (payload.totalHours !== undefined) saved.push(`Hours: ${payload.totalHours}h`);
 
       toast({ title: "✓ Candidate Record Updated", description: saved.join(" · "), variant: "success" as any });
     } catch (err) {
@@ -318,37 +318,27 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               </div>
             </div>
 
-            {/* ── SECTION 3: Hours Tracker ── */}
+            {/* ── SECTION 3: Total Hours ── */}
             <div>
-              <SectionDivider label="Hours Tracker" />
-
-              {/* Current total */}
-              {(worker as any).totalHours != null && (
-                <div className="flex items-center gap-3 p-3 rounded-xl mb-3" style={{ background: "rgba(233,255,112,0.06)", border: `1px solid ${LIME_BORDER}` }}>
-                  <Clock className="w-4 h-4 flex-shrink-0" style={{ color: LIME }} />
-                  <div>
-                    <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Current Total</p>
-                    <p className="text-lg font-black tabular-nums" style={{ color: LIME }}>
-                      {(worker as any).totalHours % 1 === 0 ? (worker as any).totalHours : Number((worker as any).totalHours).toFixed(1)}{" "}
-                      <span className="text-sm font-mono text-gray-400">hours</span>
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>Add Shift Hours</label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input type="number" min="0.5" step="0.5" value={shiftHours} onChange={(e) => setShiftHours(e.target.value)} placeholder="e.g. 8  or  8.5" className={`${inputCls} pr-12`} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime} />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">hrs</span>
-                </div>
-                {shiftHours && !isNaN(parseFloat(shiftHours)) && parseFloat(shiftHours) > 0 && (
-                  <div className="flex items-center gap-1 px-3 py-2.5 rounded-lg text-xs font-black whitespace-nowrap" style={{ background: LIME, color: "#333333" }}>
-                    <Plus className="w-3 h-3" />{parseFloat(shiftHours)}h
-                  </div>
-                )}
+              <SectionDivider label="Total Hours" />
+              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>Hours Worked This Month</label>
+              <div className="relative">
+                <Clock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={totalHoursInput}
+                  onChange={(e) => setTotalHoursInput(e.target.value)}
+                  placeholder="e.g. 160"
+                  className={`${inputCls} pl-9 pr-12`}
+                  style={inputStyle}
+                  onFocus={onFocusLime}
+                  onBlur={onBlurLime}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">hrs</span>
               </div>
-              <p className="text-[10px] font-mono text-gray-600 mt-1.5">This value will be ADDED to the existing total — not replaced.</p>
+              <p className="text-[10px] font-mono text-gray-600 mt-1.5">Overwrites the current value in Airtable. Updates the monthly summary below.</p>
             </div>
 
             {/* ── SECTION 4: Financial Adjustments ── NEW */}

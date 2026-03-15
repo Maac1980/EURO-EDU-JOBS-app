@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useTranslation } from "react-i18next";
@@ -14,6 +14,21 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hintEmail, setHintEmail] = useState("");
+
+  // Pre-fill email from server so user always knows which address to use
+  useEffect(() => {
+    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    fetch(`${base}/api/auth/whoami`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.allowedEmail) {
+          setHintEmail(d.allowedEmail);
+          setEmail((prev) => prev || d.allowedEmail);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,10 +171,15 @@ export default function Login() {
                   e.currentTarget.style.borderColor = "#e5e5e5";
                   e.currentTarget.style.boxShadow = "none";
                 }}
-                placeholder="you@euro-edu-jobs.eu"
+                placeholder={hintEmail || "you@euro-edu-jobs.eu"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+              {hintEmail && (
+                <p className="text-[10px] mt-1.5 px-1" style={{ color: "#aaa" }}>
+                  Registered operator: <span style={{ color: DARK, fontWeight: 700 }}>{hintEmail}</span>
+                </p>
+              )}
             </div>
 
             {/* Password */}

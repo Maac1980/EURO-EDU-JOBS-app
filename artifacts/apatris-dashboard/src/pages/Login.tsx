@@ -139,6 +139,7 @@ export default function Login() {
               <input
                 type="email"
                 required
+                autoComplete="username"
                 disabled={loading}
                 className="w-full rounded-xl px-4 py-3 text-sm transition-all outline-none"
                 style={{
@@ -169,6 +170,7 @@ export default function Login() {
               <input
                 type="password"
                 required
+                autoComplete="current-password"
                 disabled={loading}
                 className="w-full rounded-xl px-4 py-3 text-sm transition-all outline-none"
                 style={{

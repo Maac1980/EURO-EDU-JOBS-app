@@ -145,6 +145,11 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const [udtCertExpiry, setUdtCertExpiry] = useState("");
   const [visaType, setVisaType] = useState("");
   const [rodoConsentDate, setRodoConsentDate] = useState("");
+  // Key document date fields
+  const [trcExpiryEdit, setTrcExpiryEdit] = useState("");
+  const [workPermitExpiryEdit, setWorkPermitExpiryEdit] = useState("");
+  const [contractEndDateEdit, setContractEndDateEdit] = useState("");
+  const [bhpExpiryEdit, setBhpExpiryEdit] = useState("");
 
   const isOpen = !!workerId;
 
@@ -171,6 +176,10 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       setUdtCertExpiry((worker as any).udtCertExpiry || "");
       setVisaType((worker as any).visaType || "");
       setRodoConsentDate((worker as any).rodoConsentDate || "");
+      setTrcExpiryEdit((worker as any).trcExpiry || "");
+      setWorkPermitExpiryEdit((worker as any).workPermitExpiry || "");
+      setContractEndDateEdit((worker as any).contractEndDate || "");
+      setBhpExpiryEdit((worker as any).bhpStatus || "");
     }
   }, [worker]);
 
@@ -221,6 +230,10 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       if (udtCertExpiry !== undefined) payload.udtCertExpiry = udtCertExpiry;
       if (visaType !== undefined) payload.visaType = visaType;
       if (rodoConsentDate !== undefined) payload.rodoConsentDate = rodoConsentDate;
+      if (trcExpiryEdit) payload.trcExpiry = trcExpiryEdit;
+      if (workPermitExpiryEdit) payload.workPermitExpiry = workPermitExpiryEdit;
+      if (contractEndDateEdit) payload.contractEndDate = contractEndDateEdit;
+      if (bhpExpiryEdit) payload.bhpStatus = bhpExpiryEdit;
 
       if (Object.keys(payload).length === 0) {
         toast({ title: t("edit.nothingToSave"), description: t("edit.nothingToSaveDesc"), variant: "destructive" });
@@ -349,6 +362,29 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">/hr</span>
                   </div>
                   <p className="text-[10px] font-mono text-gray-600 mt-1">{t("edit.hourlyRateNote")}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 2b: Key Document Dates */}
+            <div>
+              <SectionDivider label={t("edit.documentDates")} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: "#E9FF70" }}>{t("panel.trcExpiry")}</label>
+                  <input type="date" value={trcExpiryEdit} onChange={(e) => setTrcExpiryEdit(e.target.value)} className={inputCls} style={{ border: "1px solid rgba(233,255,112,0.25)", colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: "#E9FF70" }}>{t("panel.workPermitExpiry")}</label>
+                  <input type="date" value={workPermitExpiryEdit} onChange={(e) => setWorkPermitExpiryEdit(e.target.value)} className={inputCls} style={{ border: "1px solid rgba(233,255,112,0.25)", colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: "#E9FF70" }}>{t("panel.contractEndDate")}</label>
+                  <input type="date" value={contractEndDateEdit} onChange={(e) => setContractEndDateEdit(e.target.value)} className={inputCls} style={{ border: "1px solid rgba(233,255,112,0.25)", colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: "#E9FF70" }}>{t("panel.bhpExpiry")}</label>
+                  <input type="date" value={bhpExpiryEdit} onChange={(e) => setBhpExpiryEdit(e.target.value)} className={inputCls} style={{ border: "1px solid rgba(233,255,112,0.25)", colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
                 </div>
               </div>
             </div>

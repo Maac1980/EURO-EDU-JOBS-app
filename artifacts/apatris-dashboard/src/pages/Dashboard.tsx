@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
-import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
+import { useGetWorkers, useGetWorkerStats, getGetWorkersQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Users, AlertTriangle, ShieldAlert, Clock, 
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
   MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
-  AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield
+  AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield, UserPlus, Trash2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -21,6 +23,7 @@ import { CandidateEditPanel } from "@/components/CandidateEditPanel";
 import { ComplianceTrendChart } from "@/components/ComplianceTrendChart";
 import { PdfDownloadButton } from "@/components/PdfDownloadButton";
 import { AuditTrailPanel } from "@/components/AuditTrailPanel";
+import { AddWorkerModal } from "@/components/AddWorkerModal";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -176,6 +179,11 @@ export default function Dashboard() {
   const [renewOpen, setRenewOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [addWorkerOpen, setAddWorkerOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const [schemaSyncing, setSchemaSyncing] = useState(false);
   const [schemaSyncResult, setSchemaSyncResult] = useState<{
@@ -311,6 +319,27 @@ export default function Dashboard() {
     setRenewOpen(true);
   };
 
+  const handleDelete = async (e: React.MouseEvent, workerId: string) => {
+    e.stopPropagation();
+    if (confirmDeleteId !== workerId) {
+      setConfirmDeleteId(workerId);
+      return;
+    }
+    setDeletingId(workerId);
+    setConfirmDeleteId(null);
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/workers/${workerId}`, { method: "DELETE" });
+      if (!res.ok) { const err = await res.json().catch(() => ({ error: "Delete failed" })); throw new Error(err.error ?? "Delete failed"); }
+      await queryClient.invalidateQueries({ queryKey: getGetWorkersQueryKey() });
+      toast({ title: t("table.deleted"), variant: "destructive" });
+    } catch (err) {
+      toast({ title: t("table.deleteFailed"), description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-foreground flex flex-col relative">
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -352,6 +381,17 @@ export default function Dashboard() {
         </div>
         
         <div className="flex items-center gap-2">
+          {/* + Add Worker */}
+          <button
+            onClick={() => setAddWorkerOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
+            style={{ background: "#E9FF70", color: "#333333" }}
+            title={t("addWorker.title")}
+          >
+            <UserPlus className="w-4 h-4" />
+            <span className="hidden sm:inline">{t("addWorker.title")}</span>
+          </button>
+
           {/* ⚡ AI Smart Upload */}
           <button
             onClick={() => setBulkUploadOpen(true)}
@@ -635,6 +675,8 @@ export default function Dashboard() {
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.badaniaLek")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.oswiadczenie")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.exp")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.qual")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>{t("table.assignedSite")}</th>
@@ -646,14 +688,14 @@ export default function Dashboard() {
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={10} className="px-2 py-2">
+                      <td colSpan={12} className="px-2 py-2">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
                   ))
                 ) : workersData?.workers.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground font-sans">
+                    <td colSpan={12} className="px-6 py-12 text-center text-muted-foreground font-sans">
                       {t("table.noResults")}
                     </td>
                   </tr>
@@ -707,6 +749,20 @@ export default function Dashboard() {
                             </span>
                           );
                         })()}
+                      </td>
+                      <td className="px-4 py-4 font-mono text-xs">
+                        {(worker as any).badaniaLekExpiry ? (() => {
+                          const d = new Date((worker as any).badaniaLekExpiry);
+                          const expired = d < new Date();
+                          return <span className={expired ? 'text-destructive font-bold' : 'text-success font-bold'}>{format(parseISO((worker as any).badaniaLekExpiry), 'MMM d, yy')}</span>;
+                        })() : <span className="text-gray-600">—</span>}
+                      </td>
+                      <td className="px-4 py-4 font-mono text-xs">
+                        {(worker as any).oswiadczenieExpiry ? (() => {
+                          const d = new Date((worker as any).oswiadczenieExpiry);
+                          const expired = d < new Date();
+                          return <span className={expired ? 'text-destructive font-bold' : 'text-success font-bold'}>{format(parseISO((worker as any).oswiadczenieExpiry), 'MMM d, yy')}</span>;
+                        })() : <span className="text-gray-600">—</span>}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {(worker as any).yearsOfExperience ? (
@@ -783,6 +839,25 @@ export default function Dashboard() {
                             >
                               <RefreshCcw className="w-3 h-3" />
                             </button>
+                            {confirmDeleteId === worker.id ? (
+                              <button
+                                onClick={(e) => handleDelete(e, worker.id)}
+                                disabled={deletingId === worker.id}
+                                className="p-1.5 rounded text-xs font-black uppercase transition-colors animate-pulse"
+                                style={{ background: "#ef4444", color: "white" }}
+                                title={t("table.confirmDelete")}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => handleDelete(e, worker.id)}
+                                className="p-1.5 rounded bg-white/5 hover:bg-red-500/20 text-gray-600 hover:text-red-400 transition-colors"
+                                title={t("table.deleteWorker")}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -1247,6 +1322,7 @@ export default function Dashboard() {
 
       <ComplianceReportModal isOpen={reportOpen} onClose={() => setReportOpen(false)} />
       <BulkUploadModal isOpen={bulkUploadOpen} onClose={() => setBulkUploadOpen(false)} />
+      <AddWorkerModal isOpen={addWorkerOpen} onClose={() => setAddWorkerOpen(false)} />
     </div>
   );
 }

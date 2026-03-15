@@ -60,7 +60,13 @@
     "notifyWorker": "Powiadom kandydata",
     "renewDocument": "Odnów dokument",
     "uploadDocuments": "Prześlij dokumenty",
-    "viewProfile": "Zobacz profil"
+    "viewProfile": "Zobacz profil",
+    "badaniaLek": "Badania Lek.",
+    "oswiadczenie": "Oświadcz.",
+    "deleteWorker": "Usuń pracownika",
+    "deleted": "Pracownik usunięty",
+    "deleteFailed": "Błąd usuwania",
+    "confirmDelete": "Kliknij ponownie, aby potwierdzić"
   },
   "contact": {
     "call": "Zadzwoń: ",
@@ -112,6 +118,7 @@
     "workPermitExpiry": "Ważność zezwolenia",
     "contractEndDate": "Data zakończenia umowy",
     "bhpStatus": "Status BHP",
+    "bhpExpiry": "Termin ważności BHP",
     "noEmail": "Brak adresu e-mail",
     "noPhone": "Brak numeru telefonu",
     "noDocuments": "Brak przesłanych dokumentów",
@@ -158,6 +165,7 @@
     "pushDocuments": "Prześlij dokumenty",
     "pushDocsNote": "Przesyłanie aktualizuje istniejący rekord kandydata w Airtable — nie tworzy nowego wiersza.",
     "manualUpdate": "Ręczna aktualizacja",
+    "documentDates": "Daty kluczowych dokumentów",
     "jobRole": "Stanowisko",
     "selectJobRole": "— Wybierz stanowisko —",
     "customOther": "Własne / Inne…",
@@ -347,5 +355,15 @@
     "credPassword": "Hasło",
     "credPasswordNote": "skonfigurowane przez sekret",
     "loadingProfile": "Wczytywanie profilu…"
+  },
+  "addWorker": {
+    "title": "Dodaj pracownika",
+    "name": "Imię i nazwisko",
+    "namePlaceholder": "np. Piotr Kowalski",
+    "create": "Utwórz pracownika",
+    "created": "Pracownik utworzony",
+    "failed": "Błąd tworzenia",
+    "nameRequired": "Imię i nazwisko jest wymagane",
+    "documents": "Daty dokumentów (opcjonalne)"
   }
 }

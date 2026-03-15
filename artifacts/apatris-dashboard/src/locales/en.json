@@ -60,7 +60,13 @@
     "notifyWorker": "Notify Worker",
     "renewDocument": "Renew Document",
     "uploadDocuments": "Upload Documents",
-    "viewProfile": "View Profile"
+    "viewProfile": "View Profile",
+    "badaniaLek": "Badania Lek.",
+    "oswiadczenie": "Oświadcz.",
+    "deleteWorker": "Delete Worker",
+    "deleted": "Worker Deleted",
+    "deleteFailed": "Delete Failed",
+    "confirmDelete": "Click again to confirm deletion"
   },
   "contact": {
     "call": "Call: ",
@@ -112,6 +118,7 @@
     "workPermitExpiry": "Work Permit Expiry",
     "contractEndDate": "Contract End Date",
     "bhpStatus": "BHP Status",
+    "bhpExpiry": "BHP Certificate Expiry",
     "noEmail": "No email provided",
     "noPhone": "No phone provided",
     "noDocuments": "No documents uploaded",
@@ -158,6 +165,7 @@
     "pushDocuments": "Push Documents",
     "pushDocsNote": "Uploading updates this candidate's existing Airtable record — no new row is created.",
     "manualUpdate": "Manual Update",
+    "documentDates": "Key Document Dates",
     "jobRole": "Job Role",
     "selectJobRole": "— Select Job Role —",
     "customOther": "Custom / Other…",
@@ -347,5 +355,15 @@
     "credPassword": "Password",
     "credPasswordNote": "configured via secret",
     "loadingProfile": "Loading profile…"
+  },
+  "addWorker": {
+    "title": "Add Worker",
+    "name": "Full Name",
+    "namePlaceholder": "e.g. Piotr Kowalski",
+    "create": "Create Worker",
+    "created": "Worker Created",
+    "failed": "Create Failed",
+    "nameRequired": "Worker name is required",
+    "documents": "Document Dates (Optional)"
   }
 }

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import OpenAI from "openai";
-import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, createRecord, ensureEejSchema, getTableSchema } from "../lib/airtable.js";
+import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, createRecord, deleteRecord, ensureEejSchema, getTableSchema } from "../lib/airtable.js";
 import { appendAuditEntry } from "./audit.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { MOCK_WORKERS, getMockWorker, isMockMode } from "../lib/mockData.js";
@@ -199,6 +199,33 @@ router.post("/apply", applyUpload.single("cv"), async (req, res) => {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[apply] Error:", message);
     res.status(500).json({ error: message });
+  }
+});
+
+// POST /workers — manually create a new worker record
+router.post("/workers", async (req, res) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name) return res.status(400).json({ error: "Worker name is required." });
+
+    const airtableFields: Record<string, unknown> = { NAME: name };
+    if (body.specialization) airtableFields["Job Role"] = body.specialization;
+    if (body.email) airtableFields["Email"] = body.email;
+    if (body.phone) airtableFields["Phone"] = body.phone;
+    if (body.siteLocation) airtableFields["Assigned Site"] = body.siteLocation;
+    if (body.hourlyNettoRate) airtableFields["HOURLY NETTO RATE"] = Number(body.hourlyNettoRate);
+    if (body.trcExpiry) airtableFields["TRC Expiry"] = body.trcExpiry;
+    if (body.workPermitExpiry) airtableFields["Work Permit Expiry"] = body.workPermitExpiry;
+    if (body.contractEndDate) airtableFields["Contract End Date"] = body.contractEndDate;
+
+    const newRecord = await createRecord(airtableFields);
+    const worker = mapRecordToWorker(newRecord);
+    appendAuditEntry({ workerId: newRecord.id, actor: "admin", field: "ALL", newValue: airtableFields, action: "create" });
+    return res.status(201).json({ worker });
+  } catch (err) {
+    console.error("[workers] create error:", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to create worker." });
   }
 });
 
@@ -597,6 +624,20 @@ router.patch("/workers/:id", async (req, res) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: message });
+  }
+});
+
+// DELETE /workers/:id
+router.delete("/workers/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "Worker ID required." });
+    await deleteRecord(id);
+    appendAuditEntry({ workerId: id, actor: "admin", field: "ALL", newValue: null, action: "delete" });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[workers] delete error:", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to delete worker." });
   }
 });
 

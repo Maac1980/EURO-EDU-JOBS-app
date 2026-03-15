@@ -21,6 +21,7 @@
   },
   "tabs": {
     "compliance": "Zgodność",
+    "payroll": "Płace",
     "deployment": "Rozmieszczenie",
     "alerts": "Alerty",
     "settings": "Ustawienia"
@@ -365,5 +366,56 @@
     "failed": "Błąd tworzenia",
     "nameRequired": "Imię i nazwisko jest wymagane",
     "documents": "Daty dokumentów (opcjonalne)"
+  },
+  "payroll": {
+    "title": "Miesięczna Lista Płac",
+    "subtitle": "Edytuj godziny, zaliczki i kary, następnie zamknij miesiąc, aby zatwierdzić do ksiąg.",
+    "closingMonth": "Zamykanie miesiąca",
+    "refresh": "Odśwież",
+    "col": {
+      "name": "Imię i nazwisko",
+      "site": "Lokalizacja",
+      "rate": "Stawka (zł/h)",
+      "hours": "Łączne godziny",
+      "advance": "Zaliczka (zł)",
+      "penalties": "Kary (zł)",
+      "gross": "Brutto (zł)",
+      "netto": "Netto (zł)"
+    },
+    "savedChanges": "Zmiany zapisane",
+    "monthClosed": "Miesiąc zamknięty i zatwierdzony do ksiąg",
+    "records": "rekord(y)",
+    "closeMonth": "Zamknij miesiąc",
+    "confirmClose": "Zamknąć miesiąc i zatwierdzić do ksiąg?",
+    "closeMonthNote": "Spowoduje to zapis danych płacowych i wyzerowanie godzin/zaliczek/kar w Airtable. Operacja jest nieodwracalna.",
+    "cancel": "Anuluj",
+    "workers": "pracownicy",
+    "noWorkers": "Nie znaleziono pracowników.",
+    "unsaved": "niezapisana(e) zmiana(y)",
+    "saveChanges": "Zapisz zmiany",
+    "totals": "Podsumowanie",
+    "searchWorkers": "Szukaj pracowników…",
+    "totalWorkers": "Liczba pracowników",
+    "totalGross": "Łączne brutto",
+    "totalDeductions": "Łączne potrącenia",
+    "totalNetto": "Łączne netto",
+    "history": {
+      "tab": "Historia płac",
+      "months": "miesiąc(e) w historii",
+      "totalHours": "Łączne godziny",
+      "totalNetto": "Łączne netto",
+      "printSettlement": "Drukuj rozliczenie",
+      "empty": "Brak historii płac.",
+      "emptyNote": "Zamknij miesiąc rozliczeniowy, aby wygenerować pierwszy zapis.",
+      "month": "Miesiąc",
+      "hours": "Godziny",
+      "rate": "Stawka (zł/h)",
+      "advance": "Zaliczka (zł)",
+      "netto": "Netto (zł)"
+    },
+    "settlement": {
+      "title": "Rozliczenie",
+      "print": "Drukuj / Zapisz jako PDF"
+    }
   }
 }

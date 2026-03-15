@@ -7,7 +7,7 @@ import {
   Users, AlertTriangle, ShieldAlert, Clock, 
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
   MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
-  AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield, UserPlus, Trash2
+  AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield, UserPlus, Trash2, Calculator
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -24,6 +24,7 @@ import { ComplianceTrendChart } from "@/components/ComplianceTrendChart";
 import { PdfDownloadButton } from "@/components/PdfDownloadButton";
 import { AuditTrailPanel } from "@/components/AuditTrailPanel";
 import { AddWorkerModal } from "@/components/AddWorkerModal";
+import { PayrollRunPage } from "@/components/PayrollRunPage";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -165,7 +166,7 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   
-  const [activeTab, setActiveTab] = useState<"compliance" | "deployment" | "alerts" | "settings">("compliance");
+  const [activeTab, setActiveTab] = useState<"compliance" | "payroll" | "deployment" | "alerts" | "settings">("compliance");
   const [search, setSearch] = useState("");
   const [specialization, setSpecialization] = useState("");
   const [status, setStatus] = useState("");
@@ -452,7 +453,7 @@ export default function Dashboard() {
         {/* ── Tab Bar ── */}
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit min-w-max">
-          {(["compliance", "deployment", "alerts", "settings"] as const).map((tab) => (
+          {(["compliance", "payroll", "deployment", "alerts", "settings"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -464,10 +465,11 @@ export default function Dashboard() {
               }
             >
               {tab === "compliance" && <ShieldAlert className="w-3.5 h-3.5" />}
+              {tab === "payroll" && <Calculator className="w-3.5 h-3.5" />}
               {tab === "deployment" && <MapPin className="w-3.5 h-3.5" />}
               {tab === "alerts" && <AlertOctagon className="w-3.5 h-3.5" />}
               {tab === "settings" && <Settings className="w-3.5 h-3.5" />}
-              {tab === "compliance" ? t("tabs.compliance") : tab === "deployment" ? t("tabs.deployment") : tab === "alerts" ? t("tabs.alerts") : t("tabs.settings")}
+              {tab === "compliance" ? t("tabs.compliance") : tab === "payroll" ? t("tabs.payroll") : tab === "deployment" ? t("tabs.deployment") : tab === "alerts" ? t("tabs.alerts") : t("tabs.settings")}
             </button>
           ))}
         </div>
@@ -1296,6 +1298,13 @@ export default function Dashboard() {
 
             {/* Audit Trail */}
             <AuditTrailPanel />
+          </div>
+        )}
+
+        {/* ── Payroll Tab ── */}
+        {activeTab === "payroll" && (
+          <div className="space-y-4">
+            <PayrollRunPage />
           </div>
         )}
       </main>

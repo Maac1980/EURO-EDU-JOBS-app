@@ -594,6 +594,10 @@ router.patch("/workers/:id", async (req, res) => {
       const hrs = Number(body.totalHours);
       if (!isNaN(hrs) && hrs >= 0) airtableFields["TOTAL HOURS"] = Math.round(hrs * 10) / 10;
     }
+    if (body.penalties !== undefined) {
+      const pen = Number(body.penalties);
+      if (!isNaN(pen) && pen >= 0) airtableFields["PENALTIES"] = Math.round(pen * 100) / 100;
+    }
 
     // ── Polish legal compliance fields ──────────────────────────────────────
     if (body.badaniaLekExpiry !== undefined) airtableFields["BADANIA LEKARSKIE"] = body.badaniaLekExpiry || null;

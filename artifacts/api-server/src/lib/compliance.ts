@@ -28,6 +28,7 @@ export interface Worker {
   totalHours: number | null;
   hourlyNettoRate: number | null;
   advancePayment: number | null;
+  penalties: number | null;
   // ── Polish legal compliance fields ──────────────────────────────────────
   badaniaLekExpiry: string | null;       // Badania Lekarskie (medical exam) expiry
   oswiadczenieExpiry: string | null;     // Oświadczenie o Powierzeniu Pracy expiry
@@ -228,6 +229,9 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
   const advancePayment = getNumber(
     resolveField(f, ["ADVANCE PAYMENT", "Advance Payment", "AdvancePayment", "Zaliczka", "Advance"])
   );
+  const penalties = getNumber(
+    resolveField(f, ["PENALTIES", "Penalties", "Kary", "Deductions"])
+  );
 
   // ── New Polish legal compliance fields ────────────────────────────────────
   const badaniaLekExpiry = getDate(
@@ -309,6 +313,7 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     siteLocation,
     hourlyNettoRate,
     advancePayment,
+    penalties,
     totalHours,
     badaniaLekExpiry,
     oswiadczenieExpiry,

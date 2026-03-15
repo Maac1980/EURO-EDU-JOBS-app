@@ -21,6 +21,7 @@
   },
   "tabs": {
     "compliance": "Compliance",
+    "payroll": "Payroll",
     "deployment": "Deployment",
     "alerts": "Doc Alerts",
     "settings": "Settings"
@@ -365,5 +366,56 @@
     "failed": "Create Failed",
     "nameRequired": "Worker name is required",
     "documents": "Document Dates (Optional)"
+  },
+  "payroll": {
+    "title": "Monthly Payroll Run",
+    "subtitle": "Edit hours, advances and penalties, then close the month to commit to the ledger.",
+    "closingMonth": "Closing month",
+    "refresh": "Refresh",
+    "col": {
+      "name": "Worker Name",
+      "site": "Site",
+      "rate": "Rate (zł/h)",
+      "hours": "Total Hours",
+      "advance": "Advance (zł)",
+      "penalties": "Penalties (zł)",
+      "gross": "Gross (zł)",
+      "netto": "Netto (zł)"
+    },
+    "savedChanges": "Changes saved",
+    "monthClosed": "Month closed & committed to ledger",
+    "records": "record(s)",
+    "closeMonth": "Close Month",
+    "confirmClose": "Close month and commit to ledger?",
+    "closeMonthNote": "This will snapshot all payroll data and reset hours/advances/penalties to zero in Airtable. This cannot be undone.",
+    "cancel": "Cancel",
+    "workers": "workers",
+    "noWorkers": "No workers found.",
+    "unsaved": "unsaved change(s)",
+    "saveChanges": "Save Changes",
+    "totals": "Totals",
+    "searchWorkers": "Search workers…",
+    "totalWorkers": "Total Workers",
+    "totalGross": "Total Gross",
+    "totalDeductions": "Total Deductions",
+    "totalNetto": "Total Netto",
+    "history": {
+      "tab": "Payroll History",
+      "months": "month(s) on record",
+      "totalHours": "Total Hours",
+      "totalNetto": "Total Netto",
+      "printSettlement": "Print Settlement",
+      "empty": "No payroll history yet.",
+      "emptyNote": "Close a payroll month to generate the first record.",
+      "month": "Month",
+      "hours": "Hours",
+      "rate": "Rate (zł/h)",
+      "advance": "Advance (zł)",
+      "netto": "Netto (zł)"
+    },
+    "settlement": {
+      "title": "Settlement Statement",
+      "print": "Print / Save as PDF"
+    }
   }
 }

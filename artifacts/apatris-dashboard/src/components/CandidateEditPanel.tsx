@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, TrendingUp } from "lucide-react";
+import { X, Upload, CheckCircle2, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, TrendingUp, History } from "lucide-react";
+import { PayrollHistoryTab } from "./PayrollHistoryTab";
 import { useGetWorker } from "@workspace/api-client-react";
 import { getGetWorkerQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -152,6 +153,12 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const [bhpExpiryEdit, setBhpExpiryEdit] = useState("");
 
   const isOpen = !!workerId;
+  const [panelTab, setPanelTab] = useState<"edit" | "history">("edit");
+
+  // Reset to edit tab when panel opens for a different worker
+  useEffect(() => {
+    if (workerId) setPanelTab("edit");
+  }, [workerId]);
 
   useEffect(() => {
     if (worker) {
@@ -303,6 +310,24 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               </div>
             </div>
 
+            {/* Panel tab switcher */}
+            <div className="flex items-center gap-1 p-1 rounded-xl w-full" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              {(["edit", "history"] as const).map((pt) => (
+                <button
+                  key={pt}
+                  onClick={() => setPanelTab(pt)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                  style={panelTab === pt ? { background: LIME, color: "#333333" } : { color: "rgba(255,255,255,0.45)" }}
+                >
+                  {pt === "edit" ? <><Save className="w-3 h-3" />{t("edit.title")}</> : <><History className="w-3 h-3" />{t("payroll.history.tab")}</>}
+                </button>
+              ))}
+            </div>
+
+            {panelTab === "history" ? (
+              <PayrollHistoryTab workerId={workerId!} workerName={worker.name} />
+            ) : (
+            <>
             {/* SECTION 1: Document Upload */}
             <div>
               <SectionDivider label={t("edit.pushDocuments")} />
@@ -589,6 +614,8 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                 </div>
               )}
             </div>
+            </>
+            )}
           </div>
         )}
 

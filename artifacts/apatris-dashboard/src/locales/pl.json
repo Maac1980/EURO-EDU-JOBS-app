@@ -253,6 +253,21 @@
     "errorTitle": "Błąd",
     "errorDesc": "Nie udało się zaktualizować rekordu"
   },
+  "trend": {
+    "title": "Trend zgodności",
+    "subtitle": "8-tygodniowa historia zgodności pracowników",
+    "compliant": "Zgodni",
+    "warning": "Ostrzeżenie",
+    "critical": "Krytyczni",
+    "thisWeek": "Ten tydzień",
+    "improving": "Poprawa",
+    "worsening": "Pogorszenie",
+    "stable": "Stabilny",
+    "refresh": "Odśwież wykres",
+    "loading": "Ładowanie danych trendu…",
+    "noData": "Brak danych trendu.",
+    "note": "Odtworzone z aktualnych dat ważności — pokazuje jak zgodność zmieniała się przez ostatnie 8 tygodni"
+  },
   "report": {
     "title": "Główny raport zgodności",
     "generated": "Wygenerowano",

@@ -253,6 +253,21 @@
     "errorTitle": "Error",
     "errorDesc": "Failed to update record"
   },
+  "trend": {
+    "title": "Compliance Trend",
+    "subtitle": "8-week workforce compliance history",
+    "compliant": "Compliant",
+    "warning": "Warning",
+    "critical": "Critical",
+    "thisWeek": "This week",
+    "improving": "Improving",
+    "worsening": "Worsening",
+    "stable": "Stable",
+    "refresh": "Refresh chart",
+    "loading": "Loading trend data…",
+    "noData": "No trend data available.",
+    "note": "Reconstructed from current expiry dates — shows how compliance evolved over the past 8 weeks"
+  },
   "report": {
     "title": "Compliance Master Report",
     "generated": "Generated",

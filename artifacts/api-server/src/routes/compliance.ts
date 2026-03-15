@@ -94,6 +94,87 @@ router.get("/compliance/documents", async (_req, res) => {
   }
 });
 
+// GET /api/compliance/trend
+// Returns 8 weekly snapshots reconstructed from current expiry dates.
+// For each past week we ask: "on that Monday, what was each doc's status?"
+router.get("/compliance/trend", async (_req, res) => {
+  try {
+    let workers;
+    if (isMockMode()) {
+      workers = MOCK_WORKERS;
+    } else {
+      const records = await fetchAllRecords();
+      workers = records.map(mapRecordToWorker);
+    }
+
+    const WEEKS = 8;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    // Find the most recent Monday
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon…
+    const daysToLastMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const lastMonday = new Date(now);
+    lastMonday.setDate(lastMonday.getDate() - daysToLastMonday);
+
+    const snapshots: Array<{ week: string; date: string; red: number; yellow: number; green: number; total: number }> = [];
+
+    for (let i = WEEKS - 1; i >= 0; i--) {
+      const weekStart = new Date(lastMonday);
+      weekStart.setDate(weekStart.getDate() - i * 7);
+
+      let red = 0, yellow = 0, green = 0;
+
+      for (const w of workers) {
+        const dates = [w.trcExpiry, w.workPermitExpiry, w.contractEndDate].filter(Boolean) as string[];
+        let workerStatus: "red" | "yellow" | "green" | null = null;
+
+        for (const dateStr of dates) {
+          const expiry = new Date(dateStr);
+          if (isNaN(expiry.getTime())) continue;
+          expiry.setHours(0, 0, 0, 0);
+          const daysLeft = Math.ceil((expiry.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24));
+
+          let docZone: "red" | "yellow" | "green";
+          if (daysLeft < 0) docZone = "red";       // already expired at this snapshot
+          else if (daysLeft < 30) docZone = "red";
+          else if (daysLeft < 60) docZone = "yellow";
+          else docZone = "green";
+
+          // Worst document wins
+          if (docZone === "red") { workerStatus = "red"; break; }
+          if (docZone === "yellow" && workerStatus !== "red") workerStatus = "yellow";
+          if (docZone === "green" && workerStatus === null) workerStatus = "green";
+        }
+
+        // Workers with no expiry dates count as compliant
+        if (workerStatus === null) workerStatus = "green";
+
+        if (workerStatus === "red") red++;
+        else if (workerStatus === "yellow") yellow++;
+        else green++;
+      }
+
+      const label = `W${WEEKS - i}`; // W1…W8
+      const dateLabel = weekStart.toLocaleDateString("pl-PL", { day: "2-digit", month: "short" });
+
+      snapshots.push({
+        week: label,
+        date: dateLabel,
+        red,
+        yellow,
+        green,
+        total: red + yellow + green,
+      });
+    }
+
+    return res.json({ snapshots, weeks: WEEKS });
+  } catch (err) {
+    console.error("[compliance] Error building trend:", err);
+    return res.status(500).json({ error: "Failed to build compliance trend." });
+  }
+});
+
 // POST /api/compliance/trigger-alert
 // testMode=true → includes ALL documents regardless of zone so you get the email even if everything is fine
 router.post("/compliance/trigger-alert", async (req, res) => {

@@ -18,6 +18,7 @@ import { ComplianceReportModal } from "@/components/ComplianceReportModal";
 import { BulkUploadModal } from "@/components/BulkUploadModal";
 import { NotificationBell } from "@/components/NotificationBell";
 import { CandidateEditPanel } from "@/components/CandidateEditPanel";
+import { ComplianceTrendChart } from "@/components/ComplianceTrendChart";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -428,11 +429,14 @@ export default function Dashboard() {
 
         {/* Stats Grid — Compliance view */}
         {activeTab === "compliance" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title={t("stats.totalWorkforce")} value={stats?.total || "0"} icon={Users} />
-            <StatCard title={t("stats.critical")} value={stats?.critical || "0"} icon={ShieldAlert} variant="critical" />
-            <StatCard title={t("stats.upcomingRenewals")} value={stats?.warning || "0"} icon={Clock} variant="warning" />
-            <StatCard title={t("stats.nonCompliant")} value={stats?.nonCompliant || "0"} icon={AlertTriangle} variant="critical" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard title={t("stats.totalWorkforce")} value={stats?.total || "0"} icon={Users} />
+              <StatCard title={t("stats.critical")} value={stats?.critical || "0"} icon={ShieldAlert} variant="critical" />
+              <StatCard title={t("stats.upcomingRenewals")} value={stats?.warning || "0"} icon={Clock} variant="warning" />
+              <StatCard title={t("stats.nonCompliant")} value={stats?.nonCompliant || "0"} icon={AlertTriangle} variant="critical" />
+            </div>
+            <ComplianceTrendChart />
           </div>
         )}
 

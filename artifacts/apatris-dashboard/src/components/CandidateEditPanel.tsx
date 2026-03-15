@@ -198,8 +198,8 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       if (payload.yearsOfExperience) saved.push(`Exp: ${payload.yearsOfExperience}`);
       if (payload.highestQualification) saved.push(`Qual: ${payload.highestQualification}`);
       if (payload.siteLocation !== undefined) saved.push(`Site: ${payload.siteLocation || "Available"}`);
-      if (payload.hourlyNettoRate !== undefined) saved.push(`Rate: PLN ${payload.hourlyNettoRate}/hr`);
-      if (payload.advancePayment !== undefined) saved.push(`Advance: PLN ${payload.advancePayment}`);
+      if (payload.hourlyNettoRate !== undefined) saved.push(`Rate: zł${payload.hourlyNettoRate}/hr`);
+      if (payload.advancePayment !== undefined) saved.push(`Advance: zł${payload.advancePayment}`);
       if (payload.shiftHours) saved.push(`+${payload.shiftHours}h added`);
 
       toast({ title: "✓ Candidate Record Updated", description: saved.join(" · "), variant: "success" as any });
@@ -298,7 +298,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>Hourly Netto Rate</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-400">PLN</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-400">zł</span>
                     <input
                       type="number"
                       min="0"
@@ -306,7 +306,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                       value={hourlyNettoRate}
                       onChange={(e) => setHourlyNettoRate(e.target.value)}
                       placeholder="e.g. 25"
-                      className={`${inputCls} pl-10 pr-12`}
+                      className={`${inputCls} pl-8 pr-12`}
                       style={inputStyle}
                       onFocus={onFocusLime}
                       onBlur={onBlurLime}
@@ -361,7 +361,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                   Advance Payment <span className="text-gray-500 normal-case font-mono tracking-normal">(Zaliczka)</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-400">PLN</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-400">zł</span>
                   <input
                     type="number"
                     min="0"
@@ -369,7 +369,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                     value={advancePayment}
                     onChange={(e) => setAdvancePayment(e.target.value)}
                     placeholder="Enter amount to deduct"
-                    className={`${inputCls} pl-10`}
+                    className={`${inputCls} pl-8`}
                     style={inputStyle}
                     onFocus={onFocusLime}
                     onBlur={onBlurLime}
@@ -392,11 +392,11 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Gross Pay</p>
                         <p className="text-[10px] font-mono text-gray-600 mt-0.5">
-                          {totalHrs}h × {rateNum > 0 ? `PLN ${rateNum}` : "—"}
+                          {totalHrs}h × {rateNum > 0 ? `zł${rateNum}` : "—"}
                         </p>
                       </div>
                       <p className="text-base font-black tabular-nums" style={{ color: LIME }}>
-                        {rateNum > 0 ? `PLN ${grossPay.toFixed(2)}` : "—"}
+                        {rateNum > 0 ? `zł${grossPay.toFixed(2)}` : "—"}
                       </p>
                     </div>
 
@@ -407,7 +407,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                         <p className="text-[10px] font-mono text-gray-600 mt-0.5">Zaliczka</p>
                       </div>
                       <p className="text-base font-black tabular-nums text-red-400">
-                        {advNum > 0 ? `− PLN ${advNum.toFixed(2)}` : "PLN 0.00"}
+                        {advNum > 0 ? `− zł${advNum.toFixed(2)}` : "zł0.00"}
                       </p>
                     </div>
                   </div>
@@ -425,7 +425,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
                       </div>
                     </div>
                     <p className="text-xl font-black tabular-nums" style={{ color: rateNum > 0 ? "#333333" : LIME }}>
-                      {rateNum > 0 ? `PLN ${finalPayout.toFixed(2)}` : "Set rate →"}
+                      {rateNum > 0 ? `zł${finalPayout.toFixed(2)}` : "Set rate →"}
                     </p>
                   </div>
                 </div>

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { fetchAllRecords } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
 import { MOCK_WORKERS, isMockMode } from "../lib/mockData.js";
+import { checkAndAlert } from "../lib/alerter.js";
 
 const router = Router();
 
@@ -35,7 +36,6 @@ function toZone(days: number): "green" | "yellow" | "red" | "expired" {
 router.get("/compliance/documents", async (_req, res) => {
   try {
     let workers;
-
     if (isMockMode()) {
       workers = MOCK_WORKERS;
     } else {
@@ -52,8 +52,6 @@ router.get("/compliance/documents", async (_req, res) => {
         { type: "Work Permit", date: w.workPermitExpiry },
         { type: "Contract End Date", date: w.contractEndDate },
       ];
-
-      // BHP — only include if it looks like a date (not "Active" / "Expired" text)
       if (w.bhpStatus && /\d{4}/.test(w.bhpStatus)) {
         docs.push({ type: "BHP Certificate", date: w.bhpStatus });
       }
@@ -62,7 +60,6 @@ router.get("/compliance/documents", async (_req, res) => {
         if (!doc.date) continue;
         const days = daysUntil(doc.date);
         if (days === null) continue;
-
         documents.push({
           id: `${w.id}-${idCounter++}`,
           workerId: w.id,
@@ -75,12 +72,10 @@ router.get("/compliance/documents", async (_req, res) => {
       }
     }
 
-    // Sort: expired first, then red, yellow, green; within each zone by days asc
     const zoneOrder = { expired: 0, red: 1, yellow: 2, green: 3 };
     documents.sort((a, b) => {
       const zo = zoneOrder[a.zone] - zoneOrder[b.zone];
-      if (zo !== 0) return zo;
-      return a.daysRemaining - b.daysRemaining;
+      return zo !== 0 ? zo : a.daysRemaining - b.daysRemaining;
     });
 
     return res.json({
@@ -97,6 +92,15 @@ router.get("/compliance/documents", async (_req, res) => {
     console.error("[compliance] Error fetching documents:", err);
     return res.status(500).json({ error: "Failed to load compliance data." });
   }
+});
+
+// POST /api/compliance/trigger-alert
+// testMode=true → includes ALL documents regardless of zone so you get the email even if everything is fine
+router.post("/compliance/trigger-alert", async (req, res) => {
+  const testMode = req.body?.testMode !== false; // defaults to true
+  console.log(`[compliance] Manual alert trigger — testMode=${testMode}`);
+  const result = await checkAndAlert(testMode);
+  return res.json(result);
 });
 
 export default router;

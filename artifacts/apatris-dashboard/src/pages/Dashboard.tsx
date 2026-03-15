@@ -5,7 +5,7 @@ import {
   Users, AlertTriangle, ShieldAlert, Clock, 
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
   MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
-  AlertOctagon
+  AlertOctagon, Mail
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -106,6 +106,8 @@ export default function Dashboard() {
   const [complianceDocs, setComplianceDocs] = useState<any[]>([]);
   const [complianceSummary, setComplianceSummary] = useState<{ total: number; expired: number; red: number; yellow: number; green: number } | null>(null);
   const [complianceLoading, setComplianceLoading] = useState(false);
+  const [alertTriggering, setAlertTriggering] = useState(false);
+  const [alertResult, setAlertResult] = useState<any | null>(null);
 
   const fetchCompliance = async () => {
     setComplianceLoading(true);
@@ -117,6 +119,24 @@ export default function Dashboard() {
       setComplianceSummary(data.summary ?? null);
     } catch {}
     setComplianceLoading(false);
+  };
+
+  const triggerTestAlert = async () => {
+    setAlertTriggering(true);
+    setAlertResult(null);
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/compliance/trigger-alert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ testMode: true }),
+      });
+      const data = await res.json();
+      setAlertResult(data);
+    } catch (e) {
+      setAlertResult({ error: (e as Error).message });
+    }
+    setAlertTriggering(false);
   };
 
   useEffect(() => {
@@ -684,19 +704,98 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Refresh button */}
-            <div className="flex items-center justify-between">
+            {/* Buttons row */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="text-sm font-black uppercase tracking-widest text-white/60">Document Expiry Grid</h2>
-              <button
-                onClick={fetchCompliance}
-                disabled={complianceLoading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50"
-                style={{ background: "#E9FF70", color: "#333333" }}
-              >
-                <RefreshCcw className={`w-3 h-3 ${complianceLoading ? "animate-spin" : ""}`} />
-                {complianceLoading ? "Scanning…" : "Refresh Scan"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={triggerTestAlert}
+                  disabled={alertTriggering}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 border"
+                  style={{ borderColor: "#E9FF70", color: "#E9FF70", background: "rgba(233,255,112,0.08)" }}
+                >
+                  <Mail className={`w-3 h-3 ${alertTriggering ? "animate-pulse" : ""}`} />
+                  {alertTriggering ? "Sending…" : "Send Test Alert"}
+                </button>
+                <button
+                  onClick={fetchCompliance}
+                  disabled={complianceLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                  style={{ background: "#E9FF70", color: "#333333" }}
+                >
+                  <RefreshCcw className={`w-3 h-3 ${complianceLoading ? "animate-spin" : ""}`} />
+                  {complianceLoading ? "Scanning…" : "Refresh Scan"}
+                </button>
+              </div>
             </div>
+
+            {/* Alert result panel */}
+            {alertResult && (
+              <div
+                className="rounded-2xl p-5 border space-y-3"
+                style={{
+                  background: alertResult.error && !alertResult.docsFound
+                    ? "rgba(30,10,10,0.8)"
+                    : alertResult.emailSent
+                    ? "rgba(10,25,12,0.85)"
+                    : "rgba(24,20,10,0.85)",
+                  borderColor: alertResult.emailSent ? "#16a34a" : alertResult.error && !alertResult.docsFound ? "#dc2626" : "#d97706",
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  {alertResult.emailSent ? (
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  ) : alertResult.error && !alertResult.docsFound ? (
+                    <AlertOctagon className="w-4 h-4 text-red-400" />
+                  ) : (
+                    <AlertOctagon className="w-4 h-4 text-yellow-400" />
+                  )}
+                  <span className="text-sm font-black text-white">
+                    {alertResult.emailSent
+                      ? `✓ Test alert email sent to ${alertResult.emailTo}`
+                      : alertResult.error && !alertResult.docsFound
+                      ? "Alert not sent"
+                      : `Alert not sent — ${alertResult.docsFound ?? 0} documents found`}
+                  </span>
+                </div>
+
+                {alertResult.scanned !== undefined && (
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Workers Scanned", val: alertResult.scanned, color: "#E9FF70" },
+                      { label: "Documents Found", val: alertResult.docsFound ?? 0, color: "#E9FF70" },
+                      { label: "Email Sent", val: alertResult.emailSent ? "Yes" : "No", color: alertResult.emailSent ? "#4ade80" : "#f87171" },
+                    ].map((s) => (
+                      <div key={s.label} className="bg-white/5 rounded-xl p-3 text-center">
+                        <p className="text-lg font-black" style={{ color: s.color }}>{s.val}</p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-white/40 mt-0.5">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {alertResult.error && (
+                  <div className="rounded-xl bg-black/30 px-4 py-3">
+                    <p className="text-xs font-bold text-red-400 mb-1">Reason</p>
+                    <p className="text-xs text-white/60 font-mono">{alertResult.error}</p>
+                    {alertResult.error.includes("SMTP") && (
+                      <p className="text-xs text-yellow-400 mt-2 font-semibold">
+                        → Add <span className="font-mono">SMTP_HOST</span>, <span className="font-mono">SMTP_USER</span>, <span className="font-mono">SMTP_PASS</span> to Secrets to enable email delivery.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {alertResult.docsFound > 0 && (
+                  <div className="text-xs text-white/50 flex gap-4 pt-1">
+                    <span className="text-red-400 font-bold">🔴 {alertResult.redCount} critical</span>
+                    <span className="text-yellow-400 font-bold">⚠ {alertResult.yellowCount} warning</span>
+                    <span className="text-green-400 font-bold">✓ {alertResult.greenCount} compliant</span>
+                    <span className="text-white/30">→ all included in test email</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Document grid */}
             {complianceLoading ? (

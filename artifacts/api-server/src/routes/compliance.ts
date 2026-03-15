@@ -1,4 +1,5 @@
 import { Router } from "express";
+import PDFDocument from "pdfkit";
 import { fetchAllRecords } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
 import { MOCK_WORKERS, isMockMode } from "../lib/mockData.js";
@@ -172,6 +173,236 @@ router.get("/compliance/trend", async (_req, res) => {
   } catch (err) {
     console.error("[compliance] Error building trend:", err);
     return res.status(500).json({ error: "Failed to build compliance trend." });
+  }
+});
+
+// ─── PDF helpers ───────────────────────────────────────────────────────────
+
+const LIME   = "#E9FF70";
+const DARK   = "#1A1A2E";
+const MID    = "#2D2D4A";
+const WHITE  = "#FFFFFF";
+const GREY   = "#8892A4";
+const RED    = "#EF4444";
+const YELLOW = "#F59E0B";
+const GREEN  = "#22C55E";
+
+const STATUS_COLOR: Record<string, string> = {
+  critical: RED,
+  warning: YELLOW,
+  compliant: GREEN,
+  "non-compliant": RED,
+};
+
+function fmtDate(d: string | null): string {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return d;
+  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function daysLabel(days: number | null): string {
+  if (days === null || days === undefined) return "—";
+  if (days < 0) return `${Math.abs(days)}d expired`;
+  return `${days}d left`;
+}
+
+// GET /api/compliance/report/pdf?site=<optional>
+router.get("/compliance/report/pdf", async (req, res) => {
+  try {
+    let workers;
+    if (isMockMode()) {
+      workers = MOCK_WORKERS;
+    } else {
+      const records = await fetchAllRecords();
+      workers = records.map(mapRecordToWorker);
+    }
+
+    const siteFilter = typeof req.query.site === "string" && req.query.site ? req.query.site : null;
+    if (siteFilter) {
+      workers = workers.filter((w) => w.siteLocation?.toLowerCase() === siteFilter.toLowerCase());
+    }
+
+    // Sort: critical first, then warning, then rest
+    const order: Record<string, number> = { "non-compliant": 0, critical: 1, warning: 2, compliant: 3 };
+    workers.sort((a, b) => (order[a.complianceStatus] ?? 9) - (order[b.complianceStatus] ?? 9));
+
+    const doc = new PDFDocument({ margin: 0, size: "A4", bufferPages: true });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="EEJ_Compliance_Report_${new Date().toISOString().slice(0, 10)}.pdf"`
+    );
+    doc.pipe(res);
+
+    const PAGE_W = doc.page.width;
+    const PAGE_H = doc.page.height;
+    const MARGIN = 40;
+    const COL_W = PAGE_W - MARGIN * 2;
+    const NOW = new Date();
+
+    // ── HEADER BLOCK ──────────────────────────────────────────────────────
+    doc.rect(0, 0, PAGE_W, 110).fill(DARK);
+
+    // Lime accent stripe
+    doc.rect(0, 0, 6, 110).fill(LIME);
+
+    // EEJ square logo
+    doc.roundedRect(MARGIN, 22, 56, 56, 8).fill(LIME);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor(DARK)
+       .text("EEJ", MARGIN, 44, { width: 56, align: "center" });
+
+    // Title
+    doc.font("Helvetica-Bold").fontSize(22).fillColor(WHITE)
+       .text("EURO EDU JOBS", MARGIN + 68, 24);
+    doc.font("Helvetica").fontSize(10).fillColor(LIME)
+       .text("COMPLIANCE MASTER REPORT", MARGIN + 68, 50);
+    doc.font("Helvetica").fontSize(9).fillColor(GREY)
+       .text(`Generated: ${NOW.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })} at ${NOW.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`, MARGIN + 68, 68);
+    if (siteFilter) {
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(LIME)
+         .text(`Site filter: ${siteFilter}`, MARGIN + 68, 84);
+    }
+
+    // Page number (top right)
+    doc.font("Helvetica").fontSize(8).fillColor(GREY)
+       .text("CONFIDENTIAL — EEJ INTERNAL USE ONLY", PAGE_W - MARGIN - 200, 48, { width: 200, align: "right" });
+
+    let y = 128;
+
+    // ── SUMMARY PILLS ─────────────────────────────────────────────────────
+    const total     = workers.length;
+    const critical  = workers.filter((w) => w.complianceStatus === "critical").length;
+    const warning   = workers.filter((w) => w.complianceStatus === "warning").length;
+    const compliant = workers.filter((w) => w.complianceStatus === "compliant").length;
+    const nonComp   = workers.filter((w) => w.complianceStatus === "non-compliant").length;
+
+    const pills = [
+      { label: "TOTAL WORKFORCE", value: String(total),    color: WHITE,  bg: MID    },
+      { label: "CRITICAL (<30d)", value: String(critical),  color: RED,    bg: "#2D1A1A" },
+      { label: "WARNING (<60d)",  value: String(warning),   color: YELLOW, bg: "#2D2710" },
+      { label: "COMPLIANT",       value: String(compliant), color: GREEN,  bg: "#0D2016" },
+      { label: "NON-COMPLIANT",   value: String(nonComp),   color: RED,    bg: "#2D1A1A" },
+    ];
+
+    const pillW = (COL_W - 12) / pills.length;
+    pills.forEach((p, i) => {
+      const px = MARGIN + i * (pillW + 3);
+      doc.roundedRect(px, y, pillW, 62, 6).fill(p.bg);
+      doc.font("Helvetica").fontSize(7).fillColor(GREY)
+         .text(p.label, px + 6, y + 10, { width: pillW - 12 });
+      doc.font("Helvetica-Bold").fontSize(26).fillColor(p.color)
+         .text(p.value, px + 6, y + 22, { width: pillW - 12 });
+    });
+
+    y += 80;
+
+    // ── SECTION TITLE ─────────────────────────────────────────────────────
+    doc.rect(MARGIN, y, COL_W, 22).fill(MID);
+    doc.rect(MARGIN, y, 3, 22).fill(LIME);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor(WHITE)
+       .text("WORKER COMPLIANCE OVERVIEW", MARGIN + 12, y + 7);
+    y += 30;
+
+    // ── TABLE HEADER ──────────────────────────────────────────────────────
+    const cols = {
+      name:    { x: MARGIN,       w: 130 },
+      role:    { x: MARGIN + 132, w: 72  },
+      trc:     { x: MARGIN + 206, w: 74  },
+      permit:  { x: MARGIN + 282, w: 74  },
+      bhp:     { x: MARGIN + 358, w: 58  },
+      status:  { x: MARGIN + 418, w: 76  },
+    };
+
+    // Header row
+    doc.rect(MARGIN, y, COL_W, 18).fill("#252540");
+    Object.entries(cols).forEach(([key, col]) => {
+      const labels: Record<string, string> = { name: "WORKER", role: "JOB ROLE", trc: "TRC EXPIRY", permit: "WORK PERMIT", bhp: "BHP", status: "STATUS" };
+      doc.font("Helvetica-Bold").fontSize(7).fillColor(LIME)
+         .text(labels[key], col.x + 4, y + 5, { width: col.w - 4 });
+    });
+    y += 18;
+
+    // ── TABLE ROWS ────────────────────────────────────────────────────────
+    const ROW_H = 22;
+
+    for (let wi = 0; wi < workers.length; wi++) {
+      const w = workers[wi];
+      const rowBg = wi % 2 === 0 ? "#1A1A2E" : "#1E1E36";
+
+      // Page break
+      if (y + ROW_H > PAGE_H - 60) {
+        doc.addPage();
+        y = MARGIN;
+        // Repeat header
+        doc.rect(MARGIN, y, COL_W, 18).fill("#252540");
+        Object.entries(cols).forEach(([key, col]) => {
+          const labels: Record<string, string> = { name: "WORKER", role: "JOB ROLE", trc: "TRC EXPIRY", permit: "WORK PERMIT", bhp: "BHP", status: "STATUS" };
+          doc.font("Helvetica-Bold").fontSize(7).fillColor(LIME)
+             .text(labels[key], col.x + 4, y + 5, { width: col.w - 4 });
+        });
+        y += 18;
+      }
+
+      doc.rect(MARGIN, y, COL_W, ROW_H).fill(rowBg);
+
+      // Left status accent bar for critical/non-compliant
+      if (w.complianceStatus === "critical" || w.complianceStatus === "non-compliant") {
+        doc.rect(MARGIN, y, 3, ROW_H).fill(RED);
+      } else if (w.complianceStatus === "warning") {
+        doc.rect(MARGIN, y, 3, ROW_H).fill(YELLOW);
+      }
+
+      const textY = y + 7;
+      const statusColor = STATUS_COLOR[w.complianceStatus] ?? WHITE;
+
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(WHITE)
+         .text(w.name, cols.name.x + 6, textY, { width: cols.name.w - 6, ellipsis: true });
+      doc.font("Helvetica").fontSize(7).fillColor(GREY)
+         .text(w.specialization || "—", cols.role.x + 4, textY, { width: cols.role.w - 4, ellipsis: true });
+      doc.font("Helvetica").fontSize(7).fillColor(WHITE)
+         .text(fmtDate(w.trcExpiry), cols.trc.x + 4, textY, { width: cols.trc.w - 4 });
+      doc.font("Helvetica").fontSize(7).fillColor(WHITE)
+         .text(fmtDate(w.workPermitExpiry), cols.permit.x + 4, textY, { width: cols.permit.w - 4 });
+      doc.font("Helvetica").fontSize(7).fillColor(WHITE)
+         .text(w.bhpStatus || "—", cols.bhp.x + 4, textY, { width: cols.bhp.w - 4 });
+
+      // Status pill
+      doc.roundedRect(cols.status.x + 4, y + 4, cols.status.w - 8, 14, 3).fill(statusColor + "22");
+      doc.font("Helvetica-Bold").fontSize(7).fillColor(statusColor)
+         .text(w.complianceStatus.toUpperCase(), cols.status.x + 4, textY, { width: cols.status.w - 8, align: "center" });
+
+      // Days until next expiry (sub-text under name)
+      if (w.daysUntilNextExpiry !== null) {
+        doc.font("Helvetica").fontSize(6.5).fillColor(statusColor)
+           .text(daysLabel(w.daysUntilNextExpiry), cols.name.x + 6, y + 14, { width: cols.name.w - 6 });
+      }
+
+      y += ROW_H;
+    }
+
+    // ── FOOTER ────────────────────────────────────────────────────────────
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      const footerY = PAGE_H - 36;
+      doc.rect(0, footerY, PAGE_W, 36).fill(DARK);
+      doc.rect(0, footerY, PAGE_W, 1).fill(LIME);
+      doc.font("Helvetica").fontSize(7).fillColor(GREY)
+         .text("EURO EDU JOBS — Compliance Portal", MARGIN, footerY + 12);
+      doc.font("Helvetica").fontSize(7).fillColor(GREY)
+         .text(`Page ${i + 1} of ${range.count}`, PAGE_W - MARGIN - 60, footerY + 12, { width: 60, align: "right" });
+      doc.font("Helvetica").fontSize(7).fillColor(GREY)
+         .text("edu-jobs.eu", PAGE_W / 2 - 30, footerY + 12, { width: 60, align: "center" });
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error("[compliance] PDF generation error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to generate PDF report." });
+    }
   }
 });
 

@@ -253,6 +253,16 @@
     "errorTitle": "Błąd",
     "errorDesc": "Nie udało się zaktualizować rekordu"
   },
+  "pdf": {
+    "download": "Pobierz PDF",
+    "generating": "Generowanie…",
+    "downloadAll": "Pobierz pełny raport zgodności jako PDF",
+    "bySite": "Filtruj według obiektu",
+    "chooseSite": "Pobierz raport dla…",
+    "allWorkers": "Wszyscy pracownicy",
+    "fullReport": "Pełny raport zgodności",
+    "siteOnly": "Tylko pracownicy tego obiektu"
+  },
   "trend": {
     "title": "Trend zgodności",
     "subtitle": "8-tygodniowa historia zgodności pracowników",

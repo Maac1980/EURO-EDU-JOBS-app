@@ -253,6 +253,16 @@
     "errorTitle": "Error",
     "errorDesc": "Failed to update record"
   },
+  "pdf": {
+    "download": "Download PDF",
+    "generating": "Generating…",
+    "downloadAll": "Download full compliance report as PDF",
+    "bySite": "Filter by site",
+    "chooseSite": "Download report for…",
+    "allWorkers": "All Workers",
+    "fullReport": "Full compliance report",
+    "siteOnly": "Workers at this site only"
+  },
   "trend": {
     "title": "Compliance Trend",
     "subtitle": "8-week workforce compliance history",

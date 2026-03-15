@@ -19,6 +19,7 @@ import { BulkUploadModal } from "@/components/BulkUploadModal";
 import { NotificationBell } from "@/components/NotificationBell";
 import { CandidateEditPanel } from "@/components/CandidateEditPanel";
 import { ComplianceTrendChart } from "@/components/ComplianceTrendChart";
+import { PdfDownloadButton } from "@/components/PdfDownloadButton";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -370,6 +371,8 @@ export default function Dashboard() {
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">{t("header.generateReport")}</span>
           </button>
+
+          <PdfDownloadButton sites={uniqueClients} />
 
           {/* Notification Bell */}
           <NotificationBell onSelectWorker={(id) => setSelectedWorkerId(id)} />

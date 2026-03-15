@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
 import { 
@@ -80,6 +80,48 @@ export default function Dashboard() {
     created: string[]; existing: string[]; errors: string[]; message: string;
   } | null>(null);
   const [schemaSyncError, setSchemaSyncError] = useState<string | null>(null);
+
+  // Admin profile state
+  const [adminProfile, setAdminProfile] = useState<{ fullName: string; email: string; phone: string; role: string } | null>(null);
+  const [adminEditing, setAdminEditing] = useState(false);
+  const [adminEditEmail, setAdminEditEmail] = useState("");
+  const [adminEditPhone, setAdminEditPhone] = useState("");
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [adminSaveMsg, setAdminSaveMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    fetch(`${base}/api/admin/profile`)
+      .then((r) => r.json())
+      .then((data) => {
+        setAdminProfile(data);
+        setAdminEditEmail(data.email ?? "");
+        setAdminEditPhone(data.phone ?? "");
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveAdminProfile = async () => {
+    setAdminSaving(true);
+    setAdminSaveMsg(null);
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/admin/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: adminEditEmail, phone: adminEditPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+      setAdminProfile(data);
+      setAdminEditing(false);
+      setAdminSaveMsg("Saved successfully.");
+    } catch (e) {
+      setAdminSaveMsg((e as Error).message);
+    } finally {
+      setAdminSaving(false);
+    }
+  };
 
   const syncSchema = async () => {
     setSchemaSyncing(true);
@@ -602,6 +644,105 @@ export default function Dashboard() {
         {/* ── Settings Tab ── */}
         {activeTab === "settings" && (
           <div className="space-y-6">
+
+            {/* Administrator Profile Card */}
+            <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm" style={{ background: "#E9FF70", color: "#333333" }}>
+                    {adminProfile?.fullName?.charAt(0) ?? "A"}
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black uppercase tracking-widest text-white">Administrator Profile</h2>
+                    <p className="text-xs text-white/40 mt-0.5">Contact details used for automated system alerts.</p>
+                  </div>
+                </div>
+                {!adminEditing && (
+                  <button
+                    onClick={() => { setAdminEditing(true); setAdminSaveMsg(null); }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all hover:opacity-90"
+                    style={{ background: "#E9FF70", color: "#333333" }}
+                  >
+                    <Pencil className="w-3 h-3" />
+                    EDIT
+                  </button>
+                )}
+              </div>
+
+              {adminProfile ? (
+                <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 space-y-3">
+                  {/* Full Name — read only */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24">Full Name</span>
+                    <span className="text-sm font-mono text-white">{adminProfile.fullName}</span>
+                    <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest" style={{ background: "rgba(233,255,112,0.12)", color: "#E9FF70" }}>{adminProfile.role}</span>
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-start gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24 pt-2">Email</span>
+                    {adminEditing ? (
+                      <input
+                        type="email"
+                        value={adminEditEmail}
+                        onChange={(e) => setAdminEditEmail(e.target.value)}
+                        className="flex-1 rounded-lg px-3 py-1.5 text-sm font-mono outline-none transition-all"
+                        style={{ background: "#0f172a", border: "1.5px solid #E9FF70", color: "#fff" }}
+                      />
+                    ) : (
+                      <span className="text-sm font-mono text-white">{adminProfile.email}</span>
+                    )}
+                  </div>
+
+                  {/* Phone */}
+                  <div className="flex items-start gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 w-24 pt-2">Phone</span>
+                    {adminEditing ? (
+                      <input
+                        type="tel"
+                        value={adminEditPhone}
+                        onChange={(e) => setAdminEditPhone(e.target.value)}
+                        placeholder="+353 ..."
+                        className="flex-1 rounded-lg px-3 py-1.5 text-sm font-mono outline-none transition-all"
+                        style={{ background: "#0f172a", border: "1.5px solid #E9FF70", color: "#fff" }}
+                      />
+                    ) : (
+                      <span className="text-sm font-mono text-white/60">{adminProfile.phone || "—"}</span>
+                    )}
+                  </div>
+
+                  {/* Save / Cancel */}
+                  {adminEditing && (
+                    <div className="flex items-center gap-3 pt-1">
+                      <button
+                        onClick={saveAdminProfile}
+                        disabled={adminSaving}
+                        className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-60"
+                        style={{ background: "#E9FF70", color: "#333333" }}
+                      >
+                        {adminSaving ? <RefreshCcw className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                        {adminSaving ? "Saving…" : "Save"}
+                      </button>
+                      <button
+                        onClick={() => { setAdminEditing(false); setAdminEditEmail(adminProfile.email); setAdminEditPhone(adminProfile.phone); }}
+                        className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-white/50 hover:text-white transition-all border border-white/10"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+
+                  {adminSaveMsg && (
+                    <p className="text-xs font-mono" style={{ color: adminSaveMsg.includes("success") ? "#4ade80" : "#f87171" }}>
+                      {adminSaveMsg}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-xl bg-slate-800/60 border border-white/8 p-4 text-xs text-white/40 font-mono">Loading profile…</div>
+              )}
+            </div>
+
             {/* Airtable Schema Sync Card */}
             <div className="rounded-2xl border border-white/8 bg-slate-900/60 p-6 space-y-4">
               <div className="flex items-center gap-3">

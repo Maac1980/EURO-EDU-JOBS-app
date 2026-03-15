@@ -20,6 +20,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { CandidateEditPanel } from "@/components/CandidateEditPanel";
 import { ComplianceTrendChart } from "@/components/ComplianceTrendChart";
 import { PdfDownloadButton } from "@/components/PdfDownloadButton";
+import { AuditTrailPanel } from "@/components/AuditTrailPanel";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -409,7 +410,8 @@ export default function Dashboard() {
       <main className="flex-1 p-4 lg:p-6 z-10 max-w-[1600px] mx-auto w-full space-y-4">
 
         {/* ── Tab Bar ── */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit">
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit min-w-max">
           {(["compliance", "deployment", "alerts", "settings"] as const).map((tab) => (
             <button
               key={tab}
@@ -428,6 +430,7 @@ export default function Dashboard() {
               {tab === "compliance" ? t("tabs.compliance") : tab === "deployment" ? t("tabs.deployment") : tab === "alerts" ? t("tabs.alerts") : t("tabs.settings")}
             </button>
           ))}
+        </div>
         </div>
 
         {/* Stats Grid — Compliance view */}
@@ -1215,6 +1218,9 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Audit Trail */}
+            <AuditTrailPanel />
           </div>
         )}
       </main>

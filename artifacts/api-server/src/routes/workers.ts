@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import multer from "multer";
 import OpenAI from "openai";
 import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, createRecord, ensureEejSchema, getTableSchema } from "../lib/airtable.js";
+import { appendAuditEntry } from "./audit.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { MOCK_WORKERS, getMockWorker, isMockMode } from "../lib/mockData.js";
 
@@ -568,6 +569,16 @@ router.patch("/workers/:id", async (req, res) => {
     }
 
     const updated = await updateRecord(req.params.id, airtableFields);
+    const changedFields = Object.keys(airtableFields).join(", ");
+    if (changedFields) {
+      appendAuditEntry({
+        workerId: req.params.id,
+        actor: "admin",
+        field: changedFields,
+        newValue: airtableFields,
+        action: "update",
+      });
+    }
     res.json(mapRecordToWorker(updated));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

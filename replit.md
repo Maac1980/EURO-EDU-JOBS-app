@@ -129,6 +129,28 @@ Frontend credentials are now configurable via Vite env vars:
 - **Non-Compliant**: BHP Status = "Expired" OR any document already expired
 - **Compliant**: all documents > 60 days from expiry
 
+## Candidate Self-Service Portal
+
+Workers get a unique, shareable link to view their own profile and submit hours:
+
+- **URL**: `/portal?token=<JWT>` — public, no admin auth required
+- **Token generation**: Admin clicks the 🔗 button in WorkerProfilePanel → copies URL to clipboard
+- **Token lifespan**: 30 days (JWT signed with `JWT_SECRET`, payload `{ workerId, type: "portal" }`)
+- **Worker can see**: name, job role, site, compliance status, all document expiry dates, payout estimate
+- **Worker can do**: submit/update their total hours for the month
+- **Payout estimate**: gross (hours × rate) − advance = final payout (zł), live-calculated
+- **Audit logged**: every self-service hours update is recorded in `audit.json`
+
+## Audit Trail
+
+File: `artifacts/api-server/data/audit.json` (auto-created, max 2000 entries, rotating)
+
+- Every admin `PATCH /api/workers/:id` is logged with fields changed
+- Every candidate portal hours update is logged with `actor: "candidate-portal"`
+- Viewable in Settings tab → "Audit Trail" section (expandable, newest first, lazy load)
+- `GET /api/audit` — admin only (Bearer JWT required)
+- `DELETE /api/audit` — clears the log (admin only)
+
 ## API Endpoints
 
 All at `/api`:
@@ -138,8 +160,15 @@ All at `/api`:
 - `GET /workers/report` — compliance report
 - `POST /workers/bulk-create` — AI Smart Upload (passport, bhp, cert, contract, cv)
 - `GET /workers/:id` — worker detail
-- `PATCH /workers/:id` — update worker fields (writes to EEJ field names)
+- `PATCH /workers/:id` — update worker fields (writes to EEJ field names, audit logged)
 - `POST /workers/:id/upload` — upload & AI-scan document
 - `POST /workers/:id/notify` — send notification
 - `POST /workers/admin/ensure-schema` — create missing Airtable fields
 - `GET /workers/admin/schema` — view table schema
+- `GET /api/portal/token/:recordId` — (admin) generate worker's self-service portal link
+- `GET /api/portal/me?token=xxx` — (candidate) fetch own profile
+- `PATCH /api/portal/hours?token=xxx` — (candidate) update total hours
+- `GET /api/compliance/trend` — 8-week weekly compliance snapshots
+- `GET /api/compliance/report/pdf?site=optional` — stream branded A4 PDF report
+- `GET /api/audit` — (admin) read audit log
+- `DELETE /api/audit` — (admin) clear audit log

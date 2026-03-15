@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useGetWorker, getGetWorkerQueryKey, getGetWorkersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -176,6 +176,31 @@ export function WorkerProfilePanel({
   const [editProfession, setEditProfession] = useState("");
   const [editSiteLocation, setEditSiteLocation] = useState("");
   const [saving, setSaving] = useState(false);
+  const [copyingLink, setCopyingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleCopyPortalLink = async () => {
+    if (!workerId) return;
+    setCopyingLink(true);
+    try {
+      const token = localStorage.getItem("eej_token");
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/portal/token/${workerId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const portalUrl = `${window.location.origin}${base}/portal?token=${data.token}`;
+      await navigator.clipboard.writeText(portalUrl);
+      setLinkCopied(true);
+      toast({ title: "✓ Portal link copied!", description: "Share this link with the worker. It expires in 30 days.", variant: "success" as any });
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch (err) {
+      toast({ title: "Failed to copy link", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setCopyingLink(false);
+    }
+  };
 
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -258,18 +283,29 @@ export function WorkerProfilePanel({
             <div className="p-6 border-b border-white/10 relative overflow-hidden bg-slate-800/50">
               <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
                 {!isEditing && (
-                  <button
-                    onClick={() => {
-                      setEditSpec(worker.specialization || "");
-                      setEditProfession(worker.specialization || "");
-                      setEditSiteLocation((worker as any).siteLocation || "");
-                      setIsEditing(true);
-                    }}
-                    className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
-                    title={t("panel.editWorkerDetails")}
-                  >
-                    <Pencil className="w-4 h-4 text-amber-400" />
-                  </button>
+                  <>
+                    <button
+                      onClick={handleCopyPortalLink}
+                      disabled={copyingLink}
+                      className="p-2 rounded-full transition-colors disabled:opacity-50"
+                      style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
+                      title="Copy worker's self-service portal link"
+                    >
+                      {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditSpec(worker.specialization || "");
+                        setEditProfession(worker.specialization || "");
+                        setEditSiteLocation((worker as any).siteLocation || "");
+                        setIsEditing(true);
+                      }}
+                      className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
+                      title={t("panel.editWorkerDetails")}
+                    >
+                      <Pencil className="w-4 h-4 text-amber-400" />
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={onClose}

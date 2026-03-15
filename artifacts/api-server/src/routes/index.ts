@@ -4,12 +4,16 @@ import workersRouter from "./workers.js";
 import authRouter from "./auth.js";
 import adminRouter from "./admin.js";
 import complianceRouter from "./compliance.js";
+import portalRouter from "./portal.js";
+import auditRouter from "./audit.js";
 
 const router: IRouter = Router();
 
 router.use(authRouter);
 router.use(adminRouter);
 router.use(complianceRouter);
+router.use(portalRouter);
+router.use(auditRouter);
 router.use(healthRouter);
 router.use(workersRouter);
 

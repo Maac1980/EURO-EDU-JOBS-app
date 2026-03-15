@@ -167,6 +167,19 @@ const EEJ_DESIRED_FIELDS: Array<{ name: string; type: string; options?: Record<s
   { name: "Email", type: "email" },
   { name: "Phone", type: "phoneNumber" },
   { name: "TOTAL HOURS", type: "number", options: { precision: 1 } },
+  // ── Polish legal compliance fields ────────────────────────────────────────
+  { name: "BADANIA LEKARSKIE", type: "date", options: { dateFormat: { name: "iso" } } },
+  { name: "OSWIADCZENIE EXPIRY", type: "date", options: { dateFormat: { name: "iso" } } },
+  { name: "ISO9606 PROCESS", type: "singleLineText" },
+  { name: "ISO9606 MATERIAL", type: "singleLineText" },
+  { name: "ISO9606 THICKNESS", type: "singleLineText" },
+  { name: "ISO9606 POSITION", type: "singleLineText" },
+  { name: "PESEL", type: "singleLineText" },
+  { name: "NIP", type: "singleLineText" },
+  { name: "ZUS STATUS", type: "singleLineText" },
+  { name: "UDT CERT EXPIRY", type: "date", options: { dateFormat: { name: "iso" } } },
+  { name: "VISA TYPE", type: "singleLineText" },
+  { name: "RODO CONSENT", type: "date", options: { dateFormat: { name: "iso" } } },
 ];
 
 export async function ensureEejSchema(): Promise<{ created: string[]; existing: string[]; errors: string[] }> {

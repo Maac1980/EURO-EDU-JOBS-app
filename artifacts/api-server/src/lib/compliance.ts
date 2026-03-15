@@ -28,6 +28,19 @@ export interface Worker {
   totalHours: number | null;
   hourlyNettoRate: number | null;
   advancePayment: number | null;
+  // ── Polish legal compliance fields ──────────────────────────────────────
+  badaniaLekExpiry: string | null;       // Badania Lekarskie (medical exam) expiry
+  oswiadczenieExpiry: string | null;     // Oświadczenie o Powierzeniu Pracy expiry
+  iso9606Process: string | null;         // EN ISO 9606 welding process (MIG/MAG/TIG/MMA/FCAW)
+  iso9606Material: string | null;        // Material group (e.g. FM1, FM4)
+  iso9606Thickness: string | null;       // Thickness range (e.g. 3-12mm)
+  iso9606Position: string | null;        // Welding position (PA/PB/PC/PF)
+  pesel: string | null;                  // Polish national ID
+  nip: string | null;                    // Tax ID
+  zusStatus: string | null;             // ZUS registration (Registered/Unregistered/Unknown)
+  udtCertExpiry: string | null;          // UDT technical inspection cert expiry
+  visaType: string | null;              // Visa/residence type
+  rodoConsentDate: string | null;        // RODO/GDPR consent date
 }
 
 function getString(val: unknown): string | null {
@@ -90,6 +103,9 @@ function computeStatus(worker: Partial<Worker>): {
     daysUntil(worker.trcExpiry ?? null),
     daysUntil(worker.workPermitExpiry ?? null),
     daysUntil(worker.contractEndDate ?? null),
+    daysUntil(worker.badaniaLekExpiry ?? null),
+    daysUntil(worker.oswiadczenieExpiry ?? null),
+    daysUntil(worker.udtCertExpiry ?? null),
   ].filter((d): d is number => d !== null);
 
   if (expiryDays.length === 0) {
@@ -213,11 +229,63 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     resolveField(f, ["ADVANCE PAYMENT", "Advance Payment", "AdvancePayment", "Zaliczka", "Advance"])
   );
 
+  // ── New Polish legal compliance fields ────────────────────────────────────
+  const badaniaLekExpiry = getDate(
+    resolveField(f, ["BADANIA LEKARSKIE", "Badania Lekarskie", "BadaniaLek", "Medical Exam Expiry", "Badania"])
+  );
+
+  const oswiadczenieExpiry = getDate(
+    resolveField(f, ["OSWIADCZENIE EXPIRY", "Oswiadczenie Expiry", "Oswiadczenie", "Work Declaration Expiry"])
+  );
+
+  const iso9606Process = getString(
+    resolveField(f, ["ISO9606 PROCESS", "Iso9606 Process", "Welding Process", "ISO Process"])
+  );
+
+  const iso9606Material = getString(
+    resolveField(f, ["ISO9606 MATERIAL", "Iso9606 Material", "Welding Material", "ISO Material"])
+  );
+
+  const iso9606Thickness = getString(
+    resolveField(f, ["ISO9606 THICKNESS", "Iso9606 Thickness", "Welding Thickness", "ISO Thickness"])
+  );
+
+  const iso9606Position = getString(
+    resolveField(f, ["ISO9606 POSITION", "Iso9606 Position", "Welding Position", "ISO Position"])
+  );
+
+  const pesel = getString(
+    resolveField(f, ["PESEL", "Pesel"])
+  );
+
+  const nip = getString(
+    resolveField(f, ["NIP", "Nip", "Tax ID", "TaxID"])
+  );
+
+  const zusStatus = getString(
+    resolveField(f, ["ZUS STATUS", "Zus Status", "ZusStatus", "ZUS"])
+  );
+
+  const udtCertExpiry = getDate(
+    resolveField(f, ["UDT CERT EXPIRY", "Udt Cert Expiry", "UDT Expiry", "UDT"])
+  );
+
+  const visaType = getString(
+    resolveField(f, ["VISA TYPE", "Visa Type", "VisaType", "Visa", "Residence Type"])
+  );
+
+  const rodoConsentDate = getDate(
+    resolveField(f, ["RODO CONSENT", "Rodo Consent", "RODO", "GDPR Consent", "Consent Date"])
+  );
+
   const partial: Partial<Worker> = {
     trcExpiry,
     workPermitExpiry,
     bhpStatus,
     contractEndDate,
+    badaniaLekExpiry,
+    oswiadczenieExpiry,
+    udtCertExpiry,
   };
 
   const { status: complianceStatus, daysUntilNextExpiry } = computeStatus(partial);
@@ -242,6 +310,18 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     hourlyNettoRate,
     advancePayment,
     totalHours,
+    badaniaLekExpiry,
+    oswiadczenieExpiry,
+    iso9606Process,
+    iso9606Material,
+    iso9606Thickness,
+    iso9606Position,
+    pesel,
+    nip,
+    zusStatus,
+    udtCertExpiry,
+    visaType,
+    rodoConsentDate,
   };
 }
 

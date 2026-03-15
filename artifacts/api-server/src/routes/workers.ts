@@ -568,6 +568,20 @@ router.patch("/workers/:id", async (req, res) => {
       if (!isNaN(hrs) && hrs >= 0) airtableFields["TOTAL HOURS"] = Math.round(hrs * 10) / 10;
     }
 
+    // ── Polish legal compliance fields ──────────────────────────────────────
+    if (body.badaniaLekExpiry !== undefined) airtableFields["BADANIA LEKARSKIE"] = body.badaniaLekExpiry || null;
+    if (body.oswiadczenieExpiry !== undefined) airtableFields["OSWIADCZENIE EXPIRY"] = body.oswiadczenieExpiry || null;
+    if (body.iso9606Process !== undefined) airtableFields["ISO9606 PROCESS"] = body.iso9606Process;
+    if (body.iso9606Material !== undefined) airtableFields["ISO9606 MATERIAL"] = body.iso9606Material;
+    if (body.iso9606Thickness !== undefined) airtableFields["ISO9606 THICKNESS"] = body.iso9606Thickness;
+    if (body.iso9606Position !== undefined) airtableFields["ISO9606 POSITION"] = body.iso9606Position;
+    if (body.pesel !== undefined) airtableFields["PESEL"] = body.pesel;
+    if (body.nip !== undefined) airtableFields["NIP"] = body.nip;
+    if (body.zusStatus !== undefined) airtableFields["ZUS STATUS"] = body.zusStatus;
+    if (body.udtCertExpiry !== undefined) airtableFields["UDT CERT EXPIRY"] = body.udtCertExpiry || null;
+    if (body.visaType !== undefined) airtableFields["VISA TYPE"] = body.visaType;
+    if (body.rodoConsentDate !== undefined) airtableFields["RODO CONSENT"] = body.rodoConsentDate || null;
+
     const updated = await updateRecord(req.params.id, airtableFields);
     const changedFields = Object.keys(airtableFields).join(", ");
     if (changedFields) {

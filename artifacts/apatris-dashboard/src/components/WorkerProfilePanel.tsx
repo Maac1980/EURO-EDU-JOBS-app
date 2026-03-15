@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList } from "lucide-react";
+import { PIPInspectionModal } from "./PIPInspectionModal";
 import { format, parseISO } from "date-fns";
 import { useGetWorker, getGetWorkerQueryKey, getGetWorkersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -178,6 +179,7 @@ export function WorkerProfilePanel({
   const [saving, setSaving] = useState(false);
   const [copyingLink, setCopyingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [isPipOpen, setIsPipOpen] = useState(false);
 
   const handleCopyPortalLink = async () => {
     if (!workerId) return;
@@ -457,6 +459,9 @@ export function WorkerProfilePanel({
                   <DocRow label={t("panel.trcExpiry")} date={worker.trcExpiry} />
                   <DocRow label={t("panel.workPermitExpiry")} date={worker.workPermitExpiry} />
                   <DocRow label={t("panel.contractEndDate")} date={worker.contractEndDate} />
+                  {(worker as any).badaniaLekExpiry && <DocRow label={t("panel.badaniaLek")} date={(worker as any).badaniaLekExpiry} />}
+                  {(worker as any).oswiadczenieExpiry && <DocRow label={t("panel.oswiadczenie")} date={(worker as any).oswiadczenieExpiry} />}
+                  {(worker as any).udtCertExpiry && <DocRow label={t("panel.udtCert")} date={(worker as any).udtCertExpiry} />}
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
                     <span className="text-sm font-medium text-gray-300">{t("panel.bhpStatus")}</span>
                     <span className={`text-sm font-mono font-semibold ${
@@ -467,6 +472,56 @@ export function WorkerProfilePanel({
                   </div>
                 </div>
               </div>
+
+              {/* Polish Legal Info */}
+              {((worker as any).pesel || (worker as any).nip || (worker as any).zusStatus || (worker as any).visaType || (worker as any).rodoConsentDate || (worker as any).iso9606Process) && (
+                <div>
+                  <h3 className="text-xs font-bold tracking-widest text-gray-400 uppercase mb-3">{t("panel.polishLegal")}</h3>
+                  <div className="space-y-2">
+                    {(worker as any).pesel && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+                        <span className="text-sm font-medium text-gray-300">PESEL</span>
+                        <span className="text-sm font-mono text-white">{(worker as any).pesel}</span>
+                      </div>
+                    )}
+                    {(worker as any).nip && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+                        <span className="text-sm font-medium text-gray-300">NIP</span>
+                        <span className="text-sm font-mono text-white">{(worker as any).nip}</span>
+                      </div>
+                    )}
+                    {(worker as any).zusStatus && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+                        <span className="text-sm font-medium text-gray-300">{t("panel.zusStatus")}</span>
+                        <span className={`text-sm font-mono font-bold ${(worker as any).zusStatus === "Registered" ? "text-green-400" : (worker as any).zusStatus === "Unregistered" ? "text-red-400" : "text-yellow-400"}`}>{(worker as any).zusStatus}</span>
+                      </div>
+                    )}
+                    {(worker as any).visaType && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+                        <span className="text-sm font-medium text-gray-300">{t("panel.visaType")}</span>
+                        <span className={`text-sm font-mono ${(worker as any).visaType?.includes("Tourist") ? "text-red-400 font-bold" : "text-white"}`}>{(worker as any).visaType}</span>
+                      </div>
+                    )}
+                    {(worker as any).rodoConsentDate && (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800 border border-slate-700">
+                        <span className="text-sm font-medium text-gray-300">{t("panel.rodoConsent")}</span>
+                        <span className="text-sm font-mono text-green-400">{(worker as any).rodoConsentDate}</span>
+                      </div>
+                    )}
+                    {(worker as any).iso9606Process && (
+                      <div className="p-3 rounded-lg bg-slate-800 border border-slate-700 space-y-1">
+                        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">EN ISO 9606</span>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-1">
+                          <span className="text-xs text-gray-400">Process:</span><span className="text-xs font-mono text-white">{(worker as any).iso9606Process}</span>
+                          {(worker as any).iso9606Material && <><span className="text-xs text-gray-400">Material:</span><span className="text-xs font-mono text-white">{(worker as any).iso9606Material}</span></>}
+                          {(worker as any).iso9606Thickness && <><span className="text-xs text-gray-400">Thickness:</span><span className="text-xs font-mono text-white">{(worker as any).iso9606Thickness}</span></>}
+                          {(worker as any).iso9606Position && <><span className="text-xs text-gray-400">Position:</span><span className="text-xs font-mono text-white">{(worker as any).iso9606Position}</span></>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Document Vault */}
               <div>
@@ -499,24 +554,37 @@ export function WorkerProfilePanel({
             </div>
 
             {/* Footer actions */}
-            <div className="p-5 border-t border-white/10 bg-slate-800/50 flex gap-3">
+            <div className="p-5 border-t border-white/10 bg-slate-800/50 space-y-2">
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 rounded-xl font-bold uppercase tracking-wider text-sm transition-all"
+                  onClick={() => onNotify(worker)}
+                >
+                  {t("panel.notify")}
+                </button>
+                <button
+                  className="flex-1 py-2.5 text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all hover:opacity-90"
+                  style={{ background: "#E9FF70", color: "#333333" }}
+                  onClick={() => onRenew(worker)}
+                >
+                  {t("panel.updateStatus")}
+                </button>
+              </div>
               <button
-                className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 rounded-xl font-bold uppercase tracking-wider text-sm transition-all"
-                onClick={() => onNotify(worker)}
+                className="w-full py-2.5 flex items-center justify-center gap-2 rounded-xl border font-bold uppercase tracking-wider text-xs transition-all hover:opacity-90"
+                style={{ borderColor: "rgba(233,255,112,0.4)", color: "#E9FF70", background: "rgba(233,255,112,0.06)" }}
+                onClick={() => setIsPipOpen(true)}
               >
-                {t("panel.notify")}
-              </button>
-              <button
-                className="flex-1 py-2.5 text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all hover:opacity-90"
-                style={{ background: "#E9FF70", color: "#333333" }}
-                onClick={() => onRenew(worker)}
-              >
-                {t("panel.updateStatus")}
+                <ClipboardList className="w-4 h-4" />
+                {t("panel.pipMode")}
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* PIP Inspection Modal */}
+      {worker && <PIPInspectionModal worker={worker} isOpen={isPipOpen} onClose={() => setIsPipOpen(false)} />}
     </>
   );
 }

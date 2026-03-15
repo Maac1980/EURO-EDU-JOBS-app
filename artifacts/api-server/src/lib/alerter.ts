@@ -88,6 +88,9 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
         { type: "TRC Residence Card", date: w.trcExpiry },
         { type: "Work Permit", date: w.workPermitExpiry },
         { type: "Contract End Date", date: w.contractEndDate },
+        { type: "Badania Lekarskie (Medical)", date: w.badaniaLekExpiry },
+        { type: "Oświadczenie (Work Declaration)", date: w.oswiadczenieExpiry },
+        { type: "UDT Certificate", date: w.udtCertExpiry },
       ];
       if (w.bhpStatus && /\d{4}/.test(w.bhpStatus)) {
         docs.push({ type: "BHP Certificate", date: w.bhpStatus });

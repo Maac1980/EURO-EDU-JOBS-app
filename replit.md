@@ -37,6 +37,25 @@ lib/
 
 ## Key Features
 
+### Polish Legal Compliance Fields (Added)
+All new fields map to Airtable via PATCH route and are included in compliance status calculation and daily alerter scans:
+- **Badania Lekarskie** (`BADANIA LEKARSKIE`) — Medical exam expiry, Kodeks Pracy Art. 229. Triggers red/yellow alerts.
+- **Oświadczenie** (`OSWIADCZENIE EXPIRY`) — Work declaration expiry for non-EU workers. Triggers alerts.
+- **EN ISO 9606** (`ISO9606 PROCESS/MATERIAL/THICKNESS/POSITION`) — Full welding cert breakdown.
+- **PESEL / NIP** — National ID and tax ID for ZUS/PIP compliance.
+- **ZUS Status** (`ZUS STATUS`) — Registered / Unregistered / Unknown flag.
+- **UDT Cert Expiry** (`UDT CERT EXPIRY`) — Lifting/pressure vessel cert. Triggers alerts.
+- **Visa Type** (`VISA TYPE`) — Residence/visa classification (highlights Tourist visa as warning).
+- **RODO Consent Date** (`RODO CONSENT`) — GDPR/RODO consent record date.
+
+### PIP Inspection Mode
+Clean one-page read-only modal per worker (`PIPInspectionModal.tsx`) accessed via the "PIP Inspection Mode" button in any worker profile panel. Shows all 5 compliance sections in Polish for labor inspectors:
+1. Identyfikacja pracownika (PESEL, NIP, visa, ZUS)
+2. Dokumenty obowiązkowe (Badania, Oświadczenie, TRC, Work Permit, BHP, Contract)
+3. Certyfikaty UDT (if applicable)
+4. EN ISO 9606 Kwalifikacja spawacza
+5. RODO/GDPR consent
+
 - **Login screen** — Credentials configurable via `VITE_ADMIN_EMAIL` / `VITE_ADMIN_PASSWORD` secrets; defaults to `admin@euro-edu-jobs.eu` / `eej2024`
 - **Public Apply Form** — `/apply` route — no auth required; EEJ branding; submits to Airtable with AI CV screening
 - **4 Stats Cards** — Total Workers, Critical (<30 days), Upcoming Renewals (30-60 days), Non-Compliant

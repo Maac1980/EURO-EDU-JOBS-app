@@ -132,6 +132,19 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const [totalHoursInput, setTotalHoursInput] = useState("");
   const [advancePayment, setAdvancePayment] = useState("");
   const [saving, setSaving] = useState(false);
+  // Polish legal fields
+  const [badaniaLekExpiry, setBadaniaLekExpiry] = useState("");
+  const [oswiadczenieExpiry, setOswiadczenieExpiry] = useState("");
+  const [iso9606Process, setIso9606Process] = useState("");
+  const [iso9606Material, setIso9606Material] = useState("");
+  const [iso9606Thickness, setIso9606Thickness] = useState("");
+  const [iso9606Position, setIso9606Position] = useState("");
+  const [pesel, setPesel] = useState("");
+  const [nip, setNip] = useState("");
+  const [zusStatus, setZusStatus] = useState("");
+  const [udtCertExpiry, setUdtCertExpiry] = useState("");
+  const [visaType, setVisaType] = useState("");
+  const [rodoConsentDate, setRodoConsentDate] = useState("");
 
   const isOpen = !!workerId;
 
@@ -145,6 +158,19 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       setHourlyNettoRate((worker as any).hourlyNettoRate != null ? String((worker as any).hourlyNettoRate) : "");
       setAdvancePayment((worker as any).advancePayment != null ? String((worker as any).advancePayment) : "");
       setTotalHoursInput((worker as any).totalHours != null ? String((worker as any).totalHours) : "");
+      // Polish legal fields
+      setBadaniaLekExpiry((worker as any).badaniaLekExpiry || "");
+      setOswiadczenieExpiry((worker as any).oswiadczenieExpiry || "");
+      setIso9606Process((worker as any).iso9606Process || "");
+      setIso9606Material((worker as any).iso9606Material || "");
+      setIso9606Thickness((worker as any).iso9606Thickness || "");
+      setIso9606Position((worker as any).iso9606Position || "");
+      setPesel((worker as any).pesel || "");
+      setNip((worker as any).nip || "");
+      setZusStatus((worker as any).zusStatus || "");
+      setUdtCertExpiry((worker as any).udtCertExpiry || "");
+      setVisaType((worker as any).visaType || "");
+      setRodoConsentDate((worker as any).rodoConsentDate || "");
     }
   }, [worker]);
 
@@ -181,6 +207,20 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
 
       const totalHrsNum = parseFloat(totalHoursInput);
       if (!isNaN(totalHrsNum) && totalHrsNum >= 0) payload.totalHours = totalHrsNum;
+
+      // Polish legal fields
+      if (badaniaLekExpiry !== undefined) payload.badaniaLekExpiry = badaniaLekExpiry;
+      if (oswiadczenieExpiry !== undefined) payload.oswiadczenieExpiry = oswiadczenieExpiry;
+      if (iso9606Process !== undefined) payload.iso9606Process = iso9606Process;
+      if (iso9606Material !== undefined) payload.iso9606Material = iso9606Material;
+      if (iso9606Thickness !== undefined) payload.iso9606Thickness = iso9606Thickness;
+      if (iso9606Position !== undefined) payload.iso9606Position = iso9606Position;
+      if (pesel !== undefined) payload.pesel = pesel;
+      if (nip !== undefined) payload.nip = nip;
+      if (zusStatus !== undefined) payload.zusStatus = zusStatus;
+      if (udtCertExpiry !== undefined) payload.udtCertExpiry = udtCertExpiry;
+      if (visaType !== undefined) payload.visaType = visaType;
+      if (rodoConsentDate !== undefined) payload.rodoConsentDate = rodoConsentDate;
 
       if (Object.keys(payload).length === 0) {
         toast({ title: t("edit.nothingToSave"), description: t("edit.nothingToSaveDesc"), variant: "destructive" });
@@ -396,7 +436,111 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               </div>
             )}
 
-            {/* SECTION 6: Client Assignment */}
+            {/* SECTION 6: Polish Legal Compliance */}
+            <div>
+              <SectionDivider label={t("edit.polishCompliance")} />
+              <div className="space-y-4">
+
+                {/* Badania Lekarskie */}
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.badaniaLek")}</label>
+                  <p className="text-[10px] font-mono text-gray-600 mb-1.5">{t("edit.badaniaLekNote")}</p>
+                  <input type="date" value={badaniaLekExpiry} onChange={(e) => setBadaniaLekExpiry(e.target.value)} className={inputCls} style={{ ...inputStyle, colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+
+                {/* Oświadczenie */}
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.oswiadczenie")}</label>
+                  <p className="text-[10px] font-mono text-gray-600 mb-1.5">{t("edit.oswiadczenieNote")}</p>
+                  <input type="date" value={oswiadczenieExpiry} onChange={(e) => setOswiadczenieExpiry(e.target.value)} className={inputCls} style={{ ...inputStyle, colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+
+                {/* EN ISO 9606 */}
+                <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "rgba(233,255,112,0.12)", background: "rgba(233,255,112,0.02)" }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>{t("edit.iso9606")}</p>
+                  <p className="text-[10px] font-mono text-gray-600">{t("edit.iso9606Note")}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t("edit.iso9606Process")}</label>
+                      <select value={iso9606Process} onChange={(e) => setIso9606Process(e.target.value)} className="w-full bg-slate-800 text-white rounded-lg px-3 py-2 text-xs font-mono appearance-none focus:outline-none" style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime}>
+                        <option value="">—</option>
+                        {["MIG/MAG (135/136)", "TIG (141)", "MMA (111)", "FCAW (114)", "SAW (121)", "Laser (52)"].map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t("edit.iso9606Material")}</label>
+                      <input type="text" value={iso9606Material} onChange={(e) => setIso9606Material(e.target.value)} placeholder="e.g. FM1" className={`text-xs ${inputCls}`} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t("edit.iso9606Thickness")}</label>
+                      <input type="text" value={iso9606Thickness} onChange={(e) => setIso9606Thickness(e.target.value)} placeholder="e.g. 3-20mm" className={`text-xs ${inputCls}`} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500 uppercase tracking-widest mb-1">{t("edit.iso9606Position")}</label>
+                      <select value={iso9606Position} onChange={(e) => setIso9606Position(e.target.value)} className="w-full bg-slate-800 text-white rounded-lg px-3 py-2 text-xs font-mono appearance-none focus:outline-none" style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime}>
+                        <option value="">—</option>
+                        {["PA (flat)", "PB (h-fillet)", "PC (horizontal)", "PD (overhead)", "PE (overhead butt)", "PF (vertical up)", "PG (vertical down)"].map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* PESEL + NIP */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>PESEL</label>
+                    <input type="text" value={pesel} onChange={(e) => setPesel(e.target.value)} placeholder="11 digits" className={`text-xs ${inputCls}`} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime} maxLength={11} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>NIP</label>
+                    <input type="text" value={nip} onChange={(e) => setNip(e.target.value)} placeholder="10 digits" className={`text-xs ${inputCls}`} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime} maxLength={10} />
+                  </div>
+                </div>
+
+                {/* ZUS Status */}
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.zusStatus")}</label>
+                  <select value={zusStatus} onChange={(e) => setZusStatus(e.target.value)} className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono appearance-none focus:outline-none" style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime}>
+                    <option value="">— {t("edit.select")} —</option>
+                    <option value="Registered">✓ Registered</option>
+                    <option value="Unregistered">✗ Unregistered</option>
+                    <option value="Unknown">? Unknown</option>
+                  </select>
+                </div>
+
+                {/* UDT Cert Expiry */}
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.udtCert")}</label>
+                  <p className="text-[10px] font-mono text-gray-600 mb-1.5">{t("edit.udtCertNote")}</p>
+                  <input type="date" value={udtCertExpiry} onChange={(e) => setUdtCertExpiry(e.target.value)} className={inputCls} style={{ ...inputStyle, colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+
+                {/* Visa Type */}
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.visaType")}</label>
+                  <select value={visaType} onChange={(e) => setVisaType(e.target.value)} className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono appearance-none focus:outline-none" style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime}>
+                    <option value="">— {t("edit.select")} —</option>
+                    <option value="EU Citizen">EU Citizen (no restriction)</option>
+                    <option value="Karta Pobytu - Temporary">Karta Pobytu — Temporary</option>
+                    <option value="Karta Pobytu - Permanent">Karta Pobytu — Permanent</option>
+                    <option value="Karta Pobytu - EU Long-term">Karta Pobytu — EU Long-term</option>
+                    <option value="Visa D - Work">Visa D — Work</option>
+                    <option value="Visa C - Tourist">Visa C — Tourist (⚠ cannot work)</option>
+                    <option value="Oświadczenie Only">Oświadczenie Only</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {/* RODO Consent */}
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.rodoConsent")}</label>
+                  <p className="text-[10px] font-mono text-gray-600 mb-1.5">{t("edit.rodoConsentNote")}</p>
+                  <input type="date" value={rodoConsentDate} onChange={(e) => setRodoConsentDate(e.target.value)} className={inputCls} style={{ ...inputStyle, colorScheme: "dark" }} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 7: Client Assignment */}
             <div>
               <SectionDivider label={t("edit.assignToClient")} />
               <p className="text-[10px] text-gray-500 font-mono mb-3">{t("edit.assignNote")}</p>

@@ -143,7 +143,15 @@
     "bhpHint": "AI extracts: BHP Expiry date",
     "uploading": "Uploading…",
     "clickToUpload": "Click to upload / drag file",
-    "updateStatus": "Update Status"
+    "updateStatus": "Update Status",
+    "badaniaLek": "Badania Lekarskie",
+    "oswiadczenie": "Oświadczenie (PUP)",
+    "udtCert": "UDT Certificate",
+    "polishLegal": "Polish Legal Info",
+    "zusStatus": "ZUS Status",
+    "visaType": "Visa / Residence Type",
+    "rodoConsent": "RODO Consent Date",
+    "pipMode": "PIP Inspection Mode"
   },
   "edit": {
     "title": "Edit Candidate",
@@ -182,7 +190,25 @@
     "saveToAirtable": "Save to Airtable",
     "saving": "Saving…",
     "nothingToSave": "Nothing to save",
-    "nothingToSaveDesc": "Fill in at least one field before saving."
+    "nothingToSaveDesc": "Fill in at least one field before saving.",
+    "select": "Select",
+    "polishCompliance": "Polish Legal Compliance",
+    "badaniaLek": "Badania Lekarskie Expiry",
+    "badaniaLekNote": "Medical exam certificate — Kodeks Pracy Art. 229 (legally mandatory)",
+    "oswiadczenie": "Oświadczenie o Powierzeniu Pracy Expiry",
+    "oswiadczenieNote": "Work declaration filed with PUP — required for non-EU workers from UA/BY/GE/MD/AM",
+    "iso9606": "EN ISO 9606 — Welding Certification",
+    "iso9606Note": "Process, material, thickness, and position required for client welding contracts",
+    "iso9606Process": "Process",
+    "iso9606Material": "Material Group",
+    "iso9606Thickness": "Thickness Range",
+    "iso9606Position": "Position",
+    "zusStatus": "ZUS Registration Status",
+    "udtCert": "UDT Certificate Expiry",
+    "udtCertNote": "Required for lifting equipment, pressure vessels, and scaffolding operators",
+    "visaType": "Visa / Residence Type",
+    "rodoConsent": "RODO Consent Date",
+    "rodoConsentNote": "Record when the worker signed the RODO/GDPR personal data consent form"
   },
   "upload": {
     "title": "AI SMART BULK UPLOAD",

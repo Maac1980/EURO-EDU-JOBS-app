@@ -4,19 +4,7 @@ import jwt from "jsonwebtoken";
 const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "eej-jwt-fallback-secret-2024";
-
-function getUsers() {
-  const users = [];
-  for (let i = 1; i <= 4; i++) {
-    const email = process.env[`EEJ_EMAIL_${i}`]?.trim().toLowerCase();
-    const password = process.env[`EEJ_PASS_${i}`]?.trim();
-    const role = process.env[`EEJ_ROLE_${i}`]?.trim() ?? "Staff";
-    if (email && password) {
-      users.push({ email, password, role, name: email.split("@")[0] });
-    }
-  }
-  return users;
-}
+const ALLOWED_EMAIL = "anna.b@edu-jobs.eu";
 
 router.post("/auth/login", (req, res) => {
   const { email, password } = req.body as { email?: string; password?: string };
@@ -25,31 +13,28 @@ router.post("/auth/login", (req, res) => {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
-  const users = getUsers();
-
-  if (users.length === 0) {
-    return res.status(503).json({
-      error: "No users configured. Please set EEJ_EMAIL_1 and EEJ_PASS_1 in Secrets.",
-    });
+  if (email.trim().toLowerCase() !== ALLOWED_EMAIL) {
+    return res.status(403).json({ error: "Access Denied: Contact Administrator." });
   }
 
-  const match = users.find(
-    (u) => u.email === email.trim().toLowerCase() && u.password === password
-  );
+  const adminPassword = process.env.EEJ_ADMIN_PASSWORD;
+  if (!adminPassword) {
+    return res.status(503).json({ error: "Server not configured. Set EEJ_ADMIN_PASSWORD in Secrets." });
+  }
 
-  if (!match) {
-    return res.status(401).json({ error: "Invalid email or password." });
+  if (password !== adminPassword) {
+    return res.status(401).json({ error: "Incorrect password." });
   }
 
   const token = jwt.sign(
-    { email: match.email, name: match.name, role: match.role },
+    { email: ALLOWED_EMAIL, name: "Anna B", role: "Admin" },
     JWT_SECRET,
     { expiresIn: "24h" }
   );
 
   return res.json({
     token,
-    user: { email: match.email, name: match.name, role: match.role },
+    user: { email: ALLOWED_EMAIL, name: "Anna B", role: "Admin" },
   });
 });
 

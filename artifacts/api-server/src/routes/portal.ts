@@ -1,16 +1,46 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import multer from "multer";
-import { fetchAllRecords, updateRecord } from "../lib/airtable.js";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { fetchAllRecords, fetchRecord, updateRecord } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
+import { appendAuditEntry } from "./audit.js";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET ?? "eej-jwt-fallback-secret-2024";
 const PORTAL_TOKEN_EXPIRY = "30d";
 
-// ── Token helpers ──────────────────────────────────────────────────────────
+// ── Daily log file per worker ─────────────────────────────────────────────
+
+const DATA_DIR = join(__dirname, "../../data/portal-logs");
+
+function getDailyLogPath(workerId: string): string {
+  mkdirSync(DATA_DIR, { recursive: true });
+  return join(DATA_DIR, `${workerId}.json`);
+}
+
+export interface DailyEntry {
+  date: string;          // YYYY-MM-DD
+  hours: number;
+  submittedAt: string;   // ISO timestamp
+}
+
+function readDailyLog(workerId: string): DailyEntry[] {
+  const file = getDailyLogPath(workerId);
+  try {
+    return existsSync(file) ? JSON.parse(readFileSync(file, "utf-8")) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDailyLog(workerId: string, entries: DailyEntry[]): void {
+  writeFileSync(getDailyLogPath(workerId), JSON.stringify(entries.slice(-365), null, 2));
+}
+
+// ── Token helpers ─────────────────────────────────────────────────────────
 
 function signPortalToken(workerId: string): string {
   return jwt.sign({ workerId, type: "portal" }, JWT_SECRET, { expiresIn: PORTAL_TOKEN_EXPIRY });
@@ -24,7 +54,7 @@ function verifyPortalToken(token: string): { workerId: string } {
   return { workerId: decoded.workerId };
 }
 
-// ── Admin: generate a portal link token for a given worker ─────────────────
+// ── Admin: generate a portal link token for a given worker ────────────────
 
 // GET /api/portal/token/:recordId  (requires admin Bearer token)
 router.get("/portal/token/:recordId", async (req, res) => {
@@ -47,7 +77,7 @@ router.get("/portal/token/:recordId", async (req, res) => {
   return res.json({ token, expiresIn: PORTAL_TOKEN_EXPIRY });
 });
 
-// ── Candidate: get own profile ──────────────────────────────────────────────
+// ── Candidate: get own minimal profile (NO compliance/financial data) ──────
 
 // GET /api/portal/me?token=xxx
 router.get("/portal/me", async (req, res) => {
@@ -66,18 +96,31 @@ router.get("/portal/me", async (req, res) => {
     const record = records.find((r) => r.id === workerId);
     if (!record) return res.status(404).json({ error: "Worker record not found." });
 
-    const worker = mapRecordToWorker(record);
-    return res.json({ worker });
+    const full = mapRecordToWorker(record);
+
+    // Return ONLY the candidate's own identity — nothing confidential
+    const profile = {
+      id: full.id,
+      name: full.name,
+      specialization: full.specialization,
+      siteLocation: full.siteLocation ?? null,
+    };
+
+    // Also return their own daily log
+    const dailyLog = readDailyLog(workerId);
+
+    return res.json({ profile, dailyLog });
   } catch (err) {
     console.error("[portal] me error:", err);
     return res.status(500).json({ error: "Failed to load profile." });
   }
 });
 
-// ── Candidate: update their total hours ────────────────────────────────────
+// ── Candidate: submit hours for a specific day ────────────────────────────
 
-// PATCH /api/portal/hours?token=xxx
-router.patch("/portal/hours", async (req, res) => {
+// POST /api/portal/hours?token=xxx
+// Body: { date: "YYYY-MM-DD", hours: number }
+router.post("/portal/hours", async (req, res) => {
   const token = typeof req.query.token === "string" ? req.query.token : null;
   if (!token) return res.status(400).json({ error: "Missing token" });
 
@@ -88,43 +131,50 @@ router.patch("/portal/hours", async (req, res) => {
     return res.status(401).json({ error: "Invalid or expired portal link." });
   }
 
-  const { totalHours } = req.body as { totalHours?: number };
-  if (totalHours === undefined || isNaN(Number(totalHours)) || Number(totalHours) < 0) {
-    return res.status(400).json({ error: "Invalid hours value." });
+  const { date, hours } = req.body as { date?: string; hours?: number };
+
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: "Invalid date. Use YYYY-MM-DD format." });
+  }
+  const hoursNum = Number(hours);
+  if (isNaN(hoursNum) || hoursNum < 0 || hoursNum > 24) {
+    return res.status(400).json({ error: "Invalid hours value. Must be between 0 and 24." });
   }
 
   try {
-    await updateRecord(workerId, { "TOTAL HOURS": Number(totalHours) });
-    appendAudit({ workerId, actor: "candidate-portal", field: "TOTAL HOURS", newValue: totalHours });
-    return res.json({ ok: true });
+    // Read current daily log
+    const log = readDailyLog(workerId);
+
+    // Upsert: replace if same date already exists, otherwise append
+    const existingIdx = log.findIndex((e) => e.date === date);
+    const entry: DailyEntry = { date, hours: hoursNum, submittedAt: new Date().toISOString() };
+    if (existingIdx >= 0) {
+      log[existingIdx] = entry;
+    } else {
+      log.push(entry);
+    }
+    // Keep sorted by date ascending
+    log.sort((a, b) => a.date.localeCompare(b.date));
+    writeDailyLog(workerId, log);
+
+    // Accumulate total hours into Airtable from ALL daily log entries
+    const totalHours = log.reduce((sum, e) => sum + e.hours, 0);
+    await updateRecord(workerId, { "TOTAL HOURS": Math.round(totalHours * 10) / 10 });
+
+    // Audit trail
+    appendAuditEntry({
+      workerId,
+      actor: "candidate-portal",
+      field: "TOTAL HOURS (daily)",
+      newValue: `${hoursNum}h on ${date}`,
+      action: "daily-hours",
+    });
+
+    return res.json({ ok: true, totalHours, log });
   } catch (err) {
-    console.error("[portal] hours update error:", err);
-    return res.status(500).json({ error: "Failed to update hours." });
+    console.error("[portal] hours error:", err);
+    return res.status(500).json({ error: "Failed to save hours." });
   }
 });
 
-// ── Audit log helper (inline, written to api-server/data/audit.json) ────────
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const AUDIT_FILE = join(__dirname, "../../data/audit.json");
-
-function appendAudit(entry: { workerId: string; actor: string; field: string; newValue: unknown; oldValue?: unknown }) {
-  try {
-    mkdirSync(join(__dirname, "../../data"), { recursive: true });
-    const existing: unknown[] = existsSync(AUDIT_FILE)
-      ? JSON.parse(readFileSync(AUDIT_FILE, "utf-8"))
-      : [];
-    existing.push({ ...entry, timestamp: new Date().toISOString() });
-    // Keep last 2000 entries
-    const trimmed = existing.slice(-2000);
-    writeFileSync(AUDIT_FILE, JSON.stringify(trimmed, null, 2));
-  } catch (e) {
-    console.error("[audit] write error:", e);
-  }
-}
-
-export { appendAudit };
 export default router;

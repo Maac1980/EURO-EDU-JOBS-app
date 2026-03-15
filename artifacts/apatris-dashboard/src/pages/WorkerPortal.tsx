@@ -1,123 +1,99 @@
-import React, { useEffect, useState } from "react";
-import { Shield, Clock, AlertTriangle, CheckCircle2, Upload, Loader2, ChevronRight, Calendar, Briefcase, MapPin, Clock3, Save } from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
+import { AlertTriangle, Loader2, Clock3, CheckCircle2, Calendar, Briefcase, MapPin, Plus } from "lucide-react";
 
-interface Worker {
+interface Profile {
   id: string;
   name: string;
   specialization: string;
-  siteLocation?: string;
-  complianceStatus: string;
-  daysUntilNextExpiry: number | null;
-  trcExpiry?: string | null;
-  workPermitExpiry?: string | null;
-  bhpStatus?: string | null;
-  contractEndDate?: string | null;
-  hourlyNettoRate?: number | null;
-  totalHours?: number | null;
-  advancePayment?: number | null;
+  siteLocation?: string | null;
 }
 
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return "—";
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return d;
-  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+interface DailyEntry {
+  date: string;
+  hours: number;
+  submittedAt: string;
 }
 
-function daysLeft(d: string | null | undefined): { days: number | null; expired: boolean } {
-  if (!d) return { days: null, expired: false };
-  const diff = Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
-  return { days: diff, expired: diff < 0 };
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function ExpiryRow({ label, date }: { label: string; date?: string | null }) {
-  const { days, expired } = daysLeft(date);
-  const color = expired ? "#EF4444" : days !== null && days < 30 ? "#F59E0B" : days !== null && days < 60 ? "#FBBF24" : "#22C55E";
-
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
-      <span className="text-sm text-gray-400 font-medium">{label}</span>
-      <div className="text-right">
-        <p className="text-sm font-mono font-bold" style={{ color: date ? color : "#4B5563" }}>{fmtDate(date)}</p>
-        {date && days !== null && (
-          <p className="text-[10px] font-mono" style={{ color }}>
-            {expired ? `${Math.abs(days)}d expired` : `${days}d remaining`}
-          </p>
-        )}
-      </div>
-    </div>
-  );
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg: Record<string, { label: string; color: string; bg: string }> = {
-    compliant:       { label: "Compliant",       color: "#22C55E", bg: "rgba(34,197,94,0.12)"  },
-    warning:         { label: "Warning",          color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
-    critical:        { label: "Critical",         color: "#EF4444", bg: "rgba(239,68,68,0.12)"  },
-    "non-compliant": { label: "Non-Compliant",    color: "#EF4444", bg: "rgba(239,68,68,0.12)"  },
-  };
-  const c = cfg[status] ?? { label: status, color: "#9CA3AF", bg: "rgba(156,163,175,0.12)" };
-  return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest" style={{ color: c.color, background: c.bg }}>
-      {status === "compliant" ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-      {c.label}
-    </span>
-  );
+function totalThisMonth(log: DailyEntry[]): number {
+  const ym = todayISO().slice(0, 7);
+  return log.filter((e) => e.date.startsWith(ym)).reduce((s, e) => s + e.hours, 0);
 }
 
 export default function WorkerPortal() {
-  const [worker, setWorker] = useState<Worker | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [log, setLog] = useState<DailyEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [date, setDate] = useState(todayISO());
   const [hours, setHours] = useState<string>("");
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saveMsg, setSaveMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const token = new URLSearchParams(window.location.search).get("token");
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
-  useEffect(() => {
-    if (!token) { setError("No portal link token found. Please use the link provided by your coordinator."); setLoading(false); return; }
-    fetch(`${base}/api/portal/me?token=${encodeURIComponent(token)}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setWorker(data.worker);
-        setHours(String(data.worker.totalHours ?? ""));
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [token]);
+  const loadProfile = useCallback(async () => {
+    if (!token) { setError("No access link found. Please use the link sent by your coordinator."); setLoading(false); return; }
+    try {
+      const res = await fetch(`${base}/api/portal/me?token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setProfile(data.profile);
+      setLog(data.dailyLog ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load profile.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, base]);
 
-  const saveHours = async () => {
-    if (!token || hours === "") return;
-    const parsed = parseFloat(hours);
-    if (isNaN(parsed) || parsed < 0) { setSaveMsg("Please enter a valid number of hours."); return; }
+  useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  // Pre-fill hours input when date changes (show existing entry if any)
+  useEffect(() => {
+    const existing = log.find((e) => e.date === date);
+    setHours(existing ? String(existing.hours) : "");
+    setSaveMsg(null);
+  }, [date, log]);
+
+  const submit = async () => {
+    if (!token || !hours) return;
+    const h = parseFloat(hours);
+    if (isNaN(h) || h < 0 || h > 24) {
+      setSaveMsg({ text: "Enter a valid number of hours (0–24).", ok: false });
+      return;
+    }
     setSaving(true);
     setSaveMsg(null);
     try {
       const res = await fetch(`${base}/api/portal/hours?token=${encodeURIComponent(token)}`, {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ totalHours: parsed }),
+        body: JSON.stringify({ date, hours: h }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setSaveMsg("Hours updated successfully!");
-      if (worker) setWorker({ ...worker, totalHours: parsed });
+      setLog(data.log ?? []);
+      setSaveMsg({ text: `✓ ${h}h recorded for ${fmtDate(date)}`, ok: true });
     } catch (e) {
-      setSaveMsg(e instanceof Error ? e.message : "Failed to save.");
+      setSaveMsg({ text: e instanceof Error ? e.message : "Failed to save.", ok: false });
     } finally {
       setSaving(false);
     }
   };
 
-  const grossPay = worker?.hourlyNettoRate && worker?.totalHours
-    ? (worker.hourlyNettoRate * worker.totalHours).toFixed(2)
-    : null;
-  const finalPay = grossPay && worker?.advancePayment
-    ? (parseFloat(grossPay) - (worker.advancePayment ?? 0)).toFixed(2)
-    : grossPay;
+  const monthTotal = totalThisMonth(log);
+  const recentLog = [...log].reverse().slice(0, 30);
+  const existingEntry = log.find((e) => e.date === date);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white px-4 py-10 flex flex-col items-center">
@@ -127,17 +103,17 @@ export default function WorkerPortal() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] blur-[140px] rounded-full" style={{ background: "rgba(233,255,112,0.03)" }} />
       </div>
 
-      <div className="w-full max-w-lg z-10 space-y-5">
+      <div className="w-full max-w-sm z-10 space-y-5">
 
-        {/* Header */}
+        {/* EEJ Logo header */}
         <div className="flex items-center gap-4 mb-2">
-          <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: "#E9FF70", boxShadow: "0 0 0 2px rgba(233,255,112,0.3), 0 0 24px rgba(233,255,112,0.15)" }}>
-            <span className="text-lg font-black tracking-tighter" style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}>EEJ</span>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "#E9FF70", boxShadow: "0 0 0 2px rgba(233,255,112,0.3), 0 0 20px rgba(233,255,112,0.15)" }}>
+            <span className="text-sm font-black tracking-tighter" style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}>EEJ</span>
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-wide text-white uppercase">Worker Portal</h1>
-            <p className="text-xs font-mono" style={{ color: "#E9FF70", opacity: 0.7 }}>EURO EDU JOBS · My Profile</p>
+            <h1 className="text-lg font-black tracking-wide text-white uppercase">Hours Portal</h1>
+            <p className="text-[10px] font-mono" style={{ color: "#E9FF70", opacity: 0.7 }}>EURO EDU JOBS</p>
           </div>
         </div>
 
@@ -157,124 +133,134 @@ export default function WorkerPortal() {
           </div>
         )}
 
-        {/* Profile */}
-        {worker && !loading && (
+        {profile && !loading && (
           <>
-            {/* Identity card */}
-            <div className="rounded-2xl overflow-hidden border" style={{ borderColor: "rgba(233,255,112,0.2)", background: "#1a1f2e" }}>
-              <div className="px-5 py-4 border-b flex items-start justify-between" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(233,255,112,0.04)" }}>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Worker</p>
-                  <h2 className="text-2xl font-black text-white">{worker.name}</h2>
-                </div>
-                <StatusBadge status={worker.complianceStatus} />
+            {/* Identity card — minimal, no company data */}
+            <div className="rounded-2xl overflow-hidden border" style={{ borderColor: "rgba(233,255,112,0.18)", background: "#1a1f2e" }}>
+              <div className="px-5 py-4 border-b" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(233,255,112,0.04)" }}>
+                <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#E9FF70", opacity: 0.6 }}>Welcome</p>
+                <h2 className="text-2xl font-black text-white">{profile.name}</h2>
               </div>
-              <div className="px-5 py-4 grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-gray-500">Role</p>
-                    <p className="text-sm font-semibold text-white">{worker.specialization || "—"}</p>
+              <div className="px-5 py-4 flex flex-col gap-3">
+                {profile.specialization && (
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                    <span className="text-sm text-gray-300">{profile.specialization}</span>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-gray-500">Site</p>
-                    <p className="text-sm font-semibold text-white">{worker.siteLocation || "—"}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Compliance documents */}
-            <div className="rounded-2xl border" style={{ borderColor: "rgba(255,255,255,0.08)", background: "#1a1f2e" }}>
-              <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                <Shield className="w-4 h-4" style={{ color: "#E9FF70" }} />
-                <p className="text-xs font-black uppercase tracking-widest" style={{ color: "#E9FF70" }}>Document Expiry</p>
-              </div>
-              <div className="px-5 py-2">
-                <ExpiryRow label="TRC (Temporary Residence Card)" date={worker.trcExpiry} />
-                <ExpiryRow label="Work Permit / Passport" date={worker.workPermitExpiry} />
-                <ExpiryRow label="BHP (Safety Certificate)" date={worker.bhpStatus} />
-                <ExpiryRow label="Contract End Date" date={worker.contractEndDate} />
-              </div>
-            </div>
-
-            {/* Hours submission */}
-            <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(233,255,112,0.2)", background: "#1a1f2e" }}>
-              <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(233,255,112,0.04)" }}>
-                <Clock3 className="w-4 h-4" style={{ color: "#E9FF70" }} />
-                <p className="text-xs font-black uppercase tracking-widest" style={{ color: "#E9FF70" }}>Report My Hours</p>
-              </div>
-              <div className="px-5 py-4 space-y-4">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-2">Total Hours Worked This Month</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={hours}
-                      onChange={(e) => setHours(e.target.value)}
-                      className="flex-1 px-4 py-3 rounded-xl text-white text-sm font-mono font-bold bg-slate-800 border outline-none focus:ring-2 transition-all"
-                      style={{ borderColor: "rgba(233,255,112,0.3)" }}
-                      placeholder="e.g. 168"
-                    />
-                    <button
-                      onClick={saveHours}
-                      disabled={saving || hours === ""}
-                      className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-black uppercase tracking-wide transition-all disabled:opacity-50"
-                      style={{ background: "#E9FF70", color: "#333333" }}
-                    >
-                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                      Save
-                    </button>
-                  </div>
-                  {saveMsg && (
-                    <p className={`text-xs mt-2 font-semibold ${saveMsg.includes("success") ? "text-green-400" : "text-red-400"}`}>
-                      {saveMsg}
-                    </p>
-                  )}
-                </div>
-
-                {/* Pay summary */}
-                {worker.hourlyNettoRate && (
-                  <div className="rounded-xl p-4 space-y-2 border" style={{ background: "rgba(233,255,112,0.04)", borderColor: "rgba(233,255,112,0.1)" }}>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Estimated Payout</p>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Rate</span>
-                      <span className="font-mono font-bold text-white">{worker.hourlyNettoRate} zł/hr</span>
-                    </div>
-                    {hours && !isNaN(parseFloat(hours)) && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Gross ({hours} hrs)</span>
-                        <span className="font-mono font-bold text-white">{(worker.hourlyNettoRate * parseFloat(hours)).toFixed(2)} zł</span>
-                      </div>
-                    )}
-                    {worker.advancePayment && worker.advancePayment > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Advance paid</span>
-                        <span className="font-mono font-bold text-red-400">− {worker.advancePayment} zł</span>
-                      </div>
-                    )}
-                    {hours && !isNaN(parseFloat(hours)) && (
-                      <div className="flex justify-between text-sm pt-2 border-t mt-2" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-                        <span className="font-bold text-white">Final Payout</span>
-                        <span className="font-mono font-black text-lg" style={{ color: "#E9FF70" }}>
-                          {(worker.hourlyNettoRate * parseFloat(hours) - (worker.advancePayment ?? 0)).toFixed(2)} zł
-                        </span>
-                      </div>
-                    )}
+                )}
+                {profile.siteLocation && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                    <span className="text-sm text-gray-300">{profile.siteLocation}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Footer note */}
-            <p className="text-center text-xs text-gray-600 pb-4">
-              This is your personal secure portal. Contact your EEJ coordinator for document updates.<br />
-              <a href="https://edu-jobs.eu" className="underline hover:text-gray-400 transition-colors">edu-jobs.eu</a>
+            {/* Month summary pill */}
+            <div className="rounded-2xl px-5 py-4 flex items-center justify-between border" style={{ background: "rgba(233,255,112,0.05)", borderColor: "rgba(233,255,112,0.15)" }}>
+              <div className="flex items-center gap-2">
+                <Clock3 className="w-4 h-4" style={{ color: "#E9FF70" }} />
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">This month</span>
+              </div>
+              <span className="text-2xl font-black" style={{ color: "#E9FF70" }}>
+                {monthTotal.toFixed(1)} <span className="text-sm font-bold text-gray-500">hrs</span>
+              </span>
+            </div>
+
+            {/* Daily hours submission */}
+            <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(233,255,112,0.2)", background: "#1a1f2e" }}>
+              <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(233,255,112,0.04)" }}>
+                <Calendar className="w-4 h-4" style={{ color: "#E9FF70" }} />
+                <p className="text-xs font-black uppercase tracking-widest" style={{ color: "#E9FF70" }}>
+                  {existingEntry ? "Update today's hours" : "Report today's hours"}
+                </p>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+                {/* Date picker */}
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Date</label>
+                  <input
+                    type="date"
+                    value={date}
+                    max={todayISO()}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl text-white text-sm font-mono bg-slate-800 border outline-none focus:ring-1 transition-all"
+                    style={{ borderColor: "rgba(255,255,255,0.1)", colorScheme: "dark" }}
+                  />
+                </div>
+
+                {/* Hours input + submit */}
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Hours worked</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="24"
+                      step="0.5"
+                      value={hours}
+                      onChange={(e) => { setHours(e.target.value); setSaveMsg(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && submit()}
+                      className="flex-1 px-4 py-3 rounded-xl text-white text-lg font-black font-mono bg-slate-800 border outline-none transition-all"
+                      style={{ borderColor: "rgba(233,255,112,0.3)" }}
+                      placeholder="8"
+                    />
+                    <button
+                      onClick={submit}
+                      disabled={saving || !hours}
+                      className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-black uppercase tracking-wide transition-all disabled:opacity-40"
+                      style={{ background: "#E9FF70", color: "#333333" }}
+                    >
+                      {saving
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : existingEntry ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                      {existingEntry ? "Update" : "Add"}
+                    </button>
+                  </div>
+                  {existingEntry && !saveMsg && (
+                    <p className="text-[10px] text-gray-600 mt-1.5 font-mono">
+                      Previously logged: {existingEntry.hours}h for this date — submitting will overwrite it.
+                    </p>
+                  )}
+                  {saveMsg && (
+                    <p className={`text-xs mt-2 font-semibold ${saveMsg.ok ? "text-green-400" : "text-red-400"}`}>
+                      {saveMsg.text}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Recent submissions log */}
+            {recentLog.length > 0 && (
+              <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(255,255,255,0.07)", background: "#1a1f2e" }}>
+                <div className="px-5 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">My recent entries</p>
+                </div>
+                <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                  {recentLog.map((e) => (
+                    <div key={e.date} className="flex items-center justify-between px-5 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{fmtDate(e.date)}</p>
+                        <p className="text-[10px] text-gray-600 font-mono">
+                          logged {new Date(e.submittedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <span className="text-base font-black font-mono" style={{ color: "#E9FF70" }}>
+                        {e.hours}h
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <p className="text-center text-[11px] text-gray-700 pb-4">
+              For changes to your profile, contact your EEJ coordinator.<br />
+              <a href="https://edu-jobs.eu" className="underline hover:text-gray-500 transition-colors">edu-jobs.eu</a>
             </p>
           </>
         )}

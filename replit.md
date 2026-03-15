@@ -170,6 +170,55 @@ File: `artifacts/api-server/data/audit.json` (auto-created, max 2000 entries, ro
 - `GET /api/audit` — admin only (Bearer JWT required)
 - `DELETE /api/audit` — clears the log (admin only)
 
+## Monthly Payroll Engine
+
+### Airtable Payroll Fields (all created by `ensure-schema`):
+- `HOURLY NETTO RATE` — currency, 2dp, zł symbol
+- `TOTAL HOURS` — number, 1dp (current month hours)
+- `ADVANCE PAYMENT` — currency, 2dp, zł
+- `PENALTIES` — currency, 2dp, zł
+
+### API Endpoints (payroll):
+- `GET /api/payroll/workers` — all workers with payroll fields (coordinator+admin)
+- `PATCH /api/payroll/workers/batch` — bulk update hours/advance/penalties in Airtable (coordinator+admin)
+- `POST /api/payroll/close-month` — snapshot to ledger, reset fields in Airtable (admin only); 409 if month already closed
+- `GET /api/payroll/history/:workerId` — ledger history for one worker (any auth)
+- `GET /api/payroll/summary` — all ledger records (coordinator+admin)
+
+### Ledger Storage:
+- File: `artifacts/api-server/data/payroll-records.json` — `{ records: PayrollRecord[] }`
+- `PayrollRecord` fields: id, workerId, workerName, monthYear, totalHours, hourlyRate, advancesDeducted, penaltiesDeducted, grossPay, finalNettoPayout, zusBaseSalary, siteLocation, createdAt
+
+### Frontend:
+- `PayrollRunPage.tsx` — full-page editable grid, live netto calc, search/sort, save + close-month buttons
+- `PayrollHistoryTab.tsx` — per-worker history tab in `CandidateEditPanel`
+- `SettlementPrintModal.tsx` — A4 print/PDF with EEJ branding, monthly breakdown table, ZUS note, signatures
+
+## Role-Based Access Control (RBAC)
+
+### Roles & Permissions:
+| Feature | Admin | Coordinator | Manager |
+|---|---|---|---|
+| All tabs | ✅ | Most | Compliance only |
+| Add Worker | ✅ | ✅ | ❌ |
+| Delete Worker | ✅ | ❌ | ❌ |
+| Edit Worker | ✅ | ✅ | View only |
+| Payroll tab | ✅ | ✅ | ❌ |
+| Close Month | ✅ | ❌ | ❌ |
+| Settings tab | ✅ | ❌ | ❌ |
+| Multi-site | ✅ | ✅ | Own site only |
+
+### Backend Auth:
+- `artifacts/api-server/src/lib/authMiddleware.ts` — `authenticateToken`, `requireAdmin`, `requireCoordinatorOrAdmin`
+- JWT 24h, payload: `{ id, email, name, role, site }`
+- Admin: `anna.b@edu-jobs.eu` / `EEJ_ADMIN_PASSWORD` env var
+- Team users in `artifacts/api-server/data/users.json`
+
+### Team Management:
+- Settings tab → Team Access (admin only)
+- `TeamManagementCard.tsx` — create/edit/delete coordinator and manager accounts
+- `GET/POST/PATCH/DELETE /api/admin/users` — user CRUD (admin only)
+
 ## API Endpoints
 
 All at `/api`:

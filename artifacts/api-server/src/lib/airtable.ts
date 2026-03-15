@@ -178,7 +178,11 @@ const EEJ_DESIRED_FIELDS: Array<{ name: string; type: string; options?: Record<s
   { name: "Assigned Site", type: "singleLineText" },
   { name: "Email", type: "email" },
   { name: "Phone", type: "phoneNumber" },
+  // ── Payroll fields ────────────────────────────────────────────────────────
+  { name: "HOURLY NETTO RATE", type: "currency", options: { precision: 2, symbol: "zł" } },
   { name: "TOTAL HOURS", type: "number", options: { precision: 1 } },
+  { name: "ADVANCE PAYMENT", type: "currency", options: { precision: 2, symbol: "zł" } },
+  { name: "PENALTIES", type: "currency", options: { precision: 2, symbol: "zł" } },
   // ── Polish legal compliance fields ────────────────────────────────────────
   { name: "BADANIA LEKARSKIE", type: "date", options: { dateFormat: { name: "iso" } } },
   { name: "OSWIADCZENIE EXPIRY", type: "date", options: { dateFormat: { name: "iso" } } },

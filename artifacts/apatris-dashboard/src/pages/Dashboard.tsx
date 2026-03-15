@@ -8,7 +8,7 @@ import {
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
   MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
   AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield, UserPlus, Trash2, Calculator,
-  Download, CalendarDays
+  Download, CalendarDays, KeyRound, Lock, Wifi, WifiOff, Loader2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -204,6 +204,15 @@ export default function Dashboard() {
   const [adminSaving, setAdminSaving] = useState(false);
   const [adminSaveMsg, setAdminSaveMsg] = useState<string | null>(null);
 
+  const [changePwOpen, setChangePwOpen] = useState(false);
+  const [changePwCurrent, setChangePwCurrent] = useState("");
+  const [changePwNew, setChangePwNew] = useState("");
+  const [changePwConfirm, setChangePwConfirm] = useState("");
+  const [changePwSaving, setChangePwSaving] = useState(false);
+  const [changePwMsg, setChangePwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const [systemStatus, setSystemStatus] = useState<{ smtpConfigured: boolean; smtpHost: string; smtpPort: string; smtpUser: string | null; jwtIsDefault: boolean } | null>(null);
+
   useEffect(() => {
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
     fetch(`${base}/api/admin/profile`)
@@ -215,6 +224,36 @@ export default function Dashboard() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    const tkn = localStorage.getItem("eej_token");
+    fetch(`${base}/api/admin/system-status`, { headers: { Authorization: `Bearer ${tkn}` } })
+      .then((r) => r.json())
+      .then((data) => setSystemStatus(data))
+      .catch(() => {});
+  }, [isAdmin]);
+
+  const handleChangePassword = async () => {
+    if (!changePwNew || !changePwCurrent) { setChangePwMsg({ ok: false, text: "All fields are required." }); return; }
+    if (changePwNew !== changePwConfirm) { setChangePwMsg({ ok: false, text: "New passwords do not match." }); return; }
+    if (changePwNew.length < 8) { setChangePwMsg({ ok: false, text: "New password must be at least 8 characters." }); return; }
+    setChangePwSaving(true); setChangePwMsg(null);
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const tkn = localStorage.getItem("eej_token");
+      const res = await fetch(`${base}/api/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tkn}` },
+        body: JSON.stringify({ currentPassword: changePwCurrent, newPassword: changePwNew }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setChangePwMsg({ ok: false, text: data.error ?? "Failed to change password." }); return; }
+      setChangePwMsg({ ok: true, text: "Password changed successfully." });
+      setChangePwCurrent(""); setChangePwNew(""); setChangePwConfirm("");
+    } finally { setChangePwSaving(false); }
+  };
 
   // Compliance documents state
   const [complianceDocs, setComplianceDocs] = useState<any[]>([]);
@@ -491,6 +530,15 @@ export default function Dashboard() {
               <ExternalLink className="w-3.5 h-3.5" />
               <span>Main Website</span>
             </a>
+            {!isAdmin && (
+              <button
+                onClick={() => { setChangePwOpen(true); setChangePwMsg(null); }}
+                title="Change my password"
+                className="p-2 text-muted-foreground hover:text-white transition-colors"
+              >
+                <KeyRound className="w-4 h-4" />
+              </button>
+            )}
             <button onClick={logout} title={t("header.logout")} className="p-2 text-muted-foreground hover:text-white transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
@@ -1370,6 +1418,63 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* JWT Secret Warning */}
+            {systemStatus?.jwtIsDefault && (
+              <div className="flex items-start gap-3 px-4 py-3 rounded-xl" style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.3)" }}>
+                <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-yellow-400">Security Warning — Default JWT Secret in Use</p>
+                  <p className="text-[11px] font-mono text-yellow-300/70 mt-1">
+                    The server is using a hardcoded default signing secret. Anyone who knows it could forge authentication tokens.
+                    Add a <span className="text-yellow-300 font-bold">JWT_SECRET</span> secret in your deployment settings with a long random string to fix this.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* SMTP Configuration Card */}
+            <div className="rounded-2xl border p-6 space-y-4" style={{ borderColor: systemStatus ? (systemStatus.smtpConfigured ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.25)") : "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: systemStatus?.smtpConfigured ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.12)" }}>
+                  {systemStatus?.smtpConfigured ? <Wifi className="w-4 h-4 text-green-400" /> : <WifiOff className="w-4 h-4 text-red-400" />}
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest">Email / SMTP Configuration</h3>
+                  <p className="text-[10px] font-mono text-gray-500">Required for compliance alerts and coordinator notifications</p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest" style={{ background: systemStatus?.smtpConfigured ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.12)", color: systemStatus?.smtpConfigured ? "#4ade80" : "#f87171", border: `1px solid ${systemStatus?.smtpConfigured ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.25)"}` }}>
+                  {systemStatus ? (systemStatus.smtpConfigured ? "Configured" : "Not Configured") : "Loading…"}
+                </span>
+              </div>
+
+              <div className="rounded-xl bg-slate-800/50 border border-white/8 divide-y divide-white/5">
+                {[
+                  { label: "SMTP_HOST", val: systemStatus?.smtpHost ?? "—", note: "e.g. smtp.gmail.com" },
+                  { label: "SMTP_PORT", val: systemStatus?.smtpPort ?? "587", note: "Usually 587 (TLS) or 465 (SSL)" },
+                  { label: "SMTP_USER", val: systemStatus?.smtpUser ?? "Not set", note: "Sending email address", missing: !systemStatus?.smtpUser },
+                  { label: "SMTP_PASS", val: systemStatus?.smtpConfigured ? "••••••••" : "Not set", note: "App password or SMTP password", missing: !systemStatus?.smtpConfigured },
+                  { label: "SMTP_FROM", val: systemStatus?.smtpUser ?? "Defaults to SMTP_USER", note: "Display name in sent emails" },
+                ].map(({ label, val, note, missing }) => (
+                  <div key={label} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="w-28 text-[10px] font-black uppercase tracking-widest font-mono" style={{ color: missing ? "#f87171" : "#E9FF70" }}>{label}</span>
+                    <span className="flex-1 text-xs font-mono" style={{ color: missing ? "#f87171" : "rgba(255,255,255,0.7)" }}>{val}</span>
+                    <span className="text-[10px] font-mono text-white/25 hidden sm:block">{note}</span>
+                    {missing !== undefined && (
+                      missing
+                        ? <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                        : <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {!systemStatus?.smtpConfigured && (
+                <p className="text-[11px] font-mono text-white/40 leading-relaxed">
+                  Add these as <span className="text-white/70 font-bold">Secrets</span> in your deployment settings. Without SMTP, alert emails are queued but not delivered. Gmail users should generate an App Password from Google Account → Security → App Passwords.
+                </p>
+              )}
+            </div>
+
             {/* Team Access / User Management */}
             <TeamManagementCard />
 
@@ -1409,6 +1514,73 @@ export default function Dashboard() {
       <ComplianceReportModal isOpen={reportOpen} onClose={() => setReportOpen(false)} />
       <BulkUploadModal isOpen={bulkUploadOpen} onClose={() => setBulkUploadOpen(false)} />
       <AddWorkerModal isOpen={addWorkerOpen} onClose={() => setAddWorkerOpen(false)} />
+
+      {/* Change Password Modal */}
+      {changePwOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setChangePwOpen(false)}>
+          <div
+            className="rounded-2xl border p-6 w-full max-w-sm space-y-4 mx-4"
+            style={{ background: "#1a1a2e", borderColor: "rgba(233,255,112,0.25)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#E9FF70" }}>
+                <Lock className="w-4 h-4" style={{ color: "#333" }} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Change Password</h3>
+                <p className="text-[10px] font-mono text-gray-500">Logged in as {user?.email}</p>
+              </div>
+              <button onClick={() => setChangePwOpen(false)} className="ml-auto p-1 text-gray-500 hover:text-white">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { label: "Current Password", val: changePwCurrent, set: setChangePwCurrent },
+                { label: "New Password", val: changePwNew, set: setChangePwNew },
+                { label: "Confirm New Password", val: changePwConfirm, set: setChangePwConfirm },
+              ].map(({ label, val, set }) => (
+                <div key={label}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-1">{label}</p>
+                  <input
+                    type="password"
+                    value={val}
+                    onChange={(e) => { set(e.target.value); setChangePwMsg(null); }}
+                    className="w-full px-3 py-2 rounded-lg text-sm font-mono outline-none"
+                    style={{ background: "#0f172a", border: "1.5px solid rgba(255,255,255,0.1)", color: "#fff" }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = "#E9FF70"; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {changePwMsg && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono" style={{ background: changePwMsg.ok ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)", border: `1px solid ${changePwMsg.ok ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}`, color: changePwMsg.ok ? "#4ade80" : "#f87171" }}>
+                {changePwMsg.ok ? <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" /> : <XCircle className="w-3.5 h-3.5 flex-shrink-0" />}
+                {changePwMsg.text}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setChangePwOpen(false)} className="px-4 py-2 rounded-lg text-xs text-gray-400 border border-white/10 hover:text-white transition-colors font-mono">
+                Cancel
+              </button>
+              <button
+                onClick={handleChangePassword}
+                disabled={changePwSaving || changePwMsg?.ok}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ background: "#E9FF70", color: "#333" }}
+              >
+                {changePwSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3" />}
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

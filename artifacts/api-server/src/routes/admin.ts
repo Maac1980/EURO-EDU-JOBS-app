@@ -169,4 +169,22 @@ router.delete("/admin/users/:id", authenticateToken, requireAdmin, (req, res) =>
   }
 });
 
+// GET /api/admin/system-status — returns SMTP and JWT configuration health
+router.get("/admin/system-status", authenticateToken, requireAdmin, (_req, res) => {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST ?? null;
+  const smtpPort = process.env.SMTP_PORT ?? "587";
+  const jwtSecret = process.env.JWT_SECRET ?? null;
+  const DEFAULT_SECRET = "eej-jwt-fallback-secret-2024";
+
+  return res.json({
+    smtpConfigured: !!(smtpUser && smtpPass),
+    smtpHost: smtpHost ?? "smtp.gmail.com (default)",
+    smtpPort,
+    smtpUser: smtpUser ? smtpUser.replace(/(?<=.{3})./g, "*") : null,
+    jwtIsDefault: !jwtSecret || jwtSecret === DEFAULT_SECRET,
+  });
+});
+
 export default router;

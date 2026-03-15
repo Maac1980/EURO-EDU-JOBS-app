@@ -1,9 +1,9 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { JWT_SECRET, type AuthUser } from "../lib/authMiddleware.js";
+import { JWT_SECRET, authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
 
 const router = Router();
 
@@ -27,6 +27,12 @@ function readUsers(): StoredUser[] {
     }
   } catch {}
   return [];
+}
+
+function writeUsers(users: StoredUser[]): void {
+  const dataDir = join(__dirname, "../../data");
+  mkdirSync(dataDir, { recursive: true });
+  writeFileSync(USERS_FILE, JSON.stringify({ users }, null, 2));
 }
 
 function getAdminEmail(): string {
@@ -113,6 +119,36 @@ router.get("/auth/whoami", (_req, res) => {
     allowedEmail: getAdminEmail(),
     userCount: users.length,
   });
+});
+
+// POST /api/auth/change-password — any authenticated user changes their own password
+router.post("/auth/change-password", authenticateToken, (req, res) => {
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "currentPassword and newPassword are required." });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: "New password must be at least 8 characters." });
+  }
+  const userReq = (req as any).user as AuthUser;
+
+  if (userReq.role === "admin") {
+    return res.status(400).json({ error: "Admin password is managed via the EEJ_ADMIN_PASSWORD secret. Update it in your deployment settings." });
+  }
+
+  const users = readUsers();
+  const idx = users.findIndex((u) => u.id === userReq.id);
+  if (idx === -1) return res.status(404).json({ error: "User not found." });
+
+  const user = users[idx];
+  if (!user.password || user.password !== currentPassword) {
+    return res.status(401).json({ error: "Current password is incorrect." });
+  }
+
+  users[idx].password = newPassword;
+  writeUsers(users);
+  console.log(`[auth] Password changed: ${user.email}`);
+  return res.json({ success: true });
 });
 
 export default router;

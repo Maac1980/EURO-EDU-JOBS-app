@@ -150,6 +150,9 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
       "Work Permit",
       "Permit Expiry",
       "Permit Expiration",
+      "PASSPORT",
+      "Passport",
+      "WORK PERMIT",
     ])
   );
 

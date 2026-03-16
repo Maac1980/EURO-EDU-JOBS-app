@@ -57,10 +57,25 @@ router.get("/payroll/workers", authenticateToken, requireCoordinatorOrAdmin, asy
       totalHours: (w as any).totalHours ?? 0,
       advancePayment: (w as any).advancePayment ?? 0,
       penalties: (w as any).penalties ?? 0,
+      iban: (w as any).iban ?? null,
     }));
     return res.json({ workers });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load workers" });
+  }
+});
+
+// ── PATCH /api/payroll/workers/:id/iban ──────────────────────────────────────
+// Update the IBAN bank account number for a single worker
+router.patch("/payroll/workers/:id/iban", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { iban } = req.body as { iban?: string };
+    if (iban === undefined) return res.status(400).json({ error: "iban field required" });
+    await updateRecord(id, { IBAN: iban.trim() });
+    return res.json({ success: true, iban: iban.trim() });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "IBAN update failed" });
   }
 });
 

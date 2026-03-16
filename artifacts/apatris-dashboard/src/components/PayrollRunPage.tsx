@@ -5,7 +5,8 @@ import { PayrollTrendChart } from "./PayrollTrendChart";
 import {
   Calculator, Save, Lock, Loader2, RefreshCcw, ChevronDown, ChevronUp,
   AlertTriangle, CheckCircle, DollarSign, Users, Clock, TrendingUp,
-  Building2, Download, ToggleLeft, ToggleRight
+  Building2, Download, ToggleLeft, ToggleRight, Pencil, Eye, X, Check,
+  FileText, Edit2
 } from "lucide-react";
 
 const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5% — no chorobowe, no PIT-2
@@ -43,6 +44,7 @@ interface PayrollWorker {
   totalHours: number;
   advancePayment: number;
   penalties: number;
+  iban: string | null;
 }
 
 interface GridRow extends PayrollWorker {
@@ -50,7 +52,24 @@ interface GridRow extends PayrollWorker {
   _advance: string;
   _penalties: string;
   _dirty: boolean;
+  _iban: string;
 }
+
+interface ZusRates {
+  emerytalne: number;
+  rentowe: number;
+  zdrowotne: number;
+  kup: number;
+  pitFlat: number;
+}
+
+const DEFAULT_RATES: ZusRates = {
+  emerytalne: 9.76,
+  rentowe: 1.5,
+  zdrowotne: 9,
+  kup: 20,
+  pitFlat: 12,
+};
 
 function calcNetto(row: GridRow, withZus = false): number {
   const h = parseFloat(row._hours) || 0;
@@ -90,6 +109,12 @@ export function PayrollRunPage() {
   const [withZus, setWithZus] = useState(false);
   const [bankExporting, setBankExporting] = useState(false);
   const [payrollSubTab, setPayrollSubTab] = useState<"run" | "ledger" | "zus">("run");
+  const [payrollView, setPayrollView] = useState<"run" | "zus">("run");
+  const [rates, setRates] = useState<ZusRates>(DEFAULT_RATES);
+  const [editRatesOpen, setEditRatesOpen] = useState(false);
+  const [ibanEditId, setIbanEditId] = useState<string | null>(null);
+  const [ibanEditValue, setIbanEditValue] = useState("");
+  const [ibanSaving, setIbanSaving] = useState(false);
 
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -109,6 +134,7 @@ export function PayrollRunPage() {
         _advance: w.advancePayment > 0 ? String(w.advancePayment) : "",
         _penalties: w.penalties > 0 ? String(w.penalties) : "",
         _dirty: false,
+        _iban: w.iban ?? "",
       })));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -219,6 +245,31 @@ export function PayrollRunPage() {
   };
   const dirtyCount = rows.filter((r) => r._dirty).length;
 
+  const handleIbanSave = async (workerId: string) => {
+    setIbanSaving(true);
+    try {
+      const res = await fetch(`${base}/api/payroll/workers/${workerId}/iban`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ iban: ibanEditValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "IBAN save failed");
+      setRows((prev) => prev.map((r) => r.id === workerId ? { ...r, _iban: ibanEditValue, iban: ibanEditValue } : r));
+      setIbanEditId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "IBAN save failed");
+    } finally {
+      setIbanSaving(false);
+    }
+  };
+
+  const handlePdfExport = () => {
+    window.print();
+  };
+
+  const empZusRate = (rates.emerytalne + rates.rentowe) / 100;
+
   // Filtered + sorted rows
   const displayed = rows
     .filter((r) => !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || (r.siteLocation ?? "").toLowerCase().includes(searchQ.toLowerCase()))
@@ -274,30 +325,133 @@ export function PayrollRunPage() {
         </div>
       </div>
 
-      {/* ZUS toggle + Bank export */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* ── ZUS/PIT Rates Panel ── */}
+      <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.03)" }}>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>
+              ZUS / PIT RATES — {monthYear.split("-")[0]}
+            </p>
+            <p className="text-[9px] text-gray-500 font-mono mt-0.5">
+              Last updated: {new Date().toISOString().slice(0, 10)}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEditRatesOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide border transition-all"
+              style={{ background: "rgba(139,92,246,0.15)", borderColor: "rgba(139,92,246,0.4)", color: "#a78bfa" }}
+            >
+              <Edit2 className="w-3 h-3" />
+              Edit Rates
+            </button>
+            <button
+              onClick={() => setPayrollSubTab("zus")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide border transition-all"
+              style={{ background: "rgba(59,130,246,0.12)", borderColor: "rgba(59,130,246,0.35)", color: "#60a5fa" }}
+            >
+              <Calculator className="w-3 h-3" />
+              2nd Employer Split
+            </button>
+          </div>
+        </div>
+
+        {/* Rate badges */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: "Emerytalne", value: rates.emerytalne, key: "emerytalne" as const },
+            { label: "Rentowe", value: rates.rentowe, key: "rentowe" as const },
+            { label: "Zdrowotne", value: rates.zdrowotne, key: "zdrowotne" as const, note: "net base" },
+            { label: "KUP", value: rates.kup, key: "kup" as const },
+            { label: "PIT Flat", value: rates.pitFlat, key: "pitFlat" as const },
+          ].map(({ label, value, key, note }) => (
+            <div key={key} className="px-3 py-2 rounded-xl border" style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)" }}>
+              <div className="text-[8px] font-bold uppercase tracking-widest text-gray-500">{label}</div>
+              {editRatesOpen ? (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={value}
+                    onChange={(e) => setRates((r) => ({ ...r, [key]: parseFloat(e.target.value) || 0 }))}
+                    className="w-16 bg-slate-900 text-white rounded px-1 py-0.5 text-xs font-mono focus:outline-none"
+                    style={{ border: `1px solid ${LIME_BORDER}` }}
+                  />
+                  <span className="text-[9px] text-gray-500">%</span>
+                </div>
+              ) : (
+                <div className="text-sm font-black tabular-nums mt-0.5" style={{ color: LIME }}>
+                  {value}%{note && <span className="text-[8px] font-normal text-gray-500 ml-1">({note})</span>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1 text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.35)" }}>
+          <span>Effective ZUS: {(rates.emerytalne + rates.rentowe).toFixed(2)}%</span>
+          <span className="mx-1">·</span>
+          <span>Chorobowe excluded (voluntary)</span>
+          <span className="mx-1">·</span>
+          <span>ZUS base = Gross Salary (Rate × Hours)</span>
+        </div>
+
+        {editRatesOpen && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setEditRatesOpen(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide"
+              style={{ background: LIME, color: "#333" }}
+            >
+              <Check className="w-3 h-3" />
+              Save Rates
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── View switcher + actions ── */}
+      <div className="flex flex-wrap items-center gap-2">
         <button
-          onClick={() => setWithZus((v) => !v)}
+          onClick={() => setPayrollView((v) => v === "zus" ? "run" : "zus")}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all"
-          style={withZus
+          style={payrollView === "zus"
             ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME }
-            : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
+            : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
         >
-          {withZus ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-          ZUS pracownika 11,26%
-          {withZus && <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-lime-900/40 text-lime-300">AKTYWNE</span>}
+          <Eye className="w-3.5 h-3.5" />
+          ZUS View
         </button>
-        {!withZus && <p className="text-[10px] text-gray-600 font-mono">Emerytalne 9,76% + Rentowe 1,5% · bez chorobowego · bez PIT-2</p>}
         <button
           onClick={handleBankExport}
           disabled={bankExporting}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ml-auto"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all"
           style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
           title="Eksport CSV dla banku (przelewy masowe)"
         >
           {bankExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          Eksport przelewów CSV
+          Bank CSV
         </button>
+        <button
+          onClick={handlePdfExport}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all"
+          style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          PDF
+        </button>
+        {payrollView === "run" && (
+          <button
+            onClick={() => setWithZus((v) => !v)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition-all ml-auto"
+            style={withZus
+              ? { background: "rgba(233,255,112,0.08)", borderColor: LIME_BORDER, color: LIME }
+              : { background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}
+          >
+            {withZus ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+            ZUS pracownika
+          </button>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -357,7 +511,149 @@ export function PayrollRunPage() {
         )}
       </div>
 
-      {/* Payroll grid */}
+      {/* ── ZUS VIEW GRID ── */}
+      {payrollView === "zus" && (
+        <div className="rounded-2xl border overflow-hidden" style={{ borderColor: LIME_BORDER }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs" style={{ minWidth: "900px" }}>
+              <thead>
+                <tr style={{ background: "rgba(233,255,112,0.06)", borderBottom: `1px solid ${LIME_BORDER}` }}>
+                  {[
+                    { label: "Worker", col: "w-36" },
+                    { label: "Spec / Site", col: "w-28" },
+                    { label: "Bank IBAN", col: "w-52" },
+                    { label: "Rate (PLN/H)", col: "w-24" },
+                    { label: "Hours ↑", col: "w-20" },
+                    { label: "Gross (PLN)", col: "w-24" },
+                    { label: "Emp. ZUS", col: "w-24", blue: true },
+                    { label: "Net Pay", col: "w-24", lime: true },
+                  ].map((c: any) => (
+                    <th key={c.label} className={`px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${c.col}`}
+                      style={{ color: c.lime ? LIME : c.blue ? "#60a5fa" : "rgba(255,255,255,0.5)" }}>
+                      {c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {loading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i}>{Array.from({ length: 8 }).map((_, j) => (
+                      <td key={j} className="px-3 py-2.5">
+                        <div className="h-3.5 bg-white/5 rounded animate-pulse" style={{ width: j === 0 ? "100px" : "64px" }} />
+                      </td>
+                    ))}</tr>
+                  ))
+                ) : displayed.length === 0 ? (
+                  <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">No workers found.</td></tr>
+                ) : (
+                  displayed.map((row) => {
+                    const gross = (parseFloat(row._hours) || 0) * row.hourlyNettoRate;
+                    const empZus = gross * empZusRate;
+                    const netPay = gross - empZus;
+                    const isEditingIban = ibanEditId === row.id;
+                    return (
+                      <tr key={row.id} className="hover:bg-white/3 transition-colors">
+                        {/* Worker */}
+                        <td className="px-3 py-2.5">
+                          <div className="font-bold text-white text-xs">{row.name}</div>
+                        </td>
+                        {/* Spec / Site */}
+                        <td className="px-3 py-2.5">
+                          <div className="text-[9px] text-gray-400 font-mono">{row.specialization ?? "—"}</div>
+                          {row.siteLocation && (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold" style={{ background: LIME, color: "#333" }}>{row.siteLocation}</span>
+                          )}
+                        </td>
+                        {/* Bank IBAN */}
+                        <td className="px-3 py-2.5">
+                          {isEditingIban ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                autoFocus
+                                type="text"
+                                value={ibanEditValue}
+                                onChange={(e) => setIbanEditValue(e.target.value.toUpperCase())}
+                                placeholder="PL61 1090 1014..."
+                                className="w-44 bg-slate-800 text-white rounded px-2 py-1 text-[10px] font-mono focus:outline-none"
+                                style={{ border: `1px solid ${LIME_BORDER}` }}
+                                onKeyDown={(e) => { if (e.key === "Enter") handleIbanSave(row.id); if (e.key === "Escape") setIbanEditId(null); }}
+                              />
+                              <button onClick={() => handleIbanSave(row.id)} disabled={ibanSaving}
+                                className="p-1 rounded" style={{ color: LIME }}>
+                                {ibanSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                              </button>
+                              <button onClick={() => setIbanEditId(null)} className="p-1 rounded text-gray-500 hover:text-white">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : row._iban ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[10px] text-gray-300">{row._iban}</span>
+                              <button onClick={() => { setIbanEditId(row.id); setIbanEditValue(row._iban); }}
+                                className="p-0.5 text-gray-600 hover:text-white transition-colors">
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setIbanEditId(row.id); setIbanEditValue(""); }}
+                              className="flex items-center gap-1 text-[10px] font-mono hover:text-white transition-colors"
+                              style={{ color: "rgba(255,255,255,0.35)" }}
+                            >
+                              <Pencil className="w-3 h-3" /> Add IBAN
+                            </button>
+                          )}
+                        </td>
+                        {/* Rate */}
+                        <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{row.hourlyNettoRate.toFixed(2)}</td>
+                        {/* Hours */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: LIME }}>{(parseFloat(row._hours) || 0).toFixed(2)}</td>
+                        {/* Gross */}
+                        <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{gross.toFixed(2)}</td>
+                        {/* Emp. ZUS */}
+                        <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#60a5fa" }}>
+                          {gross > 0 ? `– ${empZus.toFixed(2)}` : "– 0,00"}
+                        </td>
+                        {/* Net Pay */}
+                        <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: netPay >= 0 ? LIME : "#ef4444" }}>
+                          {netPay.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+              {!loading && displayed.length > 0 && (
+                <tfoot>
+                  <tr style={{ background: "rgba(233,255,112,0.06)", borderTop: `1px solid ${LIME_BORDER}` }}>
+                    <td colSpan={3} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-500">Totals</td>
+                    <td className="px-3 py-2.5" />
+                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: LIME }}>
+                      {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0), 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">
+                      {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * r.hourlyNettoRate, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#60a5fa" }}>
+                      – {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * r.hourlyNettoRate * empZusRate, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: LIME }}>
+                      {displayed.reduce((s, r) => {
+                        const g = (parseFloat(r._hours) || 0) * r.hourlyNettoRate;
+                        return s + g - g * empZusRate;
+                      }, 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── NORMAL RUN GRID ── */}
+      {payrollView === "run" && (
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: LIME_BORDER }}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs" style={{ minWidth: "860px" }}>
@@ -552,6 +848,7 @@ export function PayrollRunPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Close Month button */}
       <div className="flex flex-col items-end gap-3 pt-4 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>

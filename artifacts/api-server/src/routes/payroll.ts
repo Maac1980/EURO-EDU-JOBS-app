@@ -81,6 +81,8 @@ router.patch("/payroll/workers/:id/iban", authenticateToken, requireCoordinatorO
 
 // ── PATCH /api/payroll/workers/batch ─────────────────────────────────────────
 // Batch-update totalHours / advancePayment / penalties for multiple workers
+const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5%
+
 router.patch("/payroll/workers/batch", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const updates = req.body.updates as Array<{
@@ -97,6 +99,7 @@ router.patch("/payroll/workers/batch", authenticateToken, requireCoordinatorOrAd
       if (u.advancePayment !== undefined) fields["ADVANCE PAYMENT"] = u.advancePayment;
       if (u.penalties !== undefined) fields["PENALTIES"] = u.penalties;
       if ((u as any).hourlyNettoRate !== undefined) fields["HOURLY NETTO RATE"] = (u as any).hourlyNettoRate;
+      if ((u as any).siteLocation !== undefined) fields["Assigned Site"] = (u as any).siteLocation;
       if (Object.keys(fields).length > 0) await updateRecord(u.workerId, fields);
     }));
 
@@ -228,6 +231,35 @@ router.get("/payroll/summary", authenticateToken, requireCoordinatorOrAdmin, asy
     return res.json({ records: all });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load summary" });
+  }
+});
+
+// ── PATCH /api/payroll/records/:id ────────────────────────────────────────────
+// Edit a closed payroll record (hours, hourlyRate, advancesDeducted, siteLocation)
+router.patch("/payroll/records/:id", authenticateToken, requireCoordinatorOrAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    const { totalHours, hourlyRate, advancesDeducted, siteLocation } = req.body as Partial<PayrollRecord>;
+    const all = readPayrollRecords();
+    const idx = all.findIndex((r) => r.id === id);
+    if (idx === -1) return res.status(404).json({ error: "Record not found" });
+
+    const rec = { ...all[idx] };
+    if (totalHours !== undefined) rec.totalHours = totalHours;
+    if (hourlyRate !== undefined) rec.hourlyRate = hourlyRate;
+    if (advancesDeducted !== undefined) rec.advancesDeducted = advancesDeducted;
+    if (siteLocation !== undefined) rec.siteLocation = siteLocation;
+
+    // Recalculate derived fields
+    rec.grossPay = rec.totalHours * rec.hourlyRate;
+    rec.zusBaseSalary = rec.grossPay * ZUS_RATE;
+    rec.finalNettoPayout = rec.grossPay - rec.zusBaseSalary - rec.advancesDeducted - (rec.penaltiesDeducted ?? 0);
+
+    all[idx] = rec;
+    writePayrollRecords(all);
+    return res.json({ success: true, record: rec });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Record update failed" });
   }
 });
 

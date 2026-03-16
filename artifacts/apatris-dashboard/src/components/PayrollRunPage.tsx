@@ -1010,16 +1010,19 @@ export function PayrollRunPage() {
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  LEDGER VIEW                                                               */
 /* ────────────────────────────────────────────────────────────────────────── */
+type LedgerEdit = { hours: string; rate: string; advance: string; site: string; dirty: boolean; saving: boolean };
+
 function LedgerView({ base, token, t }: { base: string; token: string | null; t: (k: string, opts?: any) => string }) {
   const [records, setRecords] = React.useState<any[]>([]);
   const [liveWorkers, setLiveWorkers] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
+  const [edits, setEdits] = React.useState<Record<string, LedgerEdit>>({});
 
   const currentMonthYear = getCurrentMonthYear();
 
-  React.useEffect(() => {
+  const load = React.useCallback(() => {
     setLoading(true);
     Promise.all([
       fetch(`${base}/api/payroll/summary`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
@@ -1029,13 +1032,82 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
         if (summary.error) throw new Error(summary.error);
         setRecords(summary.records ?? []);
         setLiveWorkers(workers.workers ?? []);
+        setEdits({});
       })
       .catch((e) => setError(e.message ?? "Failed to load ledger"))
       .finally(() => setLoading(false));
   }, [base, token]);
 
+  React.useEffect(() => { load(); }, [load]);
+
+  const getEdit = (r: any): LedgerEdit =>
+    edits[r.id] ?? {
+      hours: String(r.totalHours ?? ""),
+      rate: String(r.hourlyRate ?? ""),
+      advance: String(r.advancesDeducted ?? ""),
+      site: r.siteLocation ?? "",
+      dirty: false,
+      saving: false,
+    };
+
+  const setField = (id: string, row: any, field: keyof LedgerEdit, val: string) => {
+    setEdits((prev) => ({
+      ...prev,
+      [id]: { ...getEdit(row), ...prev[id], [field]: val, dirty: true, saving: false },
+    }));
+  };
+
+  const saveRow = async (r: any) => {
+    const e = edits[r.id];
+    if (!e || !e.dirty) return;
+    setEdits((prev) => ({ ...prev, [r.id]: { ...e, saving: true } }));
+
+    const hours = parseFloat(e.hours) || 0;
+    const rate = parseFloat(e.rate) || 0;
+    const advance = parseFloat(e.advance) || 0;
+    const gross = hours * rate;
+    const zus = gross * ZUS_RATE;
+    const netto = gross - zus - advance;
+
+    try {
+      if (r._draft) {
+        await fetch(`${base}/api/payroll/workers/batch`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            updates: [{
+              workerId: r.workerId,
+              totalHours: hours,
+              hourlyNettoRate: rate,
+              advancePayment: advance,
+              siteLocation: e.site,
+            }],
+          }),
+        });
+        setLiveWorkers((prev) => prev.map((w) =>
+          w.id === r.workerId
+            ? { ...w, totalHours: hours, hourlyNettoRate: rate, advancePayment: advance, siteLocation: e.site }
+            : w
+        ));
+      } else {
+        await fetch(`${base}/api/payroll/records/${r.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ totalHours: hours, hourlyRate: rate, advancesDeducted: advance, siteLocation: e.site }),
+        });
+        setRecords((prev) => prev.map((rec) =>
+          rec.id === r.id
+            ? { ...rec, totalHours: hours, hourlyRate: rate, advancesDeducted: advance, siteLocation: e.site, grossPay: gross, zusBaseSalary: zus, finalNettoPayout: netto }
+            : rec
+        ));
+      }
+      setEdits((prev) => { const next = { ...prev }; delete next[r.id]; return next; });
+    } catch {
+      setEdits((prev) => ({ ...prev, [r.id]: { ...e, saving: false } }));
+    }
+  };
+
   // Build synthetic "draft" rows from live workers for the current month
-  // (only for workers not already in a closed record for this month)
   const closedThisMonth = new Set(records.filter((r) => r.monthYear === currentMonthYear).map((r) => r.workerId));
   const draftRows = liveWorkers
     .filter((w) => !closedThisMonth.has(w.id) && (w.totalHours > 0 || w.hourlyNettoRate > 0))
@@ -1060,13 +1132,16 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
   const filtered = allRows
     .filter((r) => !search || r.workerName?.toLowerCase().includes(search.toLowerCase()) || r.siteLocation?.toLowerCase().includes(search.toLowerCase()) || r.monthYear?.includes(search))
     .sort((a, b) => {
-      // Current month drafts first, then closed records newest-first
       if (a._draft && !b._draft) return -1;
       if (!a._draft && b._draft) return 1;
       return (b.monthYear ?? "").localeCompare(a.monthYear ?? "");
     });
 
   const totalPayout = filtered.filter((r) => !r._draft).reduce((s, r) => s + (r.finalNettoPayout ?? 0), 0);
+
+  const inputCls = "bg-slate-900 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none tabular-nums";
+  const inputStyle = { border: `1px solid ${LIME_BORDER}`, width: "72px" };
+  const siteInputStyle = { border: `1px solid ${LIME_BORDER}`, width: "90px" };
 
   return (
     <div className="space-y-4">
@@ -1082,7 +1157,7 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
       </div>
 
       <div className="glass-panel rounded-xl overflow-hidden">
-        <div className="p-4 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+        <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
           <input
             type="text"
             value={search}
@@ -1091,6 +1166,9 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
             className="w-full sm:w-72 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-sm font-mono text-white focus:outline-none"
             style={{ caretColor: LIME }}
           />
+          <button onClick={load} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="Refresh">
+            <RefreshCcw className="w-4 h-4" />
+          </button>
         </div>
         {loading ? (
           <div className="p-8 text-center text-sm text-gray-400 font-mono">{t("payroll.loading")}</div>
@@ -1098,54 +1176,150 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
           <div className="p-8 text-center text-sm text-red-400 font-mono">{error}</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{ minWidth: "760px" }}>
+            <table className="w-full text-xs" style={{ minWidth: "820px" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)" }}>
-                  {["Month", "Worker", "Site", "Hours", "Rate (zł/h)", "Gross", "ZUS", "Advances", "Net Payout"].map((h) => (
+                  {["Month", "Worker", "Site", "Hours", "Rate (zł/h)", "Gross", "ZUS", "Advance", "Net Payout", ""].map((h) => (
                     <th key={h} className="px-3 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-400">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-500 font-mono">{t("payroll.noWorkers")}</td></tr>
-                ) : filtered.map((r) => (
-                  <tr key={r.id}
-                    style={{
-                      borderBottom: "1px solid rgba(255,255,255,0.04)",
-                      background: r._draft ? "rgba(233,255,112,0.025)" : undefined,
-                    }}
-                    className="hover:bg-white/3 transition-colors"
-                  >
-                    <td className="px-3 py-2.5">
-                      <div className="font-mono font-bold text-xs" style={{ color: LIME }}>{r.monthYear}</div>
-                      {r._draft && (
-                        <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded" style={{ background: "rgba(233,255,112,0.15)", color: LIME }}>
-                          DRAFT
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 font-bold text-white text-xs">{r.workerName}</td>
-                    <td className="px-3 py-2.5 text-gray-400 text-xs">{r.siteLocation || "—"}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-white text-xs">{Number(r.totalHours).toFixed(1)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-white text-xs">zł{(r.hourlyRate ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-white text-xs">zł{(r.grossPay ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-red-400 text-xs">zł{(r.zusBaseSalary ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-amber-400 text-xs">zł{(r.advancesDeducted ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums font-black text-xs" style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
-                      zł{(r.finalNettoPayout ?? 0).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-500 font-mono">{t("payroll.noWorkers")}</td></tr>
+                ) : filtered.map((r) => {
+                  const e = getEdit(r);
+                  const hours = parseFloat(e.hours) || 0;
+                  const rate = parseFloat(e.rate) || 0;
+                  const advance = parseFloat(e.advance) || 0;
+                  const gross = hours * rate;
+                  const zus = gross * ZUS_RATE;
+                  const netto = gross - zus - advance;
+                  const isDirty = !!edits[r.id]?.dirty;
+
+                  return (
+                    <tr key={r.id}
+                      style={{
+                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                        background: isDirty ? "rgba(233,255,112,0.04)" : r._draft ? "rgba(233,255,112,0.015)" : undefined,
+                        outline: isDirty ? `1px solid ${LIME_BORDER}` : undefined,
+                      }}
+                      className="hover:bg-white/[0.02] transition-colors"
+                    >
+                      {/* Month */}
+                      <td className="px-3 py-2">
+                        <div className="font-mono font-bold text-xs" style={{ color: LIME }}>{r.monthYear}</div>
+                        {r._draft && (
+                          <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded" style={{ background: "rgba(233,255,112,0.15)", color: LIME }}>DRAFT</span>
+                        )}
+                      </td>
+                      {/* Worker */}
+                      <td className="px-3 py-2 font-bold text-white text-xs whitespace-nowrap">{r.workerName}</td>
+                      {/* Site — editable */}
+                      <td className="px-2 py-2">
+                        <input
+                          className={inputCls}
+                          style={siteInputStyle}
+                          value={e.site}
+                          onChange={(ev) => setField(r.id, r, "site", ev.target.value)}
+                          placeholder="Site"
+                        />
+                      </td>
+                      {/* Hours — editable */}
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          className={inputCls}
+                          style={inputStyle}
+                          value={e.hours}
+                          onChange={(ev) => setField(r.id, r, "hours", ev.target.value)}
+                        />
+                      </td>
+                      {/* Rate — editable */}
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className={inputCls}
+                          style={inputStyle}
+                          value={e.rate}
+                          onChange={(ev) => setField(r.id, r, "rate", ev.target.value)}
+                        />
+                      </td>
+                      {/* Gross — recalculated */}
+                      <td className="px-3 py-2 tabular-nums text-white text-xs">zł{gross.toFixed(2)}</td>
+                      {/* ZUS — recalculated */}
+                      <td className="px-3 py-2 tabular-nums text-red-400 text-xs">zł{zus.toFixed(2)}</td>
+                      {/* Advance — editable */}
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className={inputCls}
+                          style={inputStyle}
+                          value={e.advance}
+                          onChange={(ev) => setField(r.id, r, "advance", ev.target.value)}
+                        />
+                      </td>
+                      {/* Net Payout — recalculated */}
+                      <td className="px-3 py-2 tabular-nums font-black text-xs" style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
+                        zł{netto.toFixed(2)}
+                      </td>
+                      {/* Save button */}
+                      <td className="px-2 py-2">
+                        {isDirty && (
+                          <button
+                            onClick={() => saveRow(r)}
+                            disabled={e.saving}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-black uppercase tracking-wide transition-all"
+                            style={{ background: LIME, color: "#333" }}
+                            title="Save changes"
+                          >
+                            {e.saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               {filtered.length > 0 && (
                 <tfoot>
                   <tr style={{ background: "rgba(233,255,112,0.05)", borderTop: `1px solid ${LIME_BORDER}` }}>
-                    <td colSpan={8} className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>
-                      Closed: {filtered.filter((r) => !r._draft).length} records
-                      {draftRows.length > 0 && <span className="ml-3 opacity-50">· {draftRows.length} draft (current month)</span>}
+                    <td colSpan={2} className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>
+                      {filtered.filter((r) => !r._draft).length} closed
+                      {draftRows.length > 0 && <span className="ml-2 opacity-50">· {draftRows.length} draft</span>}
                     </td>
-                    <td className="px-3 py-2.5 font-black tabular-nums" style={{ color: LIME }}>zł{totalPayout.toFixed(2)}</td>
+                    <td className="px-3 py-2.5" />
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">
+                      {filtered.reduce((s, r) => s + (parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0), 0).toFixed(1)}h
+                    </td>
+                    <td className="px-3 py-2.5" />
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">
+                      zł{filtered.reduce((s, r) => {
+                        const h = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
+                        const rt = parseFloat(edits[r.id]?.rate ?? String(r.hourlyRate)) || 0;
+                        return s + h * rt;
+                      }, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5" />
+                    <td className="px-3 py-2.5 font-mono text-xs text-amber-400">
+                      zł{filtered.reduce((s, r) => s + (parseFloat(edits[r.id]?.advance ?? String(r.advancesDeducted)) || 0), 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-sm font-black tabular-nums" style={{ color: LIME }}>
+                      zł{filtered.reduce((s, r) => {
+                        const h = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
+                        const rt = parseFloat(edits[r.id]?.rate ?? String(r.hourlyRate)) || 0;
+                        const adv = parseFloat(edits[r.id]?.advance ?? String(r.advancesDeducted)) || 0;
+                        const g = h * rt;
+                        return s + g - g * ZUS_RATE - adv;
+                      }, 0).toFixed(2)}
+                    </td>
+                    <td />
                   </tr>
                 </tfoot>
               )}

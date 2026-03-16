@@ -31,5 +31,27 @@
     },
     "action": "ADMIN_LOGIN",
     "timestamp": "2026-03-16T19:25:01.508Z"
+  },
+  {
+    "workerId": "1",
+    "actor": "anna.b@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "admin",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-16T21:40:15.961Z"
+  },
+  {
+    "workerId": "1",
+    "actor": "anna.b@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "admin",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-16T21:41:32.405Z"
   }
 ]

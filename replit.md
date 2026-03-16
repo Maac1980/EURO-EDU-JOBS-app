@@ -232,6 +232,15 @@ Pipeline Stage filter dropdown added to Dashboard filter bar.
 
 ## Security Features
 
+### Email OTP for Admin Logins
+Every admin-role user must complete a 6-digit email OTP step on every login:
+1. Enter email + password → server generates OTP, emails it, returns 202 `requiresEmailOtp: true`
+2. Login screen shows OTP input field (green banner, large monospace digits)
+3. Submit OTP → validated against in-memory store (10-min TTL), then JWT issued
+- OTP store: module-level `Map<userId, { otp, expiresAt }>` in `auth.ts`
+- Email sent via `sendLoginOtp()` in `alerter.ts` — branded HTML email with OTP in dark box
+- Non-admin users continue to use TOTP (authenticator app) if enabled
+
 ### 2FA (TOTP)
 - `POST /api/2fa/setup` — generates TOTP secret + QR data URL (speakeasy)
 - `POST /api/2fa/verify` — verifies token and enables 2FA (`twoFactorEnabled: true` in users.json)
@@ -249,6 +258,31 @@ Pipeline Stage filter dropdown added to Dashboard filter bar.
 ### GDPR / Right to Erasure
 - `POST /api/workers/:id/gdpr-erase` — admin only; wipes: name → "GDPR_ERASED", email/phone/PESEL/NIP/IBAN → null; logs to audit.json
 - CandidateEditPanel shows GDPR Erase button (admin-only, two-step confirm before firing)
+
+## ZUS/PIT Toggle (Payroll)
+
+In `PayrollRunPage.tsx`:
+- Toggle button: **ZUS pracownika 11,26%** (Emerytalne 9,76% + Rentowe 1,5%, no chorobowe, no PIT-2)
+- `ZUS_RATE = 0.1126` constant; deducted from gross pay in `calcNetto(row, withZus)`
+- When active: summary card 3 shows ZUS total in red; netto column reflects deduction
+- Affects all calculated netto totals including table footer and close-month preview
+- `withZus` state is local to the payroll page — does not affect the persisted `finalNettoPayout` in ledger records
+
+## Bank CSV Export for Polish Transfers
+
+- `GET /api/payroll/bank-export?monthYear=YYYY-MM` — admin only
+- Returns BOM-prefixed CSV: `Numer konta (IBAN);Nazwa odbiorcy;Kwota (PLN);Tytuł przelewu`
+- Amount uses Polish decimal comma format (e.g. `1234,56`)
+- IBANs fetched live from Airtable worker records
+- **"Eksport przelewów CSV"** button in `PayrollRunPage.tsx` downloads the file via blob URL
+
+## Mobile Card View
+
+In `Dashboard.tsx` compliance tab:
+- `div.md:hidden` — card grid shown on phones/small screens
+- `div.hidden.md:block` — original table shown on tablets/desktops
+- Each card shows: worker name, specialization, compliance status badge, pipeline stage badge, TRC/WP/BHP expiry badges (colour-coded by days), site location, and EDIT / PROFIL action buttons
+- Filters (search, status, site, pipeline) apply to both views
 
 ## ZUS Report Export
 

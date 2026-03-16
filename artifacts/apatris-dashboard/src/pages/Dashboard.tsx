@@ -806,8 +806,113 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Data Table */}
-        <div style={{
+        {/* ── Mobile Card View (phones) ──────────────────────────────────── */}
+        <div className="md:hidden space-y-3">
+          {isFetching ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-2xl p-4 animate-pulse" style={{ background: "#1e293b", border: "1px solid #334155" }}>
+                <div className="h-4 bg-slate-700 rounded w-2/3 mb-2" />
+                <div className="h-3 bg-slate-800 rounded w-1/2 mb-3" />
+                <div className="flex gap-2">
+                  <div className="h-6 bg-slate-700 rounded w-16" />
+                  <div className="h-6 bg-slate-700 rounded w-16" />
+                </div>
+              </div>
+            ))
+          ) : (
+            (workersData?.workers ?? [])
+              .filter((w) => {
+                const name = w.name?.toLowerCase() ?? "";
+                const spec = ((w as any).specialization as string | null)?.toLowerCase() ?? "";
+                if (search && !name.includes(search.toLowerCase()) && !spec.includes(search.toLowerCase())) return false;
+                if (specialization && (w as any).specialization !== specialization) return false;
+                if (status) {
+                  const s = w.complianceStatus;
+                  if (status === "compliant" && s !== "compliant") return false;
+                  if (status === "warning" && s !== "warning") return false;
+                  if (status === "critical" && s !== "critical") return false;
+                  if (status === "non-compliant" && s !== "non-compliant") return false;
+                }
+                const site = (w as any).siteLocation as string | null;
+                if (siteFilter) {
+                  if (siteFilter === "Available") { if (!(!site || site === "Available")) return false; }
+                  else { if (site !== siteFilter) return false; }
+                }
+                if (pipelineFilter && (w as any).pipelineStage !== pipelineFilter) return false;
+                return true;
+              })
+              .map((worker) => {
+                const statusColor = worker.complianceStatus === "compliant"
+                  ? "#4ade80" : worker.complianceStatus === "warning"
+                  ? "#fbbf24" : worker.complianceStatus === "critical"
+                  ? "#f87171" : "#94a3b8";
+                const daysLeft = (d?: string | null) => {
+                  if (!d) return null;
+                  const diff = Math.round((new Date(d).getTime() - Date.now()) / 86400000);
+                  return diff;
+                };
+                const expiryBadge = (label: string, date?: string | null) => {
+                  const d = daysLeft(date);
+                  if (d == null) return null;
+                  const color = d < 0 ? "#ef4444" : d < 30 ? "#f97316" : d < 60 ? "#eab308" : "#4ade80";
+                  return (
+                    <span key={label} className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-bold" style={{ background: `${color}20`, color }}>
+                      {label}: {d < 0 ? "wygasł" : `${d}d`}
+                    </span>
+                  );
+                };
+                const pipe = (worker as any).pipelineStage as string | null;
+                const pipeColor: Record<string, string> = { New: "#60a5fa", Screening: "#a78bfa", Interview: "#f59e0b", "Offer Sent": "#f97316", Placed: "#4ade80", Active: "#4ade80", Released: "#94a3b8", Blacklisted: "#ef4444" };
+
+                return (
+                  <div key={worker.id}
+                    className="rounded-2xl p-4 cursor-pointer active:opacity-80 transition-all"
+                    style={{ background: "#1e293b", border: `1px solid ${statusColor}33` }}
+                    onClick={() => setSelectedWorkerId(worker.id)}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <p className="font-black text-white text-sm">{worker.name}</p>
+                        <p className="text-[10px] text-gray-400 font-mono">{(worker as any).specialization ?? "—"}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full" style={{ background: `${statusColor}20`, color: statusColor }}>
+                          {worker.complianceStatus}
+                        </span>
+                        {pipe && <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${pipeColor[pipe] ?? "#94a3b8"}20`, color: pipeColor[pipe] ?? "#94a3b8" }}>{pipe}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {expiryBadge("TRC", worker.trcExpiry)}
+                      {expiryBadge("WP", worker.workPermitExpiry)}
+                      {expiryBadge("BHP", worker.bhpExpiry)}
+                    </div>
+
+                    {(worker as any).siteLocation && (
+                      <p className="text-[9px] text-gray-500 font-mono mb-2">📍 {(worker as any).siteLocation}</p>
+                    )}
+
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide"
+                        style={{ background: "rgba(233,255,112,0.1)", color: "#E9FF70", border: "1px solid rgba(233,255,112,0.2)" }}
+                        onClick={() => { setEditPanelWorkerId(worker.id); setPanelEditMode(true); }}
+                      >EDYTUJ</button>
+                      <button
+                        className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wide"
+                        style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
+                        onClick={() => setSelectedWorkerId(worker.id)}
+                      >PROFIL</button>
+                    </div>
+                  </div>
+                );
+              })
+          )}
+        </div>
+
+        {/* ── Desktop Data Table ─────────────────────────────────────────── */}
+        <div className="hidden md:block" style={{
           borderRadius: "0.75rem",
           border: "1px solid #334155",
           background: "#1e293b",

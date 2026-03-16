@@ -14,6 +14,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [totpToken, setTotpToken] = useState("");
   const [requires2FA, setRequires2FA] = useState(false);
+  const [requiresEmailOtp, setRequiresEmailOtp] = useState(false);
+  const [emailOtp, setEmailOtp] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [hintEmail, setHintEmail] = useState("");
@@ -30,12 +32,20 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const result = await login(email, password, requires2FA ? totpToken : undefined);
+    const result = await login(
+      email,
+      password,
+      requires2FA ? totpToken : undefined,
+      requiresEmailOtp ? emailOtp : undefined
+    );
     setLoading(false);
     if (result.success) {
       setLocation("/");
     } else if (result.requires2FA) {
       setRequires2FA(true);
+      setError("");
+    } else if (result.requiresEmailOtp) {
+      setRequiresEmailOtp(true);
       setError("");
     } else {
       setError(result.error ?? t("login.invalidCredentials"));
@@ -212,7 +222,41 @@ export default function Login() {
               />
             </div>
 
-            {/* 2FA TOTP */}
+            {/* Email OTP step */}
+            {requiresEmailOtp && (
+              <div className="space-y-1.5">
+                <div className="p-3 rounded-lg text-sm font-medium mb-2" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534" }}>
+                  Kod jednorazowy (OTP) został wysłany na Twój adres email. Wpisz go poniżej. Kod wygasa po 10 minutach.
+                </div>
+                <label className="block text-xs font-bold uppercase tracking-widest" style={{ color: "#888" }}>
+                  Kod jednorazowy (OTP)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  required
+                  disabled={loading}
+                  className="w-full rounded-xl px-4 py-3 text-sm font-mono tracking-[0.3em] transition-all outline-none text-center"
+                  style={{ background: "#f5f5f5", border: "2px solid #e5e5e5", color: DARK, opacity: loading ? 0.6 : 1, fontSize: "24px", letterSpacing: "0.4em" }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = LIME; e.currentTarget.style.boxShadow = `0 0 0 3px ${LIME}40`; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "#e5e5e5"; e.currentTarget.style.boxShadow = "none"; }}
+                  placeholder="000000"
+                  value={emailOtp}
+                  onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+                <button
+                  type="button"
+                  className="text-xs text-gray-400 hover:text-gray-600 underline"
+                  onClick={() => { setRequiresEmailOtp(false); setEmailOtp(""); setError(""); }}
+                >
+                  ← Wróć do logowania
+                </button>
+              </div>
+            )}
+
+            {/* 2FA TOTP (for non-admin users with TOTP enabled) */}
             {requires2FA && (
               <div className="space-y-1.5">
                 <div className="p-3 rounded-lg text-sm font-medium mb-2" style={{ background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e" }}>

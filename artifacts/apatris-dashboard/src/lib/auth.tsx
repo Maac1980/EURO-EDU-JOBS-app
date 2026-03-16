@@ -14,7 +14,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, pass: string, totpToken?: string) => Promise<{ success: boolean; requires2FA?: boolean; error?: string }>;
+  login: (email: string, pass: string, totpToken?: string, emailOtp?: string) => Promise<{ success: boolean; requires2FA?: boolean; requiresEmailOtp?: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -94,18 +94,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user, resetTimer]);
 
-  const login = async (email: string, pass: string, totpToken?: string): Promise<{ success: boolean; requires2FA?: boolean; error?: string }> => {
+  const login = async (
+    email: string,
+    pass: string,
+    totpToken?: string,
+    emailOtp?: string
+  ): Promise<{ success: boolean; requires2FA?: boolean; requiresEmailOtp?: boolean; error?: string }> => {
     try {
       const res = await fetch(`${getApiBase()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: pass, ...(totpToken ? { totpToken } : {}) }),
+        body: JSON.stringify({
+          email, password: pass,
+          ...(totpToken ? { totpToken } : {}),
+          ...(emailOtp ? { emailOtp } : {}),
+        }),
       });
 
-      const data = await res.json() as { token?: string; user?: User; error?: string; requires2FA?: boolean };
+      const data = await res.json() as {
+        token?: string; user?: User; error?: string;
+        requires2FA?: boolean; requiresEmailOtp?: boolean;
+      };
 
       if (res.status === 202 && data.requires2FA) {
         return { success: false, requires2FA: true };
+      }
+      if (res.status === 202 && data.requiresEmailOtp) {
+        return { success: false, requiresEmailOtp: true };
       }
 
       if (!res.ok || !data.token || !data.user) {

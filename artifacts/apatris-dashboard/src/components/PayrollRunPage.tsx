@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import {
   Calculator, Save, Lock, Loader2, RefreshCcw, ChevronDown, ChevronUp,
-  AlertTriangle, CheckCircle, DollarSign, Users, Clock, TrendingUp
+  AlertTriangle, CheckCircle, DollarSign, Users, Clock, TrendingUp,
+  Building2, Download, ToggleLeft, ToggleRight
 } from "lucide-react";
+
+const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5% — no chorobowe, no PIT-2
 
 const LIME = "#E9FF70";
 const LIME_BORDER = "rgba(233,255,112,0.25)";
@@ -28,12 +31,14 @@ interface GridRow extends PayrollWorker {
   _dirty: boolean;
 }
 
-function calcNetto(row: GridRow): number {
+function calcNetto(row: GridRow, withZus = false): number {
   const h = parseFloat(row._hours) || 0;
   const r = row.hourlyNettoRate || 0;
   const a = parseFloat(row._advance) || 0;
   const p = parseFloat(row._penalties) || 0;
-  return h * r - a - p;
+  const gross = h * r;
+  const zus = withZus ? gross * ZUS_RATE : 0;
+  return gross - zus - a - p;
 }
 
 function getCurrentMonthYear(): string {
@@ -61,6 +66,8 @@ export function PayrollRunPage() {
   const [sortField, setSortField] = useState<"name" | "netto" | "site">("name");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
   const [searchQ, setSearchQ] = useState("");
+  const [withZus, setWithZus] = useState(false);
+  const [bankExporting, setBankExporting] = useState(false);
 
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -168,7 +175,26 @@ export function PayrollRunPage() {
   const totalGross = rows.reduce((s, r) => s + ((parseFloat(r._hours) || 0) * r.hourlyNettoRate), 0);
   const totalAdvances = rows.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0);
   const totalPenalties = rows.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0);
-  const totalNetto = rows.reduce((s, r) => s + calcNetto(r), 0);
+  const totalZus = withZus ? totalGross * ZUS_RATE : 0;
+  const totalNetto = rows.reduce((s, r) => s + calcNetto(r, withZus), 0);
+
+  const handleBankExport = async () => {
+    setBankExporting(true);
+    try {
+      const res = await fetch(`${base}/api/payroll/bank-export?monthYear=${monthYear}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Export failed"); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `EEJ_Przelewy_${monthYear}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bank export failed");
+    } finally {
+      setBankExporting(false);
+    }
+  };
   const dirtyCount = rows.filter((r) => r._dirty).length;
 
   // Filtered + sorted rows
@@ -176,7 +202,7 @@ export function PayrollRunPage() {
     .filter((r) => !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || (r.siteLocation ?? "").toLowerCase().includes(searchQ.toLowerCase()))
     .sort((a, b) => {
       let va: string | number, vb: string | number;
-      if (sortField === "netto") { va = calcNetto(a); vb = calcNetto(b); }
+      if (sortField === "netto") { va = calcNetto(a, withZus); vb = calcNetto(b, withZus); }
       else if (sortField === "site") { va = a.siteLocation ?? ""; vb = b.siteLocation ?? ""; }
       else { va = a.name; vb = b.name; }
       return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
@@ -213,13 +239,39 @@ export function PayrollRunPage() {
         </div>
       </div>
 
+      {/* ZUS toggle + Bank export */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setWithZus((v) => !v)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all"
+          style={withZus
+            ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME }
+            : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
+        >
+          {withZus ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+          ZUS pracownika 11,26%
+          {withZus && <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-lime-900/40 text-lime-300">AKTYWNE</span>}
+        </button>
+        {!withZus && <p className="text-[10px] text-gray-600 font-mono">Emerytalne 9,76% + Rentowe 1,5% · bez chorobowego · bez PIT-2</p>}
+        <button
+          onClick={handleBankExport}
+          disabled={bankExporting}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ml-auto"
+          style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
+          title="Eksport CSV dla banku (przelewy masowe)"
+        >
+          {bankExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Eksport przelewów CSV
+        </button>
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: t("payroll.totalWorkers"), value: rows.length, icon: Users, unit: "" },
-          { label: t("payroll.totalGross"), value: `zł${totalGross.toFixed(2)}`, icon: DollarSign, unit: "" },
-          { label: t("payroll.totalDeductions"), value: `zł${(totalAdvances + totalPenalties).toFixed(2)}`, icon: TrendingUp, unit: "" },
-          { label: t("payroll.totalNetto"), value: `zł${totalNetto.toFixed(2)}`, icon: Calculator, unit: "", highlight: true },
+          { label: t("payroll.totalWorkers"), value: String(rows.length), icon: Users, highlight: false },
+          { label: t("payroll.totalGross"), value: `zł${totalGross.toFixed(2)}`, icon: DollarSign, highlight: false },
+          { label: withZus ? "ZUS pracownika (11,26%)" : t("payroll.totalDeductions"), value: withZus ? `- zł${totalZus.toFixed(2)}` : `zł${(totalAdvances + totalPenalties).toFixed(2)}`, icon: TrendingUp, highlight: false, warn: withZus },
+          { label: t("payroll.totalNetto"), value: `zł${totalNetto.toFixed(2)}`, icon: Calculator, highlight: true },
         ].map((c) => (
           <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? LIME_BG : "rgba(255,255,255,0.02)", borderColor: c.highlight ? LIME_BORDER : "rgba(255,255,255,0.06)" }}>
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: LIME_BG, border: `1px solid ${LIME_BORDER}` }}>
@@ -227,7 +279,7 @@ export function PayrollRunPage() {
             </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{c.label}</p>
-              <p className="text-lg font-black tabular-nums" style={{ color: c.highlight ? LIME : "white" }}>{c.value}</p>
+              <p className="text-lg font-black tabular-nums" style={{ color: c.highlight ? LIME : c.warn ? "#f87171" : "white" }}>{c.value}</p>
             </div>
           </div>
         ))}
@@ -316,7 +368,7 @@ export function PayrollRunPage() {
                 </tr>
               ) : (
                 displayed.map((row) => {
-                  const netto = calcNetto(row);
+                  const netto = calcNetto(row, withZus);
                   const gross = (parseFloat(row._hours) || 0) * row.hourlyNettoRate;
                   return (
                     <tr key={row.id} className="hover:bg-white/3 transition-colors" style={{ background: row._dirty ? "rgba(233,255,112,0.03)" : "" }}>
@@ -424,7 +476,7 @@ export function PayrollRunPage() {
                     zł{displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * r.hourlyNettoRate, 0).toFixed(2)}
                   </td>
                   <td className="px-3 py-3 font-mono text-sm font-black tabular-nums" style={{ color: LIME }}>
-                    zł{displayed.reduce((s, r) => s + calcNetto(r), 0).toFixed(2)}
+                    zł{displayed.reduce((s, r) => s + calcNetto(r, withZus), 0).toFixed(2)}
                   </td>
                 </tr>
               </tfoot>

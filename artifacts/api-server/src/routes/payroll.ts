@@ -156,7 +156,12 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
         .map(async (r) => {
           try {
             const pdf = await buildPayslipBuffer(r);
-            await sendPayslipEmail((r as any).__email as string, r.workerName, monthYear, pdf);
+            await sendPayslipEmail((r as any).__email as string, r.workerName, monthYear, pdf, {
+              totalHours: r.totalHours, hourlyRate: r.hourlyRate, grossPay: r.grossPay,
+              advancesDeducted: r.advancesDeducted, penaltiesDeducted: r.penaltiesDeducted,
+              zusDeducted: (r as any).zusDeducted ?? 0, finalNettoPayout: r.finalNettoPayout,
+              siteLocation: r.siteLocation,
+            });
             console.log(`[payroll] payslip emailed → ${(r as any).__email}`);
           } catch (mailErr) {
             console.warn(`[payroll] payslip email failed for ${r.workerName}:`, mailErr instanceof Error ? mailErr.message : mailErr);
@@ -168,8 +173,8 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
       workerId: "ALL",
       actor: "admin",
       field: "PAYROLL",
-      newValue: { monthYear, recordsCreated: newRecords.length },
-      action: "close-month",
+      newValue: { monthYear, recordsCreated: newRecords.length, totalPayout: newRecords.reduce((s, r) => s + r.finalNettoPayout, 0) },
+      action: "PAYROLL_COMMIT",
     });
 
     return res.json({
@@ -289,6 +294,39 @@ router.get("/payroll/payslip/:workerId/:monthYear", authenticateToken, async (re
     return res.end(pdfBuffer);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "Failed to generate payslip." });
+  }
+});
+
+// ── GET /api/payroll/bank-export?monthYear=YYYY-MM ────────────────────────────
+// CSV for Polish bank bulk transfer upload (IBAN, name, amount, title)
+router.get("/payroll/bank-export", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { monthYear } = req.query as { monthYear?: string };
+    if (!monthYear) return res.status(400).json({ error: "monthYear query param required (e.g. 2026-03)" });
+
+    const all = readPayrollRecords();
+    const records = all.filter((r) => r.monthYear === monthYear);
+    if (records.length === 0) return res.status(404).json({ error: `No payroll records found for ${monthYear}` });
+
+    // Fetch IBANs from Airtable for the workers
+    const workerRecords = await fetchAllRecords();
+    const workerMap = new Map(workerRecords.map(mapRecordToWorker).map((w) => [w.id, (w as any).iban ?? ""]));
+
+    const BOM = "\uFEFF";
+    const header = "Numer konta (IBAN);Nazwa odbiorcy;Kwota (PLN);Tytuł przelewu";
+    const lines = records.map((r) => {
+      const iban = (workerMap.get(r.workerId) ?? "").replace(/\s/g, "");
+      const amount = r.finalNettoPayout.toFixed(2).replace(".", ",");
+      const title = `Wynagrodzenie ${r.monthYear} - ${r.workerName}`;
+      return `${iban};${r.workerName};${amount};${title}`;
+    });
+
+    const csv = BOM + [header, ...lines].join("\r\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="EEJ_Przelewy_${monthYear}.csv"`);
+    return res.end(csv);
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Export failed" });
   }
 });
 

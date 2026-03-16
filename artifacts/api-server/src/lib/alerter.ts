@@ -353,7 +353,12 @@ export async function sendPayslipEmail(
   workerEmail: string,
   workerName: string,
   monthYear: string,
-  pdfBuffer: Buffer
+  pdfBuffer: Buffer,
+  payslipData?: {
+    totalHours: number; hourlyRate: number; grossPay: number;
+    advancesDeducted: number; penaltiesDeducted: number;
+    zusDeducted: number; finalNettoPayout: number; siteLocation: string;
+  }
 ): Promise<void> {
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
@@ -369,18 +374,98 @@ export async function sendPayslipEmail(
     auth: { user: smtpUser, pass: smtpPass },
   });
 
+  const tableRows = payslipData ? `
+    <tr><td style="padding:10px 16px;color:#555;border-bottom:1px solid #f0f0f0">Godziny przepracowane</td><td style="padding:10px 16px;font-weight:bold;text-align:right;border-bottom:1px solid #f0f0f0">${payslipData.totalHours.toFixed(1)} h</td></tr>
+    <tr><td style="padding:10px 16px;color:#555;border-bottom:1px solid #f0f0f0">Stawka godzinowa (netto)</td><td style="padding:10px 16px;font-weight:bold;text-align:right;border-bottom:1px solid #f0f0f0">${payslipData.hourlyRate.toFixed(2)} zł</td></tr>
+    <tr style="background:#fafafa"><td style="padding:10px 16px;color:#555;border-bottom:1px solid #f0f0f0">Wynagrodzenie brutto</td><td style="padding:10px 16px;font-weight:bold;text-align:right;border-bottom:1px solid #f0f0f0">${payslipData.grossPay.toFixed(2)} zł</td></tr>
+    ${payslipData.zusDeducted > 0 ? `<tr><td style="padding:10px 16px;color:#e55;border-bottom:1px solid #f0f0f0">Składki ZUS pracownika (11,26%)</td><td style="padding:10px 16px;color:#e55;font-weight:bold;text-align:right;border-bottom:1px solid #f0f0f0">- ${payslipData.zusDeducted.toFixed(2)} zł</td></tr>` : ""}
+    <tr><td style="padding:10px 16px;color:#555;border-bottom:1px solid #f0f0f0">Zaliczki potrącone</td><td style="padding:10px 16px;color:#e55;font-weight:bold;text-align:right;border-bottom:1px solid #f0f0f0">- ${payslipData.advancesDeducted.toFixed(2)} zł</td></tr>
+    <tr style="background:#fafafa"><td style="padding:10px 16px;color:#555;border-bottom:1px solid #f0f0f0">Kary potrącone</td><td style="padding:10px 16px;color:#e55;font-weight:bold;text-align:right;border-bottom:1px solid #f0f0f0">- ${payslipData.penaltiesDeducted.toFixed(2)} zł</td></tr>
+    <tr style="background:#333333"><td style="padding:14px 16px;color:#E9FF70;font-weight:900;font-size:15px">DO WYPŁATY NETTO</td><td style="padding:14px 16px;color:#E9FF70;font-weight:900;font-size:18px;text-align:right">${payslipData.finalNettoPayout.toFixed(2)} zł</td></tr>
+  ` : `<tr style="background:#333333"><td colspan="2" style="padding:14px 16px;color:#E9FF70;font-weight:900;text-align:center">Szczegóły w załączonym pliku PDF</td></tr>`;
+
+  const htmlBody = `
+  <!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+  <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08)">
+      <tr><td style="background:#333333;padding:24px 32px">
+        <table width="100%"><tr>
+          <td><span style="color:#E9FF70;font-size:22px;font-weight:900;letter-spacing:-0.5px">EURO EDU JOBS</span><br><span style="color:#aaa;font-size:11px;letter-spacing:2px">ODCINEK WYPŁATY / PAYSLIP</span></td>
+          <td style="text-align:right"><span style="color:#E9FF70;font-size:18px;font-weight:700">${monthYear}</span></td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="background:#f8f8f8;padding:20px 32px;border-bottom:2px solid #E9FF70">
+        <p style="margin:0;font-size:18px;font-weight:700;color:#333">${workerName}</p>
+        ${payslipData ? `<p style="margin:4px 0 0;font-size:12px;color:#888">Lokacja: ${payslipData.siteLocation || "—"}</p>` : ""}
+      </td></tr>
+      <tr><td style="padding:0">
+        <table width="100%" cellpadding="0" cellspacing="0">${tableRows}</table>
+      </td></tr>
+      <tr><td style="padding:20px 32px;background:#f9f9f9;border-top:1px solid #eee">
+        <p style="margin:0;font-size:11px;color:#aaa;text-align:center">EURO EDU JOBS · edu-jobs.eu · Wygenerowano: ${new Date().toLocaleDateString("pl-PL")}</p>
+        <p style="margin:8px 0 0;font-size:10px;color:#ccc;text-align:center">Odcinek wypłaty w formacie PDF w załączniku.</p>
+      </td></tr>
+    </table>
+  </body></html>`;
+
   await transporter.sendMail({
     from: `EURO EDU JOBS Payroll <${smtpFrom}>`,
     to: workerEmail,
     subject: `Twój odcinek wypłaty za ${monthYear} — EURO EDU JOBS`,
-    html: `<p>Cześć <strong>${workerName}</strong>,</p>
-           <p>W załączniku znajdziesz odcinek wypłaty za <strong>${monthYear}</strong>.</p>
-           <p style="color:#888;font-size:11px;">EURO EDU JOBS · edu-jobs.eu</p>`,
+    html: htmlBody,
     attachments: [{
       filename: `Payslip_${workerName.replace(/\s+/g, "_")}_${monthYear}.pdf`,
       content: pdfBuffer,
       contentType: "application/pdf",
     }],
+  });
+}
+
+// ── Login OTP email ────────────────────────────────────────────────────────────
+export async function sendLoginOtp(
+  toEmail: string,
+  name: string,
+  otp: string
+): Promise<void> {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
+  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
+  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+
+  if (!smtpUser || !smtpPass) throw new Error("SMTP not configured for email OTP.");
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost, port: smtpPort,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  await transporter.sendMail({
+    from: `EURO EDU JOBS Security <${smtpFrom}>`,
+    to: toEmail,
+    subject: `Twój kod logowania EEJ: ${otp}`,
+    html: `
+    <!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+    <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08)">
+        <tr><td style="background:#333;padding:24px 32px">
+          <span style="color:#E9FF70;font-size:20px;font-weight:900">EURO EDU JOBS</span><br>
+          <span style="color:#aaa;font-size:10px;letter-spacing:2px">SECURE LOGIN</span>
+        </td></tr>
+        <tr><td style="padding:32px">
+          <p style="margin:0 0 8px;font-size:15px;color:#333">Cześć, <strong>${name}</strong></p>
+          <p style="margin:0 0 24px;font-size:13px;color:#666">Twój jednorazowy kod logowania do portalu EEJ:</p>
+          <div style="background:#333;border-radius:12px;padding:20px;text-align:center;margin:0 0 24px">
+            <span style="color:#E9FF70;font-size:36px;font-weight:900;letter-spacing:12px;font-family:monospace">${otp}</span>
+          </div>
+          <p style="margin:0;font-size:11px;color:#aaa">Kod wygasa za <strong>10 minut</strong>. Nie udostępniaj go nikomu.</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px;background:#f9f9f9;border-top:1px solid #eee">
+          <p style="margin:0;font-size:10px;color:#ccc;text-align:center">EURO EDU JOBS · edu-jobs.eu</p>
+        </td></tr>
+      </table>
+    </body></html>`,
   });
 }
 

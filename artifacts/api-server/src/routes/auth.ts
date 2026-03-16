@@ -5,6 +5,16 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { JWT_SECRET, authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
 import { verify2FAToken, user2FAEnabled } from "./twofa.js";
+import { appendAuditEntry } from "./audit.js";
+import { sendLoginOtp } from "../lib/alerter.js";
+
+// ── Email OTP in-memory store ─────────────────────────────────────────────────
+// key: userId, value: { otp, expiresAt (ms timestamp) }
+const otpStore = new Map<string, { otp: string; expiresAt: number }>();
+
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 const router = Router();
 
@@ -86,8 +96,34 @@ router.post("/auth/login", (req, res) => {
     return res.status(401).json({ error: "Incorrect password." });
   }
 
-  // Check 2FA if enabled
-  if (user2FAEnabled(found.id)) {
+  // ── Email OTP for admin logins ────────────────────────────────────────────
+  if (found.role === "admin") {
+    const submittedOtp = (req.body as any).emailOtp as string | undefined;
+    if (!submittedOtp) {
+      // Generate and email OTP
+      const otp = generateOtp();
+      otpStore.set(found.id, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
+      // Fire email best-effort (don't block login if SMTP not configured)
+      sendLoginOtp(found.email, found.name, otp).catch((e) =>
+        console.warn("[auth] Email OTP send failed:", e instanceof Error ? e.message : e)
+      );
+      console.log(`[auth] Email OTP sent for ${found.email} (or check server log if SMTP not configured)`);
+      return res.status(202).json({ requiresEmailOtp: true, message: "A 6-digit code has been sent to your email." });
+    }
+    // Validate submitted OTP
+    const stored = otpStore.get(found.id);
+    if (!stored || Date.now() > stored.expiresAt) {
+      otpStore.delete(found.id);
+      return res.status(401).json({ error: "OTP expired. Please log in again." });
+    }
+    if (submittedOtp !== stored.otp) {
+      return res.status(401).json({ error: "Incorrect OTP code." });
+    }
+    otpStore.delete(found.id);
+  }
+
+  // ── TOTP 2FA (non-admin, if enabled) ─────────────────────────────────────
+  if (found.role !== "admin" && user2FAEnabled(found.id)) {
     const totpToken = (req.body as any).totpToken as string | undefined;
     if (!totpToken) {
       return res.status(202).json({ requires2FA: true, message: "Please enter your authenticator code." });
@@ -106,6 +142,15 @@ router.post("/auth/login", (req, res) => {
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
+
+  // Audit successful login
+  appendAuditEntry({
+    workerId: found.id,
+    actor: found.email,
+    field: "SESSION",
+    newValue: { role: found.role, site: found.site ?? null },
+    action: "ADMIN_LOGIN",
+  });
 
   console.log(`[auth] ✓ Login: ${found.email} (${found.role}${found.site ? " @ " + found.site : ""})`);
   return res.json({ token, user: payload });

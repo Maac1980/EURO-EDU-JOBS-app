@@ -361,7 +361,7 @@ export function PayrollRunPage() {
               style={{ background: "rgba(139,92,246,0.15)", borderColor: "rgba(139,92,246,0.4)", color: "#a78bfa" }}
             >
               <Edit2 className="w-3 h-3" />
-              Edit Rates
+              {t("payroll.editRates")}
             </button>
             <button
               onClick={() => setPayrollSubTab("zus")}
@@ -369,7 +369,7 @@ export function PayrollRunPage() {
               style={{ background: "rgba(59,130,246,0.12)", borderColor: "rgba(59,130,246,0.35)", color: "#60a5fa" }}
             >
               <Calculator className="w-3 h-3" />
-              2nd Employer Split
+              {t("payroll.dualSplit")}
             </button>
           </div>
         </div>
@@ -422,7 +422,7 @@ export function PayrollRunPage() {
               style={{ background: LIME, color: "#333" }}
             >
               <Check className="w-3 h-3" />
-              Save Rates
+              {t("payroll.saveRates")}
             </button>
           </div>
         )}
@@ -438,17 +438,17 @@ export function PayrollRunPage() {
             : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
         >
           <Eye className="w-3.5 h-3.5" />
-          ZUS View
+          {t("payroll.zusView")}
         </button>
         <button
           onClick={handleBankExport}
           disabled={bankExporting}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all"
           style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
-          title="Eksport CSV dla banku (przelewy masowe)"
+          title={t("payroll.bankCsv")}
         >
           {bankExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          Bank CSV
+          {t("payroll.bankCsv")}
         </button>
         <button
           onClick={handlePdfExport}
@@ -467,7 +467,7 @@ export function PayrollRunPage() {
               : { background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}
           >
             {withZus ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-            ZUS pracownika
+            {t("payroll.workerZus")}
           </button>
         )}
       </div>
@@ -475,11 +475,11 @@ export function PayrollRunPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          { label: "Active Workers", value: String(rows.length), icon: Users, color: "#a78bfa" },
-          { label: "Total Hours", value: totalHours.toFixed(2), icon: TrendingUp, color: "#fbbf24" },
-          { label: "Gross Payroll", value: `${totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: DollarSign, color: "#34d399" },
-          { label: "Deductions", value: `${(totalAdvances + totalPenalties).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Calculator, color: "#f97316" },
-          { label: "Total Net Pay", value: `${totalNetto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Building2, color: "#4ade80", highlight: true },
+          { label: t("payroll.activeWorkers"), value: String(rows.length), icon: Users, color: "#a78bfa" },
+          { label: t("payroll.history.totalHours"), value: totalHours.toFixed(2), icon: TrendingUp, color: "#fbbf24" },
+          { label: t("payroll.totalGross"), value: `${totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: DollarSign, color: "#34d399" },
+          { label: t("payroll.totalDeductions"), value: `${(totalAdvances + totalPenalties).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Calculator, color: "#f97316" },
+          { label: t("payroll.totalNetto"), value: `${totalNetto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Building2, color: "#4ade80", highlight: true },
         ].map((c) => (
           <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.02)", borderColor: c.highlight ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.06)" }}>
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}18`, border: `1px solid ${c.color}40` }}>
@@ -519,7 +519,7 @@ export function PayrollRunPage() {
               ? { background: LIME, color: "#333333" }
               : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
           >
-            All
+            {t("payroll.allSites")}
             <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black"
               style={{ background: siteFilter === null ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.1)" }}>
               {rows.length}
@@ -572,24 +572,24 @@ export function PayrollRunPage() {
       {payrollView === "zus" && (
         <div className="rounded-2xl border overflow-hidden" style={{ borderColor: LIME_BORDER }}>
           <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.04)" }}>
-            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>PAYROLL GRID — ZUS BREAKDOWN</span>
+            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>{t("payroll.gridZusTitle")}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs" style={{ minWidth: "1100px" }}>
               <thead>
                 <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                   {[
-                    { label: "Worker" },
-                    { label: "Spec / Site" },
-                    { label: "Bank IBAN ✏" },
-                    { label: "Rate (PLN/H)" },
-                    { label: "Hours ✏", clr: "#fbbf24" },
-                    { label: "Gross (PLN)" },
-                    { label: "Emp. ZUS", clr: "#fb923c" },
-                    { label: "Health Ins.", clr: "#fb923c" },
-                    { label: "Est. PIT", clr: "#f87171" },
-                    { label: "Net After Tax", clr: "#4ade80" },
-                    { label: "Advances ✏", clr: "#f97316" },
+                    { label: t("payroll.col.worker") },
+                    { label: t("payroll.col.specSite") },
+                    { label: t("payroll.col.bankIban") },
+                    { label: t("payroll.col.ratePlnH") },
+                    { label: t("payroll.col.hours"), clr: "#fbbf24" },
+                    { label: t("payroll.col.gross") },
+                    { label: t("payroll.col.empZus"), clr: "#fb923c" },
+                    { label: t("payroll.col.healthIns"), clr: "#fb923c" },
+                    { label: t("payroll.col.estPit"), clr: "#f87171" },
+                    { label: t("payroll.col.netAfterTax"), clr: "#4ade80" },
+                    { label: t("payroll.col.advance"), clr: "#f97316" },
                   ].map((c: any) => (
                     <th key={c.label} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap"
                       style={{ color: c.clr ?? "rgba(255,255,255,0.45)" }}>
@@ -788,21 +788,21 @@ export function PayrollRunPage() {
       {payrollView === "run" && (
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: LIME_BORDER }}>
         <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.04)" }}>
-          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>PAYROLL GRID — CLICK ANY VALUE TO EDIT</span>
+          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>{t("payroll.gridRunTitle")}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs" style={{ minWidth: "1000px" }}>
             <thead>
               <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                 {[
-                  { label: "Worker", f: "name" as const },
-                  { label: "Spec / Site", f: "site" as const },
-                  { label: "Bank IBAN ✏", f: null },
-                  { label: "Rate (PLN/H)", f: null },
-                  { label: "Hours ✏", f: null, clr: "#fbbf24" },
-                  { label: "Advances ✏", f: null, clr: "#f97316" },
-                  { label: "Penalties ✏", f: null, clr: "#f87171" },
-                  { label: "Final Net", f: "netto" as const, clr: "#4ade80" },
+                  { label: t("payroll.col.worker"), f: "name" as const },
+                  { label: t("payroll.col.specSite"), f: "site" as const },
+                  { label: t("payroll.col.bankIban"), f: null },
+                  { label: t("payroll.col.ratePlnH"), f: null },
+                  { label: t("payroll.col.hours"), f: null, clr: "#fbbf24" },
+                  { label: t("payroll.col.advance"), f: null, clr: "#f97316" },
+                  { label: t("payroll.col.penalties"), f: null, clr: "#f87171" },
+                  { label: t("payroll.col.finalNet"), f: "netto" as const, clr: "#4ade80" },
                 ].map((c: any) => (
                   <th
                     key={c.label}
@@ -1221,7 +1221,7 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search worker, site, month…"
+              placeholder={t("payroll.searchWorkers")}
               className="pl-8 pr-4 py-2 rounded-lg text-xs font-mono text-white focus:outline-none"
               style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.1)`, width: "220px", caretColor: LIME }}
             />

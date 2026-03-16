@@ -9,7 +9,7 @@ import {
   FileText, Edit2
 } from "lucide-react";
 
-const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5% — no chorobowe, no PIT-2
+const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5% — chorobowe & PIT excluded (workers on zwolnienia)
 
 const LIME = "#E9FF70";
 const LIME_BORDER = "rgba(233,255,112,0.25)";
@@ -60,16 +60,12 @@ interface ZusRates {
   emerytalne: number;
   rentowe: number;
   zdrowotne: number;
-  kup: number;
-  pitFlat: number;
 }
 
 const DEFAULT_RATES: ZusRates = {
   emerytalne: 9.76,
   rentowe: 1.5,
   zdrowotne: 9,
-  kup: 20,
-  pitFlat: 12,
 };
 
 function calcNetto(row: GridRow, withZus = false): number {
@@ -347,7 +343,7 @@ export function PayrollRunPage() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>
-              ZUS / PIT RATES — {monthYear.split("-")[0]}
+              ZUS RATES — {monthYear.split("-")[0]}
             </p>
             <p className="text-[9px] text-gray-500 font-mono mt-0.5">
               Last updated: {new Date().toISOString().slice(0, 10)}
@@ -379,8 +375,6 @@ export function PayrollRunPage() {
             { label: "Emerytalne", value: rates.emerytalne, key: "emerytalne" as const },
             { label: "Rentowe", value: rates.rentowe, key: "rentowe" as const },
             { label: "Zdrowotne", value: rates.zdrowotne, key: "zdrowotne" as const, note: "net base" },
-            { label: "KUP", value: rates.kup, key: "kup" as const },
-            { label: "PIT Flat", value: rates.pitFlat, key: "pitFlat" as const },
           ].map(({ label, value, key, note }) => (
             <div key={key} className="px-3 py-2 rounded-xl border" style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)" }}>
               <div className="text-[8px] font-bold uppercase tracking-widest text-gray-500">{label}</div>
@@ -405,12 +399,12 @@ export function PayrollRunPage() {
           ))}
         </div>
 
-        <div className="flex items-center gap-1 text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.35)" }}>
+        <div className="flex flex-wrap items-center gap-1 text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.35)" }}>
           <span>Effective ZUS: {(rates.emerytalne + rates.rentowe).toFixed(2)}%</span>
           <span className="mx-1">·</span>
-          <span>Chorobowe excluded (voluntary)</span>
+          <span style={{ color: "#f59e0b" }}>Chorobowe &amp; PIT excluded — workers on zwolnienia</span>
           <span className="mx-1">·</span>
-          <span>ZUS base = Gross Salary (Rate × Hours)</span>
+          <span>ZUS base = Gross (Rate × Hours)</span>
         </div>
 
         {editRatesOpen && (

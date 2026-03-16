@@ -110,6 +110,7 @@ export function PayrollRunPage() {
   const [withZus, setWithZus] = useState(false);
   const [bankExporting, setBankExporting] = useState(false);
   const [payrollSubTab, setPayrollSubTab] = useState<"run" | "ledger" | "zus">("run");
+  const [siteFilter, setSiteFilter] = useState<string | null>(null);
   const [payrollView, setPayrollView] = useState<"run" | "zus">("run");
   const [rates, setRates] = useState<ZusRates>(DEFAULT_RATES);
   const [editRatesOpen, setEditRatesOpen] = useState(false);
@@ -274,9 +275,21 @@ export function PayrollRunPage() {
 
   const empZusRate = (rates.emerytalne + rates.rentowe) / 100;
 
+  // Unique sites with worker counts (for filter pills)
+  const siteCounts = rows.reduce<Record<string, number>>((acc, r) => {
+    const site = r.siteLocation ?? "";
+    if (site) acc[site] = (acc[site] ?? 0) + 1;
+    return acc;
+  }, {});
+  const sites = Object.entries(siteCounts).sort((a, b) => b[1] - a[1]);
+
   // Filtered + sorted rows
   const displayed = rows
-    .filter((r) => !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || (r.siteLocation ?? "").toLowerCase().includes(searchQ.toLowerCase()))
+    .filter((r) => {
+      if (siteFilter && (r.siteLocation ?? "") !== siteFilter) return false;
+      if (searchQ && !r.name.toLowerCase().includes(searchQ.toLowerCase()) && !(r.siteLocation ?? "").toLowerCase().includes(searchQ.toLowerCase())) return false;
+      return true;
+    })
     .sort((a, b) => {
       let va: string | number, vb: string | number;
       if (sortField === "netto") { va = calcNetto(a, withZus); vb = calcNetto(b, withZus); }
@@ -489,6 +502,44 @@ export function PayrollRunPage() {
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl border" style={{ borderColor: "rgba(74,222,128,0.4)", background: "rgba(74,222,128,0.08)" }}>
           <CheckCircle className="w-4 h-4 text-success mt-0.5 flex-shrink-0" />
           <p className="text-sm text-success font-mono">{successMsg}</p>
+        </div>
+      )}
+
+      {/* ── Site filter pills ── */}
+      {sites.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[9px] font-black uppercase tracking-widest text-gray-600 mr-1">Site:</span>
+          {/* All pill */}
+          <button
+            onClick={() => setSiteFilter(null)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition-all"
+            style={siteFilter === null
+              ? { background: LIME, color: "#333333" }
+              : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            All
+            <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black"
+              style={{ background: siteFilter === null ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.1)" }}>
+              {rows.length}
+            </span>
+          </button>
+          {/* Per-site pills */}
+          {sites.map(([site, count]) => (
+            <button
+              key={site}
+              onClick={() => setSiteFilter(siteFilter === site ? null : site)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wide transition-all"
+              style={siteFilter === site
+                ? { background: LIME, color: "#333333" }
+                : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              {site}
+              <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black"
+                style={{ background: siteFilter === site ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.1)" }}>
+                {count}
+              </span>
+            </button>
+          ))}
         </div>
       )}
 

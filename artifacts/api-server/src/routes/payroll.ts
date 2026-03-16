@@ -3,10 +3,12 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-import { fetchAllRecords, updateRecord } from "../lib/airtable.js";
+import PDFDocument from "pdfkit";
+import { fetchAllRecords, updateRecord, fetchRecord } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
 import { appendAuditEntry } from "./audit.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { sendPayslipEmail } from "../lib/alerter.js";
 
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -133,6 +135,8 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
         createdAt: new Date().toISOString(),
       };
       newRecords.push(record);
+      // Store email alongside record for payslip delivery (not persisted)
+      (record as any).__email = w.email ?? null;
 
       // Reset worker fields to 0 in Airtable
       await updateRecord(w.id, {
@@ -142,8 +146,23 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
       });
     }));
 
-    // Save all new records
-    writePayrollRecords([...existing, ...newRecords]);
+    // Save all new records (strip temporary __email before persisting)
+    writePayrollRecords([...existing, ...newRecords.map((r) => { const clean = { ...r }; delete (clean as any).__email; return clean; })]);
+
+    // Fire payslip emails in the background — do not block the HTTP response
+    Promise.allSettled(
+      newRecords
+        .filter((r) => (r as any).__email)
+        .map(async (r) => {
+          try {
+            const pdf = await buildPayslipBuffer(r);
+            await sendPayslipEmail((r as any).__email as string, r.workerName, monthYear, pdf);
+            console.log(`[payroll] payslip emailed → ${(r as any).__email}`);
+          } catch (mailErr) {
+            console.warn(`[payroll] payslip email failed for ${r.workerName}:`, mailErr instanceof Error ? mailErr.message : mailErr);
+          }
+        })
+    );
 
     appendAuditEntry({
       workerId: "ALL",
@@ -188,6 +207,88 @@ router.get("/payroll/summary", authenticateToken, requireCoordinatorOrAdmin, asy
     return res.json({ records: all });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load summary" });
+  }
+});
+
+// ── Shared helper: build a payslip PDF and return it as a Buffer ──────────────
+function buildPayslipBuffer(record: PayrollRecord): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const LIME = "#E9FF70";
+    const DARK = "#333333";
+    const PAGE_W = 595.28;
+    const PAGE_H = 841.89;
+    const MARGIN = 40;
+    const doc = new PDFDocument({ margin: 0, size: "A4", bufferPages: true });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c: Buffer) => chunks.push(c));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    // Header bar
+    doc.rect(0, 0, PAGE_W, 70).fill(DARK);
+    doc.rect(0, 68, PAGE_W, 3).fill(LIME);
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(LIME).text("EURO EDU JOBS", MARGIN, 20);
+    doc.font("Helvetica").fontSize(9).fillColor("#aaaaaa").text("Odcinek Wypłaty / Payslip", MARGIN, 46);
+    doc.font("Helvetica-Bold").fontSize(14).fillColor(LIME).text(record.monthYear, PAGE_W - 130, 28, { width: 90, align: "right" });
+
+    // Worker name section
+    doc.rect(MARGIN, 90, PAGE_W - MARGIN * 2, 52).fill("#f8f8f8").stroke("#e0e0e0");
+    doc.font("Helvetica-Bold").fontSize(16).fillColor(DARK).text(record.workerName, MARGIN + 14, 100);
+    doc.font("Helvetica").fontSize(10).fillColor("#666").text(`Lokacja: ${record.siteLocation || "—"}`, MARGIN + 14, 120);
+
+    // Table rows
+    const rows: [string, string][] = [
+      ["Godziny przepracowane", `${record.totalHours.toFixed(1)} h`],
+      ["Stawka godzinowa (netto)", `${record.hourlyRate.toFixed(2)} zł`],
+      ["Wynagrodzenie brutto", `${record.grossPay.toFixed(2)} zł`],
+      ["Zaliczki potrącone", `- ${record.advancesDeducted.toFixed(2)} zł`],
+      ["Kary potrącone", `- ${record.penaltiesDeducted.toFixed(2)} zł`],
+    ];
+
+    let y = 164;
+    rows.forEach(([label, value], i) => {
+      doc.rect(MARGIN, y, PAGE_W - MARGIN * 2, 30).fill(i % 2 === 0 ? "#ffffff" : "#f9f9f9").stroke("#eeeeee");
+      doc.font("Helvetica").fontSize(11).fillColor(DARK).text(label, MARGIN + 14, y + 9);
+      doc.font("Helvetica").fontSize(11).fillColor(DARK).text(value, PAGE_W - MARGIN - 100, y + 9, { width: 90, align: "right" });
+      y += 30;
+    });
+
+    // Final payout row
+    y += 6;
+    doc.rect(MARGIN, y, PAGE_W - MARGIN * 2, 40).fill(DARK);
+    doc.font("Helvetica-Bold").fontSize(13).fillColor(LIME).text("DO WYPŁATY NETTO", MARGIN + 14, y + 12);
+    doc.font("Helvetica-Bold").fontSize(16).fillColor(LIME)
+      .text(`${record.finalNettoPayout.toFixed(2)} zł`, PAGE_W - MARGIN - 110, y + 10, { width: 100, align: "right" });
+
+    // Footer
+    const footerY = PAGE_H - 40;
+    doc.rect(0, footerY, PAGE_W, 40).fill(DARK);
+    doc.rect(0, footerY, PAGE_W, 2).fill(LIME);
+    doc.font("Helvetica").fontSize(8).fillColor("#aaaaaa")
+      .text(`EURO EDU JOBS — Wygenerowano: ${new Date().toLocaleDateString("pl-PL")}`, MARGIN, footerY + 14);
+    doc.font("Helvetica").fontSize(8).fillColor("#aaaaaa")
+      .text("edu-jobs.eu", PAGE_W - MARGIN - 60, footerY + 14, { width: 60, align: "right" });
+
+    doc.end();
+  });
+}
+
+// ── GET /api/payroll/payslip/:workerId/:monthYear ─────────────────────────────
+// Generates and streams a PDF payslip for a given worker and month
+router.get("/payroll/payslip/:workerId/:monthYear", authenticateToken, async (req, res) => {
+  try {
+    const { workerId, monthYear } = req.params;
+    const all = readPayrollRecords();
+    const record = all.find((r) => r.workerId === workerId && r.monthYear === monthYear);
+    if (!record) return res.status(404).json({ error: "Payroll record not found for that worker and month." });
+
+    const pdfBuffer = await buildPayslipBuffer(record);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Payslip_${record.workerName.replace(/\s+/g, "_")}_${monthYear}.pdf"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    return res.end(pdfBuffer);
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "Failed to generate payslip." });
   }
 });
 

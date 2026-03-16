@@ -27,6 +27,8 @@ import { AuditTrailPanel } from "@/components/AuditTrailPanel";
 import { AddWorkerModal } from "@/components/AddWorkerModal";
 import { PayrollRunPage } from "@/components/PayrollRunPage";
 import { TeamManagementCard } from "@/components/TeamManagementCard";
+import { ClientManagementCard } from "@/components/ClientManagementCard";
+import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { ExpiringThisWeekPanel } from "@/components/ExpiringThisWeekPanel";
 import { ExpiryCalendar } from "@/components/ExpiryCalendar";
 
@@ -175,6 +177,7 @@ export default function Dashboard() {
   const [specialization, setSpecialization] = useState("");
   const [status, setStatus] = useState("");
   const [siteFilter, setSiteFilter] = useState("");
+  const [pipelineFilter, setPipelineFilter] = useState("");
 
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [panelEditMode, setPanelEditMode] = useState(false);
@@ -359,6 +362,7 @@ export default function Dashboard() {
       "BHP Status","Contract End","Badania Lekarskie","Oświadczenie Expiry",
       "UDT Cert Expiry","PESEL","NIP","ZUS Status","Visa Type",
       "Hourly Rate (zł)","Total Hours","Advance Payment","Penalties","Compliance Status",
+      "IBAN","Typ Umowy","Obywatelstwo","Etap Rekrutacji",
     ];
     const esc = (v: unknown) => {
       const s = v == null ? "" : String(v).replace(/"/g, '""');
@@ -371,7 +375,8 @@ export default function Dashboard() {
       w.badaniaLekExpiry, w.oswiadczenieExpiry, w.udtCertExpiry,
       w.pesel, w.nip, w.zusStatus, w.visaType,
       w.hourlyNettoRate, w.totalHours, w.advancePayment, w.penalties,
-      w.status,
+      w.complianceStatus,
+      w.iban, w.contractType, w.nationality, w.pipelineStage,
     ].map(esc).join(","));
     const csv = [headers.join(","), ...rows].join("\r\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -784,6 +789,20 @@ export default function Dashboard() {
                 ))}
               </select>
             </div>
+            <div className="relative flex-1 md:w-44">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <select
+                value={pipelineFilter}
+                onChange={(e) => setPipelineFilter(e.target.value)}
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
+                style={pipelineFilter ? { borderColor: "rgba(233,255,112,0.5)", color: "#E9FF70" } : {}}
+              >
+                <option value="">Wszystkie etapy</option>
+                {["New","Screening","Interview","Offer Sent","Placed","Active","Released","Blacklisted"].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -810,6 +829,7 @@ export default function Dashboard() {
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.qual")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>{t("table.assignedSite")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Etap</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>{t("table.actions")}</th>
                 </tr>
               </thead>
@@ -817,24 +837,30 @@ export default function Dashboard() {
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={12} className="px-2 py-2">
+                      <td colSpan={13} className="px-2 py-2">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
                   ))
                 ) : workersData?.workers.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="px-6 py-12 text-center text-muted-foreground font-sans">
+                    <td colSpan={13} className="px-6 py-12 text-center text-muted-foreground font-sans">
                       {t("table.noResults")}
                     </td>
                   </tr>
                 ) : (
                   (workersData?.workers ?? [])
                     .filter((w) => {
-                      if (!siteFilter) return true;
                       const site = (w as any).siteLocation as string | null;
-                      if (siteFilter === "Available") return !site || site === "Available";
-                      return site === siteFilter;
+                      if (siteFilter) {
+                        if (siteFilter === "Available") { if (!(!site || site === "Available")) return false; }
+                        else { if (site !== siteFilter) return false; }
+                      }
+                      if (pipelineFilter) {
+                        const stage = (w as any).pipelineStage as string | null;
+                        if (stage !== pipelineFilter) return false;
+                      }
+                      return true;
                     })
                     .map((worker) => (
                     <tr 
@@ -933,6 +959,27 @@ export default function Dashboard() {
                       </td>
                       <td className="px-2 py-2">
                         <StatusBadge status={worker.complianceStatus} />
+                      </td>
+                      <td className="px-2 py-2">
+                        {(() => {
+                          const stage = (worker as any).pipelineStage as string | null;
+                          if (!stage) return <span className="text-gray-600 text-[10px]">—</span>;
+                          const colors: Record<string, string> = {
+                            "New": "bg-blue-900/40 text-blue-300",
+                            "Screening": "bg-purple-900/40 text-purple-300",
+                            "Interview": "bg-yellow-900/40 text-yellow-300",
+                            "Offer Sent": "bg-orange-900/40 text-orange-300",
+                            "Placed": "bg-green-900/40 text-green-300",
+                            "Active": "bg-emerald-900/40 text-emerald-300",
+                            "Released": "bg-gray-800/60 text-gray-400",
+                            "Blacklisted": "bg-red-900/40 text-red-400",
+                          };
+                          return (
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${colors[stage] ?? "bg-white/10 text-white/60"}`}>
+                              {stage}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center border-l border-white/10" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-col items-center gap-1.5">
@@ -1044,6 +1091,30 @@ export default function Dashboard() {
                 >
                   <RefreshCcw className={`w-3 h-3 ${complianceLoading ? "animate-spin" : ""}`} />
                   {complianceLoading ? t("alerts.scanning") : t("alerts.refreshScan")}
+                </button>
+                <a
+                  href={`${import.meta.env.BASE_URL}api/compliance/zus-export`}
+                  download
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all hover:opacity-90"
+                  style={{ background: "rgba(233,255,112,0.15)", color: "#E9FF70", border: "1px solid rgba(233,255,112,0.3)" }}
+                >
+                  <Download className="w-3 h-3" />
+                  ZUS Export CSV
+                </a>
+                <button
+                  onClick={async () => {
+                    try {
+                      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+                      const res = await fetch(`${base}/api/compliance/trigger-worker-reminders`, { method: "POST" });
+                      const data = await res.json();
+                      alert(`Przypomnienia wysłane: ${data.sent ?? 0} | Pominięto: ${data.skipped ?? 0}${data.errors?.length ? `\nBłędy: ${data.errors.join("; ")}` : ""}`);
+                    } catch { alert("Błąd wysyłania przypomnień."); }
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:opacity-90"
+                  style={{ background: "rgba(255,255,255,0.05)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  <Bell className="w-3 h-3" />
+                  Przypomnij Pracownikom
                 </button>
               </div>
             </div>
@@ -1485,6 +1556,12 @@ export default function Dashboard() {
                 </p>
               )}
             </div>
+
+            {/* Two-Factor Authentication */}
+            <TwoFactorCard />
+
+            {/* Client / Employer Database */}
+            <ClientManagementCard />
 
             {/* Team Access / User Management */}
             <TeamManagementCard />

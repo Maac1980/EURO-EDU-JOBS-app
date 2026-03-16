@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { X, Upload, CheckCircle2, AlertTriangle, Loader2, Save, FileText, Shield, Award, ChevronDown, MapPin, Clock, TrendingUp, History } from "lucide-react";
 import { PayrollHistoryTab } from "./PayrollHistoryTab";
 import { useGetWorker } from "@workspace/api-client-react";
@@ -120,6 +121,7 @@ interface CandidateEditPanelProps {
 
 export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProps) {
   const { t } = useTranslation();
+  const { isAdmin } = useAuth();
   const { data: worker, isLoading } = useGetWorker(workerId || "", { query: { enabled: !!workerId } });
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -146,6 +148,12 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
   const [udtCertExpiry, setUdtCertExpiry] = useState("");
   const [visaType, setVisaType] = useState("");
   const [rodoConsentDate, setRodoConsentDate] = useState("");
+  const [iban, setIban] = useState("");
+  const [contractType, setContractType] = useState("");
+  const [nationality, setNationality] = useState("");
+  const [pipelineStage, setPipelineStage] = useState("");
+  const [gdprConfirm, setGdprConfirm] = useState(false);
+  const [gdprErasing, setGdprErasing] = useState(false);
   // Key document date fields
   const [trcExpiryEdit, setTrcExpiryEdit] = useState("");
   const [workPermitExpiryEdit, setWorkPermitExpiryEdit] = useState("");
@@ -183,6 +191,11 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       setUdtCertExpiry((worker as any).udtCertExpiry || "");
       setVisaType((worker as any).visaType || "");
       setRodoConsentDate((worker as any).rodoConsentDate || "");
+      setIban((worker as any).iban || "");
+      setContractType((worker as any).contractType || "");
+      setNationality((worker as any).nationality || "");
+      setPipelineStage((worker as any).pipelineStage || "");
+      setGdprConfirm(false);
       setTrcExpiryEdit((worker as any).trcExpiry || "");
       setWorkPermitExpiryEdit((worker as any).workPermitExpiry || "");
       setContractEndDateEdit((worker as any).contractEndDate || "");
@@ -237,6 +250,10 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
       if (udtCertExpiry !== undefined) payload.udtCertExpiry = udtCertExpiry;
       if (visaType !== undefined) payload.visaType = visaType;
       if (rodoConsentDate !== undefined) payload.rodoConsentDate = rodoConsentDate;
+      if (iban !== undefined) payload.iban = iban;
+      if (contractType !== undefined) payload.contractType = contractType;
+      if (nationality !== undefined) payload.nationality = nationality;
+      if (pipelineStage !== undefined) payload.pipelineStage = pipelineStage;
       if (trcExpiryEdit) payload.trcExpiry = trcExpiryEdit;
       if (workPermitExpiryEdit) payload.workPermitExpiry = workPermitExpiryEdit;
       if (contractEndDateEdit) payload.contractEndDate = contractEndDateEdit;
@@ -268,6 +285,24 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
     } catch (err) {
       toast({ title: "Save Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally { setSaving(false); }
+  };
+
+  const handleGdprErase = async () => {
+    if (!workerId) return;
+    setGdprErasing(true);
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/workers/${workerId}/gdpr-erase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({ error: "GDPR erase failed" })); throw new Error(err.error); }
+      toast({ title: "✓ RODO: Dane usunięte", description: "Dane osobowe zostały bezpowrotnie wymazane zgodnie z RODO. Wpis audit zachowany.", variant: "success" as any });
+      await queryClient.invalidateQueries({ queryKey: getGetWorkerQueryKey(workerId) });
+      setGdprConfirm(false);
+      onClose();
+    } catch (err) {
+      toast({ title: "Błąd RODO", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally { setGdprErasing(false); }
   };
 
   return (
@@ -645,7 +680,52 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               </div>
             </div>
 
-            {/* SECTION 7: Client Assignment */}
+            {/* SECTION 7: Recruitment & Contract Info */}
+            <div>
+              <SectionDivider label="Rekrutacja i Umowa" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>Etap Rekrutacji</label>
+                  <select value={pipelineStage} onChange={(e) => setPipelineStage(e.target.value)} className={inputCls} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime}>
+                    <option value="">— wybierz —</option>
+                    <option value="New">New — Nowy</option>
+                    <option value="Screening">Screening — Weryfikacja</option>
+                    <option value="Interview">Interview — Rozmowa</option>
+                    <option value="Offer Sent">Offer Sent — Oferta wysłana</option>
+                    <option value="Placed">Placed — Zatrudniony</option>
+                    <option value="Active">Active — Aktywny</option>
+                    <option value="Released">Released — Zwolniony</option>
+                    <option value="Blacklisted">Blacklisted — Czarna lista</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>Typ Umowy</label>
+                  <select value={contractType} onChange={(e) => setContractType(e.target.value)} className={inputCls} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime}>
+                    <option value="">— wybierz —</option>
+                    <option value="umowa o pracę">Umowa o pracę</option>
+                    <option value="umowa zlecenie">Umowa zlecenie</option>
+                    <option value="umowa o dzieło">Umowa o dzieło</option>
+                    <option value="B2B">B2B</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>Obywatelstwo / Nationality</label>
+                  <input type="text" value={nationality} onChange={(e) => setNationality(e.target.value)} placeholder="np. Ukraine, Poland, Philippines…" className={inputCls} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime} />
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 8: Bank / IBAN */}
+            <div>
+              <SectionDivider label="Konto Bankowe (IBAN)" />
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>IBAN</label>
+                <p className="text-[10px] font-mono text-gray-600 mb-1.5">Numer konta bankowego do wypłaty wynagrodzenia</p>
+                <input type="text" value={iban} onChange={(e) => setIban(e.target.value)} placeholder="PL61 1090 1014 0000 0712 1981 2874" className={`${inputCls} font-mono`} style={inputStyle} onFocus={onFocusLime} onBlur={onBlurLime} maxLength={40} />
+              </div>
+            </div>
+
+            {/* SECTION 9: Client Assignment */}
             <div>
               <SectionDivider label={t("edit.assignToClient")} />
               <p className="text-[10px] text-gray-500 font-mono mb-3">{t("edit.assignNote")}</p>
@@ -665,14 +745,35 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
 
         {/* Footer */}
         {!isLoading && worker && (
-          <div className="px-6 py-4 border-t flex gap-3 flex-shrink-0" style={{ borderColor: LIME_BORDER, background: "rgba(0,0,0,0.2)" }}>
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border text-sm font-bold uppercase tracking-wider text-gray-300 hover:text-white transition-all hover:bg-white/5" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
-              {t("edit.close")}
-            </button>
-            <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-60" style={{ background: LIME, color: "#333333" }}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? t("edit.saving") : t("edit.saveToAirtable")}
-            </button>
+          <div className="px-6 py-4 border-t flex-shrink-0" style={{ borderColor: LIME_BORDER, background: "rgba(0,0,0,0.2)" }}>
+            <div className="flex gap-3 mb-3">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border text-sm font-bold uppercase tracking-wider text-gray-300 hover:text-white transition-all hover:bg-white/5" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+                {t("edit.close")}
+              </button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-60" style={{ background: LIME, color: "#333333" }}>
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? t("edit.saving") : t("edit.saveToAirtable")}
+              </button>
+            </div>
+            {isAdmin && (
+              <div className="pt-3 border-t" style={{ borderColor: "rgba(239,68,68,0.2)" }}>
+                {!gdprConfirm ? (
+                  <button onClick={() => setGdprConfirm(true)} className="w-full py-2 rounded-xl border text-xs font-bold uppercase tracking-wider text-red-400 hover:text-red-300 hover:bg-red-900/20 transition-all flex items-center justify-center gap-2" style={{ borderColor: "rgba(239,68,68,0.3)" }}>
+                    <Shield className="w-3.5 h-3.5" /> RODO — Usuń dane osobowe
+                  </button>
+                ) : (
+                  <div className="p-3 rounded-xl border" style={{ borderColor: "rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.08)" }}>
+                    <p className="text-xs text-red-300 font-bold mb-2">⚠ Ta operacja jest nieodwracalna. Wszystkie dane PII zostaną wymazane.</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setGdprConfirm(false)} className="flex-1 py-1.5 rounded-lg text-xs font-bold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 transition-all">Anuluj</button>
+                      <button onClick={handleGdprErase} disabled={gdprErasing} className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase text-white bg-red-700 hover:bg-red-600 transition-all disabled:opacity-60 flex items-center justify-center gap-1">
+                        {gdprErasing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />} Potwierdź usunięcie
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

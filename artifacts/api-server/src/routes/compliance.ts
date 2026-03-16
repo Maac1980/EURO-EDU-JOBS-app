@@ -3,7 +3,8 @@ import PDFDocument from "pdfkit";
 import { fetchAllRecords } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
 import { MOCK_WORKERS, isMockMode } from "../lib/mockData.js";
-import { checkAndAlert } from "../lib/alerter.js";
+import { checkAndAlert, sendWorkerExpiryReminders } from "../lib/alerter.js";
+import { authenticateToken } from "../lib/authMiddleware.js";
 
 const router = Router();
 
@@ -403,6 +404,53 @@ router.get("/compliance/report/pdf", async (req, res) => {
     if (!res.headersSent) {
       res.status(500).json({ error: "Failed to generate PDF report." });
     }
+  }
+});
+
+// GET /api/compliance/zus-export — CSV for ZUS declarations (PESEL, NIP, hours, contract type)
+router.get("/compliance/zus-export", authenticateToken, async (_req, res) => {
+  try {
+    let workers;
+    if (isMockMode()) {
+      workers = MOCK_WORKERS;
+    } else {
+      const records = await fetchAllRecords();
+      workers = records.map(mapRecordToWorker);
+    }
+    const rows: string[] = [
+      "Imię i Nazwisko,PESEL,NIP,Typ Umowy,Stawka Godzinowa (zł),Godziny,Kwota Brutto (zł),ZUS Status,Lokacja"
+    ];
+    for (const w of workers) {
+      const brutto = (w.hourlyNettoRate ?? 0) * (w.totalHours ?? 0);
+      const row = [
+        w.name ?? "",
+        w.pesel ?? "",
+        w.nip ?? "",
+        w.contractType ?? "",
+        w.hourlyNettoRate ?? "",
+        w.totalHours ?? "",
+        brutto.toFixed(2),
+        w.zusStatus ?? "",
+        w.siteLocation ?? "",
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",");
+      rows.push(row);
+    }
+    const csv = rows.join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="ZUS_Export_${new Date().toISOString().slice(0, 10)}.csv"`);
+    return res.send("\uFEFF" + csv);
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "ZUS export failed." });
+  }
+});
+
+// POST /api/compliance/trigger-worker-reminders — manually send expiry reminders to workers
+router.post("/compliance/trigger-worker-reminders", authenticateToken, async (_req, res) => {
+  try {
+    const result = await sendWorkerExpiryReminders();
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to send reminders." });
   }
 });
 

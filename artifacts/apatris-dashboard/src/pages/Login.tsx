@@ -12,6 +12,8 @@ export default function Login() {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpToken, setTotpToken] = useState("");
+  const [requires2FA, setRequires2FA] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [hintEmail, setHintEmail] = useState("");
@@ -28,10 +30,13 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const result = await login(email, password);
+    const result = await login(email, password, requires2FA ? totpToken : undefined);
     setLoading(false);
     if (result.success) {
       setLocation("/");
+    } else if (result.requires2FA) {
+      setRequires2FA(true);
+      setError("");
     } else {
       setError(result.error ?? t("login.invalidCredentials"));
     }
@@ -206,6 +211,33 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+
+            {/* 2FA TOTP */}
+            {requires2FA && (
+              <div className="space-y-1.5">
+                <div className="p-3 rounded-lg text-sm font-medium mb-2" style={{ background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e" }}>
+                  Uwierzytelnianie dwuskładnikowe (2FA) jest włączone. Wpisz kod z aplikacji Authenticator.
+                </div>
+                <label className="block text-xs font-bold uppercase tracking-widest" style={{ color: "#888" }}>
+                  Kod Authenticator (TOTP)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  required
+                  disabled={loading}
+                  className="w-full rounded-xl px-4 py-3 text-sm font-mono tracking-[0.3em] transition-all outline-none text-center"
+                  style={{ background: "#f5f5f5", border: "2px solid #e5e5e5", color: DARK, opacity: loading ? 0.6 : 1 }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = LIME; e.currentTarget.style.boxShadow = `0 0 0 3px ${LIME}40`; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "#e5e5e5"; e.currentTarget.style.boxShadow = "none"; }}
+                  placeholder="000000"
+                  value={totpToken}
+                  onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+              </div>
+            )}
 
             {/* Submit */}
             <button

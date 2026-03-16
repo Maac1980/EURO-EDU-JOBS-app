@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { JWT_SECRET, authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
+import { verify2FAToken, user2FAEnabled } from "./twofa.js";
 
 const router = Router();
 
@@ -83,6 +84,17 @@ router.post("/auth/login", (req, res) => {
   if (!passwordOk) {
     console.warn(`[auth] Login rejected: incorrect password for "${emailLower}"`);
     return res.status(401).json({ error: "Incorrect password." });
+  }
+
+  // Check 2FA if enabled
+  if (user2FAEnabled(found.id)) {
+    const totpToken = (req.body as any).totpToken as string | undefined;
+    if (!totpToken) {
+      return res.status(202).json({ requires2FA: true, message: "Please enter your authenticator code." });
+    }
+    if (!verify2FAToken(found.id, totpToken)) {
+      return res.status(401).json({ error: "Invalid authenticator code." });
+    }
   }
 
   const payload: AuthUser = {

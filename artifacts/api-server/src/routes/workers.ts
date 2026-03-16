@@ -621,6 +621,12 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
     if (body.visaType !== undefined) airtableFields["VISA TYPE"] = body.visaType;
     if (body.rodoConsentDate !== undefined) airtableFields["RODO CONSENT"] = body.rodoConsentDate || null;
 
+    // ── New fields ──────────────────────────────────────────────────────────
+    if (body.iban !== undefined) airtableFields["IBAN"] = body.iban;
+    if (body.contractType !== undefined) airtableFields["CONTRACT TYPE"] = body.contractType;
+    if (body.nationality !== undefined) airtableFields["NATIONALITY"] = body.nationality;
+    if (body.pipelineStage !== undefined) airtableFields["PIPELINE STAGE"] = body.pipelineStage;
+
     const updated = await updateRecord(req.params.id, airtableFields);
     const changedFields = Object.keys(airtableFields).join(", ");
     if (changedFields) {
@@ -636,6 +642,37 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: message });
+  }
+});
+
+// POST /workers/:id/gdpr-erase — wipe all PII fields, keep record shell for audit
+router.post("/workers/:id/gdpr-erase", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "Worker ID required." });
+    const wipeFields: Record<string, unknown> = {
+      "First Name": "GDPR_ERASED",
+      "Last Name": "GDPR_ERASED",
+      "Email": null,
+      "Phone": null,
+      "PESEL": null,
+      "NIP": null,
+      "IBAN": null,
+      "RODO CONSENT": null,
+    };
+    if (!isMockMode()) {
+      await updateRecord(id, wipeFields);
+    }
+    appendAuditEntry({
+      workerId: id,
+      actor: "admin",
+      field: "GDPR_ERASURE",
+      newValue: { erasedAt: new Date().toISOString(), requestedBy: (req as any).user?.email ?? "admin" },
+      action: "gdpr-erase",
+    });
+    return res.json({ success: true, message: "PII wiped. Audit entry recorded." });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "GDPR erase failed." });
   }
 });
 

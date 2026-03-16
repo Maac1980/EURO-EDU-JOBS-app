@@ -42,6 +42,11 @@ export interface Worker {
   udtCertExpiry: string | null;          // UDT technical inspection cert expiry
   visaType: string | null;              // Visa/residence type
   rodoConsentDate: string | null;        // RODO/GDPR consent date
+  // ── New fields ───────────────────────────────────────────────────────────
+  iban: string | null;                   // Bank account (IBAN) for payroll
+  contractType: string | null;           // umowa o pracę / zlecenie / dzieło / B2B
+  nationality: string | null;            // Country of origin
+  pipelineStage: string | null;          // New / Screening / Interview / Offer Sent / Placed / Active / Released / Blacklisted
 }
 
 function getString(val: unknown): string | null {
@@ -282,6 +287,22 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     resolveField(f, ["RODO CONSENT", "Rodo Consent", "RODO", "GDPR Consent", "Consent Date"])
   );
 
+  const iban = getString(
+    resolveField(f, ["IBAN", "Bank Account", "BankAccount", "Account Number", "IBAN Number"])
+  );
+
+  const contractType = getString(
+    resolveField(f, ["CONTRACT TYPE", "Contract Type", "ContractType", "Umowa", "Employment Type"])
+  );
+
+  const nationality = getString(
+    resolveField(f, ["NATIONALITY", "Nationality", "Country", "Country of Origin", "Obywatelstwo"])
+  );
+
+  const pipelineStage = getString(
+    resolveField(f, ["PIPELINE STAGE", "Pipeline Stage", "PipelineStage", "Stage", "Status Stage", "Recruitment Stage"])
+  );
+
   const partial: Partial<Worker> = {
     trcExpiry,
     workPermitExpiry,
@@ -327,6 +348,10 @@ export function mapRecordToWorker(record: AirtableRecord): Worker {
     udtCertExpiry,
     visaType,
     rodoConsentDate,
+    iban,
+    contractType,
+    nationality,
+    pipelineStage,
   };
 }
 

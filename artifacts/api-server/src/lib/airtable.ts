@@ -196,6 +196,11 @@ const EEJ_DESIRED_FIELDS: Array<{ name: string; type: string; options?: Record<s
   { name: "UDT CERT EXPIRY", type: "date", options: { dateFormat: { name: "iso" } } },
   { name: "VISA TYPE", type: "singleLineText" },
   { name: "RODO CONSENT", type: "date", options: { dateFormat: { name: "iso" } } },
+  // ── New fields ────────────────────────────────────────────────────────────
+  { name: "IBAN", type: "singleLineText" },
+  { name: "CONTRACT TYPE", type: "singleLineText" },
+  { name: "NATIONALITY", type: "singleLineText" },
+  { name: "PIPELINE STAGE", type: "singleLineText" },
 ];
 
 export async function ensureEejSchema(): Promise<{ created: string[]; existing: string[]; errors: string[] }> {

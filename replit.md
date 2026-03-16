@@ -219,6 +219,69 @@ File: `artifacts/api-server/data/audit.json` (auto-created, max 2000 entries, ro
 - `TeamManagementCard.tsx` — create/edit/delete coordinator and manager accounts
 - `GET/POST/PATCH/DELETE /api/admin/users` — user CRUD (admin only)
 
+## Extended Legal & Operational Fields (Added)
+
+All fields stored in Airtable via PATCH route (`/api/workers/:id`):
+- **IBAN** (`IBAN`) — worker bank account for salary transfer
+- **Contract Type** (`CONTRACT TYPE`) — Umowa o pracę / Zlecenie / B2B / Delegacja
+- **Nationality** (`NATIONALITY`) — free text
+- **Pipeline Stage** (`PIPELINE STAGE`) — New / Screening / Interview / Offer Sent / Placed / Active / Released / Blacklisted
+
+Pipeline Stage column added to Dashboard compliance table with colour-coded badges.
+Pipeline Stage filter dropdown added to Dashboard filter bar.
+
+## Security Features
+
+### 2FA (TOTP)
+- `POST /api/2fa/setup` — generates TOTP secret + QR data URL (speakeasy)
+- `POST /api/2fa/verify` — verifies token and enables 2FA (`twoFactorEnabled: true` in users.json)
+- `POST /api/2fa/disable` — verifies current token then disables 2FA
+- `GET /api/2fa/status` — returns `{ enabled: bool }` for current user
+- Login flow returns HTTP 202 + `requires2FA: true` if user has 2FA enabled; client re-submits with `totpToken`
+- Settings tab → `TwoFactorCard.tsx` — self-service QR setup, verify step, and disable flow
+
+### Session Timeout
+- 30 minutes of inactivity → automatic logout
+- Activity events: mousemove, keydown, click, scroll
+- Warning dialog appears at 5 minutes remaining (via `window.confirm`)
+- Implemented in `auth.tsx` `AuthProvider`
+
+### GDPR / Right to Erasure
+- `POST /api/workers/:id/gdpr-erase` — admin only; wipes: name → "GDPR_ERASED", email/phone/PESEL/NIP/IBAN → null; logs to audit.json
+- CandidateEditPanel shows GDPR Erase button (admin-only, two-step confirm before firing)
+
+## ZUS Report Export
+
+- `GET /api/compliance/zus-export` — returns BOM-prefixed CSV with columns: Imię i Nazwisko, PESEL, NIP, Rodzaj umowy, Godziny, Podstawa ZUS
+- Dashboard Alerts tab has "ZUS Export CSV" download button
+
+## Client / Employer Database
+
+- `data/clients.json` — persistent client records: id, name, address, vatId, contactName, contactEmail, contactPhone, notes, createdAt
+- `GET/POST /api/clients` — list all / create new (coordinator+)
+- `GET/PATCH/DELETE /api/clients/:id` — read / update / delete (delete: admin only)
+- `ClientManagementCard.tsx` in Settings tab — full CRUD UI
+
+## Worker Direct Expiry Reminders
+
+- `sendWorkerExpiryReminders()` in `alerter.ts` — emails each worker (if email is set) when their own doc expires ≤ 30 days
+- Runs daily at 09:00 via cron (separate from admin alerter at 08:00)
+- `POST /api/compliance/trigger-worker-reminders` — manual trigger button in Dashboard Alerts tab
+
+## Document Viewer
+
+In `WorkerProfilePanel.tsx`, the Document Vault section renders `AttachmentCard` components for all Airtable attachment fields:
+- Passport attachments (`passportAttachments`)
+- Contract attachments (`contractAttachments`)
+Each card shows filename and links to the Airtable-hosted file URL. Upload buttons also present for each doc type.
+
+## Payslip PDF & Email
+
+- `buildPayslipBuffer(record)` — internal helper; generates branded A4 PDF as a Buffer (shared between GET and email)
+- `GET /api/payroll/payslip/:workerId/:monthYear` — streams PDF to browser (uses `buildPayslipBuffer`)
+- `POST /api/payroll/close-month` — after saving ledger, fires background payslip emails to all workers who have an email address; uses `sendPayslipEmail()` from `alerter.ts`
+- `sendPayslipEmail(email, name, monthYear, pdfBuffer)` — SMTP email with PDF attachment
+
 ## API Endpoints
 
 All at `/api`:
@@ -229,6 +292,7 @@ All at `/api`:
 - `POST /workers/bulk-create` — AI Smart Upload (passport, bhp, cert, contract, cv)
 - `GET /workers/:id` — worker detail
 - `PATCH /workers/:id` — update worker fields (writes to EEJ field names, audit logged)
+- `POST /workers/:id/gdpr-erase` — (admin) wipe PII fields + audit log
 - `POST /workers/:id/upload` — upload & AI-scan document
 - `POST /workers/:id/notify` — send notification
 - `POST /workers/admin/ensure-schema` — create missing Airtable fields
@@ -238,5 +302,15 @@ All at `/api`:
 - `PATCH /api/portal/hours?token=xxx` — (candidate) update total hours
 - `GET /api/compliance/trend` — 8-week weekly compliance snapshots
 - `GET /api/compliance/report/pdf?site=optional` — stream branded A4 PDF report
+- `GET /api/compliance/zus-export` — (admin) ZUS CSV export with BOM
+- `POST /api/compliance/trigger-worker-reminders` — (admin) manual trigger for worker expiry emails
+- `GET /api/payroll/payslip/:workerId/:monthYear` — stream PDF payslip
+- `GET /api/clients` — list all clients
+- `POST /api/clients` — create client (coordinator+)
+- `GET/PATCH/DELETE /api/clients/:id` — client detail / update / delete
+- `GET /api/2fa/status` — current user 2FA status
+- `POST /api/2fa/setup` — generate TOTP secret + QR
+- `POST /api/2fa/verify` — verify token and enable 2FA
+- `POST /api/2fa/disable` — disable 2FA (requires current token)
 - `GET /api/audit` — (admin) read audit log
 - `DELETE /api/audit` — (admin) clear audit log

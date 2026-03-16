@@ -7,6 +7,8 @@ import complianceRouter from "./compliance.js";
 import portalRouter from "./portal.js";
 import auditRouter from "./audit.js";
 import payrollRouter from "./payroll.js";
+import clientsRouter from "./clients.js";
+import { twofaRouter } from "./twofa.js";
 
 const router: IRouter = Router();
 
@@ -16,6 +18,8 @@ router.use(complianceRouter);
 router.use(portalRouter);
 router.use(auditRouter);
 router.use(payrollRouter);
+router.use(clientsRouter);
+router.use(twofaRouter);
 router.use(healthRouter);
 router.use(workersRouter);
 

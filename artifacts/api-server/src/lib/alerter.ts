@@ -252,6 +252,138 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
   }
 }
 
+// ── Worker direct expiry reminders ───────────────────────────────────────────
+// Called daily or on-demand. Emails each worker whose document expires within 30 days.
+export async function sendWorkerExpiryReminders(): Promise<{ sent: number; skipped: number; errors: string[] }> {
+  const result = { sent: 0, skipped: 0, errors: [] as string[] };
+
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
+  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
+  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+
+  if (!smtpUser || !smtpPass) {
+    result.errors.push("SMTP not configured.");
+    return result;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost, port: smtpPort,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  let workers;
+  try {
+    const records = await fetchAllRecords();
+    workers = records.map(mapRecordToWorker);
+  } catch (err) {
+    result.errors.push(`Airtable fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    return result;
+  }
+
+  const DOCS: Array<{ label: string; key: keyof typeof workers[0] }> = [
+    { label: "Pozwolenie na pracę", key: "workPermitExpiry" },
+    { label: "Karta Pobytu (TRC)", key: "trcExpiry" },
+    { label: "Koniec umowy", key: "contractEndDate" },
+    { label: "Badania lekarskie", key: "badaniaLekExpiry" },
+    { label: "Oświadczenie", key: "oswiadczenieExpiry" },
+    { label: "Cert. UDT", key: "udtCertExpiry" },
+  ];
+
+  for (const worker of workers) {
+    if (!worker.email) { result.skipped++; continue; }
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const expiring: Array<{ label: string; expiry: string; days: number }> = [];
+
+    for (const { label, key } of DOCS) {
+      const val = worker[key] as string | null;
+      if (!val) continue;
+      const exp = new Date(val); exp.setHours(0, 0, 0, 0);
+      const days = Math.round((exp.getTime() - today.getTime()) / 86400000);
+      if (days >= 0 && days <= 30) expiring.push({ label, expiry: val, days });
+    }
+
+    if (expiring.length === 0) { result.skipped++; continue; }
+
+    const rows = expiring.map((e) =>
+      `<tr><td style="padding:8px 12px;font-weight:700;">${e.label}</td>
+       <td style="padding:8px 12px;font-family:monospace;">${e.expiry}</td>
+       <td style="padding:8px 12px;font-weight:800;color:${e.days <= 7 ? "#dc2626" : "#d97706"};">${e.days} dni</td></tr>`
+    ).join("");
+
+    const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:24px;background:#f5f5f5;">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;">
+        <div style="background:#333;padding:20px 28px;"><h2 style="color:#E9FF70;margin:0;font-size:18px;">EURO EDU JOBS — Przypomnienie o dokumentach</h2></div>
+        <div style="padding:24px 28px;">
+          <p>Cześć <strong>${worker.name}</strong>,</p>
+          <p>Twoje dokumenty wygasają wkrótce. Skontaktuj się z koordynatorem, aby je odnowić.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #eee;margin:16px 0;">
+            <thead><tr style="background:#f7f7f7;">
+              <th style="padding:8px 12px;text-align:left;">Dokument</th>
+              <th style="padding:8px 12px;text-align:left;">Data wygaśnięcia</th>
+              <th style="padding:8px 12px;text-align:left;">Pozostało dni</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <p style="color:#888;font-size:11px;">EURO EDU JOBS · edu-jobs.eu</p>
+        </div>
+      </div>
+    </body></html>`;
+
+    try {
+      await transporter.sendMail({
+        from: `EURO EDU JOBS <${smtpFrom}>`,
+        to: worker.email,
+        subject: `Ważne: Twoje dokumenty wygasają za ${expiring[0].days} dni — EEJ`,
+        html,
+      });
+      result.sent++;
+    } catch (err) {
+      result.errors.push(`${worker.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return result;
+}
+
+// ── Payslip email to worker ───────────────────────────────────────────────────
+export async function sendPayslipEmail(
+  workerEmail: string,
+  workerName: string,
+  monthYear: string,
+  pdfBuffer: Buffer
+): Promise<void> {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
+  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
+  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+
+  if (!smtpUser || !smtpPass) throw new Error("SMTP not configured.");
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost, port: smtpPort,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
+  await transporter.sendMail({
+    from: `EURO EDU JOBS Payroll <${smtpFrom}>`,
+    to: workerEmail,
+    subject: `Twój odcinek wypłaty za ${monthYear} — EURO EDU JOBS`,
+    html: `<p>Cześć <strong>${workerName}</strong>,</p>
+           <p>W załączniku znajdziesz odcinek wypłaty za <strong>${monthYear}</strong>.</p>
+           <p style="color:#888;font-size:11px;">EURO EDU JOBS · edu-jobs.eu</p>`,
+    attachments: [{
+      filename: `Payslip_${workerName.replace(/\s+/g, "_")}_${monthYear}.pdf`,
+      content: pdfBuffer,
+      contentType: "application/pdf",
+    }],
+  });
+}
+
 export function startAlerter(): void {
   if (!process.env.AIRTABLE_API_KEY) {
     console.warn("[alerter] AIRTABLE_API_KEY not set — expiry alerts disabled");
@@ -266,6 +398,13 @@ export function startAlerter(): void {
   cron.schedule("0 8 * * *", () => {
     console.log("[alerter] Running scheduled daily compliance scan…");
     checkAndAlert(false);
+  });
+
+  cron.schedule("0 9 * * *", () => {
+    console.log("[alerter] Running scheduled worker expiry reminder emails…");
+    sendWorkerExpiryReminders().then((r) => {
+      console.log(`[alerter] Worker reminders: ${r.sent} sent, ${r.skipped} skipped, ${r.errors.length} errors`);
+    });
   });
 
   const adminProfile = getAdminProfile();

@@ -284,6 +284,28 @@ In `Dashboard.tsx` compliance tab:
 - Each card shows: worker name, specialization, compliance status badge, pipeline stage badge, TRC/WP/BHP expiry badges (colour-coded by days), site location, and EDIT / PROFIL action buttons
 - Filters (search, status, site, pipeline) apply to both views
 
+## Worker QR Code
+
+**Button location:** top-right toolbar of `WorkerProfilePanel` — lime QR icon button, appears alongside the portal link and edit buttons.
+
+**Modal — `WorkerQRModal.tsx`:**
+- Compact 320px modal, EEJ dark style with lime border
+- Header: "Worker QR" label + close button
+- Worker name, specialization, site (or "Bench")
+- Compliance status badge (green / amber / red background)
+- 168×168 SVG QR code (white background, dark modules, M error correction)
+- Small hint: "scan → opens full worker profile"
+- 4-column document countdown grid: TRC, Work Permit, Medical, BHP — shows days remaining in colour (green ≥60d, amber <60d, red <30d, EXPIRED in red, N/A in grey)
+- **Download QR (SVG)** button — serializes the `<svg>` element and downloads as `eej-qr-<worker-name>.svg`
+
+**QR URL format:** `https://<domain><basePath>/?worker=<workerId>`
+
+**`?worker=` URL param handling:**
+- `selectedWorkerId` in Dashboard initialised from `new URLSearchParams(window.location.search).get("worker")` — opens the profile panel immediately on page load
+- `useEffect` on mount calls `window.history.replaceState` to strip the param from the URL (keeps browser history clean)
+- If the user is not logged in when scanning, `ProtectedRoute` saves the full query string (`?worker=ID`) to `sessionStorage["eej_return_to"]` before redirecting to `/login`
+- After successful login, `Login.tsx` checks `sessionStorage["eej_return_to"]`, navigates there via `window.location.href`, and clears the key — the profile opens automatically
+
 ## Notification History Log
 
 Every worker notification sent through the dashboard is persisted to `data/notifications.json` (max 500 entries, newest first).

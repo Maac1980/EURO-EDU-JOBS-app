@@ -40,7 +40,13 @@ export default function Login() {
     );
     setLoading(false);
     if (result.success) {
-      setLocation("/");
+      const returnTo = sessionStorage.getItem("eej_return_to");
+      if (returnTo) {
+        sessionStorage.removeItem("eej_return_to");
+        window.location.href = window.location.pathname + returnTo;
+      } else {
+        setLocation("/");
+      }
     } else if (result.requires2FA) {
       setRequires2FA(true);
       setError("");

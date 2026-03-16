@@ -27,6 +27,8 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
+      const full = window.location.search + window.location.hash;
+      if (full) sessionStorage.setItem("eej_return_to", full);
       setLocation("/login");
     }
   }, [isAuthenticated, isLoading, setLocation]);

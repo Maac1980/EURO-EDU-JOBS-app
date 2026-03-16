@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode } from "lucide-react";
 import { PIPInspectionModal } from "./PIPInspectionModal";
+import { WorkerQRModal } from "./WorkerQRModal";
 import { format, parseISO } from "date-fns";
 import { useGetWorker, getGetWorkerQueryKey, getGetWorkersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -180,6 +181,7 @@ export function WorkerProfilePanel({
   const [copyingLink, setCopyingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [isPipOpen, setIsPipOpen] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   const handleCopyPortalLink = async () => {
     if (!workerId) return;
@@ -286,6 +288,14 @@ export function WorkerProfilePanel({
               <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
                 {!isEditing && (
                   <>
+                    <button
+                      onClick={() => setShowQR(true)}
+                      className="p-2 rounded-full transition-colors"
+                      style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.3)" }}
+                      title="Show worker QR code"
+                    >
+                      <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
+                    </button>
                     <button
                       onClick={handleCopyPortalLink}
                       disabled={copyingLink}
@@ -599,6 +609,7 @@ export function WorkerProfilePanel({
 
       {/* PIP Inspection Modal */}
       {worker && <PIPInspectionModal worker={worker} isOpen={isPipOpen} onClose={() => setIsPipOpen(false)} />}
+      <WorkerQRModal worker={worker} isOpen={showQR} onClose={() => setShowQR(false)} />
     </>
   );
 }

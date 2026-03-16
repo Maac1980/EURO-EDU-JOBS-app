@@ -180,7 +180,10 @@ export default function Dashboard() {
   const [siteFilter, setSiteFilter] = useState("");
   const [pipelineFilter, setPipelineFilter] = useState("");
 
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("worker") || null;
+  });
   const [panelEditMode, setPanelEditMode] = useState(false);
   const [editPanelWorkerId, setEditPanelWorkerId] = useState<string | null>(null);
   const [actionWorker, setActionWorker] = useState<any | null>(null);
@@ -216,6 +219,17 @@ export default function Dashboard() {
   const [changePwMsg, setChangePwMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [systemStatus, setSystemStatus] = useState<{ smtpConfigured: boolean; smtpHost: string; smtpPort: string; smtpUser: string | null; jwtIsDefault: boolean } | null>(null);
+
+  // Strip ?worker= param from URL on initial load (keeps browser history tidy)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("worker")) {
+      params.delete("worker");
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "") + window.location.hash;
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, []);
 
   useEffect(() => {
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");

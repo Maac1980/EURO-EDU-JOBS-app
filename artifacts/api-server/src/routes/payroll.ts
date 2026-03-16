@@ -96,6 +96,7 @@ router.patch("/payroll/workers/batch", authenticateToken, requireCoordinatorOrAd
       if (u.totalHours !== undefined) fields["TOTAL HOURS"] = u.totalHours;
       if (u.advancePayment !== undefined) fields["ADVANCE PAYMENT"] = u.advancePayment;
       if (u.penalties !== undefined) fields["PENALTIES"] = u.penalties;
+      if ((u as any).hourlyNettoRate !== undefined) fields["HOURLY NETTO RATE"] = (u as any).hourlyNettoRate;
       if (Object.keys(fields).length > 0) await updateRecord(u.workerId, fields);
     }));
 

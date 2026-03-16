@@ -49,6 +49,7 @@ interface PayrollWorker {
 
 interface GridRow extends PayrollWorker {
   _hours: string;
+  _rate: string;
   _advance: string;
   _penalties: string;
   _dirty: boolean;
@@ -73,7 +74,7 @@ const DEFAULT_RATES: ZusRates = {
 
 function calcNetto(row: GridRow, withZus = false): number {
   const h = parseFloat(row._hours) || 0;
-  const r = row.hourlyNettoRate || 0;
+  const r = parseFloat(row._rate) || row.hourlyNettoRate || 0;
   const a = parseFloat(row._advance) || 0;
   const p = parseFloat(row._penalties) || 0;
   const gross = h * r;
@@ -131,6 +132,7 @@ export function PayrollRunPage() {
       setRows(workers.map((w) => ({
         ...w,
         _hours: w.totalHours > 0 ? String(w.totalHours) : "",
+        _rate: w.hourlyNettoRate > 0 ? String(w.hourlyNettoRate) : "",
         _advance: w.advancePayment > 0 ? String(w.advancePayment) : "",
         _penalties: w.penalties > 0 ? String(w.penalties) : "",
         _dirty: false,
@@ -145,7 +147,7 @@ export function PayrollRunPage() {
 
   useEffect(() => { loadWorkers(); }, [loadWorkers]);
 
-  const updateRow = (id: string, field: "_hours" | "_advance" | "_penalties", val: string) => {
+  const updateRow = (id: string, field: "_hours" | "_rate" | "_advance" | "_penalties", val: string) => {
     setRows((prev) => prev.map((r) => r.id === id ? { ...r, [field]: val, _dirty: true } : r));
   };
 
@@ -158,6 +160,7 @@ export function PayrollRunPage() {
       const updates = dirty.map((r) => ({
         workerId: r.id,
         totalHours: parseFloat(r._hours) || 0,
+        hourlyNettoRate: parseFloat(r._rate) || r.hourlyNettoRate,
         advancePayment: parseFloat(r._advance) || 0,
         penalties: parseFloat(r._penalties) || 0,
       }));
@@ -190,6 +193,7 @@ export function PayrollRunPage() {
         const updates = dirty.map((r) => ({
           workerId: r.id,
           totalHours: parseFloat(r._hours) || 0,
+          hourlyNettoRate: parseFloat(r._rate) || r.hourlyNettoRate,
           advancePayment: parseFloat(r._advance) || 0,
           penalties: parseFloat(r._penalties) || 0,
         }));
@@ -220,7 +224,7 @@ export function PayrollRunPage() {
   };
 
   // Totals
-  const totalGross = rows.reduce((s, r) => s + ((parseFloat(r._hours) || 0) * r.hourlyNettoRate), 0);
+  const totalGross = rows.reduce((s, r) => s + ((parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate)), 0);
   const totalAdvances = rows.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0);
   const totalPenalties = rows.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0);
   const totalZus = withZus ? totalGross * ZUS_RATE : 0;
@@ -548,7 +552,7 @@ export function PayrollRunPage() {
                   <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">No workers found.</td></tr>
                 ) : (
                   displayed.map((row) => {
-                    const gross = (parseFloat(row._hours) || 0) * row.hourlyNettoRate;
+                    const gross = (parseFloat(row._hours) || 0) * (parseFloat(row._rate) || row.hourlyNettoRate);
                     const empZus = gross * empZusRate;
                     const netPay = gross - empZus;
                     const isEditingIban = ibanEditId === row.id;
@@ -605,8 +609,22 @@ export function PayrollRunPage() {
                             </button>
                           )}
                         </td>
-                        {/* Rate */}
-                        <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{row.hourlyNettoRate.toFixed(2)}</td>
+                        {/* Rate (editable) */}
+                        <td className="px-3 py-2">
+                          <div className="relative">
+                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">zł</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              value={row._rate}
+                              onChange={(e) => updateRow(row.id, "_rate", e.target.value)}
+                              placeholder="0.00"
+                              className="w-20 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-4"
+                              style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}` }}
+                            />
+                          </div>
+                        </td>
                         {/* Hours */}
                         <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: LIME }}>{(parseFloat(row._hours) || 0).toFixed(2)}</td>
                         {/* Gross */}
@@ -633,14 +651,14 @@ export function PayrollRunPage() {
                       {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0), 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs text-gray-300">
-                      {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * r.hourlyNettoRate, 0).toFixed(2)}
+                      {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate), 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#60a5fa" }}>
-                      – {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * r.hourlyNettoRate * empZusRate, 0).toFixed(2)}
+                      – {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate) * empZusRate, 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: LIME }}>
                       {displayed.reduce((s, r) => {
-                        const g = (parseFloat(r._hours) || 0) * r.hourlyNettoRate;
+                        const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
                         return s + g - g * empZusRate;
                       }, 0).toFixed(2)}
                     </td>
@@ -701,7 +719,7 @@ export function PayrollRunPage() {
               ) : (
                 displayed.map((row) => {
                   const netto = calcNetto(row, withZus);
-                  const gross = (parseFloat(row._hours) || 0) * row.hourlyNettoRate;
+                  const gross = (parseFloat(row._hours) || 0) * (parseFloat(row._rate) || row.hourlyNettoRate);
                   const minWage = getMinWage(monthYear);
                   const belowMin = gross > 0 && gross < minWage;
                   const aboveMin = gross >= minWage;
@@ -721,10 +739,22 @@ export function PayrollRunPage() {
                           <span className="text-gray-600 text-[10px]">—</span>
                         )}
                       </td>
-                      {/* Rate (read-only) */}
-                      <td className="px-2 py-2 font-mono whitespace-nowrap" style={{ minWidth: "70px" }}>
-                        <span className="text-gray-300 text-xs">zł{row.hourlyNettoRate.toFixed(2)}</span>
-                        <span className="text-gray-600 text-[9px]">/h</span>
+                      {/* Rate (editable) */}
+                      <td className="px-2 py-1.5" style={{ minWidth: "82px" }}>
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">zł</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={row._rate}
+                            onChange={(e) => updateRow(row.id, "_rate", e.target.value)}
+                            placeholder="0.00"
+                            className="w-20 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-5"
+                            style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}` }}
+                          />
+                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">/h</span>
+                        </div>
                       </td>
                       {/* Hours */}
                       <td className="px-2 py-1.5" style={{ minWidth: "72px" }}>
@@ -833,7 +863,7 @@ export function PayrollRunPage() {
                     zł{displayed.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0).toFixed(2)}
                   </td>
                   <td className="px-2 py-2.5 font-mono text-xs text-gray-400">
-                    zł{displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * r.hourlyNettoRate, 0).toFixed(2)}
+                    zł{displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate), 0).toFixed(2)}
                   </td>
                   <td className="px-2 py-2.5 font-mono text-[10px] text-gray-500">
                     <div className="text-[9px] text-gray-600">{new Date(monthYear).getFullYear()}</div>

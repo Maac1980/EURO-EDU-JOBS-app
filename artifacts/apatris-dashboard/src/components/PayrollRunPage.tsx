@@ -1137,159 +1137,289 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
 
   const totalPayout = filtered.filter((r) => !r._draft).reduce((s, r) => s + (r.finalNettoPayout ?? 0), 0);
 
-  const inputCls = "bg-slate-900 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none tabular-nums";
-  const inputStyle = { border: `1px solid ${LIME_BORDER}`, width: "72px" };
-  const siteInputStyle = { border: `1px solid ${LIME_BORDER}`, width: "90px" };
+  // ── KPI aggregates ────────────────────────────────────────────────────
+  const calcRow = (r: any) => {
+    const h  = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
+    const rt = parseFloat(edits[r.id]?.rate  ?? String(r.hourlyRate))  || 0;
+    const g  = h * rt;
+    const sz = g * 0.1371;
+    const zd = (g - sz) * 0.09;
+    const tb = Math.max(0, g - sz - g * 0.20);
+    const pt = Math.max(0, tb * 0.12 - 300);
+    return { h, g, deductions: sz + zd + pt, netto: g - sz - zd - pt };
+  };
+  const closedRows  = filtered.filter((r) => !r._draft);
+  const kpiNet      = closedRows.reduce((s, r) => s + calcRow(r).netto, 0);
+  const kpiGross    = filtered.reduce((s, r) => s + calcRow(r).g, 0);
+  const kpiDeduct   = filtered.reduce((s, r) => s + calcRow(r).deductions, 0);
+  const kpiHours    = filtered.reduce((s, r) => s + calcRow(r).h, 0);
+  const kpiWorkers  = new Set(filtered.map((r) => r.workerName)).size;
+
+  const KpiCard = ({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) => (
+    <div className="rounded-xl px-4 py-3.5 flex flex-col gap-1" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="text-[9px] font-black uppercase tracking-widest text-gray-500">{label}</div>
+      <div className="text-lg font-black tabular-nums leading-none" style={{ color: accent ?? "white" }}>{value}</div>
+      {sub && <div className="text-[9px] font-mono text-gray-600">{sub}</div>}
+    </div>
+  );
+
+  // ── Editable input styles ──────────────────────────────────────────────
+  const editInput = (accent: string) => ({
+    background: "rgba(0,0,0,0.35)",
+    border: `1px solid ${accent}33`,
+    borderRadius: "6px",
+    color: accent,
+    fontFamily: "monospace",
+    fontSize: "11px",
+    fontWeight: 700,
+    padding: "3px 6px",
+    outline: "none",
+    width: "70px",
+    textAlign: "right" as const,
+  });
+  const siteEdit = {
+    background: "rgba(0,0,0,0.35)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "6px",
+    color: "rgba(255,255,255,0.7)",
+    fontFamily: "monospace",
+    fontSize: "11px",
+    padding: "3px 7px",
+    outline: "none",
+    width: "96px",
+  };
+
+  const initials = (name: string) =>
+    name.split(" ").map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-        <div>
-          <h2 className="text-xl font-black text-white uppercase tracking-wide">{t("payroll.ledger")}</h2>
-          <p className="text-xs font-mono mt-1" style={{ color: LIME, opacity: 0.7 }}>{t("payroll.ledgerSubtitle")}</p>
-        </div>
-        <div className="text-right">
-          <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">{t("payroll.totalPayout")}</div>
-          <div className="text-2xl font-black tabular-nums" style={{ color: LIME }}>zł{totalPayout.toFixed(2)}</div>
-        </div>
+
+      {/* ── Title ─────────────────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-xl font-black text-white uppercase tracking-wide">{t("payroll.ledger")}</h2>
+        <p className="text-xs font-mono mt-0.5" style={{ color: LIME, opacity: 0.6 }}>{t("payroll.ledgerSubtitle")}</p>
       </div>
 
-      <div className="glass-panel rounded-xl overflow-hidden">
-        <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("payroll.searchWorkers")}
-            className="w-full sm:w-72 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-sm font-mono text-white focus:outline-none"
-            style={{ caretColor: LIME }}
-          />
-          <button onClick={load} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="Refresh">
-            <RefreshCcw className="w-4 h-4" />
-          </button>
+      {/* ── KPI strip ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <KpiCard label="Net Payout (closed)" value={`zł${kpiNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub={`${closedRows.length} records`} accent={LIME} />
+        <KpiCard label="Gross Billed" value={`zł${kpiGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="all rows" accent="#fbbf24" />
+        <KpiCard label="Total Deductions" value={`zł${kpiDeduct.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="ZUS + PIT" accent="#fb923c" />
+        <KpiCard label="Total Hours" value={`${kpiHours.toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h`} sub="all rows" accent="white" />
+        <KpiCard label="Workers" value={String(kpiWorkers)} sub={draftRows.length > 0 ? `${draftRows.length} draft` : "in view"} accent="#a78bfa" />
+      </div>
+
+      {/* ── Panel ─────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+
+        {/* Toolbar */}
+        <div className="px-5 py-3.5 flex flex-wrap items-center gap-3 border-b" style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search worker, site, month…"
+              className="pl-8 pr-4 py-2 rounded-lg text-xs font-mono text-white focus:outline-none"
+              style={{ background: "rgba(0,0,0,0.4)", border: `1px solid rgba(255,255,255,0.1)`, width: "220px", caretColor: LIME }}
+            />
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            {filtered.length > 0 && (
+              <span className="text-[10px] font-black px-2 py-1 rounded-full tabular-nums"
+                style={{ background: "rgba(233,255,112,0.1)", color: LIME, border: `1px solid ${LIME_BORDER}` }}>
+                {filtered.length} rows
+              </span>
+            )}
+            <button onClick={load}
+              className="p-2 rounded-lg transition-colors text-gray-500 hover:text-white"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+              title="Refresh">
+              <RefreshCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
+
         {loading ? (
-          <div className="p-8 text-center text-sm text-gray-400 font-mono">{t("payroll.loading")}</div>
+          <div className="py-16 text-center">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-500 mb-3" />
+            <p className="text-xs font-mono text-gray-500">{t("payroll.loading")}</p>
+          </div>
         ) : error ? (
-          <div className="p-8 text-center text-sm text-red-400 font-mono">{error}</div>
+          <div className="py-12 text-center text-sm text-red-400 font-mono">{error}</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{ minWidth: "960px" }}>
+            <table className="w-full" style={{ minWidth: "880px", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)" }}>
+                <tr style={{ background: "rgba(0,0,0,0.3)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                   {[
-                    { label: "Month" }, { label: "Worker" }, { label: "Site" }, { label: "Hours" },
-                    { label: "Gross Rate (zł/h)", note: "gross" },
-                    { label: "ZUS Cal. (Zlecenia)", note: "zus" },
-                    { label: "Net Payout", note: "net" },
-                    { label: "" },
-                  ].map(({ label, note }) => (
-                    <th key={label} className="px-3 py-3 text-left text-[10px] font-black uppercase tracking-widest whitespace-nowrap"
-                      style={{ color: note === "net" ? "#4ade80" : note === "zus" ? "#fb923c" : note === "gross" ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
-                      {label}
+                    { label: "Period",           w: "100px", color: "rgba(255,255,255,0.35)" },
+                    { label: "Worker",           w: "160px", color: "rgba(255,255,255,0.35)" },
+                    { label: "Site",             w: "110px", color: "rgba(255,255,255,0.35)" },
+                    { label: "Hours",            w: "80px",  color: "#fbbf24" },
+                    { label: "Gross Rate /h",    w: "96px",  color: "#fbbf24" },
+                    { label: "Deductions",       w: "160px", color: "#fb923c" },
+                    { label: "Net Payout",       w: "120px", color: LIME },
+                    { label: "",                 w: "48px",  color: "" },
+                  ].map((c) => (
+                    <th key={c.label} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest whitespace-nowrap"
+                      style={{ color: c.color, width: c.w }}>
+                      {c.label}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-500 font-mono">{t("payroll.noWorkers")}</td></tr>
-                ) : filtered.map((r) => {
-                  const e = getEdit(r);
-                  const hours = parseFloat(e.hours) || 0;
-                  const rate = parseFloat(e.rate) || 0;
-                  const gross = hours * rate;
-                  // Full zlecenia formula (matching ZUS calculator)
-                  const socialZus  = gross * 0.1371;          // 9.76% emer. + 1.5% rent. + 2.45% chorob.
-                  const zdrowotna  = (gross - socialZus) * 0.09;
-                  const kup        = gross * 0.20;             // 20% of gross
-                  const taxBase    = Math.max(0, gross - socialZus - kup);
-                  const pitGross   = taxBase * 0.12;
-                  const pit        = Math.max(0, pitGross - 300); // PIT-2 filed (−300 zł/mo)
-                  const netto      = gross - socialZus - zdrowotna - pit;
-                  const zus        = socialZus + zdrowotna;    // total deduction for display
-                  const isDirty = !!edits[r.id]?.dirty;
+                  <tr>
+                    <td colSpan={8} className="px-4 py-14 text-center">
+                      <p className="text-sm text-gray-500 font-mono">{t("payroll.noWorkers")}</p>
+                    </td>
+                  </tr>
+                ) : filtered.map((r, idx) => {
+                  const e        = getEdit(r);
+                  const hours    = parseFloat(e.hours) || 0;
+                  const rate     = parseFloat(e.rate) || 0;
+                  const gross    = hours * rate;
+                  const socialZus = gross * 0.1371;
+                  const zdrowotna = (gross - socialZus) * 0.09;
+                  const kup       = gross * 0.20;
+                  const taxBase   = Math.max(0, gross - socialZus - kup);
+                  const pitGross  = taxBase * 0.12;
+                  const pit       = Math.max(0, pitGross - 300);
+                  const netto     = gross - socialZus - zdrowotna - pit;
+                  const totalDeduct = socialZus + zdrowotna + pit;
+                  const isDirty   = !!edits[r.id]?.dirty;
+                  const isCurrentMonth = r.monthYear === currentMonthYear;
 
                   return (
                     <tr key={r.id}
                       style={{
                         borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        background: isDirty ? "rgba(233,255,112,0.04)" : r._draft ? "rgba(233,255,112,0.015)" : undefined,
-                        outline: isDirty ? `1px solid ${LIME_BORDER}` : undefined,
+                        background: isDirty
+                          ? "rgba(233,255,112,0.03)"
+                          : idx % 2 === 0 ? "rgba(255,255,255,0.008)" : "transparent",
+                        borderLeft: isDirty ? `3px solid ${LIME}` : "3px solid transparent",
+                        transition: "background 0.15s",
                       }}
-                      className="hover:bg-white/[0.02] transition-colors"
+                      className="hover:bg-white/[0.025]"
                     >
-                      {/* Month */}
-                      <td className="px-3 py-2">
-                        <div className="font-mono font-bold text-xs" style={{ color: LIME }}>{r.monthYear}</div>
-                        {r._draft && (
-                          <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded" style={{ background: "rgba(233,255,112,0.15)", color: LIME }}>DRAFT</span>
-                        )}
+                      {/* Period */}
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black tabular-nums font-mono"
+                            style={{ color: isCurrentMonth ? LIME : "rgba(255,255,255,0.5)" }}>
+                            {r.monthYear}
+                          </span>
+                          <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full w-fit"
+                            style={r._draft
+                              ? { background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }
+                              : { background: "rgba(74,222,128,0.08)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
+                            {r._draft ? "DRAFT" : "CLOSED"}
+                          </span>
+                        </div>
                       </td>
+
                       {/* Worker */}
-                      <td className="px-3 py-2 font-bold text-white text-xs whitespace-nowrap">{r.workerName}</td>
-                      {/* Site — editable */}
-                      <td className="px-2 py-2">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-black"
+                            style={{ background: "rgba(233,255,112,0.15)", color: LIME, border: `1px solid ${LIME_BORDER}` }}>
+                            {initials(r.workerName ?? "?")}
+                          </div>
+                          <span className="text-xs font-bold text-white whitespace-nowrap leading-tight">{r.workerName}</span>
+                        </div>
+                      </td>
+
+                      {/* Site */}
+                      <td className="px-3 py-3">
                         <input
-                          className={inputCls}
-                          style={siteInputStyle}
+                          style={siteEdit}
                           value={e.site}
                           onChange={(ev) => setField(r.id, r, "site", ev.target.value)}
-                          placeholder="Site"
+                          placeholder="Site…"
                         />
                       </td>
-                      {/* Hours — editable */}
-                      <td className="px-2 py-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.5}
-                          className={inputCls}
-                          style={inputStyle}
-                          value={e.hours}
-                          onChange={(ev) => setField(r.id, r, "hours", ev.target.value)}
-                        />
+
+                      {/* Hours */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number" min={0} step={0.5}
+                            style={editInput("#fbbf24")}
+                            value={e.hours}
+                            onChange={(ev) => setField(r.id, r, "hours", ev.target.value)}
+                          />
+                          <span className="text-[9px] text-gray-600 font-mono">h</span>
+                        </div>
                       </td>
-                      {/* Rate — editable */}
-                      <td className="px-2 py-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          className={inputCls}
-                          style={inputStyle}
-                          value={e.rate}
-                          onChange={(ev) => setField(r.id, r, "rate", ev.target.value)}
-                        />
+
+                      {/* Gross Rate */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-gray-600 font-mono">zł</span>
+                          <input
+                            type="number" min={0} step={0.01}
+                            style={editInput("#fbbf24")}
+                            value={e.rate}
+                            onChange={(ev) => setField(r.id, r, "rate", ev.target.value)}
+                          />
+                          <span className="text-[9px] text-gray-600 font-mono">/h</span>
+                        </div>
                       </td>
-                      {/* ZUS Cal. (Zlecenia — full formula incl. chorobowe + PIT) */}
-                      <td className="px-3 py-2 tabular-nums text-xs" style={{ minWidth: "130px" }}>
+
+                      {/* Deductions breakdown */}
+                      <td className="px-3 py-3">
                         {gross === 0 ? (
-                          <span className="text-gray-600">—</span>
+                          <span className="text-gray-700 text-xs font-mono">—</span>
                         ) : (
-                          <div className="space-y-0.5">
-                            <div className="text-[9px] text-gray-500 font-mono">ZUS (13.71%) <span style={{ color: "#fb923c" }}>−zł{socialZus.toFixed(2)}</span></div>
-                            <div className="text-[9px] text-gray-500 font-mono">Zdrow. (9%) <span style={{ color: "#fb923c" }}>−zł{zdrowotna.toFixed(2)}</span></div>
-                            <div className="text-[9px] text-gray-500 font-mono">PIT-12+PIT-2 <span style={{ color: "#fb923c" }}>−zł{pit.toFixed(2)}</span></div>
-                            <div className="text-[9px] font-black font-mono" style={{ color: "#fb923c" }}>Total −zł{(zus + pit).toFixed(2)}</div>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[9px] text-gray-500 font-mono">ZUS 13.71%</span>
+                              <span className="text-[9px] font-mono tabular-nums" style={{ color: "#fb923c" }}>−{socialZus.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[9px] text-gray-500 font-mono">Zdrow. 9%</span>
+                              <span className="text-[9px] font-mono tabular-nums" style={{ color: "#fb923c" }}>−{zdrowotna.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[9px] text-gray-500 font-mono">PIT+PIT-2</span>
+                              <span className="text-[9px] font-mono tabular-nums" style={{ color: "#fb923c" }}>−{pit.toFixed(2)}</span>
+                            </div>
+                            <div className="pt-0.5 mt-0.5 flex items-center justify-between" style={{ borderTop: "1px solid rgba(251,146,60,0.2)" }}>
+                              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total</span>
+                              <span className="text-[10px] font-black tabular-nums" style={{ color: "#fb923c" }}>−zł{totalDeduct.toFixed(2)}</span>
+                            </div>
                           </div>
                         )}
                       </td>
-                      {/* Net Payout — gross − ZUS (incl. chorobowe) − zdrowotna − PIT (PIT-2 applied) */}
-                      <td className="px-3 py-2 tabular-nums font-black text-xs" style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
-                        zł{netto.toFixed(2)}
+
+                      {/* Net Payout */}
+                      <td className="px-4 py-3">
+                        {gross === 0 ? (
+                          <span className="text-gray-700 font-mono text-xs">—</span>
+                        ) : (
+                          <div className="rounded-lg px-3 py-2 text-right"
+                            style={{ background: r._draft ? "rgba(233,255,112,0.05)" : "rgba(233,255,112,0.08)", border: `1px solid ${LIME_BORDER}` }}>
+                            <div className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: LIME, opacity: 0.6 }}>NET PLN</div>
+                            <div className="text-sm font-black tabular-nums leading-none"
+                              style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
+                              {netto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        )}
                       </td>
-                      {/* Save button */}
-                      <td className="px-2 py-2">
+
+                      {/* Save */}
+                      <td className="px-3 py-3">
                         {isDirty && (
-                          <button
-                            onClick={() => saveRow(r)}
-                            disabled={e.saving}
-                            className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-black uppercase tracking-wide transition-all"
-                            style={{ background: LIME, color: "#333" }}
-                            title="Save changes"
-                          >
+                          <button onClick={() => saveRow(r)} disabled={e.saving}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                            style={{ background: LIME, color: "#333" }}>
                             {e.saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            {e.saving ? "" : "Save"}
                           </button>
                         )}
                       </td>
@@ -1297,44 +1427,34 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                   );
                 })}
               </tbody>
+
+              {/* ── Footer totals ─────────────────────────────────────────── */}
               {filtered.length > 0 && (
                 <tfoot>
-                  <tr style={{ background: "rgba(233,255,112,0.05)", borderTop: `1px solid ${LIME_BORDER}` }}>
-                    <td colSpan={2} className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>
-                      {filtered.filter((r) => !r._draft).length} closed
-                      {draftRows.length > 0 && <span className="ml-2 opacity-50">· {draftRows.length} draft</span>}
+                  <tr style={{ background: "rgba(233,255,112,0.04)", borderTop: `1px solid ${LIME_BORDER}` }}>
+                    <td className="px-4 py-3">
+                      <div className="text-[9px] font-black uppercase tracking-widest" style={{ color: LIME }}>
+                        {closedRows.length} closed
+                        {draftRows.length > 0 && <span className="ml-1.5 text-gray-600">· {draftRows.length} draft</span>}
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5" />
-                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">
-                      {filtered.reduce((s, r) => s + (parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0), 0).toFixed(1)}h
+                    <td className="px-4 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Totals</td>
+                    <td />
+                    <td className="px-3 py-3 font-mono font-black text-xs tabular-nums" style={{ color: "#fbbf24" }}>
+                      {kpiHours.toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h
                     </td>
-                    <td className="px-3 py-2.5" />
-                    <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#fb923c" }}>
-                      {(() => {
-                        const totalDeductions = filtered.reduce((s, r) => {
-                          const h  = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
-                          const rt = parseFloat(edits[r.id]?.rate  ?? String(r.hourlyRate))  || 0;
-                          const g  = h * rt;
-                          const sz = g * 0.1371;
-                          const zd = (g - sz) * 0.09;
-                          const tb = Math.max(0, g - sz - g * 0.20);
-                          const pt = Math.max(0, tb * 0.12 - 300);
-                          return s + sz + zd + pt;
-                        }, 0);
-                        return `−zł${totalDeductions.toFixed(2)}`;
-                      })()}
+                    <td />
+                    <td className="px-3 py-3 font-mono font-black text-xs tabular-nums" style={{ color: "#fb923c" }}>
+                      −zł{kpiDeduct.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-3 py-2.5 font-mono text-sm font-black tabular-nums" style={{ color: LIME }}>
-                      zł{filtered.reduce((s, r) => {
-                        const h  = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
-                        const rt = parseFloat(edits[r.id]?.rate  ?? String(r.hourlyRate))  || 0;
-                        const g  = h * rt;
-                        const sz = g * 0.1371;
-                        const zd = (g - sz) * 0.09;
-                        const tb = Math.max(0, g - sz - g * 0.20);
-                        const pt = Math.max(0, tb * 0.12 - 300);
-                        return s + g - sz - zd - pt;
-                      }, 0).toFixed(2)}
+                    <td className="px-4 py-3">
+                      <div className="rounded-lg px-3 py-2 text-right"
+                        style={{ background: "rgba(233,255,112,0.1)", border: `1px solid ${LIME_BORDER}` }}>
+                        <div className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: LIME, opacity: 0.6 }}>TOTAL NET</div>
+                        <div className="text-sm font-black tabular-nums" style={{ color: LIME }}>
+                          {kpiNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
                     </td>
                     <td />
                   </tr>

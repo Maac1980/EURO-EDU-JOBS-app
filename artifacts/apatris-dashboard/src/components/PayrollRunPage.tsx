@@ -1199,10 +1199,15 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                   const hours = parseFloat(e.hours) || 0;
                   const rate = parseFloat(e.rate) || 0;
                   const gross = hours * rate;
-                  const empZus = gross * 0.1126;
-                  const healthIns = (gross - empZus) * 0.09;
-                  const zus = empZus + healthIns;
-                  const netto = gross - zus;
+                  // Full zlecenia formula (matching ZUS calculator)
+                  const socialZus  = gross * 0.1371;          // 9.76% emer. + 1.5% rent. + 2.45% chorob.
+                  const zdrowotna  = (gross - socialZus) * 0.09;
+                  const kup        = gross * 0.20;             // 20% of gross
+                  const taxBase    = Math.max(0, gross - socialZus - kup);
+                  const pitGross   = taxBase * 0.12;
+                  const pit        = Math.max(0, pitGross - 300); // PIT-2 filed (−300 zł/mo)
+                  const netto      = gross - socialZus - zdrowotna - pit;
+                  const zus        = socialZus + zdrowotna;    // total deduction for display
                   const isDirty = !!edits[r.id]?.dirty;
 
                   return (
@@ -1257,19 +1262,20 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                           onChange={(ev) => setField(r.id, r, "rate", ev.target.value)}
                         />
                       </td>
-                      {/* ZUS Cal. (Zlecenia — no chorobowe) */}
-                      <td className="px-3 py-2 tabular-nums text-xs" style={{ minWidth: "120px" }}>
+                      {/* ZUS Cal. (Zlecenia — full formula incl. chorobowe + PIT) */}
+                      <td className="px-3 py-2 tabular-nums text-xs" style={{ minWidth: "130px" }}>
                         {gross === 0 ? (
                           <span className="text-gray-600">—</span>
                         ) : (
                           <div className="space-y-0.5">
-                            <div className="text-[9px] text-gray-500 font-mono">Emer.+Rent. <span style={{ color: "#fb923c" }}>−zł{empZus.toFixed(2)}</span></div>
-                            <div className="text-[9px] text-gray-500 font-mono">Zdrow. <span style={{ color: "#fb923c" }}>−zł{healthIns.toFixed(2)}</span></div>
-                            <div className="text-[9px] font-black font-mono" style={{ color: "#fb923c" }}>Total −zł{zus.toFixed(2)}</div>
+                            <div className="text-[9px] text-gray-500 font-mono">ZUS (13.71%) <span style={{ color: "#fb923c" }}>−zł{socialZus.toFixed(2)}</span></div>
+                            <div className="text-[9px] text-gray-500 font-mono">Zdrow. (9%) <span style={{ color: "#fb923c" }}>−zł{zdrowotna.toFixed(2)}</span></div>
+                            <div className="text-[9px] text-gray-500 font-mono">PIT-12+PIT-2 <span style={{ color: "#fb923c" }}>−zł{pit.toFixed(2)}</span></div>
+                            <div className="text-[9px] font-black font-mono" style={{ color: "#fb923c" }}>Total −zł{(zus + pit).toFixed(2)}</div>
                           </div>
                         )}
                       </td>
-                      {/* Net Payout — gross − ZUS (no advance, no chorobowe) */}
+                      {/* Net Payout — gross − ZUS (incl. chorobowe) − zdrowotna − PIT (PIT-2 applied) */}
                       <td className="px-3 py-2 tabular-nums font-black text-xs" style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
                         zł{netto.toFixed(2)}
                       </td>
@@ -1305,24 +1311,29 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                     <td className="px-3 py-2.5" />
                     <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#fb923c" }}>
                       {(() => {
-                        const totalZus = filtered.reduce((s, r) => {
-                          const h = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
-                          const rt = parseFloat(edits[r.id]?.rate ?? String(r.hourlyRate)) || 0;
-                          const g = h * rt;
-                          const ez = g * 0.1126;
-                          return s + ez + (g - ez) * 0.09;
+                        const totalDeductions = filtered.reduce((s, r) => {
+                          const h  = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
+                          const rt = parseFloat(edits[r.id]?.rate  ?? String(r.hourlyRate))  || 0;
+                          const g  = h * rt;
+                          const sz = g * 0.1371;
+                          const zd = (g - sz) * 0.09;
+                          const tb = Math.max(0, g - sz - g * 0.20);
+                          const pt = Math.max(0, tb * 0.12 - 300);
+                          return s + sz + zd + pt;
                         }, 0);
-                        return `−zł${totalZus.toFixed(2)}`;
+                        return `−zł${totalDeductions.toFixed(2)}`;
                       })()}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-sm font-black tabular-nums" style={{ color: LIME }}>
                       zł{filtered.reduce((s, r) => {
-                        const h = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
-                        const rt = parseFloat(edits[r.id]?.rate ?? String(r.hourlyRate)) || 0;
-                        const g = h * rt;
-                        const ez = g * 0.1126;
-                        const hi = (g - ez) * 0.09;
-                        return s + g - ez - hi;
+                        const h  = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
+                        const rt = parseFloat(edits[r.id]?.rate  ?? String(r.hourlyRate))  || 0;
+                        const g  = h * rt;
+                        const sz = g * 0.1371;
+                        const zd = (g - sz) * 0.09;
+                        const tb = Math.max(0, g - sz - g * 0.20);
+                        const pt = Math.max(0, tb * 0.12 - 300);
+                        return s + g - sz - zd - pt;
                       }, 0).toFixed(2)}
                     </td>
                     <td />

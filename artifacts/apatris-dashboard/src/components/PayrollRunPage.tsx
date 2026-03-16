@@ -22,7 +22,7 @@ const POLISH_MIN_WAGE: Record<number, number> = {
   2023: 3600,  // Jul 2023 rate (higher half-year)
   2024: 4300,  // Jul 2024 rate (higher half-year)
   2025: 4666,
-  2026: 5082,  // announced — update if official rate differs
+  2026: 5024,  // brutto 5024 zł/month → 31.40 zł/h (÷160h)
 };
 
 function getMinWage(monthYear: string): number {
@@ -1375,11 +1375,11 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
   const [zusTab, setZusTab]             = React.useState<"single" | "dual">("single");
 
   /* single contract state */
-  const [gross, setGross]               = React.useState("5082");
+  const [gross, setGross]               = React.useState("5024");
   const [inclChorob, setInclChorob]     = React.useState(true);
 
   /* dual contract state */
-  const [gross1, setGross1]             = React.useState("5082");
+  const [gross1, setGross1]             = React.useState("5024");
   const [inclChorob1, setInclChorob1]   = React.useState(true);
   const [rate2, setRate2]               = React.useState("25");
   const [hours2, setHours2]             = React.useState("80");
@@ -1389,7 +1389,7 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
   const s = calcSingleZUS(parseFloat(gross) || 0, inclChorob);
 
   /* ── DUAL calculations ───────────────────────────────────────────── */
-  const MIN_WAGE_2026 = 5082;
+  const MIN_WAGE_2026 = 5024;
   const g1 = parseFloat(gross1) || 0;
   const c1 = calcSingleZUS(g1, inclChorob1);
 

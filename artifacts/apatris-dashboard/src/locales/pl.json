@@ -68,7 +68,14 @@
     "deleteWorker": "Usuń pracownika",
     "deleted": "Pracownik usunięty",
     "deleteFailed": "Błąd usuwania",
-    "confirmDelete": "Kliknij ponownie, aby potwierdzić"
+    "confirmDelete": "Kliknij ponownie, aby potwierdzić",
+    "etap": "Etap"
+  },
+  "qr": {
+    "allWorkers": "Wszyscy pracownicy ({{count}})",
+    "bench": "Bench / Dostępni",
+    "print": "Drukuj ({{count}})",
+    "noWorkers": "Brak pracowników do wyświetlenia"
   },
   "contact": {
     "call": "Zadzwoń: ",
@@ -104,7 +111,10 @@
     "warning": "ostrzeżeń",
     "compliantCount": "zgodnych",
     "allIncluded": "→ wszystkie uwzględnione w testowym e-mailu",
-    "expiry": "Ważność"
+    "expiry": "Ważność",
+    "remindWorkers": "Przypomnij Pracownikom",
+    "remindSent": "Przypomnień wysłanych: {{sent}} | Pominięto: {{skipped}}",
+    "remindError": "Błąd wysyłania przypomnień."
   },
   "status": {
     "critical": "KRYTYCZNY",
@@ -438,6 +448,16 @@
     "settlement": {
       "title": "Rozliczenie",
       "print": "Drukuj / Zapisz jako PDF"
-    }
+    },
+    "ledger": "Księga",
+    "ledgerSubtitle": "Zamknięte listy płac — historia wypłat",
+    "totalPayout": "Łączna wypłata",
+    "loading": "Ładowanie…",
+    "zusCalc": "Kalkulator ZUS",
+    "zusCalcSubtitle": "Oblicz składki ZUS i wynagrodzenie netto z brutto",
+    "zusGross": "Wynagrodzenie brutto",
+    "zusChorobowe": "Ubezpieczenie chorobowe",
+    "zusIncluded": "Uwzględnione (2,45%)",
+    "zusExcluded": "Wyłączone"
   }
 }

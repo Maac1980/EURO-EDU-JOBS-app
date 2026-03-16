@@ -89,6 +89,7 @@ export function PayrollRunPage() {
   const [searchQ, setSearchQ] = useState("");
   const [withZus, setWithZus] = useState(false);
   const [bankExporting, setBankExporting] = useState(false);
+  const [payrollSubTab, setPayrollSubTab] = useState<"run" | "ledger" | "zus">("run");
 
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -237,7 +238,20 @@ export function PayrollRunPage() {
     sortField === f ? (sortDir === 1 ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Sub-tab nav */}
+      <div className="flex items-center gap-1 p-1 rounded-xl w-fit" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {([["run", t("payroll.title")], ["ledger", t("payroll.ledger") ], ["zus", t("payroll.zusCalc")]] as const).map(([tab, label]) => (
+          <button key={tab} onClick={() => setPayrollSubTab(tab)}
+            className="px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+            style={payrollSubTab === tab
+              ? { background: LIME, color: "#333333" }
+              : { color: "rgba(255,255,255,0.45)" }}
+          >{label}</button>
+        ))}
+      </div>
+
+      {payrollSubTab === "run" && (<div className="space-y-6">
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
         <div>
@@ -568,6 +582,221 @@ export function PayrollRunPage() {
 
       {/* Monthly Trend Chart */}
       <PayrollTrendChart token={token} />
+      </div>)}
+
+      {/* ── LEDGER ── */}
+      {payrollSubTab === "ledger" && <LedgerView base={base} token={token} t={t} />}
+
+      {/* ── ZUS CALCULATOR ── */}
+      {payrollSubTab === "zus" && <ZUSCalculatorPanel t={t} />}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  LEDGER VIEW                                                               */
+/* ────────────────────────────────────────────────────────────────────────── */
+function LedgerView({ base, token, t }: { base: string; token: string | null; t: (k: string, opts?: any) => string }) {
+  const [records, setRecords] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
+
+  React.useEffect(() => {
+    setLoading(true);
+    fetch(`${base}/api/payroll/summary`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d.error) throw new Error(d.error); setRecords(d.records ?? []); })
+      .catch((e) => setError(e.message ?? "Failed to load ledger"))
+      .finally(() => setLoading(false));
+  }, [base, token]);
+
+  const filtered = records
+    .filter((r) => !search || r.workerName?.toLowerCase().includes(search.toLowerCase()) || r.siteLocation?.toLowerCase().includes(search.toLowerCase()) || r.monthYear?.includes(search))
+    .sort((a, b) => b.monthYear?.localeCompare(a.monthYear ?? "") ?? 0);
+
+  const totalPayout = filtered.reduce((s, r) => s + (r.finalNettoPayout ?? 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+        <div>
+          <h2 className="text-xl font-black text-white uppercase tracking-wide">{t("payroll.ledger")}</h2>
+          <p className="text-xs font-mono mt-1" style={{ color: LIME, opacity: 0.7 }}>{t("payroll.ledgerSubtitle")}</p>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">{t("payroll.totalPayout")}</div>
+          <div className="text-2xl font-black tabular-nums" style={{ color: LIME }}>zł{totalPayout.toFixed(2)}</div>
+        </div>
+      </div>
+
+      <div className="glass-panel rounded-xl overflow-hidden">
+        <div className="p-4 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("payroll.searchWorkers")}
+            className="w-full sm:w-72 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-sm font-mono text-white focus:outline-none"
+            style={{ caretColor: LIME }}
+          />
+        </div>
+        {loading ? (
+          <div className="p-8 text-center text-sm text-gray-400 font-mono">{t("payroll.loading")}</div>
+        ) : error ? (
+          <div className="p-8 text-center text-sm text-red-400 font-mono">{error}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs" style={{ minWidth: "760px" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)" }}>
+                  {["Month", "Worker", "Site", "Hours", "Rate (zł/h)", "Gross", "ZUS", "Advances", "Net Payout"].map((h) => (
+                    <th key={h} className="px-3 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-500 font-mono">{t("payroll.noWorkers")}</td></tr>
+                ) : filtered.map((r) => (
+                  <tr key={r.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }} className="hover:bg-white/3 transition-colors">
+                    <td className="px-3 py-2.5 font-mono font-bold" style={{ color: LIME }}>{r.monthYear}</td>
+                    <td className="px-3 py-2.5 font-bold text-white">{r.workerName}</td>
+                    <td className="px-3 py-2.5 text-gray-400">{r.siteLocation || "—"}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-white">{r.totalHours}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-white">zł{(r.hourlyRate ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-white">zł{(r.grossPay ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-red-400">zł{(r.zusBaseSalary ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-amber-400">zł{(r.advancesDeducted ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums font-black" style={{ color: LIME }}>zł{(r.finalNettoPayout ?? 0).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {filtered.length > 0 && (
+                <tfoot>
+                  <tr style={{ background: "rgba(233,255,112,0.05)", borderTop: `1px solid ${LIME_BORDER}` }}>
+                    <td colSpan={8} className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>Total ({filtered.length} records)</td>
+                    <td className="px-3 py-2.5 font-black tabular-nums" style={{ color: LIME }}>zł{totalPayout.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  ZUS CALCULATOR                                                            */
+/* ────────────────────────────────────────────────────────────────────────── */
+function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
+  const [gross, setGross] = React.useState("5000");
+  const [includeChorobowe, setIncludeChorobowe] = React.useState(true);
+
+  const grossNum = parseFloat(gross) || 0;
+
+  const emerytalne_e  = grossNum * 0.0976;
+  const rentowe_e     = grossNum * 0.015;
+  const chorobowe_e   = includeChorobowe ? grossNum * 0.0245 : 0;
+  const totalZusEmp   = emerytalne_e + rentowe_e + chorobowe_e;
+
+  const emerytalne_er = grossNum * 0.0976;
+  const rentowe_er    = grossNum * 0.065;
+  const wypadkowe     = grossNum * 0.0167;
+  const fp            = grossNum * 0.0245;
+  const fgsb          = grossNum * 0.001;
+  const totalZusEr    = emerytalne_er + rentowe_er + wypadkowe + fp + fgsb;
+
+  const zdrowotnaBase = grossNum - totalZusEmp;
+  const zdrowotna     = zdrowotnaBase * 0.09;
+  const taxBase       = zdrowotnaBase - 300; // 300 PLN/month KUP approx
+  const pit           = Math.max(0, taxBase * 0.12);
+  const netto         = grossNum - totalZusEmp - zdrowotna - pit;
+
+  const Row = ({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) => (
+    <div className="flex items-center justify-between py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+      <div>
+        <div className="text-xs font-bold text-white">{label}</div>
+        {sub && <div className="text-[10px] text-gray-500 font-mono mt-0.5">{sub}</div>}
+      </div>
+      <div className={`text-sm font-black tabular-nums ${highlight ? "" : "text-white"}`} style={highlight ? { color: LIME } : {}}>{value}</div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-black text-white uppercase tracking-wide">{t("payroll.zusCalc")}</h2>
+        <p className="text-xs font-mono mt-1" style={{ color: LIME, opacity: 0.7 }}>{t("payroll.zusCalcSubtitle")}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Input panel */}
+        <div className="glass-panel rounded-xl p-5 space-y-5">
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusGross")}</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black" style={{ color: LIME }}>zł</span>
+              <input
+                type="number"
+                value={gross}
+                onChange={(e) => setGross(e.target.value)}
+                min={0}
+                className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 text-white text-lg font-black tabular-nums focus:outline-none"
+                style={{ border: `1.5px solid ${LIME_BORDER}`, caretColor: LIME }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusChorobowe")}</label>
+            <button
+              onClick={() => setIncludeChorobowe((v) => !v)}
+              className="flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
+              style={includeChorobowe
+                ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME }
+                : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}
+            >
+              {includeChorobowe ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+              {includeChorobowe ? t("payroll.zusIncluded") : t("payroll.zusExcluded")}
+            </button>
+          </div>
+
+          <div className="rounded-xl p-4 space-y-1" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employee ZUS Contributions</div>
+            <Row label="Emerytalne" sub="9.76%" value={`- zł${emerytalne_e.toFixed(2)}`} />
+            <Row label="Rentowe" sub="1.50%" value={`- zł${rentowe_e.toFixed(2)}`} />
+            {includeChorobowe && <Row label="Chorobowe" sub="2.45%" value={`- zł${chorobowe_e.toFixed(2)}`} />}
+            <Row label="Zdrowotna" sub={`9% × zł${zdrowotnaBase.toFixed(0)}`} value={`- zł${zdrowotna.toFixed(2)}`} />
+            <Row label="PIT-17 advance" sub="12% – KUP 300 zł" value={`- zł${pit.toFixed(2)}`} />
+          </div>
+        </div>
+
+        {/* Result panel */}
+        <div className="space-y-4">
+          <div className="glass-panel rounded-xl p-5" style={{ border: `1px solid ${LIME_BORDER}` }}>
+            <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Net Take-Home</div>
+            <div className="text-4xl font-black tabular-nums" style={{ color: LIME }}>zł{netto.toFixed(2)}</div>
+            <div className="text-xs text-gray-500 font-mono mt-1">from gross zł{grossNum.toFixed(2)}</div>
+          </div>
+
+          <div className="glass-panel rounded-xl p-5 space-y-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employer Total Cost</div>
+            <Row label="Gross Salary" value={`zł${grossNum.toFixed(2)}`} />
+            <Row label="Emerytalne" sub="9.76%" value={`+ zł${emerytalne_er.toFixed(2)}`} />
+            <Row label="Rentowe" sub="6.50%" value={`+ zł${rentowe_er.toFixed(2)}`} />
+            <Row label="Wypadkowe" sub="1.67%" value={`+ zł${wypadkowe.toFixed(2)}`} />
+            <Row label="FP" sub="2.45%" value={`+ zł${fp.toFixed(2)}`} />
+            <Row label="FGŚP" sub="0.10%" value={`+ zł${fgsb.toFixed(2)}`} />
+            <div className="flex items-center justify-between pt-3 mt-1 border-t" style={{ borderColor: LIME_BORDER }}>
+              <div className="text-xs font-black uppercase tracking-widest" style={{ color: LIME }}>Total Employer Cost</div>
+              <div className="text-lg font-black tabular-nums" style={{ color: LIME }}>zł{(grossNum + totalZusEr).toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

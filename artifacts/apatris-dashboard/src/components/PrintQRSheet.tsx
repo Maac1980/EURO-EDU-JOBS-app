@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { Printer, X, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { useTranslation } from "react-i18next";
 
 interface PrintQRSheetProps {
   workers: any[];
 }
 
 export function PrintQRSheet({ workers }: PrintQRSheetProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<string>("__all__");
 
@@ -103,8 +105,8 @@ export function PrintQRSheet({ workers }: PrintQRSheetProps) {
                 className="flex-1 px-3 py-2 rounded-lg text-xs font-mono bg-black/30 border text-white focus:outline-none"
                 style={{ borderColor: "rgba(255,255,255,0.12)" }}
               >
-                <option value="__all__">Wszyscy pracownicy ({workers.length})</option>
-                <option value="__bench__">Bench / Dostępni</option>
+                <option value="__all__">{t("qr.allWorkers", { count: workers.length })}</option>
+                <option value="__bench__">{t("qr.bench")}</option>
                 {sites.map((s) => (
                   <option key={s} value={s}>{s} ({workers.filter((w) => w.siteLocation === s).length})</option>
                 ))}
@@ -116,14 +118,14 @@ export function PrintQRSheet({ workers }: PrintQRSheetProps) {
                 style={{ background: "#E9FF70", color: "#333333" }}
               >
                 <Printer className="w-3.5 h-3.5" />
-                Drukuj ({filtered.length})
+                {t("qr.print", { count: filtered.length })}
               </button>
             </div>
 
             {/* Preview grid */}
             <div className="overflow-y-auto flex-1 p-5">
               {filtered.length === 0 ? (
-                <div className="text-center py-12 text-xs font-mono text-white/30">Brak pracowników do wyświetlenia</div>
+                <div className="text-center py-12 text-xs font-mono text-white/30">{t("qr.noWorkers")}</div>
               ) : (
                 <div id="eej-qr-print-content">
                   <div className="grid grid-cols-4 gap-3">

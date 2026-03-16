@@ -68,13 +68,20 @@
     "deleteWorker": "Delete Worker",
     "deleted": "Worker Deleted",
     "deleteFailed": "Delete Failed",
-    "confirmDelete": "Click again to confirm deletion"
+    "confirmDelete": "Click again to confirm deletion",
+    "etap": "Stage"
   },
   "contact": {
     "call": "Call: ",
     "sms": "SMS: ",
     "whatsapp": "WhatsApp: ",
     "urgentTitle": "Send urgent WhatsApp alert"
+  },
+  "qr": {
+    "allWorkers": "All Workers ({{count}})",
+    "bench": "Bench / Available",
+    "print": "Print ({{count}})",
+    "noWorkers": "No workers to display"
   },
   "deployment": {
     "totalDeployed": "Total Deployed",
@@ -104,7 +111,10 @@
     "warning": "warning",
     "compliantCount": "compliant",
     "allIncluded": "→ all included in test email",
-    "expiry": "Expiry"
+    "expiry": "Expiry",
+    "remindWorkers": "Remind Workers",
+    "remindSent": "Reminders sent: {{sent}} | Skipped: {{skipped}}",
+    "remindError": "Reminder sending failed."
   },
   "status": {
     "critical": "CRITICAL",
@@ -438,6 +448,16 @@
     "settlement": {
       "title": "Settlement Statement",
       "print": "Print / Save as PDF"
-    }
+    },
+    "ledger": "Ledger",
+    "ledgerSubtitle": "Closed payroll records — committed payout history",
+    "totalPayout": "Total Payout",
+    "loading": "Loading…",
+    "zusCalc": "ZUS Calc",
+    "zusCalcSubtitle": "Calculate ZUS contributions and net take-home from gross salary",
+    "zusGross": "Gross Salary",
+    "zusChorobowe": "Sick Pay (Chorobowe)",
+    "zusIncluded": "Included (2.45%)",
+    "zusExcluded": "Excluded"
   }
 }

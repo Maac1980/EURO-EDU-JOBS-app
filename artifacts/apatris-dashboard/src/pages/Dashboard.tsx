@@ -953,7 +953,7 @@ export default function Dashboard() {
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.qual")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>{t("table.assignedSite")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Etap</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>{t("table.etap")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center" style={{ color: "#E9FF70" }}>Score</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>{t("table.actions")}</th>
                 </tr>
@@ -1231,29 +1231,46 @@ export default function Dashboard() {
                   <RefreshCcw className={`w-3 h-3 ${complianceLoading ? "animate-spin" : ""}`} />
                   {complianceLoading ? t("alerts.scanning") : t("alerts.refreshScan")}
                 </button>
-                <a
-                  href={`${import.meta.env.BASE_URL}api/compliance/zus-export`}
-                  download
+                <button
+                  onClick={async () => {
+                    try {
+                      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+                      const tkn = sessionStorage.getItem("eej_token");
+                      const res = await fetch(`${base}/api/compliance/zus-export`, {
+                        headers: tkn ? { Authorization: `Bearer ${tkn}` } : {},
+                      });
+                      if (!res.ok) throw new Error("Export failed");
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `EEJ_ZUS_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    } catch { alert("ZUS Export failed."); }
+                  }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all hover:opacity-90"
                   style={{ background: "rgba(233,255,112,0.15)", color: "#E9FF70", border: "1px solid rgba(233,255,112,0.3)" }}
                 >
                   <Download className="w-3 h-3" />
                   ZUS Export CSV
-                </a>
+                </button>
                 <button
                   onClick={async () => {
                     try {
                       const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
                       const res = await fetch(`${base}/api/compliance/trigger-worker-reminders`, { method: "POST" });
                       const data = await res.json();
-                      alert(`Przypomnienia wysłane: ${data.sent ?? 0} | Pominięto: ${data.skipped ?? 0}${data.errors?.length ? `\nBłędy: ${data.errors.join("; ")}` : ""}`);
-                    } catch { alert("Błąd wysyłania przypomnień."); }
+                      alert(t("alerts.remindSent", { sent: data.sent ?? 0, skipped: data.skipped ?? 0 }) + (data.errors?.length ? `\n${data.errors.join("; ")}` : ""));
+                    } catch { alert(t("alerts.remindError")); }
                   }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:opacity-90"
                   style={{ background: "rgba(255,255,255,0.05)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)" }}
                 >
                   <Bell className="w-3 h-3" />
-                  Przypomnij Pracownikom
+                  {t("alerts.remindWorkers")}
                 </button>
               </div>
             </div>

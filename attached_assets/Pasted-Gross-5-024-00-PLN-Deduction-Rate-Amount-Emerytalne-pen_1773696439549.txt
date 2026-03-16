@@ -1,0 +1,42 @@
+Gross: 5,024.00 PLN
+
+Deduction	Rate	Amount
+Emerytalne (pension)	9.76%	490.34
+Rentowe (disability)	1.50%	75.36
+Chorobowe (sickness)	2.45%	123.09
+Total employee ZUS	13.71%	− 688.79
+Zdrowotne (health)	9% of (5,024 − 688.79)	− 390.17
+KUP deductible	20% of 5,024	1,004.80
+Tax base	5,024 − 688.79 − 1,004.80	3,330.41
+PIT — no PIT-2	12% × 3,330.41	− 399.65
+PIT — with PIT-2	12% × 3,330.41 − 300	− 99.65
+PLN
+Gross (Brutto)	5,024.00
+Net — no PIT-2 filed	3,545.39
+Net — PIT-2 filed	3,845.39
+So at 5,024 PLN gross, a worker without PIT-2 takes home 3,545.39 PLN, and one with PIT-2 filed takes home 3,845.39 PLN — a 300 PLN difference, exactly the monthly tax-free reduction.
+
+The dashboard will show these exact numbers when you toggle the ZUS Breakdown view on the Payroll page. The hourly rate to enter would be 31.40 PLN/h.
+if we pit 2 is filed then we get a tax help for the employer correct
+Not quite — PIT-2 is a benefit purely for the employee, not the employer. Here's how it works:
+
+PIT-2 declaration (filed by the worker):
+
+The worker tells you (the employer) "you are my primary employer"
+You then deduct 300 PLN less from their monthly tax advance
+That 300 PLN stays in the worker's pocket instead of going to the tax office
+Your total cost as employer stays exactly the same — you just send 300 PLN less to the Urząd Skarbowy on the worker's behalf
+What changes and what doesn't:
+
+Without PIT-2	With PIT-2
+Employer's gross cost	Same	Same
+Employer ZUS contributions	Same	Same
+Worker's take-home	Lower	+300 PLN/month
+Tax office receives	More	−300 PLN/month
+Important rule in Poland: A worker can only file PIT-2 with one employer — their primary one. If a worker has two jobs (which is what the Split Employer calculator handles), they should only have PIT-2 filed with one of them, otherwise they'll owe tax at year-end reconciliation.
+
+Where the employer does save money is through the Split Contract arrangement we have in the dashboard — when a worker's hours are split across two employers, the second employer pays no ZUS contributions at all (only PIT). That is a genuine employer-side saving. PIT-2 is separate from that.
+
+Scroll to latest
+
+Make, test, iterate…

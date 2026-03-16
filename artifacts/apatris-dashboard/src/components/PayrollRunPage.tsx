@@ -1354,13 +1354,13 @@ function calcSingleZUS(grossNum: number, inclChorobowe: boolean, inclPit2 = fals
   const fp            = grossNum * 0.0245;
   const fgsb          = grossNum * 0.001;
   const totalZusEr    = emerytalne_er + rentowe_er + wypadkowe + fp + fgsb;
-  // Zdrowotna (health) — 9% of gross minus social ZUS
+  // Zdrowotna (health) — 9% of (gross − social ZUS)
   const zdrowotnaBase = grossNum - totalZusEmp;
   const zdrowotna     = zdrowotnaBase * 0.09;
-  // PIT for zlecenie: KUP = 20% of zdrowotnaBase, then 12% on remainder
-  // PIT-2: if filed, reduces monthly advance tax by 300 zł (kwota zmniejszająca)
-  const kup           = zdrowotnaBase * 0.20;
-  const taxBase       = Math.max(0, zdrowotnaBase - kup);
+  // PIT for zlecenie: KUP = 20% of gross (brutto), tax base = gross − ZUS − KUP
+  // PIT-2: if filed, reduces monthly advance tax by flat 300 zł (kwota zmniejszająca)
+  const kup           = grossNum * 0.20;
+  const taxBase       = Math.max(0, grossNum - totalZusEmp - kup);
   const pitGross      = taxBase * 0.12;
   const pit           = inclPit2 ? Math.max(0, pitGross - 300) : pitGross;
   const netto         = grossNum - totalZusEmp - zdrowotna - pit;
@@ -1383,7 +1383,7 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
 
   /* single contract state */
   const [gross, setGross]               = React.useState("5024");
-  const [inclChorob, setInclChorob]     = React.useState(false);
+  const [inclChorob, setInclChorob]     = React.useState(true);
   const [inclPit2, setInclPit2]         = React.useState(true);
 
   /* dual contract state */
@@ -1490,7 +1490,7 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
               <CalcRow label="Rentowe" sub="1.50%" value={`- zł${s.rentowe_e.toFixed(2)}`} />
               {inclChorob && <CalcRow label="Chorobowe" sub="2.45%" value={`- zł${s.chorobowe_e.toFixed(2)}`} />}
               <CalcRow label="Zdrowotna" sub={`9% × zł${s.zdrowotnaBase.toFixed(2)}`} value={`- zł${s.zdrowotna.toFixed(2)}`} />
-              <CalcRow label="KUP (zlecenie)" sub={`20% × zł${s.zdrowotnaBase.toFixed(2)} = zł${s.kup.toFixed(2)}`} value="deduction" />
+              <CalcRow label="KUP (zlecenie)" sub={`20% × gross zł${(parseFloat(gross)||0).toFixed(2)} = zł${s.kup.toFixed(2)}`} value="tax deduction" />
               <CalcRow label="PIT-12 advance" sub={inclPit2 ? `(zł${s.pitGross.toFixed(2)} − PIT-2 300)` : `12% × zł${s.taxBase.toFixed(2)}`} value={`- zł${s.pit.toFixed(2)}`} />
             </div>
           </div>

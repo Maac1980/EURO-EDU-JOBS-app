@@ -469,6 +469,94 @@ export async function sendLoginOtp(
   });
 }
 
+// ── Weekly digest email ───────────────────────────────────────────────────────
+export async function sendWeeklyDigest(): Promise<{ sent: boolean; error?: string }> {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
+  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
+  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+  if (!smtpUser || !smtpPass) return { sent: false, error: "SMTP not configured." };
+
+  const adminProfile = getAdminProfile();
+  const to = adminProfile?.email ?? process.env.ALERT_EMAIL_TO;
+  if (!to) return { sent: false, error: "No recipient configured." };
+
+  let workers: ReturnType<typeof mapRecordToWorker>[];
+  try {
+    const records = await fetchAllRecords();
+    workers = records.map(mapRecordToWorker);
+  } catch (err) { return { sent: false, error: `Airtable: ${err instanceof Error ? err.message : String(err)}` }; }
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const in30 = new Date(today.getTime() + 30 * 86400_000);
+
+  const DOCS = [
+    { label: "TRC", key: "trcExpiry" as const },
+    { label: "Work Permit", key: "workPermitExpiry" as const },
+    { label: "Contract", key: "contractEndDate" as const },
+  ];
+
+  // Group by site
+  const bySite: Record<string, Array<{ name: string; doc: string; expiry: string; days: number }>> = {};
+  for (const w of workers) {
+    const site = (w as any).siteLocation || "Bench";
+    for (const d of DOCS) {
+      const dateStr = w[d.key];
+      if (!dateStr) continue;
+      const exp = new Date(dateStr); exp.setHours(0, 0, 0, 0);
+      const days = Math.round((exp.getTime() - today.getTime()) / 86400_000);
+      if (days <= 30) {
+        if (!bySite[site]) bySite[site] = [];
+        bySite[site].push({ name: w.name, doc: d.label, expiry: dateStr, days });
+      }
+    }
+  }
+
+  const total = Object.values(bySite).reduce((s, arr) => s + arr.length, 0);
+  if (total === 0) return { sent: false };
+
+  const siteBlocks = Object.entries(bySite).map(([site, items]) => `
+    <tr><td colspan="3" style="padding:10px 0 4px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#E9FF70;border-top:1px solid #333">${site}</td></tr>
+    ${items.map(({ name, doc, expiry, days }) => `
+      <tr>
+        <td style="padding:4px 8px 4px 0;font-size:12px;color:#fff;font-weight:700">${name}</td>
+        <td style="padding:4px 8px;font-size:12px;color:#aaa;font-family:monospace">${doc}</td>
+        <td style="padding:4px 0;font-size:12px;font-family:monospace;font-weight:900;color:${days < 0 ? "#ef4444" : days < 14 ? "#f87171" : "#f59e0b"}">${days < 0 ? "WYGASŁ" : `${days}d`}</td>
+      </tr>`).join("")}
+  `).join("");
+
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#111;font-family:Arial,sans-serif">
+    <table width="600" cellpadding="0" cellspacing="0" style="margin:0 auto;background:#1a1a1a;border-radius:12px;overflow:hidden">
+      <tr><td style="padding:24px 32px;background:#E9FF70">
+        <p style="margin:0;font-size:20px;font-weight:900;text-transform:uppercase;letter-spacing:3px;color:#333">EURO EDU JOBS</p>
+        <p style="margin:4px 0 0;font-size:12px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:1px">Tygodniowy Raport Zgodności</p>
+      </td></tr>
+      <tr><td style="padding:24px 32px">
+        <p style="margin:0 0 16px;font-size:13px;color:#aaa">Poniżej lista <strong style="color:#fff">${total} dokumentów</strong> wygasających w ciągu <strong style="color:#E9FF70">30 dni</strong> (${new Date().toLocaleDateString("pl-PL")} — ${in30.toLocaleDateString("pl-PL")}).</p>
+        <table width="100%" cellpadding="0" cellspacing="0">${siteBlocks}</table>
+      </td></tr>
+      <tr><td style="padding:16px 32px;background:#111;border-top:1px solid #333">
+        <p style="margin:0;font-size:10px;color:#555;text-align:center">EURO EDU JOBS · edu-jobs.eu — Wysyłane automatycznie każdy poniedziałek 08:00</p>
+      </td></tr>
+    </table>
+  </body></html>`;
+
+  try {
+    const transporter = nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: smtpUser, pass: smtpPass } });
+    await transporter.sendMail({
+      from: `"EEJ Compliance" <${smtpFrom}>`,
+      to,
+      subject: `[EEJ] Tygodniowy Raport — ${total} dok. do odnowienia`,
+      html,
+    });
+    console.log(`[alerter] ✓ Weekly digest sent → ${to} (${total} items)`);
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export function startAlerter(): void {
   if (!process.env.AIRTABLE_API_KEY) {
     console.warn("[alerter] AIRTABLE_API_KEY not set — expiry alerts disabled");
@@ -492,7 +580,16 @@ export function startAlerter(): void {
     });
   });
 
+  cron.schedule("0 8 * * 1", () => {
+    console.log("[alerter] Running weekly digest (Monday 08:00)…");
+    sendWeeklyDigest().then((r) => {
+      if (r.sent) console.log("[alerter] ✓ Weekly digest sent");
+      else if (r.error) console.warn(`[alerter] Weekly digest skipped: ${r.error}`);
+      else console.log("[alerter] Weekly digest: no expiries in next 30d — skipped");
+    });
+  });
+
   const adminProfile = getAdminProfile();
   const recipient = adminProfile?.email ?? process.env.ALERT_EMAIL_TO ?? "not configured";
-  console.log(`[alerter] ✓ Compliance engine active — daily scan at 08:00, alerts → ${recipient}`);
+  console.log(`[alerter] ✓ Compliance engine active — daily 08:00, weekly Mon 08:00, alerts → ${recipient}`);
 }

@@ -387,3 +387,20 @@ All at `/api`:
 - `POST /api/2fa/disable` — disable 2FA (requires current token)
 - `GET /api/audit` — (admin) read audit log
 - `DELETE /api/audit` — (admin) clear audit log
+- `GET /api/workers/:id/notes` — read coordinator internal note for a worker
+- `POST /api/workers/:id/notes` — save coordinator internal note (max 4000 chars)
+- `DELETE /api/workers/:id/notes` — clear note for a worker
+- `POST /api/workers/notify-site` — bulk notify all workers at a given site
+- `GET /api/payroll/trend?months=6` — monthly payroll totals (gross + netto) for last N months
+- `GET /api/notifications` — list all logged notification history entries
+- `DELETE /api/notifications` — clear notification history log
+
+### Final Frontend Features (COMPLETE — no further additions)
+- **Ctrl+K Command Palette** — global keyboard search overlay; arrow keys to navigate, Enter to open worker profile
+- **Print QR Sheet** — site/bench-filtered A4 printable grid of worker QR codes (opens print dialog)
+- **Compliance Score gauge** — 0-100 score per worker in profile panel header and table Score column
+- **BENCH badge** — orange badge in compliance table for workers without a site assignment
+- **Payroll Trend Chart** — 6-month bar chart (gross vs netto) in Payroll tab, loads from `/api/payroll/trend`
+- **Coordinator Notes** — internal textarea per worker profile; saved to `data/worker-notes.json`, shows last editor
+- **Bulk Notify by Site** — `POST /api/workers/notify-site` endpoint; UI via CommandPalette + existing notify flow
+- **Weekly Digest Email** — cron `0 8 * * 1` (Monday 08:00 Warsaw); sends grouped HTML email of all expiries ≤30d

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
+import { PayrollTrendChart } from "./PayrollTrendChart";
 import {
   Calculator, Save, Lock, Loader2, RefreshCcw, ChevronDown, ChevronUp,
   AlertTriangle, CheckCircle, DollarSign, Users, Clock, TrendingUp,
@@ -511,6 +512,9 @@ export function PayrollRunPage() {
           </button>
         </div>
       </div>
+
+      {/* Monthly Trend Chart */}
+      <PayrollTrendChart token={token} />
     </div>
   );
 }

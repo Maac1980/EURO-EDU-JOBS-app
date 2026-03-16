@@ -330,4 +330,27 @@ router.get("/payroll/bank-export", authenticateToken, requireAdmin, async (req, 
   }
 });
 
+// ── GET /api/payroll/trend ───────────────────────────────────────────────────
+// Returns monthly totals for the last N months (default 6) for trend chart
+router.get("/payroll/trend", authenticateToken, requireCoordinatorOrAdmin, (req, res) => {
+  try {
+    const months = Math.min(parseInt(String(req.query.months ?? "6"), 10), 24);
+    const all = readPayrollRecords();
+    const grouped: Record<string, { totalGross: number; totalNetto: number; count: number }> = {};
+    for (const r of all) {
+      if (!grouped[r.monthYear]) grouped[r.monthYear] = { totalGross: 0, totalNetto: 0, count: 0 };
+      grouped[r.monthYear].totalGross += r.grossPay;
+      grouped[r.monthYear].totalNetto += r.finalNettoPayout;
+      grouped[r.monthYear].count += 1;
+    }
+    const sorted = Object.entries(grouped)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-months)
+      .map(([monthYear, v]) => ({ monthYear, ...v }));
+    res.json({ trend: sorted });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Trend failed" });
+  }
+});
+
 export default router;

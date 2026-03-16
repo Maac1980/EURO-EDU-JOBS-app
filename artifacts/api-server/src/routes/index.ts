@@ -10,6 +10,7 @@ import payrollRouter from "./payroll.js";
 import clientsRouter from "./clients.js";
 import { twofaRouter } from "./twofa.js";
 import notificationsRouter from "./notifications.js";
+import workerNotesRouter from "./worker-notes.js";
 
 const router: IRouter = Router();
 
@@ -22,6 +23,7 @@ router.use(payrollRouter);
 router.use(clientsRouter);
 router.use(twofaRouter);
 router.use(notificationsRouter);
+router.use(workerNotesRouter);
 router.use(healthRouter);
 router.use(workersRouter);
 

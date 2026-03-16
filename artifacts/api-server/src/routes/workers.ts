@@ -771,6 +771,29 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
   }
 });
 
+// POST /workers/notify-site — bulk notify all workers at a given site
+router.post("/workers/notify-site", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  try {
+    const { site, message, channel } = req.body as { site?: string; message?: string; channel?: string };
+    if (!site || !message) return res.status(400).json({ error: "site and message are required" });
+    const actor = req.user?.email ?? req.user?.id ?? "operator";
+    const allRecords = await fetchAllRecords();
+    const targets = allRecords.map(mapRecordToWorker).filter((w) =>
+      (w as any).siteLocation === site
+    );
+    const ch = channel ?? "email";
+    let sent = 0;
+    for (const w of targets) {
+      appendNotification(w.id, w.name, ch, message, actor);
+      sent++;
+    }
+    res.json({ success: true, sent, site, channel: ch });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: message });
+  }
+});
+
 // POST /workers/:id/notify
 router.post("/workers/:id/notify", authenticateToken, async (req, res) => {
   try {

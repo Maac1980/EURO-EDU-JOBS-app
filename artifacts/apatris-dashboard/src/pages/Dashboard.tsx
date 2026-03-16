@@ -28,6 +28,9 @@ import { AddWorkerModal } from "@/components/AddWorkerModal";
 import { PayrollRunPage } from "@/components/PayrollRunPage";
 import { TeamManagementCard } from "@/components/TeamManagementCard";
 import { ClientManagementCard } from "@/components/ClientManagementCard";
+import { CommandPalette } from "@/components/CommandPalette";
+import { PrintQRSheet } from "@/components/PrintQRSheet";
+import { calcComplianceScore, scoreColor } from "@/lib/complianceScore";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { ExpiringThisWeekPanel } from "@/components/ExpiringThisWeekPanel";
 import { ExpiryCalendar } from "@/components/ExpiryCalendar";
@@ -818,6 +821,7 @@ export default function Dashboard() {
                 ))}
               </select>
             </div>
+            <PrintQRSheet workers={workersData?.workers ?? []} />
           </div>
         </div>
 
@@ -950,6 +954,7 @@ export default function Dashboard() {
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>{t("table.assignedSite")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.status")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest" style={{ color: "#E9FF70" }}>Etap</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center" style={{ color: "#E9FF70" }}>Score</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-center border-l border-white/10" style={{ color: "#E9FF70" }}>{t("table.actions")}</th>
                 </tr>
               </thead>
@@ -957,14 +962,14 @@ export default function Dashboard() {
                 {isLoadingWorkers ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={13} className="px-2 py-2">
+                      <td colSpan={14} className="px-2 py-2">
                         <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
                       </td>
                     </tr>
                   ))
                 ) : workersData?.workers.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-12 text-center text-muted-foreground font-sans">
+                    <td colSpan={14} className="px-6 py-12 text-center text-muted-foreground font-sans">
                       {t("table.noResults")}
                     </td>
                   </tr>
@@ -1058,9 +1063,9 @@ export default function Dashboard() {
                           const site = (worker as any).siteLocation as string | null;
                           if (!site || site === "Available") {
                             return (
-                              <span className="flex items-center gap-1.5 text-xs font-mono text-gray-500">
-                                <UserMinus className="w-3 h-3" />
-                                Available
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest" style={{ background: "rgba(251,146,60,0.15)", color: "#fb923c", border: "1px solid rgba(251,146,60,0.3)" }}>
+                                <UserMinus className="w-2.5 h-2.5" />
+                                BENCH
                               </span>
                             );
                           }
@@ -1098,6 +1103,20 @@ export default function Dashboard() {
                             <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${colors[stage] ?? "bg-white/10 text-white/60"}`}>
                               {stage}
                             </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        {(() => {
+                          const score = calcComplianceScore(worker);
+                          const color = scoreColor(score);
+                          return (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-sm font-black" style={{ color }}>{score}</span>
+                              <div className="w-10 h-1 rounded-full overflow-hidden bg-white/10">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, background: color }} />
+                              </div>
+                            </div>
                           );
                         })()}
                       </td>
@@ -1701,6 +1720,8 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      <CommandPalette onSelectWorker={(id) => setSelectedWorkerId(id)} />
 
       <WorkerProfilePanel 
         workerId={selectedWorkerId}

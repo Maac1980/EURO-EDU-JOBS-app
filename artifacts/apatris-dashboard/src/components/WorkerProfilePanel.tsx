@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode, FileEdit } from "lucide-react";
+import { calcComplianceScore, scoreColor, scoreBg } from "@/lib/complianceScore";
 import { PIPInspectionModal } from "./PIPInspectionModal";
 import { WorkerQRModal } from "./WorkerQRModal";
 import { format, parseISO } from "date-fns";
@@ -182,6 +183,10 @@ export function WorkerProfilePanel({
   const [linkCopied, setLinkCopied] = useState(false);
   const [isPipOpen, setIsPipOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [noteContent, setNoteContent] = useState("");
+  const [noteUpdatedAt, setNoteUpdatedAt] = useState<string | null>(null);
+  const [noteUpdatedBy, setNoteUpdatedBy] = useState<string | null>(null);
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const handleCopyPortalLink = async () => {
     if (!workerId) return;
@@ -232,6 +237,38 @@ export function WorkerProfilePanel({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose, isEditing]);
+
+  // Load notes when worker changes
+  useEffect(() => {
+    if (!workerId) { setNoteContent(""); setNoteUpdatedAt(null); setNoteUpdatedBy(null); return; }
+    const token = localStorage.getItem("eej_token");
+    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    fetch(`${base}/api/workers/${workerId}/notes`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => {
+        setNoteContent(d.content ?? "");
+        setNoteUpdatedAt(d.updatedAt ?? null);
+        setNoteUpdatedBy(d.updatedBy ?? null);
+      })
+      .catch(() => {});
+  }, [workerId]);
+
+  const handleSaveNote = async () => {
+    if (!workerId) return;
+    setNoteSaving(true);
+    const token = localStorage.getItem("eej_token");
+    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+    try {
+      const res = await fetch(`${base}/api/workers/${workerId}/notes`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ content: noteContent }),
+      });
+      const d = await res.json();
+      if (d.note) { setNoteUpdatedAt(d.note.updatedAt); setNoteUpdatedBy(d.note.updatedBy); }
+    } catch { /* silent */ }
+    setNoteSaving(false);
+  };
 
   const handleSave = async () => {
     if (!workerId) return;
@@ -337,6 +374,16 @@ export function WorkerProfilePanel({
                       {worker.specialization}
                     </span>
                     <StatusBadge status={worker.complianceStatus} />
+                    {(() => {
+                      const score = calcComplianceScore(worker);
+                      const color = scoreColor(score);
+                      const bg = scoreBg(score);
+                      return (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: bg, color, border: `1px solid ${color}40` }}>
+                          {score}/100
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -573,6 +620,44 @@ export function WorkerProfilePanel({
                   <p className="text-xs text-gray-600 text-center">
                     {t("panel.aiScanNote")}
                   </p>
+                </div>
+              </div>
+
+              {/* Coordinator Notes */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold tracking-widest text-gray-400 uppercase flex items-center gap-1.5">
+                    <FileEdit className="w-3.5 h-3.5" />
+                    Notatki Koordynatora
+                  </h3>
+                  {noteUpdatedAt && (
+                    <span className="text-[9px] font-mono text-white/30">
+                      {noteUpdatedBy} · {new Date(noteUpdatedAt).toLocaleDateString("pl-PL")}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  placeholder="Wewnętrzne notatki o pracowniku... (widoczne tylko dla koordynatorów)"
+                  rows={3}
+                  maxLength={4000}
+                  className="w-full rounded-xl px-3 py-2.5 text-xs font-mono text-white placeholder-white/20 resize-none focus:outline-none transition-colors"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.35)"; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }}
+                />
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-[9px] font-mono text-white/20">{noteContent.length}/4000</span>
+                  <button
+                    onClick={handleSaveNote}
+                    disabled={noteSaving}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                    style={{ background: "rgba(233,255,112,0.12)", color: "#E9FF70", border: "1px solid rgba(233,255,112,0.25)" }}
+                  >
+                    {noteSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    {noteSaving ? "Zapisywanie..." : "Zapisz"}
+                  </button>
                 </div>
               </div>
             </div>

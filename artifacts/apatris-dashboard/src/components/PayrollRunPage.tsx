@@ -6,7 +6,7 @@ import {
   Calculator, Save, Lock, Loader2, RefreshCcw, ChevronDown, ChevronUp,
   AlertTriangle, CheckCircle, DollarSign, Users, Clock, TrendingUp,
   Building2, Download, ToggleLeft, ToggleRight, Pencil, Eye, X, Check,
-  FileText, Edit2
+  FileText, Edit2, Search
 } from "lucide-react";
 
 const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5% — chorobowe & PIT excluded (workers on zwolnienia)

@@ -60,12 +60,16 @@ interface ZusRates {
   emerytalne: number;
   rentowe: number;
   zdrowotne: number;
+  kup: number;
+  pitFlat: number;
 }
 
 const DEFAULT_RATES: ZusRates = {
   emerytalne: 9.76,
   rentowe: 1.5,
   zdrowotne: 9,
+  kup: 20,
+  pitFlat: 12,
 };
 
 function calcNetto(row: GridRow, withZus = false): number {
@@ -221,6 +225,7 @@ export function PayrollRunPage() {
   };
 
   // Totals
+  const totalHours = rows.reduce((s, r) => s + (parseFloat(r._hours) || 0), 0);
   const totalGross = rows.reduce((s, r) => s + ((parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate)), 0);
   const totalAdvances = rows.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0);
   const totalPenalties = rows.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0);
@@ -343,7 +348,7 @@ export function PayrollRunPage() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>
-              ZUS RATES — {monthYear.split("-")[0]}
+              ZUS/PIT RATES — {monthYear.split("-")[0]}
             </p>
             <p className="text-[9px] text-gray-500 font-mono mt-0.5">
               Last updated: {new Date().toISOString().slice(0, 10)}
@@ -375,6 +380,8 @@ export function PayrollRunPage() {
             { label: "Emerytalne", value: rates.emerytalne, key: "emerytalne" as const },
             { label: "Rentowe", value: rates.rentowe, key: "rentowe" as const },
             { label: "Zdrowotne", value: rates.zdrowotne, key: "zdrowotne" as const, note: "net base" },
+            { label: "KUP", value: rates.kup, key: "kup" as const },
+            { label: "PIT Flat", value: rates.pitFlat, key: "pitFlat" as const },
           ].map(({ label, value, key, note }) => (
             <div key={key} className="px-3 py-2 rounded-xl border" style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.04)" }}>
               <div className="text-[8px] font-bold uppercase tracking-widest text-gray-500">{label}</div>
@@ -402,7 +409,7 @@ export function PayrollRunPage() {
         <div className="flex flex-wrap items-center gap-1 text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.35)" }}>
           <span>Effective ZUS: {(rates.emerytalne + rates.rentowe).toFixed(2)}%</span>
           <span className="mx-1">·</span>
-          <span style={{ color: "#f59e0b" }}>Chorobowe &amp; PIT excluded — workers on zwolnienia</span>
+          <span style={{ color: "#f59e0b" }}>Chorobowe excluded — KUP &amp; PIT shown for ZUS breakdown reference only (workers on zwolnienia)</span>
           <span className="mx-1">·</span>
           <span>ZUS base = Gross (Rate × Hours)</span>
         </div>
@@ -466,20 +473,21 @@ export function PayrollRunPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          { label: t("payroll.totalWorkers"), value: String(rows.length), icon: Users, highlight: false },
-          { label: t("payroll.totalGross"), value: `zł${totalGross.toFixed(2)}`, icon: DollarSign, highlight: false },
-          { label: withZus ? "ZUS pracownika (11,26%)" : t("payroll.totalDeductions"), value: withZus ? `- zł${totalZus.toFixed(2)}` : `zł${(totalAdvances + totalPenalties).toFixed(2)}`, icon: TrendingUp, highlight: false, warn: withZus },
-          { label: t("payroll.totalNetto"), value: `zł${totalNetto.toFixed(2)}`, icon: Calculator, highlight: true },
+          { label: "Active Workers", value: String(rows.length), icon: Users, color: "#a78bfa" },
+          { label: "Total Hours", value: totalHours.toFixed(2), icon: TrendingUp, color: "#fbbf24" },
+          { label: "Gross Payroll", value: `${totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: DollarSign, color: "#34d399" },
+          { label: "Deductions", value: `${(totalAdvances + totalPenalties).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Calculator, color: "#f97316" },
+          { label: "Total Net Pay", value: `${totalNetto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Building2, color: "#4ade80", highlight: true },
         ].map((c) => (
-          <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? LIME_BG : "rgba(255,255,255,0.02)", borderColor: c.highlight ? LIME_BORDER : "rgba(255,255,255,0.06)" }}>
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: LIME_BG, border: `1px solid ${LIME_BORDER}` }}>
-              <c.icon className="w-4 h-4" style={{ color: LIME }} />
+          <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.02)", borderColor: c.highlight ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.06)" }}>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}18`, border: `1px solid ${c.color}40` }}>
+              <c.icon className="w-4 h-4" style={{ color: c.color }} />
             </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{c.label}</p>
-              <p className="text-lg font-black tabular-nums" style={{ color: c.highlight ? LIME : c.warn ? "#f87171" : "white" }}>{c.value}</p>
+              <p className="text-base font-black tabular-nums" style={{ color: c.color }}>{c.value}</p>
             </div>
           </div>
         ))}
@@ -563,23 +571,28 @@ export function PayrollRunPage() {
       {/* ── ZUS VIEW GRID ── */}
       {payrollView === "zus" && (
         <div className="rounded-2xl border overflow-hidden" style={{ borderColor: LIME_BORDER }}>
+          <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.04)" }}>
+            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>PAYROLL GRID — ZUS BREAKDOWN</span>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{ minWidth: "900px" }}>
+            <table className="w-full text-xs" style={{ minWidth: "1100px" }}>
               <thead>
-                <tr style={{ background: "rgba(233,255,112,0.06)", borderBottom: `1px solid ${LIME_BORDER}` }}>
+                <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                   {[
-                    { label: "Worker", col: "w-36" },
-                    { label: "Spec / Site", col: "w-28" },
-                    { label: "Bank IBAN", col: "w-52" },
-                    { label: "Rate (PLN/H)", col: "w-24" },
-                    { label: "Hours", col: "w-20" },
-                    { label: "Advance", col: "w-22" },
-                    { label: "Gross (PLN)", col: "w-24" },
-                    { label: "Emp. ZUS", col: "w-24", blue: true },
-                    { label: "Net Pay", col: "w-24", lime: true },
+                    { label: "Worker" },
+                    { label: "Spec / Site" },
+                    { label: "Bank IBAN ✏" },
+                    { label: "Rate (PLN/H)" },
+                    { label: "Hours ✏", clr: "#fbbf24" },
+                    { label: "Gross (PLN)" },
+                    { label: "Emp. ZUS", clr: "#fb923c" },
+                    { label: "Health Ins.", clr: "#fb923c" },
+                    { label: "Est. PIT", clr: "#f87171" },
+                    { label: "Net After Tax", clr: "#4ade80" },
+                    { label: "Advances ✏", clr: "#f97316" },
                   ].map((c: any) => (
-                    <th key={c.label} className={`px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${c.col}`}
-                      style={{ color: c.lime ? LIME : c.blue ? "#60a5fa" : "rgba(255,255,255,0.5)" }}>
+                    <th key={c.label} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap"
+                      style={{ color: c.clr ?? "rgba(255,255,255,0.45)" }}>
                       {c.label}
                     </th>
                   ))}
@@ -588,20 +601,23 @@ export function PayrollRunPage() {
               <tbody className="divide-y divide-white/5">
                 {loading ? (
                   Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={i}>{Array.from({ length: 9 }).map((_, j) => (
+                    <tr key={i}>{Array.from({ length: 11 }).map((_, j) => (
                       <td key={j} className="px-3 py-2.5">
                         <div className="h-3.5 bg-white/5 rounded animate-pulse" style={{ width: j === 0 ? "100px" : "64px" }} />
                       </td>
                     ))}</tr>
                   ))
                 ) : displayed.length === 0 ? (
-                  <tr><td colSpan={9} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">No workers found.</td></tr>
+                  <tr><td colSpan={11} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">No workers found.</td></tr>
                 ) : (
                   displayed.map((row) => {
-                    const gross = (parseFloat(row._hours) || 0) * (parseFloat(row._rate) || row.hourlyNettoRate);
+                    const hours = parseFloat(row._hours) || 0;
+                    const gross = hours * (parseFloat(row._rate) || row.hourlyNettoRate);
                     const empZus = gross * empZusRate;
+                    const healthIns = (gross - empZus) * (rates.zdrowotne / 100);
+                    const estPit = (gross - empZus) * (1 - rates.kup / 100) * (rates.pitFlat / 100);
+                    const netAfterTax = gross - empZus - healthIns - estPit;
                     const advance = parseFloat(row._advance) || 0;
-                    const netPay = gross - empZus - advance;
                     const isEditingIban = ibanEditId === row.id;
                     return (
                       <tr key={row.id} className="hover:bg-white/3 transition-colors">
@@ -672,7 +688,7 @@ export function PayrollRunPage() {
                             />
                           </div>
                         </td>
-                        {/* Hours (editable) */}
+                        {/* Hours (editable, yellow) */}
                         <td className="px-2 py-2">
                           <div className="relative">
                             <input
@@ -682,37 +698,35 @@ export function PayrollRunPage() {
                               value={row._hours}
                               onChange={(e) => updateRow(row.id, "_hours", e.target.value)}
                               placeholder="0"
-                              className="w-16 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-5"
-                              style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}` }}
+                              className="w-16 bg-slate-800 rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-5 font-bold"
+                              style={{ border: `1px solid ${hours > 0 ? "#fbbf24" : "rgba(255,255,255,0.08)"}`, color: hours > 0 ? "#fbbf24" : "rgba(255,255,255,0.4)" }}
                             />
                             <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">h</span>
                           </div>
                         </td>
-                        {/* Advance (editable) */}
-                        <td className="px-2 py-2">
-                          <div className="relative">
-                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">zł</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={row._advance}
-                              onChange={(e) => updateRow(row.id, "_advance", e.target.value)}
-                              placeholder="0"
-                              className="w-18 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pl-6"
-                              style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}`, width: "72px" }}
-                            />
-                          </div>
-                        </td>
                         {/* Gross */}
-                        <td className="px-3 py-2.5 font-mono text-xs text-gray-300">{gross.toFixed(2)}</td>
-                        {/* Emp. ZUS */}
-                        <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#60a5fa" }}>
-                          {gross > 0 ? `– ${empZus.toFixed(2)}` : "– 0,00"}
+                        <td className="px-3 py-2.5 font-mono text-sm font-bold text-white">
+                          {gross > 0 ? gross.toFixed(2) : "—"}
                         </td>
-                        {/* Net Pay */}
-                        <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: netPay >= 0 ? LIME : "#ef4444" }}>
-                          {netPay.toFixed(2)}
+                        {/* Emp. ZUS */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
+                          {gross > 0 ? `– ${empZus.toFixed(2)}` : "—"}
+                        </td>
+                        {/* Health Ins. */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
+                          {gross > 0 ? `– ${healthIns.toFixed(2)}` : "—"}
+                        </td>
+                        {/* Est. PIT */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#f87171" }}>
+                          {gross > 0 ? `– ${estPit.toFixed(2)}` : "—"}
+                        </td>
+                        {/* Net After Tax */}
+                        <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: netAfterTax >= 0 ? "#4ade80" : "#ef4444" }}>
+                          {gross > 0 ? netAfterTax.toFixed(2) : "—"}
+                        </td>
+                        {/* Advances */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: advance > 0 ? "#f97316" : "rgba(255,255,255,0.3)" }}>
+                          {advance > 0 ? `– ${advance.toFixed(2)}` : "—"}
                         </td>
                       </tr>
                     );
@@ -721,27 +735,46 @@ export function PayrollRunPage() {
               </tbody>
               {!loading && displayed.length > 0 && (
                 <tfoot>
-                  <tr style={{ background: "rgba(233,255,112,0.06)", borderTop: `1px solid ${LIME_BORDER}` }}>
+                  <tr style={{ background: "rgba(74,222,128,0.04)", borderTop: "1px solid rgba(74,222,128,0.2)" }}>
                     <td colSpan={3} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-500">Totals</td>
                     <td className="px-3 py-2.5" />
-                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: LIME }}>
+                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fbbf24" }}>
                       {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0), 0).toFixed(1)}h
                     </td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-amber-400">
-                      zł{displayed.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0).toFixed(2)}
+                    <td className="px-3 py-2.5 font-mono text-sm font-bold text-white">
+                      {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate), 0).toFixed(2)}
                     </td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">
-                      zł{displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate), 0).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#60a5fa" }}>
-                      – {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate) * empZusRate, 0).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: LIME }}>
-                      zł{displayed.reduce((s, r) => {
+                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
+                      – {displayed.reduce((s, r) => {
                         const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
-                        const adv = parseFloat(r._advance) || 0;
-                        return s + g - g * empZusRate - adv;
+                        return s + g * empZusRate;
                       }, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
+                      – {displayed.reduce((s, r) => {
+                        const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
+                        const ez = g * empZusRate;
+                        return s + (g - ez) * (rates.zdrowotne / 100);
+                      }, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#f87171" }}>
+                      – {displayed.reduce((s, r) => {
+                        const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
+                        const ez = g * empZusRate;
+                        return s + (g - ez) * (1 - rates.kup / 100) * (rates.pitFlat / 100);
+                      }, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: "#4ade80" }}>
+                      {displayed.reduce((s, r) => {
+                        const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
+                        const ez = g * empZusRate;
+                        const hi = (g - ez) * (rates.zdrowotne / 100);
+                        const pit = (g - ez) * (1 - rates.kup / 100) * (rates.pitFlat / 100);
+                        return s + g - ez - hi - pit;
+                      }, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#f97316" }}>
+                      – {displayed.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0).toFixed(2)}
                     </td>
                   </tr>
                 </tfoot>
@@ -754,25 +787,28 @@ export function PayrollRunPage() {
       {/* ── NORMAL RUN GRID ── */}
       {payrollView === "run" && (
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: LIME_BORDER }}>
+        <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.04)" }}>
+          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>PAYROLL GRID — CLICK ANY VALUE TO EDIT</span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs" style={{ minWidth: "860px" }}>
+          <table className="w-full text-xs" style={{ minWidth: "1000px" }}>
             <thead>
-              <tr style={{ background: "rgba(233,255,112,0.06)", borderBottom: `1px solid ${LIME_BORDER}` }}>
+              <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                 {[
-                  { label: t("payroll.col.name"), f: "name" as const },
-                  { label: t("payroll.col.site"), f: "site" as const },
-                  { label: t("payroll.col.rate"), f: null },
-                  { label: t("payroll.col.hours"), f: null },
-                  { label: t("payroll.col.advance"), f: null },
-                  { label: t("payroll.col.penalties"), f: null },
-                  { label: t("payroll.col.gross"), f: null },
-                  { label: "Min. Płaca", f: null, dim: true },
-                  { label: t("payroll.col.netto"), f: "netto" as const, highlight: true },
+                  { label: "Worker", f: "name" as const },
+                  { label: "Spec / Site", f: "site" as const },
+                  { label: "Bank IBAN ✏", f: null },
+                  { label: "Rate (PLN/H)", f: null },
+                  { label: "Hours ✏", f: null, clr: "#fbbf24" },
+                  { label: "Gross (PLN)", f: null },
+                  { label: "Advances ✏", f: null, clr: "#f97316" },
+                  { label: "Penalties ✏", f: null, clr: "#f87171" },
+                  { label: "Final Net", f: "netto" as const, clr: "#4ade80" },
                 ].map((c: any) => (
                   <th
                     key={c.label}
                     className={`px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap ${c.f ? "cursor-pointer select-none hover:opacity-80" : ""}`}
-                    style={{ color: c.highlight ? LIME : c.dim ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.5)" }}
+                    style={{ color: c.clr ?? "rgba(255,255,255,0.45)" }}
                     onClick={() => c.f && toggleSort(c.f)}
                   >
                     {c.label} {c.f && <SortIcon f={c.f} />}
@@ -802,131 +838,105 @@ export function PayrollRunPage() {
                   const netto = calcNetto(row, withZus);
                   const hours = parseFloat(row._hours) || 0;
                   const gross = hours * (parseFloat(row._rate) || row.hourlyNettoRate);
-                  const minHourlyRate = getMinWage(monthYear) / 160;
-                  const minForPeriod = minHourlyRate * hours;
-                  const belowMin = gross > 0 && gross < minForPeriod;
-                  const aboveMin = gross > 0 && gross >= minForPeriod;
+                  const advance = parseFloat(row._advance) || 0;
+                  const penalties = parseFloat(row._penalties) || 0;
+                  const isEditingIban = ibanEditId === row.id;
                   return (
-                    <tr key={row.id} className="hover:bg-white/3 transition-colors" style={{ background: row._dirty ? "rgba(233,255,112,0.03)" : "" }}>
-                      {/* Name */}
+                    <tr key={row.id} className="hover:bg-white/[0.03] transition-colors" style={{ background: row._dirty ? "rgba(233,255,112,0.03)" : "" }}>
+                      {/* Worker */}
                       <td className="px-2 py-2" style={{ minWidth: "120px" }}>
                         <div className="font-sans font-bold text-white text-xs leading-tight">{row.name}</div>
-                        {row.specialization && <div className="text-[9px] text-gray-500 font-mono mt-0.5">{row.specialization}</div>}
-                        {row._dirty && <div className="text-[8px] font-bold uppercase tracking-wider mt-0.5" style={{ color: LIME }}>● {t("payroll.unsaved")}</div>}
+                        {row._dirty && <div className="text-[8px] font-bold uppercase tracking-wider mt-0.5" style={{ color: LIME }}>● unsaved</div>}
                       </td>
-                      {/* Site */}
-                      <td className="px-2 py-2" style={{ minWidth: "80px" }}>
+                      {/* Spec / Site */}
+                      <td className="px-2 py-2" style={{ minWidth: "90px" }}>
+                        {row.specialization && <div className="text-[9px] text-gray-400 font-mono mb-0.5">{row.specialization}</div>}
                         {row.siteLocation ? (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap" style={{ background: LIME, color: "#333" }}>{row.siteLocation}</span>
                         ) : (
                           <span className="text-gray-600 text-[10px]">—</span>
                         )}
                       </td>
+                      {/* Bank IBAN */}
+                      <td className="px-2 py-2" style={{ minWidth: "170px" }}>
+                        {isEditingIban ? (
+                          <div className="flex items-center gap-1">
+                            <input autoFocus value={ibanEditValue} onChange={(e) => setIbanEditValue(e.target.value)}
+                              className="w-36 bg-slate-800 text-white rounded px-1.5 py-1 text-[10px] font-mono focus:outline-none"
+                              style={{ border: `1px solid ${LIME_BORDER}` }}
+                              onKeyDown={(e) => { if (e.key === "Enter") handleIbanSave(row.id); if (e.key === "Escape") setIbanEditId(null); }}
+                            />
+                            <button onClick={() => handleIbanSave(row.id)} disabled={ibanSaving}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: LIME, color: "#333" }}>
+                              {ibanSaving ? "…" : "✓"}
+                            </button>
+                          </div>
+                        ) : row._iban ? (
+                          <div className="flex items-center gap-1.5 group">
+                            <span className="font-mono text-[10px] text-gray-300">{row._iban}</span>
+                            <button onClick={() => { setIbanEditId(row.id); setIbanEditValue(row._iban); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-gray-500 hover:text-white">✏</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setIbanEditId(row.id); setIbanEditValue(""); }}
+                            className="text-[9px] font-mono text-gray-600 hover:text-gray-400 transition-colors border border-dashed border-white/10 px-2 py-0.5 rounded">
+                            + add IBAN
+                          </button>
+                        )}
+                      </td>
                       {/* Rate (editable) */}
-                      <td className="px-2 py-1.5" style={{ minWidth: "82px" }}>
+                      <td className="px-2 py-1.5" style={{ minWidth: "84px" }}>
                         <div className="relative">
                           <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">zł</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={row._rate}
-                            onChange={(e) => updateRow(row.id, "_rate", e.target.value)}
-                            placeholder="0.00"
-                            className="w-20 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-5"
+                          <input type="number" min="0" step="0.1" value={row._rate}
+                            onChange={(e) => updateRow(row.id, "_rate", e.target.value)} placeholder="0.00"
+                            className="w-20 bg-slate-800 text-cyan-300 rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-5"
                             style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}` }}
                           />
                           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">/h</span>
                         </div>
                       </td>
-                      {/* Hours */}
+                      {/* Hours (yellow) */}
                       <td className="px-2 py-1.5" style={{ minWidth: "72px" }}>
                         <div className="relative">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            value={row._hours}
-                            onChange={(e) => updateRow(row.id, "_hours", e.target.value)}
-                            placeholder="0"
-                            className="w-16 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-5"
-                            style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}` }}
+                          <input type="number" min="0" step="0.5" value={row._hours}
+                            onChange={(e) => updateRow(row.id, "_hours", e.target.value)} placeholder="0"
+                            className="w-16 bg-slate-800 rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pr-5 font-bold"
+                            style={{ border: `1px solid ${hours > 0 ? "#fbbf24" : "rgba(255,255,255,0.08)"}`, color: hours > 0 ? "#fbbf24" : "rgba(255,255,255,0.4)" }}
                           />
                           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">h</span>
                         </div>
                       </td>
-                      {/* Advance */}
+                      {/* Gross (PLN) */}
+                      <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ minWidth: "88px" }}>
+                        <span className="text-sm font-bold tabular-nums text-white">{gross > 0 ? gross.toFixed(2) : "—"}</span>
+                      </td>
+                      {/* Advances (orange) */}
                       <td className="px-2 py-1.5" style={{ minWidth: "84px" }}>
                         <div className="relative">
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">zł</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={row._advance}
-                            onChange={(e) => updateRow(row.id, "_advance", e.target.value)}
-                            placeholder="0"
-                            className="w-20 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pl-6"
-                            style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}` }}
+                          <input type="number" min="0" step="1" value={row._advance}
+                            onChange={(e) => updateRow(row.id, "_advance", e.target.value)} placeholder="0"
+                            className="w-20 bg-slate-800 rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right font-bold"
+                            style={{ border: `1px solid ${advance > 0 ? "#f97316" : "rgba(255,255,255,0.08)"}`, color: advance > 0 ? "#f97316" : "rgba(255,255,255,0.4)" }}
                           />
                         </div>
                       </td>
-                      {/* Penalties */}
+                      {/* Penalties (red) */}
                       <td className="px-2 py-1.5" style={{ minWidth: "84px" }}>
                         <div className="relative">
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">zł</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={row._penalties}
-                            onChange={(e) => updateRow(row.id, "_penalties", e.target.value)}
-                            placeholder="0"
-                            className="w-20 bg-slate-800 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right pl-6"
-                            style={{ border: `1px solid ${row._dirty ? LIME_BORDER : "rgba(255,255,255,0.08)"}` }}
+                          <input type="number" min="0" step="1" value={row._penalties}
+                            onChange={(e) => updateRow(row.id, "_penalties", e.target.value)} placeholder="0"
+                            className="w-20 bg-slate-800 rounded px-1.5 py-1 text-xs font-mono focus:outline-none text-right font-bold"
+                            style={{ border: `1px solid ${penalties > 0 ? "#f87171" : "rgba(255,255,255,0.08)"}`, color: penalties > 0 ? "#f87171" : "rgba(255,255,255,0.4)" }}
                           />
                         </div>
                       </td>
-                      {/* Gross */}
-                      <td className="px-2 py-2 font-mono whitespace-nowrap" style={{ minWidth: "80px" }}>
-                        <span className="text-gray-400 text-xs">zł{gross.toFixed(2)}</span>
-                      </td>
-                      {/* Min. Płaca — statutory minimum wage for this payroll year */}
-                      <td className="px-2 py-2 font-mono whitespace-nowrap" style={{ minWidth: "90px" }}>
-                        {gross === 0 ? (
-                          <span className="text-gray-600 text-[10px]">—</span>
-                        ) : (
-                          <div>
-                            <div className="text-[9px] font-mono text-gray-500">
-                              {minHourlyRate.toFixed(2)} zł/h × {hours}h
-                            </div>
-                            <span
-                              className="text-xs font-bold tabular-nums"
-                              style={{ color: aboveMin ? "#4ade80" : "#f59e0b" }}
-                            >
-                              zł{Math.round(minForPeriod).toLocaleString("pl-PL")}
-                            </span>
-                            {belowMin && (
-                              <div className="text-[8px] font-black uppercase tracking-wide mt-0.5 flex items-center gap-0.5" style={{ color: "#f59e0b" }}>
-                                ⚠ poniżej min
-                              </div>
-                            )}
-                            {aboveMin && (
-                              <div className="text-[8px] font-black uppercase tracking-wide mt-0.5" style={{ color: "#4ade80" }}>
-                                ✓ powyżej
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      {/* Netto — live calculated */}
-                      <td className="px-2 py-2 font-mono whitespace-nowrap" style={{ minWidth: "90px" }}>
-                        <span
-                          className="font-black text-sm tabular-nums"
-                          style={{ color: netto >= 0 ? LIME : "#ef4444" }}
-                        >
-                          zł{netto.toFixed(2)}
+                      {/* Final Net (green + PLN) */}
+                      <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ minWidth: "110px" }}>
+                        <span className="font-black text-sm tabular-nums" style={{ color: netto >= 0 ? "#4ade80" : "#ef4444" }}>
+                          {netto.toFixed(2)}
                         </span>
+                        <span className="ml-1 text-[9px] font-bold" style={{ color: netto >= 0 ? "#4ade8080" : "#ef444480" }}>PLN</span>
                       </td>
                     </tr>
                   );
@@ -936,27 +946,24 @@ export function PayrollRunPage() {
             {/* Totals footer */}
             {!loading && displayed.length > 0 && (
               <tfoot>
-                <tr style={{ background: "rgba(233,255,112,0.06)", borderTop: `1px solid ${LIME_BORDER}` }}>
-                  <td colSpan={2} className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-500">{t("payroll.totals")}</td>
+                <tr style={{ background: "rgba(74,222,128,0.04)", borderTop: "1px solid rgba(74,222,128,0.2)" }}>
+                  <td colSpan={3} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-500">Totals</td>
                   <td className="px-2 py-2.5" />
-                  <td className="px-2 py-2.5 font-mono text-xs text-gray-300">
+                  <td className="px-2 py-2.5 font-mono text-xs font-bold" style={{ color: "#fbbf24" }}>
                     {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0), 0).toFixed(1)}h
                   </td>
-                  <td className="px-2 py-2.5 font-mono text-xs text-gray-300">
-                    zł{displayed.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0).toFixed(2)}
+                  <td className="px-3 py-2.5 font-mono text-sm font-bold text-white">
+                    {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate), 0).toFixed(2)}
                   </td>
-                  <td className="px-2 py-2.5 font-mono text-xs text-gray-300">
-                    zł{displayed.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0).toFixed(2)}
+                  <td className="px-2 py-2.5 font-mono text-xs font-bold" style={{ color: "#f97316" }}>
+                    {displayed.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0).toFixed(2)}
                   </td>
-                  <td className="px-2 py-2.5 font-mono text-xs text-gray-400">
-                    zł{displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate), 0).toFixed(2)}
+                  <td className="px-2 py-2.5 font-mono text-xs font-bold" style={{ color: "#f87171" }}>
+                    {displayed.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0).toFixed(2)}
                   </td>
-                  <td className="px-2 py-2.5 font-mono text-[10px] text-gray-500">
-                    <div className="text-[9px] text-gray-600">{new Date(monthYear).getFullYear()}</div>
-                    <div>min. {(getMinWage(monthYear) / 160).toFixed(2)} zł/h</div>
-                  </td>
-                  <td className="px-2 py-2.5 font-mono text-sm font-black tabular-nums" style={{ color: LIME }}>
-                    zł{displayed.reduce((s, r) => s + calcNetto(r, withZus), 0).toFixed(2)}
+                  <td className="px-3 py-2.5 font-mono text-sm font-black tabular-nums">
+                    <span style={{ color: "#4ade80" }}>{displayed.reduce((s, r) => s + calcNetto(r, withZus), 0).toFixed(2)}</span>
+                    <span className="ml-1 text-[9px]" style={{ color: "#4ade8080" }}>PLN</span>
                   </td>
                 </tr>
               </tfoot>

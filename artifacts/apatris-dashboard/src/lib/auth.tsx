@@ -44,15 +44,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const warnRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const token = localStorage.getItem(TOKEN_KEY);
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    const token = sessionStorage.getItem(TOKEN_KEY);
     if (stored && token) {
       try {
         setUser(JSON.parse(stored));
         setAuthToken(token);
       } catch {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
       }
     }
     setIsLoading(false);
@@ -61,8 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const doLogout = useCallback(() => {
     setUser(null);
     setAuthToken(null);
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
     setLocation("/login");
   }, [setLocation]);
 
@@ -127,8 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: data.error ?? "Invalid credentials." };
       }
 
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data.user));
+      sessionStorage.setItem(TOKEN_KEY, data.token);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data.user));
       setUser(data.user);
       setAuthToken(data.token);
       return { success: true };
@@ -166,5 +166,5 @@ export function useAuth() {
 }
 
 export function getAuthToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY);
 }

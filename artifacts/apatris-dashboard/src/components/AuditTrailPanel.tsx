@@ -48,7 +48,7 @@ export function AuditTrailPanel() {
   const [clearing, setClearing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
 
-  const token = localStorage.getItem("eej_token");
+  const token = sessionStorage.getItem("eej_token");
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
   const fetchAudit = useCallback(async () => {

@@ -249,7 +249,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isAdmin) return;
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-    const tkn = localStorage.getItem("eej_token");
+    const tkn = sessionStorage.getItem("eej_token");
     fetch(`${base}/api/admin/system-status`, { headers: { Authorization: `Bearer ${tkn}` } })
       .then((r) => r.json())
       .then((data) => setSystemStatus(data))
@@ -263,7 +263,7 @@ export default function Dashboard() {
     setChangePwSaving(true); setChangePwMsg(null);
     try {
       const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-      const tkn = localStorage.getItem("eej_token");
+      const tkn = sessionStorage.getItem("eej_token");
       const res = await fetch(`${base}/api/auth/change-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${tkn}` },
@@ -815,7 +815,7 @@ export default function Dashboard() {
                 className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-primary/60 transition-colors"
                 style={pipelineFilter ? { borderColor: "rgba(233,255,112,0.5)", color: "#E9FF70" } : {}}
               >
-                <option value="">Wszystkie etapy</option>
+                <option value="">{t("table.allStages")}</option>
                 {["New","Screening","Interview","Offer Sent","Placed","Active","Released","Blacklisted"].map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}

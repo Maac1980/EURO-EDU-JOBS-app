@@ -192,7 +192,7 @@ export function WorkerProfilePanel({
     if (!workerId) return;
     setCopyingLink(true);
     try {
-      const token = localStorage.getItem("eej_token");
+      const token = sessionStorage.getItem("eej_token");
       const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
       const res = await fetch(`${base}/api/portal/token/${workerId}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -241,7 +241,7 @@ export function WorkerProfilePanel({
   // Load notes when worker changes
   useEffect(() => {
     if (!workerId) { setNoteContent(""); setNoteUpdatedAt(null); setNoteUpdatedBy(null); return; }
-    const token = localStorage.getItem("eej_token");
+    const token = sessionStorage.getItem("eej_token");
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
     fetch(`${base}/api/workers/${workerId}/notes`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
@@ -256,7 +256,7 @@ export function WorkerProfilePanel({
   const handleSaveNote = async () => {
     if (!workerId) return;
     setNoteSaving(true);
-    const token = localStorage.getItem("eej_token");
+    const token = sessionStorage.getItem("eej_token");
     const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
     try {
       const res = await fetch(`${base}/api/workers/${workerId}/notes`, {

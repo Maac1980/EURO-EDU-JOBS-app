@@ -1,14 +1,33 @@
 import nodemailer from "nodemailer";
 import cron from "node-cron";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { fetchAllRecords } from "./airtable.js";
 import { mapRecordToWorker } from "./compliance.js";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROFILE_FILE = join(__dirname, "../../data/admin-profile.json");
 const USERS_FILE = join(__dirname, "../../data/users.json");
+const ALERT_RESULT_FILE = join(__dirname, "../../data/last-alert-result.json");
+
+interface PersistedAlertResult extends AlertResult {
+  ranAt: string;
+}
+
+function persistAlertResult(result: AlertResult): void {
+  try {
+    mkdirSync(join(__dirname, "../../data"), { recursive: true });
+    const persisted: PersistedAlertResult = { ...result, ranAt: new Date().toISOString() };
+    writeFileSync(ALERT_RESULT_FILE, JSON.stringify(persisted, null, 2), "utf-8");
+  } catch { /* non-critical */ }
+}
+
+export function getLastAlertStatus(): PersistedAlertResult | null {
+  try {
+    if (!existsSync(ALERT_RESULT_FILE)) return null;
+    return JSON.parse(readFileSync(ALERT_RESULT_FILE, "utf-8")) as PersistedAlertResult;
+  } catch { return null; }
+}
 
 function getCoordinatorEmails(): string[] {
   try {
@@ -135,11 +154,13 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
 
     if (result.docsFound === 0) {
       console.log("[alerter] ✓ Scan complete — no documents to alert on");
+      persistAlertResult(result);
       return result;
     }
 
     if (!emailTo) {
       result.error = "No alert recipient configured. Save an email in Admin Settings or set ALERT_EMAIL_TO secret.";
+      persistAlertResult(result);
       return result;
     }
 
@@ -151,6 +172,7 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
 
     if (!smtpUser || !smtpPass) {
       result.error = "SMTP not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT to Secrets to send emails.";
+      persistAlertResult(result);
       return result;
     }
 
@@ -242,12 +264,14 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
 
     result.emailSent = true;
     console.log(`[alerter] ✓ ${testMode ? "Test" : ""} alert email sent to ${emailTo}`);
+    persistAlertResult(result);
     return result;
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     result.error = msg;
     console.error("[alerter] Error:", msg);
+    persistAlertResult(result);
     return result;
   }
 }

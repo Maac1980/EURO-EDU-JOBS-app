@@ -58,6 +58,8 @@ router.get("/payroll/workers", authenticateToken, requireCoordinatorOrAdmin, asy
       advancePayment: (w as any).advancePayment ?? 0,
       penalties: (w as any).penalties ?? 0,
       iban: (w as any).iban ?? null,
+      pesel: w.pesel ?? null,
+      nip: w.nip ?? null,
     }));
     return res.json({ workers });
   } catch (err) {

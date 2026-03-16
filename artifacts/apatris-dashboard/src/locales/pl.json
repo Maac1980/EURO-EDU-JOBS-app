@@ -421,7 +421,8 @@
       "healthIns": "Zdrowotna",
       "estPit": "PIT szac.",
       "netAfterTax": "Netto po PIT",
-      "finalNet": "Wypłata netto"
+      "finalNet": "Wypłata netto",
+      "apatrisCost": "Koszt Apatris"
     },
     "savedChanges": "Zmiany zapisane",
     "monthClosed": "Miesiąc zamknięty i zatwierdzony do ksiąg",
@@ -448,6 +449,9 @@
     "bankCsv": "CSV Bankowy",
     "workerZus": "ZUS pracownika",
     "allSites": "Wszystkie",
+    "apatrisCost": "Koszt Apatris (ZUS pracodawcy)",
+    "platnikExport": "CSV Płatnik",
+    "setAllHours": "Ustaw godziny dla wszystkich",
     "gridZusTitle": "SIATKA PŁAC — ROZKŁAD ZUS",
     "gridRunTitle": "SIATKA PŁAC — KLIKNIJ WARTOŚĆ ABY EDYTOWAĆ",
     "history": {

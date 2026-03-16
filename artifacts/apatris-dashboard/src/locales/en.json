@@ -421,7 +421,8 @@
       "healthIns": "Health Ins.",
       "estPit": "Est. PIT",
       "netAfterTax": "Net After Tax",
-      "finalNet": "Final Net"
+      "finalNet": "Final Net",
+      "apatrisCost": "Apatris Cost"
     },
     "savedChanges": "Changes saved",
     "monthClosed": "Month closed & committed to ledger",
@@ -448,6 +449,9 @@
     "bankCsv": "Bank CSV",
     "workerZus": "Worker ZUS",
     "allSites": "All",
+    "apatrisCost": "Apatris Cost (incl. Employer ZUS)",
+    "platnikExport": "Płatnik CSV",
+    "setAllHours": "Set all hours",
     "gridZusTitle": "PAYROLL GRID — ZUS BREAKDOWN",
     "gridRunTitle": "PAYROLL GRID — CLICK ANY VALUE TO EDIT",
     "history": {

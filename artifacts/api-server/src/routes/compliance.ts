@@ -3,7 +3,7 @@ import PDFDocument from "pdfkit";
 import { fetchAllRecords } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
 import { MOCK_WORKERS, isMockMode } from "../lib/mockData.js";
-import { checkAndAlert, sendWorkerExpiryReminders } from "../lib/alerter.js";
+import { checkAndAlert, sendWorkerExpiryReminders, getLastAlertStatus } from "../lib/alerter.js";
 import { authenticateToken } from "../lib/authMiddleware.js";
 
 const router = Router();
@@ -456,6 +456,14 @@ router.post("/compliance/trigger-worker-reminders", authenticateToken, async (_r
 
 // POST /api/compliance/trigger-alert
 // testMode=true → includes ALL documents regardless of zone so you get the email even if everything is fine
+// ── GET /api/compliance/alert-status ─────────────────────────────────────────
+// Returns the persisted result from the most recent scheduled or manual compliance scan
+router.get("/compliance/alert-status", authenticateToken, (_req, res) => {
+  const status = getLastAlertStatus();
+  if (!status) return res.json({ ran: false, message: "No compliance scan has run yet this session." });
+  return res.json({ ran: true, ...status });
+});
+
 router.post("/compliance/trigger-alert", async (req, res) => {
   const testMode = req.body?.testMode !== false; // defaults to true
   console.log(`[compliance] Manual alert trigger — testMode=${testMode}`);

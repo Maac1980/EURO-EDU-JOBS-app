@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 
 const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5% — chorobowe & PIT excluded (workers on zwolnienia)
+// Employer-side ZUS on top of gross: emerytalne 9.76% + rentowe 6.5% + wypadkowe 1.67% + FP 2.45% + FGŚP 0.10%
+const EMPLOYER_ZUS_RATE = 0.0976 + 0.065 + 0.0167 + 0.0245 + 0.001; // ≈ 20.48%
 
 const LIME = "#E9FF70";
 const LIME_BORDER = "rgba(233,255,112,0.25)";
@@ -45,6 +47,8 @@ interface PayrollWorker {
   advancePayment: number;
   penalties: number;
   iban: string | null;
+  pesel: string | null;
+  nip: string | null;
 }
 
 interface GridRow extends PayrollWorker {
@@ -117,6 +121,7 @@ export function PayrollRunPage() {
   const [ibanEditId, setIbanEditId] = useState<string | null>(null);
   const [ibanEditValue, setIbanEditValue] = useState("");
   const [ibanSaving, setIbanSaving] = useState(false);
+  const [bulkHours, setBulkHours] = useState("160");
 
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -138,6 +143,8 @@ export function PayrollRunPage() {
         _penalties: w.penalties > 0 ? String(w.penalties) : "",
         _dirty: false,
         _iban: w.iban ?? "",
+        pesel: w.pesel ?? null,
+        nip: w.nip ?? null,
       })));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -231,6 +238,7 @@ export function PayrollRunPage() {
   const totalPenalties = rows.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0);
   const totalZus = withZus ? totalGross * ZUS_RATE : 0;
   const totalNetto = rows.reduce((s, r) => s + calcNetto(r, withZus), 0);
+  const totalApatrisCost = totalGross * (1 + EMPLOYER_ZUS_RATE);
 
   const handleBankExport = async () => {
     setBankExporting(true);
@@ -272,6 +280,57 @@ export function PayrollRunPage() {
 
   const handlePdfExport = () => {
     window.print();
+  };
+
+  const handleBulkSetHours = (h: string) => {
+    const val = h.trim();
+    if (!val || isNaN(Number(val))) return;
+    setRows((prev) => prev.map((r) => ({ ...r, _hours: val, _dirty: true })));
+  };
+
+  const handlePlatnikExport = () => {
+    const BOM = "\uFEFF";
+    const headers = [
+      "Nazwisko i Imię", "PESEL", "NIP", "Miesiąc",
+      "Brutto (zł)", "ZUS Emerytalny Prac. (zł)", "ZUS Rentowy Prac. (zł)", "ZUS Chorobowy Prac. (zł)",
+      "ZUS Emerytalny Praz. (zł)", "ZUS Rentowy Praz. (zł)", "Wypadkowe (zł)", "FP (zł)", "FGŚP (zł)",
+      "Zdrowotna (zł)", "PIT (zł)", "Netto (zł)", "Koszt Pracodawcy Łącznie (zł)",
+    ].join(";");
+    const lines: string[] = [headers];
+    displayed.forEach((r) => {
+      const h = parseFloat(r._hours) || 0;
+      const rate = parseFloat(r._rate) || r.hourlyNettoRate;
+      const gross = h * rate;
+      if (gross === 0) return;
+      const em_e = gross * 0.0976;
+      const re_e = gross * 0.015;
+      const ch_e = gross * 0.0245;
+      const totalEmp = em_e + re_e + ch_e;
+      const zdBase = gross - totalEmp;
+      const zdr = zdBase * 0.09;
+      const kup = gross * 0.20;
+      const taxBase = Math.max(0, gross - totalEmp - kup);
+      const pit = Math.max(0, taxBase * 0.12 - 300);
+      const netto = gross - totalEmp - zdr - pit;
+      const em_er = gross * 0.0976;
+      const re_er = gross * 0.065;
+      const wy = gross * 0.0167;
+      const fp = gross * 0.0245;
+      const fg = gross * 0.001;
+      const totalEr = em_er + re_er + wy + fp + fg;
+      lines.push([
+        r.name, r.pesel ?? "", r.nip ?? "", monthYear,
+        gross.toFixed(2), em_e.toFixed(2), re_e.toFixed(2), ch_e.toFixed(2),
+        em_er.toFixed(2), re_er.toFixed(2), wy.toFixed(2), fp.toFixed(2), fg.toFixed(2),
+        zdr.toFixed(2), pit.toFixed(2), netto.toFixed(2), (gross + totalEr).toFixed(2),
+      ].join(";"));
+    });
+    const csv = BOM + lines.join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `EEJ_Platnik_${monthYear}.csv`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const empZusRate = (rates.emerytalne + rates.rentowe) / 100;
@@ -458,6 +517,35 @@ export function PayrollRunPage() {
           <FileText className="w-3.5 h-3.5" />
           PDF
         </button>
+        <button
+          onClick={handlePlatnikExport}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all"
+          style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
+          title="Export CSV compatible with Polish payroll / Płatnik format"
+        >
+          <Download className="w-3.5 h-3.5" />
+          {t("payroll.platnikExport")}
+        </button>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border" style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}>
+          <span className="text-[10px] font-black uppercase tracking-wide text-gray-500">{t("payroll.setAllHours")}:</span>
+          <input
+            type="number"
+            min={0}
+            max={999}
+            value={bulkHours}
+            onChange={(e) => setBulkHours(e.target.value)}
+            className="w-14 bg-slate-800 text-white rounded px-2 py-1 text-xs font-mono focus:outline-none text-center"
+            style={{ border: `1px solid ${LIME_BORDER}` }}
+          />
+          <button
+            onClick={() => handleBulkSetHours(bulkHours)}
+            className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
+            style={{ background: LIME, color: "#333333" }}
+            title={`Set all workers to ${bulkHours} hours`}
+          >
+            ✓ Apply
+          </button>
+        </div>
         {payrollView === "run" && (
           <button
             onClick={() => setWithZus((v) => !v)}
@@ -473,15 +561,16 @@ export function PayrollRunPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {[
           { label: t("payroll.activeWorkers"), value: String(rows.length), icon: Users, color: "#a78bfa" },
           { label: t("payroll.history.totalHours"), value: totalHours.toFixed(2), icon: TrendingUp, color: "#fbbf24" },
           { label: t("payroll.totalGross"), value: `${totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: DollarSign, color: "#34d399" },
           { label: t("payroll.totalDeductions"), value: `${(totalAdvances + totalPenalties).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Calculator, color: "#f97316" },
           { label: t("payroll.totalNetto"), value: `${totalNetto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Building2, color: "#4ade80", highlight: true },
-        ].map((c) => (
-          <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.02)", borderColor: c.highlight ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.06)" }}>
+          { label: t("payroll.apatrisCost"), value: `${totalApatrisCost.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: AlertTriangle, color: "#fb923c", highlight2: true },
+        ].map((c: any) => (
+          <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? "rgba(74,222,128,0.06)" : c.highlight2 ? "rgba(251,146,60,0.06)" : "rgba(255,255,255,0.02)", borderColor: c.highlight ? "rgba(74,222,128,0.25)" : c.highlight2 ? "rgba(251,146,60,0.25)" : "rgba(255,255,255,0.06)" }}>
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}18`, border: `1px solid ${c.color}40` }}>
               <c.icon className="w-4 h-4" style={{ color: c.color }} />
             </div>
@@ -589,6 +678,7 @@ export function PayrollRunPage() {
                     { label: t("payroll.col.healthIns"), clr: "#fb923c" },
                     { label: t("payroll.col.estPit"), clr: "#f87171" },
                     { label: t("payroll.col.netAfterTax"), clr: "#4ade80" },
+                    { label: t("payroll.col.apatrisCost"), clr: "#fb923c" },
                     { label: t("payroll.col.advance"), clr: "#f97316" },
                   ].map((c: any) => (
                     <th key={c.label} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap"
@@ -724,6 +814,10 @@ export function PayrollRunPage() {
                         <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: netAfterTax >= 0 ? "#4ade80" : "#ef4444" }}>
                           {gross > 0 ? netAfterTax.toFixed(2) : "—"}
                         </td>
+                        {/* Apatris (Employer) Cost */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
+                          {gross > 0 ? `+ ${(gross * EMPLOYER_ZUS_RATE).toFixed(2)}` : "—"}
+                        </td>
                         {/* Advances */}
                         <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: advance > 0 ? "#f97316" : "rgba(255,255,255,0.3)" }}>
                           {advance > 0 ? `– ${advance.toFixed(2)}` : "—"}
@@ -771,6 +865,12 @@ export function PayrollRunPage() {
                         const hi = (g - ez) * (rates.zdrowotne / 100);
                         const pit = (g - ez) * (1 - rates.kup / 100) * (rates.pitFlat / 100);
                         return s + g - ez - hi - pit;
+                      }, 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
+                      + {displayed.reduce((s, r) => {
+                        const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
+                        return s + g * EMPLOYER_ZUS_RATE;
                       }, 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#f97316" }}>

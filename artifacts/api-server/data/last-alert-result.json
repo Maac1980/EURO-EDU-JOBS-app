@@ -1,0 +1,83 @@
+{
+  "scanned": 9,
+  "docsFound": 10,
+  "redCount": 6,
+  "yellowCount": 4,
+  "greenCount": 0,
+  "emailSent": false,
+  "emailTo": "anna.b@edu-jobs.eu",
+  "error": "SMTP not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT to Secrets to send emails.",
+  "alerts": [
+    {
+      "name": "Fatima El Amine",
+      "doc": "TRC Residence Card",
+      "expiry": "2026-03-05",
+      "days": -11,
+      "zone": "red"
+    },
+    {
+      "name": "Fatima El Amine",
+      "doc": "Work Permit",
+      "expiry": "2026-04-09",
+      "days": 24,
+      "zone": "red"
+    },
+    {
+      "name": "Dmytro Kovalenko",
+      "doc": "TRC Residence Card",
+      "expiry": "2026-04-24",
+      "days": 39,
+      "zone": "yellow"
+    },
+    {
+      "name": "Dmytro Kovalenko",
+      "doc": "Work Permit",
+      "expiry": "2026-05-09",
+      "days": 54,
+      "zone": "yellow"
+    },
+    {
+      "name": "Dmytro Kovalenko",
+      "doc": "BHP Certificate",
+      "expiry": "2026-05-02",
+      "days": 47,
+      "zone": "yellow"
+    },
+    {
+      "name": "Marco Bianchi",
+      "doc": "TRC Residence Card",
+      "expiry": "2026-04-02",
+      "days": 17,
+      "zone": "red"
+    },
+    {
+      "name": "Marco Bianchi",
+      "doc": "Work Permit",
+      "expiry": "2026-04-29",
+      "days": 44,
+      "zone": "yellow"
+    },
+    {
+      "name": "Piotr Kowalski",
+      "doc": "TRC Residence Card",
+      "expiry": "2026-03-20",
+      "days": 4,
+      "zone": "red"
+    },
+    {
+      "name": "Piotr Kowalski",
+      "doc": "Work Permit",
+      "expiry": "2026-03-27",
+      "days": 11,
+      "zone": "red"
+    },
+    {
+      "name": "Piotr Kowalski",
+      "doc": "BHP Certificate",
+      "expiry": "2026-04-06",
+      "days": 21,
+      "zone": "red"
+    }
+  ],
+  "ranAt": "2026-03-16T22:30:55.718Z"
+}

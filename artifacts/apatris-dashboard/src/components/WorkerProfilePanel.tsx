@@ -178,6 +178,7 @@ export function WorkerProfilePanel({
   const [editSpec, setEditSpec] = useState("");
   const [editProfession, setEditProfession] = useState("");
   const [editSiteLocation, setEditSiteLocation] = useState("");
+  const [editIban, setEditIban] = useState("");
   const [saving, setSaving] = useState(false);
   const [copyingLink, setCopyingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -277,6 +278,7 @@ export function WorkerProfilePanel({
       const payload: Record<string, string> = {};
       if (editSpec || editProfession) payload.specialization = editSpec || editProfession;
       payload.siteLocation = editSiteLocation.trim();
+      if (editIban.trim()) payload.iban = editIban.trim().toUpperCase();
       const res = await fetch(`${import.meta.env.BASE_URL}api/workers/${workerId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -321,72 +323,86 @@ export function WorkerProfilePanel({
         ) : (
           <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="p-6 border-b border-white/10 relative overflow-hidden bg-slate-800/50">
-              <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
-                {!isEditing && (
-                  <>
-                    <button
-                      onClick={() => setShowQR(true)}
-                      className="p-2 rounded-full transition-colors"
-                      style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.3)" }}
-                      title="Show worker QR code"
-                    >
-                      <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
-                    </button>
-                    <button
-                      onClick={handleCopyPortalLink}
-                      disabled={copyingLink}
-                      className="p-2 rounded-full transition-colors disabled:opacity-50"
-                      style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
-                      title="Copy worker's self-service portal link"
-                    >
-                      {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditSpec(worker.specialization || "");
-                        setEditProfession(worker.specialization || "");
-                        setEditSiteLocation((worker as any).siteLocation || "");
-                        setIsEditing(true);
-                      }}
-                      className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
-                      title={t("panel.editWorkerDetails")}
-                    >
-                      <Pencil className="w-4 h-4 text-amber-400" />
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={onClose}
-                  className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-300" />
-                </button>
-              </div>
-              <div className="flex items-center gap-4 mt-4">
-                <div className="w-16 h-16 rounded-xl flex items-center justify-center text-xl font-bold uppercase" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}>
-                  {worker.name.split(" ").map((n: string) => n[0]).join("")}
+            <div className="px-5 pt-4 pb-4 border-b border-white/10 bg-slate-800/50">
+              {/* Top row: avatar + name + action buttons */}
+              <div className="flex items-center gap-3">
+                {/* Avatar / Initials */}
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-black uppercase flex-shrink-0" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.3)", color: "#E9FF70" }}>
+                  {worker.name.split(" ").map((n: string) => n[0]).join("").slice(0, 3)}
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">{worker.name}</h2>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="px-2 py-0.5 rounded text-xs font-mono bg-white/10 text-gray-300 border border-white/10">
-                      {worker.specialization}
-                    </span>
+                {/* Name + badges */}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-black text-white leading-tight truncate">{worker.name}</h2>
+                  <div className="flex items-center flex-wrap gap-1.5 mt-1">
+                    {worker.specialization && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/10 text-gray-300 border border-white/10">
+                        {worker.specialization}
+                      </span>
+                    )}
                     <StatusBadge status={worker.complianceStatus} />
                     {(() => {
                       const score = calcComplianceScore(worker);
                       const color = scoreColor(score);
                       const bg = scoreBg(score);
                       return (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: bg, color, border: `1px solid ${color}40` }}>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: bg, color, border: `1px solid ${color}40` }}>
                           {score}/100
                         </span>
                       );
                     })()}
                   </div>
                 </div>
+                {/* Action buttons */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {!isEditing && (
+                    <>
+                      <button
+                        onClick={() => setShowQR(true)}
+                        className="p-2 rounded-full transition-colors"
+                        style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.3)" }}
+                        title="Show worker QR code"
+                      >
+                        <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
+                      </button>
+                      <button
+                        onClick={handleCopyPortalLink}
+                        disabled={copyingLink}
+                        className="p-2 rounded-full transition-colors disabled:opacity-50"
+                        style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
+                        title="Copy worker portal link"
+                      >
+                        {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditSpec(worker.specialization || "");
+                          setEditProfession(worker.specialization || "");
+                          setEditSiteLocation((worker as any).siteLocation || "");
+                          setEditIban((worker as any).iban || "");
+                          setIsEditing(true);
+                        }}
+                        className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
+                        title={t("panel.editWorkerDetails")}
+                      >
+                        <Pencil className="w-4 h-4 text-amber-400" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={onClose}
+                    className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-300" />
+                  </button>
+                </div>
               </div>
+              {/* IBAN display strip (when not editing) */}
+              {!isEditing && (worker as any).iban && (
+                <div className="mt-3 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: "rgba(233,255,112,0.05)", border: "1px solid rgba(233,255,112,0.15)" }}>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">IBAN</span>
+                  <span className="font-mono text-xs text-gray-300 flex-1">{(worker as any).iban}</span>
+                </div>
+              )}
             </div>
 
             <div className="p-6 space-y-6 flex-1">
@@ -454,6 +470,24 @@ export function WorkerProfilePanel({
                           {t("panel.leaveBlank")}
                         </p>
                       )}
+                    </div>
+
+                    {/* Bank IBAN */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5 flex items-center gap-1.5">
+                        <span>🏦</span> Bank IBAN
+                      </label>
+                      <input
+                        type="text"
+                        value={editIban}
+                        onChange={(e) => setEditIban(e.target.value.toUpperCase())}
+                        placeholder="PL61 1090 1014 0000 0712 1981 2874"
+                        className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none placeholder:text-gray-600 transition-colors"
+                        style={{ border: "1px solid rgba(233,255,112,0.3)" }}
+                        onFocus={(e) => { e.currentTarget.style.borderColor = "#E9FF70"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(233,255,112,0.15)"; }}
+                        onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.3)"; e.currentTarget.style.boxShadow = "none"; }}
+                      />
+                      <p className="text-[10px] font-mono mt-1 text-gray-600">Saved to payroll ledger automatically</p>
                     </div>
                   </div>
 

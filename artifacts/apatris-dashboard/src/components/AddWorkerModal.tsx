@@ -27,6 +27,7 @@ export function AddWorkerModal({ isOpen, onClose }: AddWorkerModalProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [siteLocation, setSiteLocation] = useState("");
+  const [iban, setIban] = useState("");
   const [trcExpiry, setTrcExpiry] = useState("");
   const [workPermitExpiry, setWorkPermitExpiry] = useState("");
   const [contractEndDate, setContractEndDate] = useState("");
@@ -35,7 +36,7 @@ export function AddWorkerModal({ isOpen, onClose }: AddWorkerModalProps) {
 
   const reset = () => {
     setName(""); setSpecialization(""); setEmail(""); setPhone("");
-    setSiteLocation(""); setTrcExpiry(""); setWorkPermitExpiry("");
+    setSiteLocation(""); setIban(""); setTrcExpiry(""); setWorkPermitExpiry("");
     setContractEndDate(""); setHourlyNettoRate("");
   };
 
@@ -58,6 +59,7 @@ export function AddWorkerModal({ isOpen, onClose }: AddWorkerModalProps) {
       if (contractEndDate) payload.contractEndDate = contractEndDate;
       const rate = parseFloat(hourlyNettoRate);
       if (!isNaN(rate) && rate > 0) payload.hourlyNettoRate = rate;
+      if (iban.trim()) payload.iban = iban.trim().toUpperCase();
 
       const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
       const res = await fetch(`${base}/api/workers`, {
@@ -161,6 +163,22 @@ export function AddWorkerModal({ isOpen, onClose }: AddWorkerModalProps) {
               <input type="number" min="0" step="0.5" value={hourlyNettoRate} onChange={(e) => setHourlyNettoRate(e.target.value)} placeholder="e.g. 28" className={`${inputCls} pl-8 pr-12`} style={inputStyle} />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">/hr</span>
             </div>
+          </div>
+
+          {/* Bank IBAN */}
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: LIME }}>
+              🏦 Bank IBAN
+            </label>
+            <input
+              type="text"
+              value={iban}
+              onChange={(e) => setIban(e.target.value.toUpperCase())}
+              placeholder="PL61 1090 1014 0000 0712 1981 2874"
+              className={inputCls}
+              style={inputStyle}
+            />
+            <p className="text-[10px] font-mono mt-1 text-gray-600">Auto-populated in payroll ledger IBAN column</p>
           </div>
 
           {/* Divider */}

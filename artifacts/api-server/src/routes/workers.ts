@@ -220,6 +220,7 @@ router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req
     if (body.trcExpiry) airtableFields["TRC Expiry"] = body.trcExpiry;
     if (body.workPermitExpiry) airtableFields["Work Permit Expiry"] = body.workPermitExpiry;
     if (body.contractEndDate) airtableFields["Contract End Date"] = body.contractEndDate;
+    if (body.iban) airtableFields["IBAN"] = String(body.iban).toUpperCase();
 
     const newRecord = await createRecord(airtableFields);
     const worker = mapRecordToWorker(newRecord);

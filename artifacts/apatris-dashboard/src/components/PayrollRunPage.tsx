@@ -1341,23 +1341,30 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
 /*  ZUS CALCULATOR                                                            */
 /* ────────────────────────────────────────────────────────────────────────── */
 /* ── shared ZUS math helpers ─────────────────────────────────────────── */
-function calcSingleZUS(grossNum: number, inclChorobowe: boolean) {
-  const emerytalne_e = grossNum * 0.0976;
-  const rentowe_e    = grossNum * 0.015;
-  const chorobowe_e  = inclChorobowe ? grossNum * 0.0245 : 0;
-  const totalZusEmp  = emerytalne_e + rentowe_e + chorobowe_e;
+function calcSingleZUS(grossNum: number, inclChorobowe: boolean, inclPit2 = false) {
+  // Employee social ZUS
+  const emerytalne_e  = grossNum * 0.0976;
+  const rentowe_e     = grossNum * 0.015;
+  const chorobowe_e   = inclChorobowe ? grossNum * 0.0245 : 0;
+  const totalZusEmp   = emerytalne_e + rentowe_e + chorobowe_e;
+  // Employer social ZUS
   const emerytalne_er = grossNum * 0.0976;
-  const rentowe_er   = grossNum * 0.065;
-  const wypadkowe    = grossNum * 0.0167;
-  const fp           = grossNum * 0.0245;
-  const fgsb         = grossNum * 0.001;
-  const totalZusEr   = emerytalne_er + rentowe_er + wypadkowe + fp + fgsb;
+  const rentowe_er    = grossNum * 0.065;
+  const wypadkowe     = grossNum * 0.0167;
+  const fp            = grossNum * 0.0245;
+  const fgsb          = grossNum * 0.001;
+  const totalZusEr    = emerytalne_er + rentowe_er + wypadkowe + fp + fgsb;
+  // Zdrowotna (health) — 9% of gross minus social ZUS
   const zdrowotnaBase = grossNum - totalZusEmp;
-  const zdrowotna    = zdrowotnaBase * 0.09;
-  const taxBase      = Math.max(0, zdrowotnaBase - 300);
-  const pit          = taxBase * 0.12;
-  const netto        = grossNum - totalZusEmp - zdrowotna - pit;
-  return { emerytalne_e, rentowe_e, chorobowe_e, totalZusEmp, emerytalne_er, rentowe_er, wypadkowe, fp, fgsb, totalZusEr, zdrowotnaBase, zdrowotna, pit, netto };
+  const zdrowotna     = zdrowotnaBase * 0.09;
+  // PIT for zlecenie: KUP = 20% of zdrowotnaBase, then 12% on remainder
+  // PIT-2: if filed, reduces monthly advance tax by 300 zł (kwota zmniejszająca)
+  const kup           = zdrowotnaBase * 0.20;
+  const taxBase       = Math.max(0, zdrowotnaBase - kup);
+  const pitGross      = taxBase * 0.12;
+  const pit           = inclPit2 ? Math.max(0, pitGross - 300) : pitGross;
+  const netto         = grossNum - totalZusEmp - zdrowotna - pit;
+  return { emerytalne_e, rentowe_e, chorobowe_e, totalZusEmp, emerytalne_er, rentowe_er, wypadkowe, fp, fgsb, totalZusEr, zdrowotnaBase, zdrowotna, kup, taxBase, pitGross, pit, netto };
 }
 
 /* ── shared row component defined outside render to avoid hook issue ─── */
@@ -1376,7 +1383,8 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
 
   /* single contract state */
   const [gross, setGross]               = React.useState("5024");
-  const [inclChorob, setInclChorob]     = React.useState(true);
+  const [inclChorob, setInclChorob]     = React.useState(false);
+  const [inclPit2, setInclPit2]         = React.useState(true);
 
   /* dual contract state */
   const [gross1, setGross1]             = React.useState("5024");
@@ -1386,7 +1394,7 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
   const [inclChorob2, setInclChorob2]   = React.useState(false);
 
   /* ── SINGLE calculations ─────────────────────────────────────────── */
-  const s = calcSingleZUS(parseFloat(gross) || 0, inclChorob);
+  const s = calcSingleZUS(parseFloat(gross) || 0, inclChorob, inclPit2);
 
   /* ── DUAL calculations ───────────────────────────────────────────── */
   const MIN_WAGE_2026 = 5024;
@@ -1456,22 +1464,34 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
                   style={{ border: `1.5px solid ${LIME_BORDER}`, caretColor: LIME }} />
               </div>
             </div>
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusChorobowe")}</label>
-              <button onClick={() => setInclChorob((v) => !v)}
-                className="flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
-                style={inclChorob ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME } : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>
-                {inclChorob ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                {inclChorob ? t("payroll.zusIncluded") : t("payroll.zusExcluded")}
-              </button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusChorobowe")}</label>
+                <button onClick={() => setInclChorob((v) => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
+                  style={inclChorob ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME } : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>
+                  {inclChorob ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                  {inclChorob ? t("payroll.zusIncluded") : t("payroll.zusExcluded")}
+                </button>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">PIT-2 Filed</label>
+                <button onClick={() => setInclPit2((v) => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
+                  style={inclPit2 ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME } : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>
+                  {inclPit2 ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                  {inclPit2 ? "−300 zł/mo" : "No reduction"}
+                </button>
+              </div>
             </div>
             <div className="rounded-xl p-4 space-y-1" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employee ZUS Contributions</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employee Deductions (Zlecenia)</div>
               <CalcRow label="Emerytalne" sub="9.76%" value={`- zł${s.emerytalne_e.toFixed(2)}`} />
               <CalcRow label="Rentowe" sub="1.50%" value={`- zł${s.rentowe_e.toFixed(2)}`} />
               {inclChorob && <CalcRow label="Chorobowe" sub="2.45%" value={`- zł${s.chorobowe_e.toFixed(2)}`} />}
-              <CalcRow label="Zdrowotna" sub={`9% × zł${s.zdrowotnaBase.toFixed(0)}`} value={`- zł${s.zdrowotna.toFixed(2)}`} />
-              <CalcRow label="PIT-17 advance" sub="12% – KUP 300 zł" value={`- zł${s.pit.toFixed(2)}`} />
+              <CalcRow label="Zdrowotna" sub={`9% × zł${s.zdrowotnaBase.toFixed(2)}`} value={`- zł${s.zdrowotna.toFixed(2)}`} />
+              <CalcRow label="KUP (zlecenie)" sub={`20% × zł${s.zdrowotnaBase.toFixed(2)} = zł${s.kup.toFixed(2)}`} value="deduction" />
+              <CalcRow label="PIT-12 advance" sub={inclPit2 ? `(zł${s.pitGross.toFixed(2)} − PIT-2 300)` : `12% × zł${s.taxBase.toFixed(2)}`} value={`- zł${s.pit.toFixed(2)}`} />
             </div>
           </div>
 

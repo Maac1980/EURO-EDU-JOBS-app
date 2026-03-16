@@ -15,8 +15,8 @@ const LIME = "#E9FF70";
 const LIME_BORDER = "rgba(233,255,112,0.25)";
 const LIME_BG = "rgba(233,255,112,0.06)";
 
-// Polish statutory minimum gross wage (minimalne wynagrodzenie brutto) by year.
-// Update this map each year when the government announces the new rate.
+// Monthly gross minimum wage (zł). Divided by 160h → minimum hourly rate.
+// Compliance check: worker's gross must be ≥ (minMonthly/160) × hoursWorked.
 const POLISH_MIN_WAGE: Record<number, number> = {
   2022: 3010,
   2023: 3600,  // Jul 2023 rate (higher half-year)
@@ -800,10 +800,12 @@ export function PayrollRunPage() {
               ) : (
                 displayed.map((row) => {
                   const netto = calcNetto(row, withZus);
-                  const gross = (parseFloat(row._hours) || 0) * (parseFloat(row._rate) || row.hourlyNettoRate);
-                  const minWage = getMinWage(monthYear);
-                  const belowMin = gross > 0 && gross < minWage;
-                  const aboveMin = gross >= minWage;
+                  const hours = parseFloat(row._hours) || 0;
+                  const gross = hours * (parseFloat(row._rate) || row.hourlyNettoRate);
+                  const minHourlyRate = getMinWage(monthYear) / 160;
+                  const minForPeriod = minHourlyRate * hours;
+                  const belowMin = gross > 0 && gross < minForPeriod;
+                  const aboveMin = gross > 0 && gross >= minForPeriod;
                   return (
                     <tr key={row.id} className="hover:bg-white/3 transition-colors" style={{ background: row._dirty ? "rgba(233,255,112,0.03)" : "" }}>
                       {/* Name */}
@@ -895,11 +897,14 @@ export function PayrollRunPage() {
                           <span className="text-gray-600 text-[10px]">—</span>
                         ) : (
                           <div>
+                            <div className="text-[9px] font-mono text-gray-500">
+                              {minHourlyRate.toFixed(2)} zł/h × {hours}h
+                            </div>
                             <span
                               className="text-xs font-bold tabular-nums"
                               style={{ color: aboveMin ? "#4ade80" : "#f59e0b" }}
                             >
-                              zł{minWage.toLocaleString("pl-PL")}
+                              zł{Math.round(minForPeriod).toLocaleString("pl-PL")}
                             </span>
                             {belowMin && (
                               <div className="text-[8px] font-black uppercase tracking-wide mt-0.5 flex items-center gap-0.5" style={{ color: "#f59e0b" }}>
@@ -948,7 +953,7 @@ export function PayrollRunPage() {
                   </td>
                   <td className="px-2 py-2.5 font-mono text-[10px] text-gray-500">
                     <div className="text-[9px] text-gray-600">{new Date(monthYear).getFullYear()}</div>
-                    <div>min. zł{getMinWage(monthYear).toLocaleString("pl-PL")}</div>
+                    <div>min. {(getMinWage(monthYear) / 160).toFixed(2)} zł/h</div>
                   </td>
                   <td className="px-2 py-2.5 font-mono text-sm font-black tabular-nums" style={{ color: LIME }}>
                     zł{displayed.reduce((s, r) => s + calcNetto(r, withZus), 0).toFixed(2)}

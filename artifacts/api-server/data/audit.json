@@ -1,0 +1,24 @@
+[
+  {
+    "workerId": "2",
+    "actor": "coordinator@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "coordinator",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-16T13:01:09.763Z"
+  },
+  {
+    "workerId": "2",
+    "actor": "coordinator@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "coordinator",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-16T13:01:18.583Z"
+  }
+]

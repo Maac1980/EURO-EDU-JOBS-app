@@ -31,6 +31,7 @@ import { ClientManagementCard } from "@/components/ClientManagementCard";
 import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { ExpiringThisWeekPanel } from "@/components/ExpiringThisWeekPanel";
 import { ExpiryCalendar } from "@/components/ExpiryCalendar";
+import { NotificationHistoryCard } from "@/components/NotificationHistoryCard";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -337,7 +338,7 @@ export default function Dashboard() {
     }
   };
 
-  const { data: workersData, isLoading: isLoadingWorkers } = useGetWorkers({ 
+  const { data: workersData, isLoading: isLoadingWorkers, isFetching } = useGetWorkers({ 
     search: search || undefined, 
     specialization: specialization || undefined, 
     status: status || undefined 
@@ -1352,6 +1353,9 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+
+            {/* Notification History Log */}
+            <NotificationHistoryCard />
           </div>
         )}
 

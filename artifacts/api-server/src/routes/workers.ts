@@ -6,6 +6,7 @@ import { appendAuditEntry } from "./audit.js";
 import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { MOCK_WORKERS, getMockWorker, isMockMode } from "../lib/mockData.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { appendNotification } from "../lib/notificationLog.js";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -771,21 +772,24 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
 });
 
 // POST /workers/:id/notify
-router.post("/workers/:id/notify", async (req, res) => {
+router.post("/workers/:id/notify", authenticateToken, async (req, res) => {
   try {
     const record = await fetchRecord(req.params.id);
     const worker = mapRecordToWorker(record);
     const body = req.body as { message?: string; channel?: string };
+    const channel = body.channel ?? "email";
+    const message = body.message ?? "";
+    const actor = req.user?.email ?? req.user?.id ?? "operator";
 
-    // In a production system, this would send an email/SMS
-    // For now, we log and return success
     console.log(
-      `[Notify] Worker: ${worker.name} | Channel: ${body.channel ?? "email"} | Message: ${body.message}`
+      `[Notify] Worker: ${worker.name} | Channel: ${channel} | Actor: ${actor} | Message: ${message}`
     );
+
+    appendNotification(req.params.id, worker.name, channel, message, actor);
 
     res.json({
       success: true,
-      message: `Notification queued for ${worker.name} via ${body.channel ?? "email"}.`,
+      message: `Notification queued for ${worker.name} via ${channel}.`,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

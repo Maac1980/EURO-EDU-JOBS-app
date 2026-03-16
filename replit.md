@@ -284,6 +284,23 @@ In `Dashboard.tsx` compliance tab:
 - Each card shows: worker name, specialization, compliance status badge, pipeline stage badge, TRC/WP/BHP expiry badges (colour-coded by days), site location, and EDIT / PROFIL action buttons
 - Filters (search, status, site, pipeline) apply to both views
 
+## Notification History Log
+
+Every worker notification sent through the dashboard is persisted to `data/notifications.json` (max 500 entries, newest first).
+
+**Backend:**
+- `artifacts/api-server/src/lib/notificationLog.ts` — `appendNotification()`, `getNotifications()`, `clearNotifications()`; auto-creates the JSON file on first write
+- `POST /api/workers/:id/notify` — now requires auth; records `workerId`, `workerName`, `channel`, `message`, `actor` (email from JWT), `sentAt` (ISO) 
+- `GET /api/notifications?limit=N` — returns `{ notifications, total }`; all authenticated roles can read
+- `DELETE /api/notifications` — admin only; wipes the full log
+
+**Frontend — `NotificationHistoryCard.tsx`:**
+- Collapsible card at the bottom of the Alerts tab
+- Click header to load; shows entry count badge and chevron
+- Each entry: channel icon (blue envelope for email, yellow chat for SMS), worker name, channel badge, relative timestamp, message text (2-line clamp), sender email
+- Search/filter by worker name, "Odśwież" refresh button, admin-only "Wyczyść log" delete button
+- Scrollable list (max-h-96) with footer note when log > 100 entries
+
 ## ZUS Report Export
 
 - `GET /api/compliance/zus-export` — returns BOM-prefixed CSV with columns: Imię i Nazwisko, PESEL, NIP, Rodzaj umowy, Godziny, Podstawa ZUS

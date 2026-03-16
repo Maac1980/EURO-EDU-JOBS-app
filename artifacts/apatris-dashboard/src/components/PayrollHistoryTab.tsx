@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
-import { Printer, Loader2, AlertTriangle, FileText } from "lucide-react";
+import { Printer, Loader2, AlertTriangle, FileText, Check } from "lucide-react";
 import { SettlementPrintModal } from "./SettlementPrintModal";
 
 const LIME = "#E9FF70";
 const LIME_BORDER = "rgba(233,255,112,0.25)";
+const ZUS_RATE = 0.1126;
 
 export interface PayrollRecord {
   id: string;
@@ -22,6 +23,8 @@ export interface PayrollRecord {
   siteLocation: string;
   createdAt: string;
 }
+
+type RowEdit = { hours: string; rate: string; advance: string; dirty: boolean; saving: boolean };
 
 function formatMonthYear(my: string): string {
   const [y, m] = my.split("-");
@@ -42,13 +45,15 @@ export function PayrollHistoryTab({ workerId, workerName }: PayrollHistoryTabPro
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printOpen, setPrintOpen] = useState(false);
+  const [edits, setEdits] = useState<Record<string, RowEdit>>({});
 
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!workerId) return;
     setLoading(true);
     setError(null);
+    setEdits({});
     fetch(`${base}/api/payroll/history/${workerId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -61,9 +66,69 @@ export function PayrollHistoryTab({ workerId, workerName }: PayrollHistoryTabPro
       .finally(() => setLoading(false));
   }, [workerId, base, token]);
 
-  const totalHours = history.reduce((s, r) => s + r.totalHours, 0);
-  const totalNetto = history.reduce((s, r) => s + r.finalNettoPayout, 0);
-  const totalAdvances = history.reduce((s, r) => s + r.advancesDeducted, 0);
+  useEffect(() => { load(); }, [load]);
+
+  const getEdit = (r: PayrollRecord): RowEdit =>
+    edits[r.id] ?? {
+      hours: String(r.totalHours),
+      rate: String(r.hourlyRate),
+      advance: String(r.advancesDeducted),
+      dirty: false,
+      saving: false,
+    };
+
+  const setField = (id: string, rec: PayrollRecord, field: keyof RowEdit, val: string) => {
+    setEdits((prev) => ({
+      ...prev,
+      [id]: { ...getEdit(rec), ...prev[id], [field]: val, dirty: true, saving: false },
+    }));
+  };
+
+  const saveRow = async (r: PayrollRecord) => {
+    const e = edits[r.id];
+    if (!e?.dirty) return;
+    setEdits((prev) => ({ ...prev, [r.id]: { ...e, saving: true } }));
+
+    const hours = parseFloat(e.hours) || 0;
+    const rate = parseFloat(e.rate) || 0;
+    const advance = parseFloat(e.advance) || 0;
+    const gross = hours * rate;
+    const zus = gross * ZUS_RATE;
+    const netto = gross - zus - advance - (r.penaltiesDeducted ?? 0);
+
+    try {
+      await fetch(`${base}/api/payroll/records/${r.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ totalHours: hours, hourlyRate: rate, advancesDeducted: advance }),
+      });
+      setHistory((prev) => prev.map((rec) =>
+        rec.id === r.id
+          ? { ...rec, totalHours: hours, hourlyRate: rate, advancesDeducted: advance, grossPay: gross, zusBaseSalary: zus, finalNettoPayout: netto }
+          : rec
+      ));
+      setEdits((prev) => { const next = { ...prev }; delete next[r.id]; return next; });
+    } catch {
+      setEdits((prev) => ({ ...prev, [r.id]: { ...e, saving: false } }));
+    }
+  };
+
+  const calcNetto = (r: PayrollRecord) => {
+    const e = edits[r.id];
+    if (!e) return r.finalNettoPayout;
+    const h = parseFloat(e.hours) || 0;
+    const rt = parseFloat(e.rate) || 0;
+    const adv = parseFloat(e.advance) || 0;
+    const gross = h * rt;
+    return gross - gross * ZUS_RATE - adv - (r.penaltiesDeducted ?? 0);
+  };
+
+  const totalHours = history.reduce((s, r) => s + (parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0), 0);
+  const totalNetto = history.reduce((s, r) => s + calcNetto(r), 0);
+  const totalAdvances = history.reduce((s, r) => s + (parseFloat(edits[r.id]?.advance ?? String(r.advancesDeducted)) || 0), 0);
+
+  const inputCls = "bg-slate-900 text-white rounded px-1.5 py-1 text-xs font-mono focus:outline-none tabular-nums";
+  const inputStyle = { border: `1px solid ${LIME_BORDER}`, width: "68px" };
 
   if (loading) {
     return (
@@ -122,38 +187,109 @@ export function PayrollHistoryTab({ workerId, workerName }: PayrollHistoryTabPro
           </div>
         ) : (
           <div className="rounded-xl border overflow-hidden" style={{ borderColor: LIME_BORDER }}>
-            <table className="w-full text-xs">
+            <table className="w-full text-xs" style={{ minWidth: "380px" }}>
               <thead>
                 <tr style={{ background: "rgba(233,255,112,0.06)", borderBottom: `1px solid ${LIME_BORDER}` }}>
-                  {[t("payroll.history.month"), t("payroll.history.hours"), t("payroll.history.rate"), t("payroll.history.advance"), t("payroll.history.netto")].map((h) => (
-                    <th key={h} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left" style={{ color: "rgba(255,255,255,0.4)" }}>{h}</th>
+                  {[t("payroll.history.month"), t("payroll.history.hours"), t("payroll.history.rate"), t("payroll.history.advance"), t("payroll.history.netto"), ""].map((h) => (
+                    <th key={h} className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-left" style={{ color: "rgba(255,255,255,0.4)" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {history.map((r) => (
-                  <tr key={r.id} className="hover:bg-white/3 transition-colors">
-                    <td className="px-3 py-2.5 font-mono font-bold text-white">{formatMonthYear(r.monthYear)}</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-300">{r.totalHours.toFixed(1)}h</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-400">zł{r.hourlyRate.toFixed(2)}/h</td>
-                    <td className="px-3 py-2.5 font-mono text-gray-500">
-                      {r.advancesDeducted > 0 ? `−zł${r.advancesDeducted.toFixed(2)}` : "—"}
-                      {r.penaltiesDeducted > 0 && <span className="text-red-400 ml-1">{` −zł${r.penaltiesDeducted.toFixed(2)}`}</span>}
-                    </td>
-                    <td className="px-3 py-2.5 font-mono font-black" style={{ color: r.finalNettoPayout >= 0 ? LIME : "#ef4444" }}>
-                      zł{r.finalNettoPayout.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+                {history.map((r) => {
+                  const e = getEdit(r);
+                  const isDirty = !!edits[r.id]?.dirty;
+                  const netto = calcNetto(r);
+
+                  return (
+                    <tr
+                      key={r.id}
+                      className="hover:bg-white/[0.02] transition-colors"
+                      style={{
+                        background: isDirty ? "rgba(233,255,112,0.04)" : undefined,
+                        outline: isDirty ? `1px solid ${LIME_BORDER}` : undefined,
+                      }}
+                    >
+                      <td className="px-2 py-2 font-mono font-bold text-white whitespace-nowrap">{formatMonthYear(r.monthYear)}</td>
+
+                      {/* Hours — editable */}
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          className={inputCls}
+                          style={inputStyle}
+                          value={e.hours}
+                          onChange={(ev) => setField(r.id, r, "hours", ev.target.value)}
+                        />
+                      </td>
+
+                      {/* Rate — editable */}
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-0.5">
+                          <span className="text-[9px] text-gray-600">zł</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            className={inputCls}
+                            style={inputStyle}
+                            value={e.rate}
+                            onChange={(ev) => setField(r.id, r, "rate", ev.target.value)}
+                          />
+                          <span className="text-[9px] text-gray-600">/h</span>
+                        </div>
+                      </td>
+
+                      {/* Advance — editable */}
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className={inputCls}
+                          style={inputStyle}
+                          value={e.advance}
+                          onChange={(ev) => setField(r.id, r, "advance", ev.target.value)}
+                        />
+                        {r.penaltiesDeducted > 0 && (
+                          <div className="text-[8px] text-red-400 mt-0.5">−zł{r.penaltiesDeducted.toFixed(2)} pen.</div>
+                        )}
+                      </td>
+
+                      {/* Netto — recalculated live */}
+                      <td className="px-2 py-2 font-mono font-black" style={{ color: netto >= 0 ? LIME : "#ef4444" }}>
+                        zł{netto.toFixed(2)}
+                      </td>
+
+                      {/* Save button */}
+                      <td className="px-2 py-2">
+                        {isDirty && (
+                          <button
+                            onClick={() => saveRow(r)}
+                            disabled={e.saving}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-black transition-all"
+                            style={{ background: LIME, color: "#333" }}
+                            title="Save"
+                          >
+                            {e.saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               {/* Footer total */}
               <tfoot>
                 <tr style={{ background: "rgba(233,255,112,0.06)", borderTop: `1px solid ${LIME_BORDER}` }}>
-                  <td className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-500">{t("payroll.totals")}</td>
-                  <td className="px-3 py-2.5 font-mono text-gray-300">{totalHours.toFixed(1)}h</td>
-                  <td className="px-3 py-2.5" />
-                  <td className="px-3 py-2.5 font-mono text-gray-500">zł{totalAdvances.toFixed(2)}</td>
-                  <td className="px-3 py-2.5 font-mono font-black" style={{ color: LIME }}>zł{totalNetto.toFixed(2)}</td>
+                  <td className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-500">{t("payroll.totals")}</td>
+                  <td className="px-2 py-2.5 font-mono text-gray-300">{totalHours.toFixed(1)}h</td>
+                  <td className="px-2 py-2.5" />
+                  <td className="px-2 py-2.5 font-mono text-gray-500">zł{totalAdvances.toFixed(2)}</td>
+                  <td className="px-2 py-2.5 font-mono font-black" style={{ color: LIME }}>zł{totalNetto.toFixed(2)}</td>
+                  <td />
                 </tr>
               </tfoot>
             </table>

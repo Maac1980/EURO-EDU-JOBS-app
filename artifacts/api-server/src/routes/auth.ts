@@ -96,21 +96,19 @@ router.post("/auth/login", (req, res) => {
     return res.status(401).json({ error: "Incorrect password." });
   }
 
-  // ── Email OTP for admin logins ────────────────────────────────────────────
-  if (found.role === "admin") {
+  // ── Email OTP for admin logins (only when SMTP is configured) ───────────
+  const smtpConfigured = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
+  if (found.role === "admin" && smtpConfigured) {
     const submittedOtp = (req.body as any).emailOtp as string | undefined;
     if (!submittedOtp) {
-      // Generate and email OTP
       const otp = generateOtp();
       otpStore.set(found.id, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
-      // Fire email best-effort (don't block login if SMTP not configured)
       sendLoginOtp(found.email, found.name, otp).catch((e) =>
         console.warn("[auth] Email OTP send failed:", e instanceof Error ? e.message : e)
       );
-      console.log(`[auth] Email OTP sent for ${found.email} (or check server log if SMTP not configured)`);
+      console.log(`[auth] Email OTP generated for ${found.email} — code: ${otp}`);
       return res.status(202).json({ requiresEmailOtp: true, message: "A 6-digit code has been sent to your email." });
     }
-    // Validate submitted OTP
     const stored = otpStore.get(found.id);
     if (!stored || Date.now() > stored.expiresAt) {
       otpStore.delete(found.id);

@@ -458,6 +458,11 @@
     "zusGross": "Wynagrodzenie brutto",
     "zusChorobowe": "Ubezpieczenie chorobowe",
     "zusIncluded": "Uwzględnione (2,45%)",
-    "zusExcluded": "Wyłączone"
+    "zusExcluded": "Wyłączone",
+    "zusSingle": "Jedna umowa",
+    "zusDual": "Podwójne zatrudnienie",
+    "zusCompany1": "Firma 1 — Główna",
+    "zusCompany2": "Firma 2 — Drugi tytuł",
+    "zusHours": "Godziny"
   }
 }

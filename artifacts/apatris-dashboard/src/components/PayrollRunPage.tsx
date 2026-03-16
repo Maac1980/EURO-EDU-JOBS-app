@@ -691,112 +691,295 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
 /* ────────────────────────────────────────────────────────────────────────── */
 /*  ZUS CALCULATOR                                                            */
 /* ────────────────────────────────────────────────────────────────────────── */
-function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
-  const [gross, setGross] = React.useState("5000");
-  const [includeChorobowe, setIncludeChorobowe] = React.useState(true);
-
-  const grossNum = parseFloat(gross) || 0;
-
-  const emerytalne_e  = grossNum * 0.0976;
-  const rentowe_e     = grossNum * 0.015;
-  const chorobowe_e   = includeChorobowe ? grossNum * 0.0245 : 0;
-  const totalZusEmp   = emerytalne_e + rentowe_e + chorobowe_e;
-
+/* ── shared ZUS math helpers ─────────────────────────────────────────── */
+function calcSingleZUS(grossNum: number, inclChorobowe: boolean) {
+  const emerytalne_e = grossNum * 0.0976;
+  const rentowe_e    = grossNum * 0.015;
+  const chorobowe_e  = inclChorobowe ? grossNum * 0.0245 : 0;
+  const totalZusEmp  = emerytalne_e + rentowe_e + chorobowe_e;
   const emerytalne_er = grossNum * 0.0976;
-  const rentowe_er    = grossNum * 0.065;
-  const wypadkowe     = grossNum * 0.0167;
-  const fp            = grossNum * 0.0245;
-  const fgsb          = grossNum * 0.001;
-  const totalZusEr    = emerytalne_er + rentowe_er + wypadkowe + fp + fgsb;
-
+  const rentowe_er   = grossNum * 0.065;
+  const wypadkowe    = grossNum * 0.0167;
+  const fp           = grossNum * 0.0245;
+  const fgsb         = grossNum * 0.001;
+  const totalZusEr   = emerytalne_er + rentowe_er + wypadkowe + fp + fgsb;
   const zdrowotnaBase = grossNum - totalZusEmp;
-  const zdrowotna     = zdrowotnaBase * 0.09;
-  const taxBase       = zdrowotnaBase - 300; // 300 PLN/month KUP approx
-  const pit           = Math.max(0, taxBase * 0.12);
-  const netto         = grossNum - totalZusEmp - zdrowotna - pit;
+  const zdrowotna    = zdrowotnaBase * 0.09;
+  const taxBase      = Math.max(0, zdrowotnaBase - 300);
+  const pit          = taxBase * 0.12;
+  const netto        = grossNum - totalZusEmp - zdrowotna - pit;
+  return { emerytalne_e, rentowe_e, chorobowe_e, totalZusEmp, emerytalne_er, rentowe_er, wypadkowe, fp, fgsb, totalZusEr, zdrowotnaBase, zdrowotna, pit, netto };
+}
 
-  const Row = ({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) => (
-    <div className="flex items-center justify-between py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-      <div>
-        <div className="text-xs font-bold text-white">{label}</div>
-        {sub && <div className="text-[10px] text-gray-500 font-mono mt-0.5">{sub}</div>}
-      </div>
-      <div className={`text-sm font-black tabular-nums ${highlight ? "" : "text-white"}`} style={highlight ? { color: LIME } : {}}>{value}</div>
+/* ── shared row component defined outside render to avoid hook issue ─── */
+const CalcRow = ({ label, value, sub, highlight, saving }: { label: string; value: string; sub?: string; highlight?: boolean; saving?: boolean }) => (
+  <div className="flex items-center justify-between py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <div>
+      <div className="text-xs font-bold text-white">{label}</div>
+      {sub && <div className="text-[10px] text-gray-500 font-mono mt-0.5">{sub}</div>}
     </div>
-  );
+    <div className="text-sm font-black tabular-nums" style={{ color: highlight ? LIME : saving ? "#4ade80" : "white" }}>{value}</div>
+  </div>
+);
+
+function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
+  const [zusTab, setZusTab]             = React.useState<"single" | "dual">("single");
+
+  /* single contract state */
+  const [gross, setGross]               = React.useState("5082");
+  const [inclChorob, setInclChorob]     = React.useState(true);
+
+  /* dual contract state */
+  const [gross1, setGross1]             = React.useState("5082");
+  const [inclChorob1, setInclChorob1]   = React.useState(true);
+  const [rate2, setRate2]               = React.useState("25");
+  const [hours2, setHours2]             = React.useState("80");
+  const [inclChorob2, setInclChorob2]   = React.useState(false);
+
+  /* ── SINGLE calculations ─────────────────────────────────────────── */
+  const s = calcSingleZUS(parseFloat(gross) || 0, inclChorob);
+
+  /* ── DUAL calculations ───────────────────────────────────────────── */
+  const MIN_WAGE_2026 = 5082;
+  const g1 = parseFloat(gross1) || 0;
+  const c1 = calcSingleZUS(g1, inclChorob1);
+
+  const grossRaw2 = (parseFloat(rate2) || 0) * (parseFloat(hours2) || 0);
+  // Company 2 ZUS rules (zbieg tytułów):
+  // If Company 1 gross ≥ min wage → emerytalne + rentowe EXEMPT from Company 2
+  const c1QualifiesExemption = g1 >= MIN_WAGE_2026;
+  // Employee side Company 2
+  const em2_e  = c1QualifiesExemption ? 0 : grossRaw2 * 0.0976;
+  const re2_e  = c1QualifiesExemption ? 0 : grossRaw2 * 0.015;
+  const ch2_e  = inclChorob2 ? grossRaw2 * 0.0245 : 0;
+  const zusEmp2 = em2_e + re2_e + ch2_e;
+  // Employer side Company 2
+  const em2_er = c1QualifiesExemption ? 0 : grossRaw2 * 0.0976;
+  const re2_er = c1QualifiesExemption ? 0 : grossRaw2 * 0.065;
+  const wy2    = grossRaw2 * 0.0167; // wypadkowe always applies
+  const fp2    = grossRaw2 * 0.0245; // FP always applies
+  const fg2    = grossRaw2 * 0.001;
+  const zusEr2 = em2_er + re2_er + wy2 + fp2 + fg2;
+  // Zdrowotna mandatory regardless
+  const zdBase2 = grossRaw2 - zusEmp2;
+  const zdr2    = zdBase2 * 0.09;
+  // PIT — no tax-free allowance if already used at Company 1
+  const pit2    = Math.max(0, (zdBase2 - 250) * 0.12);
+  const netto2  = grossRaw2 - zusEmp2 - zdr2 - pit2;
+
+  // Savings vs if Company 2 had full ZUS
+  const fullZusEmp2   = grossRaw2 * 0.0976 + grossRaw2 * 0.015 + (inclChorob2 ? grossRaw2 * 0.0245 : 0);
+  const empSaving     = c1QualifiesExemption ? (grossRaw2 * 0.0976 + grossRaw2 * 0.015) : 0;
+  const erSaving      = c1QualifiesExemption ? (grossRaw2 * 0.0976 + grossRaw2 * 0.065) : 0;
+
+  const combinedGross = g1 + grossRaw2;
+  const combinedNetto = c1.netto + netto2;
+  const combinedErCost = (g1 + c1.totalZusEr) + (grossRaw2 + zusEr2);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-black text-white uppercase tracking-wide">{t("payroll.zusCalc")}</h2>
-        <p className="text-xs font-mono mt-1" style={{ color: LIME, opacity: 0.7 }}>{t("payroll.zusCalcSubtitle")}</p>
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+        <div>
+          <h2 className="text-xl font-black text-white uppercase tracking-wide">{t("payroll.zusCalc")}</h2>
+          <p className="text-xs font-mono mt-1" style={{ color: LIME, opacity: 0.7 }}>{t("payroll.zusCalcSubtitle")}</p>
+        </div>
+        {/* Inner tab switcher */}
+        <div className="flex items-center gap-1 p-1 rounded-xl w-fit flex-shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          {([["single", t("payroll.zusSingle")], ["dual", t("payroll.zusDual")]] as const).map(([tab, label]) => (
+            <button key={tab} onClick={() => setZusTab(tab)}
+              className="px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+              style={zusTab === tab ? { background: LIME, color: "#333333" } : { color: "rgba(255,255,255,0.45)" }}
+            >{label}</button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Input panel */}
-        <div className="glass-panel rounded-xl p-5 space-y-5">
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusGross")}</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black" style={{ color: LIME }}>zł</span>
-              <input
-                type="number"
-                value={gross}
-                onChange={(e) => setGross(e.target.value)}
-                min={0}
-                className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 text-white text-lg font-black tabular-nums focus:outline-none"
-                style={{ border: `1.5px solid ${LIME_BORDER}`, caretColor: LIME }}
-              />
+      {/* ════════════════════ SINGLE CONTRACT ════════════════════ */}
+      {zusTab === "single" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="glass-panel rounded-xl p-5 space-y-5">
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusGross")}</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black" style={{ color: LIME }}>zł</span>
+                <input type="number" value={gross} onChange={(e) => setGross(e.target.value)} min={0}
+                  className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 text-white text-lg font-black tabular-nums focus:outline-none"
+                  style={{ border: `1.5px solid ${LIME_BORDER}`, caretColor: LIME }} />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusChorobowe")}</label>
+              <button onClick={() => setInclChorob((v) => !v)}
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
+                style={inclChorob ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME } : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>
+                {inclChorob ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                {inclChorob ? t("payroll.zusIncluded") : t("payroll.zusExcluded")}
+              </button>
+            </div>
+            <div className="rounded-xl p-4 space-y-1" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employee ZUS Contributions</div>
+              <CalcRow label="Emerytalne" sub="9.76%" value={`- zł${s.emerytalne_e.toFixed(2)}`} />
+              <CalcRow label="Rentowe" sub="1.50%" value={`- zł${s.rentowe_e.toFixed(2)}`} />
+              {inclChorob && <CalcRow label="Chorobowe" sub="2.45%" value={`- zł${s.chorobowe_e.toFixed(2)}`} />}
+              <CalcRow label="Zdrowotna" sub={`9% × zł${s.zdrowotnaBase.toFixed(0)}`} value={`- zł${s.zdrowotna.toFixed(2)}`} />
+              <CalcRow label="PIT-17 advance" sub="12% – KUP 300 zł" value={`- zł${s.pit.toFixed(2)}`} />
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">{t("payroll.zusChorobowe")}</label>
-            <button
-              onClick={() => setIncludeChorobowe((v) => !v)}
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
-              style={includeChorobowe
-                ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME }
-                : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}
-            >
-              {includeChorobowe ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-              {includeChorobowe ? t("payroll.zusIncluded") : t("payroll.zusExcluded")}
-            </button>
-          </div>
-
-          <div className="rounded-xl p-4 space-y-1" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employee ZUS Contributions</div>
-            <Row label="Emerytalne" sub="9.76%" value={`- zł${emerytalne_e.toFixed(2)}`} />
-            <Row label="Rentowe" sub="1.50%" value={`- zł${rentowe_e.toFixed(2)}`} />
-            {includeChorobowe && <Row label="Chorobowe" sub="2.45%" value={`- zł${chorobowe_e.toFixed(2)}`} />}
-            <Row label="Zdrowotna" sub={`9% × zł${zdrowotnaBase.toFixed(0)}`} value={`- zł${zdrowotna.toFixed(2)}`} />
-            <Row label="PIT-17 advance" sub="12% – KUP 300 zł" value={`- zł${pit.toFixed(2)}`} />
-          </div>
-        </div>
-
-        {/* Result panel */}
-        <div className="space-y-4">
-          <div className="glass-panel rounded-xl p-5" style={{ border: `1px solid ${LIME_BORDER}` }}>
-            <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Net Take-Home</div>
-            <div className="text-4xl font-black tabular-nums" style={{ color: LIME }}>zł{netto.toFixed(2)}</div>
-            <div className="text-xs text-gray-500 font-mono mt-1">from gross zł{grossNum.toFixed(2)}</div>
-          </div>
-
-          <div className="glass-panel rounded-xl p-5 space-y-1">
-            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employer Total Cost</div>
-            <Row label="Gross Salary" value={`zł${grossNum.toFixed(2)}`} />
-            <Row label="Emerytalne" sub="9.76%" value={`+ zł${emerytalne_er.toFixed(2)}`} />
-            <Row label="Rentowe" sub="6.50%" value={`+ zł${rentowe_er.toFixed(2)}`} />
-            <Row label="Wypadkowe" sub="1.67%" value={`+ zł${wypadkowe.toFixed(2)}`} />
-            <Row label="FP" sub="2.45%" value={`+ zł${fp.toFixed(2)}`} />
-            <Row label="FGŚP" sub="0.10%" value={`+ zł${fgsb.toFixed(2)}`} />
-            <div className="flex items-center justify-between pt-3 mt-1 border-t" style={{ borderColor: LIME_BORDER }}>
-              <div className="text-xs font-black uppercase tracking-widest" style={{ color: LIME }}>Total Employer Cost</div>
-              <div className="text-lg font-black tabular-nums" style={{ color: LIME }}>zł{(grossNum + totalZusEr).toFixed(2)}</div>
+          <div className="space-y-4">
+            <div className="glass-panel rounded-xl p-5" style={{ border: `1px solid ${LIME_BORDER}` }}>
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Net Take-Home</div>
+              <div className="text-4xl font-black tabular-nums" style={{ color: LIME }}>zł{s.netto.toFixed(2)}</div>
+              <div className="text-xs text-gray-500 font-mono mt-1">from gross zł{(parseFloat(gross) || 0).toFixed(2)}</div>
+            </div>
+            <div className="glass-panel rounded-xl p-5 space-y-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Employer Total Cost</div>
+              <CalcRow label="Gross Salary" value={`zł${(parseFloat(gross)||0).toFixed(2)}`} />
+              <CalcRow label="Emerytalne" sub="9.76%" value={`+ zł${s.emerytalne_er.toFixed(2)}`} />
+              <CalcRow label="Rentowe" sub="6.50%" value={`+ zł${s.rentowe_er.toFixed(2)}`} />
+              <CalcRow label="Wypadkowe" sub="1.67%" value={`+ zł${s.wypadkowe.toFixed(2)}`} />
+              <CalcRow label="FP" sub="2.45%" value={`+ zł${s.fp.toFixed(2)}`} />
+              <CalcRow label="FGŚP" sub="0.10%" value={`+ zł${s.fgsb.toFixed(2)}`} />
+              <div className="flex items-center justify-between pt-3 mt-1 border-t" style={{ borderColor: LIME_BORDER }}>
+                <div className="text-xs font-black uppercase tracking-widest" style={{ color: LIME }}>Total Employer Cost</div>
+                <div className="text-lg font-black tabular-nums" style={{ color: LIME }}>zł{((parseFloat(gross)||0) + s.totalZusEr).toFixed(2)}</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ════════════════════ DUAL EMPLOYMENT ════════════════════ */}
+      {zusTab === "dual" && (
+        <div className="space-y-5">
+          {/* Legal note banner */}
+          <div className="rounded-xl px-4 py-3 text-xs font-mono leading-relaxed" style={{ background: "rgba(233,255,112,0.06)", border: `1px solid ${LIME_BORDER}`, color: "rgba(233,255,112,0.8)" }}>
+            <span className="font-black uppercase tracking-widest mr-2" style={{ color: LIME }}>⚖ Zbieg Tytułów (Art. 9 Ustawa o SUS)</span>
+            If Company 1 gross ≥ min. wage (zł{MIN_WAGE_2026.toLocaleString()}), then Company 2 (umowa zlecenia) is <strong>exempt from emerytalne + rentowe ZUS</strong>. Only zdrowotna (9%) is mandatory. This is legal and common practice in Poland.
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* ── Company 1 inputs ── */}
+            <div className="glass-panel rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black" style={{ background: LIME, color: "#333" }}>1</div>
+                <span className="text-xs font-black uppercase tracking-widest text-white">{t("payroll.zusCompany1")}</span>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">{t("payroll.zusGross")} (zł/month)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black" style={{ color: LIME }}>zł</span>
+                  <input type="number" value={gross1} onChange={(e) => setGross1(e.target.value)} min={0}
+                    className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-slate-900 text-white text-base font-black tabular-nums focus:outline-none"
+                    style={{ border: `1.5px solid ${c1QualifiesExemption ? LIME_BORDER : "rgba(239,68,68,0.4)"}`, caretColor: LIME }} />
+                </div>
+                {!c1QualifiesExemption && (
+                  <p className="text-[10px] text-red-400 font-mono mt-1">⚠ Below min. wage — Company 2 full ZUS applies</p>
+                )}
+                {c1QualifiesExemption && (
+                  <p className="text-[10px] font-mono mt-1" style={{ color: LIME }}>✓ Qualifies — Company 2 exempt from emerytalne + rentowe</p>
+                )}
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">{t("payroll.zusChorobowe")}</label>
+                <button onClick={() => setInclChorob1((v) => !v)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
+                  style={inclChorob1 ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME } : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>
+                  {inclChorob1 ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                  {inclChorob1 ? t("payroll.zusIncluded") : t("payroll.zusExcluded")}
+                </button>
+              </div>
+              <div className="rounded-xl p-3 space-y-1 text-xs" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <CalcRow label="Emerytalne 9.76%" value={`- zł${c1.emerytalne_e.toFixed(2)}`} />
+                <CalcRow label="Rentowe 1.50%" value={`- zł${c1.rentowe_e.toFixed(2)}`} />
+                {inclChorob1 && <CalcRow label="Chorobowe 2.45%" value={`- zł${c1.chorobowe_e.toFixed(2)}`} />}
+                <CalcRow label="Zdrowotna 9%" value={`- zł${c1.zdrowotna.toFixed(2)}`} />
+                <CalcRow label="PIT-17" value={`- zł${c1.pit.toFixed(2)}`} />
+                <div className="flex justify-between pt-2 mt-1 border-t" style={{ borderColor: LIME_BORDER }}>
+                  <span className="font-black" style={{ color: LIME }}>Net Company 1</span>
+                  <span className="font-black" style={{ color: LIME }}>zł{c1.netto.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Company 2 inputs ── */}
+            <div className="glass-panel rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black" style={{ background: "rgba(233,255,112,0.2)", color: LIME, border: `1px solid ${LIME_BORDER}` }}>2</div>
+                <span className="text-xs font-black uppercase tracking-widest text-white">{t("payroll.zusCompany2")}</span>
+                {c1QualifiesExemption && (
+                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ml-auto" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}>ZUS Exempt</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Rate (zł/h)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black" style={{ color: LIME }}>zł</span>
+                    <input type="number" value={rate2} onChange={(e) => setRate2(e.target.value)} min={0}
+                      className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-slate-900 text-white font-black tabular-nums focus:outline-none"
+                      style={{ border: `1.5px solid ${LIME_BORDER}`, caretColor: LIME }} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">{t("payroll.zusHours")}</label>
+                  <input type="number" value={hours2} onChange={(e) => setHours2(e.target.value)} min={0}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-900 text-white font-black tabular-nums focus:outline-none"
+                    style={{ border: `1.5px solid ${LIME_BORDER}`, caretColor: LIME }} />
+                </div>
+              </div>
+              <div className="text-xs font-mono text-gray-400">
+                Gross Company 2: <span className="font-black text-white">zł{grossRaw2.toFixed(2)}</span>
+                <span className="ml-2 text-gray-600">({parseFloat(rate2)||0} × {parseFloat(hours2)||0}h)</span>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">{t("payroll.zusChorobowe")} (Company 2)</label>
+                <button onClick={() => setInclChorob2((v) => !v)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-xs font-black uppercase tracking-wide"
+                  style={inclChorob2 ? { background: "rgba(233,255,112,0.12)", borderColor: LIME_BORDER, color: LIME } : { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>
+                  {inclChorob2 ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                  {inclChorob2 ? t("payroll.zusIncluded") : t("payroll.zusExcluded")}
+                </button>
+              </div>
+              <div className="rounded-xl p-3 space-y-1" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="text-[9px] font-black uppercase tracking-widest text-gray-600 mb-2">Company 2 Deductions</div>
+                <CalcRow label="Emerytalne 9.76%" sub={c1QualifiesExemption ? "EXEMPT" : undefined} value={c1QualifiesExemption ? "zł0.00" : `- zł${em2_e.toFixed(2)}`} saving={c1QualifiesExemption} />
+                <CalcRow label="Rentowe 1.50%" sub={c1QualifiesExemption ? "EXEMPT" : undefined} value={c1QualifiesExemption ? "zł0.00" : `- zł${re2_e.toFixed(2)}`} saving={c1QualifiesExemption} />
+                {inclChorob2 && <CalcRow label="Chorobowe 2.45%" value={`- zł${ch2_e.toFixed(2)}`} />}
+                <CalcRow label={`Zdrowotna 9%`} sub="Mandatory" value={`- zł${zdr2.toFixed(2)}`} />
+                <CalcRow label="PIT-17" sub="No allowance" value={`- zł${pit2.toFixed(2)}`} />
+                <div className="flex justify-between pt-2 mt-1 border-t" style={{ borderColor: LIME_BORDER }}>
+                  <span className="font-black" style={{ color: LIME }}>Net Company 2</span>
+                  <span className="font-black" style={{ color: LIME }}>zł{netto2.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Combined summary ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="glass-panel rounded-xl p-5" style={{ border: `1px solid ${LIME_BORDER}` }}>
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Combined Net Take-Home</div>
+              <div className="text-3xl font-black tabular-nums" style={{ color: LIME }}>zł{combinedNetto.toFixed(2)}</div>
+              <div className="text-xs text-gray-500 font-mono mt-1">from combined gross zł{combinedGross.toFixed(2)}</div>
+            </div>
+            {c1QualifiesExemption && (
+              <div className="glass-panel rounded-xl p-5" style={{ border: "1px solid rgba(74,222,128,0.3)" }}>
+                <div className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#4ade80" }}>Worker Saves (monthly)</div>
+                <div className="text-3xl font-black tabular-nums" style={{ color: "#4ade80" }}>+ zł{empSaving.toFixed(2)}</div>
+                <div className="text-xs font-mono mt-1" style={{ color: "rgba(74,222,128,0.6)" }}>vs single-company full ZUS</div>
+              </div>
+            )}
+            {c1QualifiesExemption && (
+              <div className="glass-panel rounded-xl p-5" style={{ border: "1px solid rgba(251,191,36,0.3)" }}>
+                <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">Employer 2 Saves (monthly)</div>
+                <div className="text-3xl font-black tabular-nums text-amber-400">+ zł{erSaving.toFixed(2)}</div>
+                <div className="text-xs font-mono text-amber-600 mt-1">emerytalne + rentowe not due</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

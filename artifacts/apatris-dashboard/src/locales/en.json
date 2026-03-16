@@ -458,6 +458,11 @@
     "zusGross": "Gross Salary",
     "zusChorobowe": "Sick Pay (Chorobowe)",
     "zusIncluded": "Included (2.45%)",
-    "zusExcluded": "Excluded"
+    "zusExcluded": "Excluded",
+    "zusSingle": "Single Contract",
+    "zusDual": "Dual Employment",
+    "zusCompany1": "Company 1 — Primary",
+    "zusCompany2": "Company 2 — Second Permit",
+    "zusHours": "Hours"
   }
 }

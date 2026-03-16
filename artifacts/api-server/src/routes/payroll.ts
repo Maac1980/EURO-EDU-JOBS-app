@@ -71,7 +71,7 @@ router.get("/payroll/workers", authenticateToken, requireCoordinatorOrAdmin, asy
 // Update the IBAN bank account number for a single worker
 router.patch("/payroll/workers/:id/iban", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { iban } = req.body as { iban?: string };
     if (iban === undefined) return res.status(400).json({ error: "iban field required" });
     await updateRecord(id, { IBAN: iban.trim() });

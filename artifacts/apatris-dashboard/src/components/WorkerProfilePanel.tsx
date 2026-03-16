@@ -182,12 +182,40 @@ export function WorkerProfilePanel({
   const [saving, setSaving] = useState(false);
   const [copyingLink, setCopyingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [sendingWA, setSendingWA] = useState(false);
   const [isPipOpen, setIsPipOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [noteContent, setNoteContent] = useState("");
   const [noteUpdatedAt, setNoteUpdatedAt] = useState<string | null>(null);
   const [noteUpdatedBy, setNoteUpdatedBy] = useState<string | null>(null);
   const [noteSaving, setNoteSaving] = useState(false);
+
+  const handleSendPortalWhatsApp = async () => {
+    if (!workerId) return;
+    setSendingWA(true);
+    try {
+      const token = sessionStorage.getItem("eej_token");
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const tokenRes = await fetch(`${base}/api/portal/token/${workerId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenData.error) throw new Error(tokenData.error);
+      const portalUrl = `${window.location.origin}${base}/portal?token=${tokenData.token}`;
+      const res = await fetch(`${base}/api/portal/send-whatsapp/${workerId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ portalUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      toast({ title: "✓ WhatsApp sent!", description: `Portal link delivered to ${data.sentTo}`, variant: "success" as any });
+    } catch (err) {
+      toast({ title: "WhatsApp failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setSendingWA(false);
+    }
+  };
 
   const handleCopyPortalLink = async () => {
     if (!workerId) return;
@@ -363,6 +391,17 @@ export function WorkerProfilePanel({
                         title="Show worker QR code"
                       >
                         <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
+                      </button>
+                      <button
+                        onClick={handleSendPortalWhatsApp}
+                        disabled={sendingWA}
+                        className="p-2 rounded-full transition-colors disabled:opacity-50"
+                        style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}
+                        title={worker?.phone ? "Send portal link via WhatsApp" : "No phone number on file — add in Airtable first"}
+                      >
+                        {sendingWA
+                          ? <Loader2 className="w-4 h-4 animate-spin text-green-400" />
+                          : <MessageCircle className="w-4 h-4 text-green-400" />}
                       </button>
                       <button
                         onClick={handleCopyPortalLink}

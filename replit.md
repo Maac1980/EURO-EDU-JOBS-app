@@ -337,9 +337,39 @@ Every worker notification sent through the dashboard is persisted to `data/notif
 
 ## Worker Direct Expiry Reminders
 
-- `sendWorkerExpiryReminders()` in `alerter.ts` — emails each worker (if email is set) when their own doc expires ≤ 30 days
-- Runs daily at 09:00 via cron (separate from admin alerter at 08:00)
-- `POST /api/compliance/trigger-worker-reminders` — manual trigger button in Dashboard Alerts tab
+- `sendWorkerExpiryReminders()` in `alerter.ts` — emails each worker (if email is set) when their own doc expires ≤ 30 days; also sends WhatsApp (if worker.phone + TWILIO_ACCOUNT_SID set)
+
+## WhatsApp / SMS via Twilio
+
+**Package:** `twilio` installed in `@workspace/api-server`
+
+**Functions (`alerter.ts`):**
+- `sendWhatsAppMessage(to, body)` — normalizes phone → E.164, sends via Twilio WhatsApp
+- `sendSmsMessage(to, body)` — sends via Twilio SMS
+
+**Automated triggers:**
+- Daily compliance scan (`checkAndAlert`): sends admin phone WhatsApp summary after email (if `ADMIN_PHONE` or `adminProfile.phone` is set and Twilio is configured)
+- Daily worker reminder cron (`sendWorkerExpiryReminders`): sends each worker a WhatsApp listing their expiring docs (in Polish)
+
+**On-demand endpoint:**
+- `POST /api/portal/send-whatsapp/:recordId` (auth required) — fetches worker from Airtable, generates 30-day portal token, sends personalised WhatsApp with portal link to `worker.phone`
+
+**Dashboard button:** Worker Profile panel has a green `MessageCircle` button (next to copy-link) that triggers the above endpoint; shows spinner while in flight; toasts success/error
+
+**Required Secrets:**
+| Variable | Example | Purpose |
+|---|---|---|
+| `TWILIO_ACCOUNT_SID` | `ACxxxx` | Twilio account |
+| `TWILIO_AUTH_TOKEN` | `...` | Twilio auth |
+| `TWILIO_WHATSAPP_FROM` | `whatsapp:+14155238886` | Sandbox or approved WA number |
+| `TWILIO_SMS_FROM` | `+14155238886` | SMS sender number |
+| `ADMIN_PHONE` | `+48601234567` | Compliance alerts destination |
+
+**Phone normalization:** strips spaces/dashes, handles `00XX` → `+XX`, defaults bare numbers to `+48` (Polish)
+
+**Cron schedule:**
+- Admin WhatsApp: fires automatically after daily 08:00 compliance email (if alert threshold met)
+- Worker WhatsApp: fires automatically alongside 09:00 worker reminder emails
 
 ## Document Viewer
 

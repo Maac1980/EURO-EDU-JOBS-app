@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { fetchAllRecords, fetchRecord, updateRecord } from "../lib/airtable.js";
 import { mapRecordToWorker } from "../lib/compliance.js";
 import { appendAuditEntry } from "./audit.js";
+import { sendWhatsAppMessage } from "../lib/alerter.js";
 
 const router = Router();
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -174,6 +175,50 @@ router.post("/portal/hours", async (req, res) => {
   } catch (err) {
     console.error("[portal] hours error:", err);
     return res.status(500).json({ error: "Failed to save hours." });
+  }
+});
+
+// ── POST /api/portal/send-whatsapp/:recordId ──────────────────────────────────
+// Generates a fresh portal token and sends the link to the worker's phone via WhatsApp
+router.post("/portal/send-whatsapp/:recordId", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    jwt.verify(authHeader.slice(7), JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: "Invalid admin token" });
+  }
+
+  const { recordId } = req.params;
+  if (!recordId?.startsWith("rec")) {
+    return res.status(400).json({ error: "Invalid record ID" });
+  }
+
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+    return res.status(503).json({ error: "WhatsApp not configured. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM to Secrets." });
+  }
+
+  try {
+    const record = await fetchRecord(recordId);
+    const worker = mapRecordToWorker(record);
+    if (!worker.phone) {
+      return res.status(400).json({ error: "Worker has no phone number on record. Add it in Airtable first." });
+    }
+
+    const token = signPortalToken(recordId);
+    const portalUrl = (req.body?.portalUrl as string | undefined) ?? `${process.env.APP_URL ?? ""}/portal?token=${token}`;
+
+    const waBody = `Cześć ${worker.name} 👋\n\nTwój portal EEJ jest gotowy! Kliknij, aby zobaczyć swój profil, dokumenty i godziny pracy:\n\n${portalUrl}\n\n⏳ Link ważny przez 30 dni.\n\n— EURO EDU JOBS`;
+    await sendWhatsAppMessage(worker.phone, waBody);
+
+    console.log(`[portal] ✓ WhatsApp portal link sent to ${worker.name} (${worker.phone})`);
+    return res.json({ success: true, sentTo: worker.phone, workerName: worker.name });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to send WhatsApp";
+    console.error("[portal] send-whatsapp error:", msg);
+    return res.status(500).json({ error: msg });
   }
 });
 

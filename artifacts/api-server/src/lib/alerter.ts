@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import twilio from "twilio";
 import cron from "node-cron";
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
@@ -27,6 +28,37 @@ export function getLastAlertStatus(): PersistedAlertResult | null {
     if (!existsSync(ALERT_RESULT_FILE)) return null;
     return JSON.parse(readFileSync(ALERT_RESULT_FILE, "utf-8")) as PersistedAlertResult;
   } catch { return null; }
+}
+
+// ── Phone normalization ───────────────────────────────────────────────────────
+function normalizePhone(raw: string): string {
+  let p = raw.replace(/[\s\-().]/g, "");
+  if (p.startsWith("00")) p = "+" + p.slice(2);
+  if (!p.startsWith("+")) p = "+48" + p;
+  return p;
+}
+
+// ── Twilio WhatsApp / SMS ─────────────────────────────────────────────────────
+export async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const rawFrom = process.env.TWILIO_WHATSAPP_FROM ?? "whatsapp:+14155238886";
+  if (!accountSid || !authToken) throw new Error("TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured.");
+  const client = twilio(accountSid, authToken);
+  const toNum = normalizePhone(to);
+  const from = rawFrom.startsWith("whatsapp:") ? rawFrom : `whatsapp:${rawFrom}`;
+  await client.messages.create({ from, to: `whatsapp:${toNum}`, body });
+}
+
+export async function sendSmsMessage(to: string, body: string): Promise<void> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_SMS_FROM;
+  if (!accountSid || !authToken) throw new Error("TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN not configured.");
+  if (!from) throw new Error("TWILIO_SMS_FROM not set.");
+  const client = twilio(accountSid, authToken);
+  const toNum = normalizePhone(to);
+  await client.messages.create({ from, to: toNum, body });
 }
 
 function getCoordinatorEmails(): string[] {
@@ -264,6 +296,21 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
 
     result.emailSent = true;
     console.log(`[alerter] ✓ ${testMode ? "Test" : ""} alert email sent to ${emailTo}`);
+
+    // WhatsApp alert to admin phone (if Twilio configured and admin has a phone number)
+    const adminPhone = adminProfile?.phone || process.env.ADMIN_PHONE;
+    if (adminPhone && process.env.TWILIO_ACCOUNT_SID && !testMode) {
+      const criticals = result.alerts
+        .filter((a) => a.zone === "red")
+        .slice(0, 5)
+        .map((a) => `🔴 ${a.name} | ${a.doc} | ${a.days}d`)
+        .join("\n");
+      const waBody = `⚠ EEJ COMPLIANCE ALERT\n\nScanned ${result.scanned} workers.\n${result.redCount} critical, ${result.yellowCount} warning.\n\n${criticals}\n\nReview in EEJ dashboard.`;
+      sendWhatsAppMessage(adminPhone, waBody)
+        .then(() => console.log(`[alerter] ✓ WhatsApp alert sent to admin (${adminPhone})`))
+        .catch((e: Error) => console.warn(`[alerter] WhatsApp alert skipped: ${e.message}`));
+    }
+
     persistAlertResult(result);
     return result;
 
@@ -365,6 +412,14 @@ export async function sendWorkerExpiryReminders(): Promise<{ sent: number; skipp
         html,
       });
       result.sent++;
+
+      // Also send WhatsApp reminder to worker if they have a phone and Twilio is configured
+      if (worker.phone && process.env.TWILIO_ACCOUNT_SID) {
+        const waBody = `Cześć ${worker.name} 👋\n\nTwoje dokumenty wygasają wkrótce:\n\n${expiring.map((e) => `📋 ${e.label} — za ${e.days} dni (${e.expiry})`).join("\n")}\n\nSkontaktuj się z koordynatorem, aby je odnowić.\n\n— EURO EDU JOBS`;
+        sendWhatsAppMessage(worker.phone, waBody)
+          .then(() => console.log(`[alerter] ✓ WhatsApp reminder sent to ${worker.name}`))
+          .catch((e: Error) => result.errors.push(`${worker.name} WhatsApp: ${e.message}`));
+      }
     } catch (err) {
       result.errors.push(`${worker.name}: ${err instanceof Error ? err.message : String(err)}`);
     }

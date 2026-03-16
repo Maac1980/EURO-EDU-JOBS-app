@@ -21,10 +21,11 @@ declare global {
   }
 }
 
-export function authenticateToken(req: Request, res: Response, next: NextFunction) {
+export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized — missing token." });
+    res.status(401).json({ error: "Unauthorized — missing token." });
+    return;
   }
   const token = authHeader.slice(7);
   try {
@@ -32,22 +33,18 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
     req.user = decoded;
     next();
   } catch {
-    return res.status(401).json({ error: "Invalid or expired token." });
+    res.status(401).json({ error: "Invalid or expired token." });
   }
 }
 
-export function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!req.user) return res.status(401).json({ error: "Unauthorized." });
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ error: "Admin access required." });
-  }
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
+  if (req.user.role !== "admin") { res.status(403).json({ error: "Admin access required." }); return; }
   next();
 }
 
-export function requireCoordinatorOrAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!req.user) return res.status(401).json({ error: "Unauthorized." });
-  if (req.user.role === "manager") {
-    return res.status(403).json({ error: "Coordinator or Admin access required." });
-  }
+export function requireCoordinatorOrAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
+  if (req.user.role === "manager") { res.status(403).json({ error: "Coordinator or Admin access required." }); return; }
   next();
 }

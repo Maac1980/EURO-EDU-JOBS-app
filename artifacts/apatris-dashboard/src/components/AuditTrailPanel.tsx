@@ -175,7 +175,7 @@ export function AuditTrailPanel() {
                         <span className="text-[10px] font-mono text-gray-600 truncate">· {e.workerId.slice(0, 12)}…</span>
                       )}
                     </div>
-                    {e.newValue && typeof e.newValue === "object" && (
+                    {!!e.newValue && typeof e.newValue === "object" && (
                       <p className="text-[10px] font-mono text-gray-500 mt-0.5 truncate">
                         {Object.entries(e.newValue as Record<string, unknown>)
                           .map(([k, v]) => `${k}: ${v}`)

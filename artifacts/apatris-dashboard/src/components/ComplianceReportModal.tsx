@@ -5,7 +5,7 @@ import { Download, FileWarning, AlertTriangle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export function ComplianceReportModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
-  const { data: report, isLoading } = useGetComplianceReport({ query: { enabled: isOpen } });
+  const { data: report, isLoading } = useGetComplianceReport({ query: { enabled: isOpen } as any });
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

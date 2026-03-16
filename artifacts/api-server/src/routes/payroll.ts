@@ -294,6 +294,7 @@ router.get("/payroll/payslip/:workerId/:monthYear", authenticateToken, async (re
     return res.end(pdfBuffer);
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "Failed to generate payslip." });
+    return;
   }
 });
 

@@ -7,7 +7,7 @@ const daysFromNow = (d: number) => {
   return dt.toISOString().split("T")[0];
 };
 
-export const MOCK_WORKERS: Worker[] = [
+export const MOCK_WORKERS: Worker[] = ([
   {
     id: "mock-001",
     name: "Aleksander Nowak",
@@ -198,7 +198,7 @@ export const MOCK_WORKERS: Worker[] = [
     siteLocation: null,
     totalHours: 67.5,
   },
-];
+] as any[]) as Worker[];
 
 export function isMockMode(): boolean {
   return !process.env.AIRTABLE_API_KEY;

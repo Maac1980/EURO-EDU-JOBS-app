@@ -171,7 +171,7 @@ export function WorkerProfilePanel({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: worker, isLoading } = useGetWorker(workerId || "", {
-    query: { enabled: !!workerId },
+    query: { enabled: !!workerId } as any,
   });
 
   const [isEditing, setIsEditing] = useState(false);

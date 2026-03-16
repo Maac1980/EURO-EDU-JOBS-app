@@ -122,7 +122,7 @@ interface CandidateEditPanelProps {
 export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProps) {
   const { t } = useTranslation();
   const { isAdmin } = useAuth();
-  const { data: worker, isLoading } = useGetWorker(workerId || "", { query: { enabled: !!workerId } });
+  const { data: worker, isLoading } = useGetWorker(workerId || "", { query: { enabled: !!workerId } as any });
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -537,7 +537,7 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
               <div>
                 <SectionDivider label={t("edit.monthlySummary")} />
                 <div className="rounded-2xl overflow-hidden border" style={{ borderColor: LIME_BORDER }}>
-                  <div className="divide-y" style={{ divideBorderColor: LIME_BORDER }}>
+                  <div className="divide-y divide-white/10">
                     <div className="flex items-center justify-between px-4 py-3" style={{ background: "rgba(255,255,255,0.02)" }}>
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t("edit.grossPay")}</p>

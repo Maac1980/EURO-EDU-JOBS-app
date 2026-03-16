@@ -145,7 +145,7 @@ router.get("/compliance/trend", async (_req, res) => {
 
           // Worst document wins
           if (docZone === "red") { workerStatus = "red"; break; }
-          if (docZone === "yellow" && workerStatus !== "red") workerStatus = "yellow";
+          if (docZone === "yellow") workerStatus = "yellow";
           if (docZone === "green" && workerStatus === null) workerStatus = "green";
         }
 

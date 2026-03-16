@@ -455,10 +455,10 @@ router.post("/workers/bulk-create", bulkUpload.fields([
         : Promise.resolve({}),
     ]);
 
-    const [passportData, bhpData, certData, contractData, cvData] = scans;
+    const [passportData, bhpData, certData, contractData, cvData] = scans as Record<string, string>[];
 
     // Merge: later keys win, but name priority: passport > certificate > contract > bhp > cv
-    const merged = { ...cvData, ...bhpData, ...contractData, ...certData, ...passportData };
+    const merged = { ...cvData, ...bhpData, ...contractData, ...certData, ...passportData } as Record<string, string>;
 
     // Build Airtable fields
     const airtableFields: Record<string, unknown> = {};
@@ -628,11 +628,11 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
     if (body.nationality !== undefined) airtableFields["NATIONALITY"] = body.nationality;
     if (body.pipelineStage !== undefined) airtableFields["PIPELINE STAGE"] = body.pipelineStage;
 
-    const updated = await updateRecord(req.params.id, airtableFields);
+    const updated = await updateRecord(req.params.id as string, airtableFields);
     const changedFields = Object.keys(airtableFields).join(", ");
     if (changedFields) {
       appendAuditEntry({
-        workerId: req.params.id,
+        workerId: req.params.id as string,
         actor: "admin",
         field: changedFields,
         newValue: airtableFields,
@@ -649,7 +649,7 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
 // POST /workers/:id/gdpr-erase — wipe all PII fields, keep record shell for audit
 router.post("/workers/:id/gdpr-erase", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     if (!id) return res.status(400).json({ error: "Worker ID required." });
     const wipeFields: Record<string, unknown> = {
       "First Name": "GDPR_ERASED",
@@ -680,7 +680,7 @@ router.post("/workers/:id/gdpr-erase", authenticateToken, requireAdmin, async (r
 // DELETE /workers/:id
 router.delete("/workers/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     if (!id) return res.status(400).json({ error: "Worker ID required." });
     await deleteRecord(id);
     appendAuditEntry({ workerId: id, actor: "admin", field: "ALL", newValue: null, action: "delete" });
@@ -717,7 +717,7 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
 
     // 1. Scan + upload in parallel
     const [, scannedRaw] = await Promise.all([
-      uploadAttachmentToRecord(req.params.id, fieldName, req.file.buffer, req.file.originalname, req.file.mimetype),
+      uploadAttachmentToRecord(req.params.id as string, fieldName, req.file.buffer, req.file.originalname, req.file.mimetype),
       (docType === "passport" || docType === "contract")
         ? scanDocument(req.file.buffer, req.file.mimetype, docType)
             .then((s) => s ? { _legacy: true, data: s } : null)
@@ -756,14 +756,14 @@ router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
 
     if (Object.keys(airtableUpdates).length > 0) {
       try {
-        await updateRecord(req.params.id, airtableUpdates);
+        await updateRecord(req.params.id as string, airtableUpdates);
       } catch (updateErr) {
         console.warn("[upload] Auto-fill partial failure:", updateErr instanceof Error ? updateErr.message : updateErr);
       }
     }
 
     // 3. Return updated worker + what was auto-filled
-    const record = await fetchRecord(req.params.id);
+    const record = await fetchRecord(req.params.id as string);
     res.json({ worker: mapRecordToWorker(record), autoFilled: autoFilledFields, scanned: Object.keys(autoFilledFields).length > 0 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -787,17 +787,17 @@ router.post("/workers/notify-site", authenticateToken, requireCoordinatorOrAdmin
       appendNotification(w.id, w.name, ch, message, actor);
       sent++;
     }
-    res.json({ success: true, sent, site, channel: ch });
+    return res.json({ success: true, sent, site, channel: ch });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
+    return res.status(500).json({ error: message });
   }
 });
 
 // POST /workers/:id/notify
 router.post("/workers/:id/notify", authenticateToken, async (req, res) => {
   try {
-    const record = await fetchRecord(req.params.id);
+    const record = await fetchRecord(req.params.id as string);
     const worker = mapRecordToWorker(record);
     const body = req.body as { message?: string; channel?: string };
     const channel = body.channel ?? "email";
@@ -808,7 +808,7 @@ router.post("/workers/:id/notify", authenticateToken, async (req, res) => {
       `[Notify] Worker: ${worker.name} | Channel: ${channel} | Actor: ${actor} | Message: ${message}`
     );
 
-    appendNotification(req.params.id, worker.name, channel, message, actor);
+    appendNotification(req.params.id as string, worker.name, channel, message, actor);
 
     res.json({
       success: true,

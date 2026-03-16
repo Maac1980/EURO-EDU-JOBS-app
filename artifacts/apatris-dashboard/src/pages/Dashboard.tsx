@@ -905,7 +905,7 @@ export default function Dashboard() {
                     <div className="flex flex-wrap gap-1 mb-3">
                       {expiryBadge("TRC", worker.trcExpiry)}
                       {expiryBadge("WP", worker.workPermitExpiry)}
-                      {expiryBadge("BHP", worker.bhpExpiry)}
+                      {expiryBadge("BHP", (worker as any).bhpExpiry)}
                     </div>
 
                     {(worker as any).siteLocation && (

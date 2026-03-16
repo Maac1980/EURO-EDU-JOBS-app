@@ -895,24 +895,61 @@ export function PayrollRunPage() {
 /* ────────────────────────────────────────────────────────────────────────── */
 function LedgerView({ base, token, t }: { base: string; token: string | null; t: (k: string, opts?: any) => string }) {
   const [records, setRecords] = React.useState<any[]>([]);
+  const [liveWorkers, setLiveWorkers] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
 
+  const currentMonthYear = getCurrentMonthYear();
+
   React.useEffect(() => {
     setLoading(true);
-    fetch(`${base}/api/payroll/summary`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => { if (d.error) throw new Error(d.error); setRecords(d.records ?? []); })
+    Promise.all([
+      fetch(`${base}/api/payroll/summary`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+      fetch(`${base}/api/payroll/workers`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+    ])
+      .then(([summary, workers]) => {
+        if (summary.error) throw new Error(summary.error);
+        setRecords(summary.records ?? []);
+        setLiveWorkers(workers.workers ?? []);
+      })
       .catch((e) => setError(e.message ?? "Failed to load ledger"))
       .finally(() => setLoading(false));
   }, [base, token]);
 
-  const filtered = records
-    .filter((r) => !search || r.workerName?.toLowerCase().includes(search.toLowerCase()) || r.siteLocation?.toLowerCase().includes(search.toLowerCase()) || r.monthYear?.includes(search))
-    .sort((a, b) => b.monthYear?.localeCompare(a.monthYear ?? "") ?? 0);
+  // Build synthetic "draft" rows from live workers for the current month
+  // (only for workers not already in a closed record for this month)
+  const closedThisMonth = new Set(records.filter((r) => r.monthYear === currentMonthYear).map((r) => r.workerId));
+  const draftRows = liveWorkers
+    .filter((w) => !closedThisMonth.has(w.id) && (w.totalHours > 0 || w.hourlyNettoRate > 0))
+    .map((w) => ({
+      id: `draft-${w.id}`,
+      workerId: w.id,
+      workerName: w.name,
+      monthYear: currentMonthYear,
+      totalHours: w.totalHours ?? 0,
+      hourlyRate: w.hourlyNettoRate ?? 0,
+      grossPay: (w.totalHours ?? 0) * (w.hourlyNettoRate ?? 0),
+      zusBaseSalary: (w.totalHours ?? 0) * (w.hourlyNettoRate ?? 0) * ZUS_RATE,
+      advancesDeducted: w.advancePayment ?? 0,
+      penaltiesDeducted: w.penalties ?? 0,
+      finalNettoPayout: (w.totalHours ?? 0) * (w.hourlyNettoRate ?? 0) - (w.advancePayment ?? 0) - (w.penalties ?? 0),
+      siteLocation: w.siteLocation ?? "",
+      _draft: true,
+    }));
 
-  const totalPayout = filtered.reduce((s, r) => s + (r.finalNettoPayout ?? 0), 0);
+  const allRows = [...draftRows, ...records];
+
+  const filtered = allRows
+    .filter((r) => !search || r.workerName?.toLowerCase().includes(search.toLowerCase()) || r.siteLocation?.toLowerCase().includes(search.toLowerCase()) || r.monthYear?.includes(search))
+    .sort((a, b) => {
+      // Current month drafts first, then closed records newest-first
+      if (a._draft && !b._draft) return -1;
+      if (!a._draft && b._draft) return 1;
+      return (b.monthYear ?? "").localeCompare(a.monthYear ?? "");
+    });
+
+  const totalPayout = filtered.filter((r) => !r._draft).reduce((s, r) => s + (r.finalNettoPayout ?? 0), 0);
 
   return (
     <div className="space-y-4">
@@ -956,23 +993,41 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                 {filtered.length === 0 ? (
                   <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-500 font-mono">{t("payroll.noWorkers")}</td></tr>
                 ) : filtered.map((r) => (
-                  <tr key={r.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }} className="hover:bg-white/3 transition-colors">
-                    <td className="px-3 py-2.5 font-mono font-bold" style={{ color: LIME }}>{r.monthYear}</td>
-                    <td className="px-3 py-2.5 font-bold text-white">{r.workerName}</td>
-                    <td className="px-3 py-2.5 text-gray-400">{r.siteLocation || "—"}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-white">{r.totalHours}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-white">zł{(r.hourlyRate ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-white">zł{(r.grossPay ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-red-400">zł{(r.zusBaseSalary ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-amber-400">zł{(r.advancesDeducted ?? 0).toFixed(2)}</td>
-                    <td className="px-3 py-2.5 tabular-nums font-black" style={{ color: LIME }}>zł{(r.finalNettoPayout ?? 0).toFixed(2)}</td>
+                  <tr key={r.id}
+                    style={{
+                      borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      background: r._draft ? "rgba(233,255,112,0.025)" : undefined,
+                    }}
+                    className="hover:bg-white/3 transition-colors"
+                  >
+                    <td className="px-3 py-2.5">
+                      <div className="font-mono font-bold text-xs" style={{ color: LIME }}>{r.monthYear}</div>
+                      {r._draft && (
+                        <span className="text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded" style={{ background: "rgba(233,255,112,0.15)", color: LIME }}>
+                          DRAFT
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 font-bold text-white text-xs">{r.workerName}</td>
+                    <td className="px-3 py-2.5 text-gray-400 text-xs">{r.siteLocation || "—"}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-white text-xs">{Number(r.totalHours).toFixed(1)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-white text-xs">zł{(r.hourlyRate ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-white text-xs">zł{(r.grossPay ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-red-400 text-xs">zł{(r.zusBaseSalary ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-amber-400 text-xs">zł{(r.advancesDeducted ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums font-black text-xs" style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
+                      zł{(r.finalNettoPayout ?? 0).toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
               {filtered.length > 0 && (
                 <tfoot>
                   <tr style={{ background: "rgba(233,255,112,0.05)", borderTop: `1px solid ${LIME_BORDER}` }}>
-                    <td colSpan={8} className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>Total ({filtered.length} records)</td>
+                    <td colSpan={8} className="px-3 py-2.5 text-[10px] font-black uppercase tracking-widest" style={{ color: LIME }}>
+                      Closed: {filtered.filter((r) => !r._draft).length} records
+                      {draftRows.length > 0 && <span className="ml-3 opacity-50">· {draftRows.length} draft (current month)</span>}
+                    </td>
                     <td className="px-3 py-2.5 font-black tabular-nums" style={{ color: LIME }}>zł{totalPayout.toFixed(2)}</td>
                   </tr>
                 </tfoot>

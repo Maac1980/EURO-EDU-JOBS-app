@@ -800,7 +800,6 @@ export function PayrollRunPage() {
                   { label: "Bank IBAN ✏", f: null },
                   { label: "Rate (PLN/H)", f: null },
                   { label: "Hours ✏", f: null, clr: "#fbbf24" },
-                  { label: "Gross (PLN)", f: null },
                   { label: "Advances ✏", f: null, clr: "#f97316" },
                   { label: "Penalties ✏", f: null, clr: "#f87171" },
                   { label: "Final Net", f: "netto" as const, clr: "#4ade80" },
@@ -820,7 +819,7 @@ export function PayrollRunPage() {
               {loading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
+                    {Array.from({ length: 8 }).map((_, j) => (
                       <td key={j} className="px-2 py-2">
                         <div className="h-3.5 bg-white/5 rounded animate-pulse" style={{ width: j === 0 ? "100px" : "56px" }} />
                       </td>
@@ -829,7 +828,7 @@ export function PayrollRunPage() {
                 ))
               ) : displayed.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">
                     {t("payroll.noWorkers")}
                   </td>
                 </tr>
@@ -907,10 +906,6 @@ export function PayrollRunPage() {
                           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-500">h</span>
                         </div>
                       </td>
-                      {/* Gross (PLN) */}
-                      <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ minWidth: "88px" }}>
-                        <span className="text-sm font-bold tabular-nums text-white">{gross > 0 ? gross.toFixed(2) : "—"}</span>
-                      </td>
                       {/* Advances (orange) */}
                       <td className="px-2 py-1.5" style={{ minWidth: "84px" }}>
                         <div className="relative">
@@ -951,9 +946,6 @@ export function PayrollRunPage() {
                   <td className="px-2 py-2.5" />
                   <td className="px-2 py-2.5 font-mono text-xs font-bold" style={{ color: "#fbbf24" }}>
                     {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0), 0).toFixed(1)}h
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-sm font-bold text-white">
-                    {displayed.reduce((s, r) => s + (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate), 0).toFixed(2)}
                   </td>
                   <td className="px-2 py-2.5 font-mono text-xs font-bold" style={{ color: "#f97316" }}>
                     {displayed.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0).toFixed(2)}
@@ -1185,27 +1177,33 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
             <table className="w-full text-xs" style={{ minWidth: "960px" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)" }}>
-                  {["Month", "Worker", "Site", "Hours", "Rate (zł/h)", "Gross", "ZUS", "Advance", "Min. Płaca", "Net Payout", ""].map((h) => (
-                    <th key={h} className="px-3 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-400">{h}</th>
+                  {[
+                    { label: "Month" }, { label: "Worker" }, { label: "Site" }, { label: "Hours" },
+                    { label: "Gross Rate (zł/h)", note: "gross" },
+                    { label: "ZUS Cal. (Zlecenia)", note: "zus" },
+                    { label: "Net Payout", note: "net" },
+                    { label: "" },
+                  ].map(({ label, note }) => (
+                    <th key={label} className="px-3 py-3 text-left text-[10px] font-black uppercase tracking-widest whitespace-nowrap"
+                      style={{ color: note === "net" ? "#4ade80" : note === "zus" ? "#fb923c" : note === "gross" ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
+                      {label}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-500 font-mono">{t("payroll.noWorkers")}</td></tr>
+                  <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-500 font-mono">{t("payroll.noWorkers")}</td></tr>
                 ) : filtered.map((r) => {
                   const e = getEdit(r);
                   const hours = parseFloat(e.hours) || 0;
                   const rate = parseFloat(e.rate) || 0;
-                  const advance = parseFloat(e.advance) || 0;
                   const gross = hours * rate;
-                  const zus = gross * ZUS_RATE;
-                  const netto = gross - zus - advance;
+                  const empZus = gross * 0.1126;
+                  const healthIns = (gross - empZus) * 0.09;
+                  const zus = empZus + healthIns;
+                  const netto = gross - zus;
                   const isDirty = !!edits[r.id]?.dirty;
-                  const minHourlyRate = getMinWage(r.monthYear) / 160;
-                  const minForPeriod = minHourlyRate * hours;
-                  const belowMin = gross > 0 && gross < minForPeriod;
-                  const aboveMin = gross > 0 && gross >= minForPeriod;
 
                   return (
                     <tr key={r.id}
@@ -1259,38 +1257,19 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                           onChange={(ev) => setField(r.id, r, "rate", ev.target.value)}
                         />
                       </td>
-                      {/* Gross — recalculated */}
-                      <td className="px-3 py-2 tabular-nums text-white text-xs">zł{gross.toFixed(2)}</td>
-                      {/* ZUS — recalculated */}
-                      <td className="px-3 py-2 tabular-nums text-red-400 text-xs">zł{zus.toFixed(2)}</td>
-                      {/* Advance — editable */}
-                      <td className="px-2 py-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          className={inputCls}
-                          style={inputStyle}
-                          value={e.advance}
-                          onChange={(ev) => setField(r.id, r, "advance", ev.target.value)}
-                        />
-                      </td>
-                      {/* Min. Płaca — per-hour compliance */}
-                      <td className="px-2 py-2 font-mono whitespace-nowrap" style={{ minWidth: "90px" }}>
+                      {/* ZUS Cal. (Zlecenia — no chorobowe) */}
+                      <td className="px-3 py-2 tabular-nums text-xs" style={{ minWidth: "120px" }}>
                         {gross === 0 ? (
-                          <span className="text-gray-600 text-[10px]">—</span>
+                          <span className="text-gray-600">—</span>
                         ) : (
-                          <div>
-                            <div className="text-[9px] text-gray-500">{minHourlyRate.toFixed(2)} zł/h × {hours}h</div>
-                            <span className="text-xs font-bold tabular-nums" style={{ color: aboveMin ? "#4ade80" : "#f59e0b" }}>
-                              zł{Math.round(minForPeriod).toLocaleString("pl-PL")}
-                            </span>
-                            {belowMin && <div className="text-[8px] font-black uppercase tracking-wide mt-0.5" style={{ color: "#f59e0b" }}>⚠ poniżej min</div>}
-                            {aboveMin && <div className="text-[8px] font-black uppercase tracking-wide mt-0.5" style={{ color: "#4ade80" }}>✓ powyżej</div>}
+                          <div className="space-y-0.5">
+                            <div className="text-[9px] text-gray-500 font-mono">Emer.+Rent. <span style={{ color: "#fb923c" }}>−zł{empZus.toFixed(2)}</span></div>
+                            <div className="text-[9px] text-gray-500 font-mono">Zdrow. <span style={{ color: "#fb923c" }}>−zł{healthIns.toFixed(2)}</span></div>
+                            <div className="text-[9px] font-black font-mono" style={{ color: "#fb923c" }}>Total −zł{zus.toFixed(2)}</div>
                           </div>
                         )}
                       </td>
-                      {/* Net Payout — recalculated */}
+                      {/* Net Payout — gross − ZUS (no advance, no chorobowe) */}
                       <td className="px-3 py-2 tabular-nums font-black text-xs" style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
                         zł{netto.toFixed(2)}
                       </td>
@@ -1324,28 +1303,26 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                       {filtered.reduce((s, r) => s + (parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0), 0).toFixed(1)}h
                     </td>
                     <td className="px-3 py-2.5" />
-                    <td className="px-3 py-2.5 font-mono text-xs text-gray-300">
-                      zł{filtered.reduce((s, r) => {
-                        const h = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
-                        const rt = parseFloat(edits[r.id]?.rate ?? String(r.hourlyRate)) || 0;
-                        return s + h * rt;
-                      }, 0).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5" />
-                    <td className="px-3 py-2.5 font-mono text-xs text-amber-400">
-                      zł{filtered.reduce((s, r) => s + (parseFloat(edits[r.id]?.advance ?? String(r.advancesDeducted)) || 0), 0).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2.5 font-mono text-[10px] text-gray-500">
-                      <div className="text-[9px] text-gray-600">{new Date().getFullYear()}</div>
-                      <div>min. {(getMinWage(getCurrentMonthYear()) / 160).toFixed(2)} zł/h</div>
+                    <td className="px-3 py-2.5 font-mono text-xs" style={{ color: "#fb923c" }}>
+                      {(() => {
+                        const totalZus = filtered.reduce((s, r) => {
+                          const h = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
+                          const rt = parseFloat(edits[r.id]?.rate ?? String(r.hourlyRate)) || 0;
+                          const g = h * rt;
+                          const ez = g * 0.1126;
+                          return s + ez + (g - ez) * 0.09;
+                        }, 0);
+                        return `−zł${totalZus.toFixed(2)}`;
+                      })()}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-sm font-black tabular-nums" style={{ color: LIME }}>
                       zł{filtered.reduce((s, r) => {
                         const h = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
                         const rt = parseFloat(edits[r.id]?.rate ?? String(r.hourlyRate)) || 0;
-                        const adv = parseFloat(edits[r.id]?.advance ?? String(r.advancesDeducted)) || 0;
                         const g = h * rt;
-                        return s + g - g * ZUS_RATE - adv;
+                        const ez = g * 0.1126;
+                        const hi = (g - ez) * 0.09;
+                        return s + g - ez - hi;
                       }, 0).toFixed(2)}
                     </td>
                     <td />

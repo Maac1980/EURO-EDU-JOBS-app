@@ -6,15 +6,7 @@ import { fileURLToPath } from "url";
 import { JWT_SECRET, authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
 import { verify2FAToken, user2FAEnabled } from "./twofa.js";
 import { appendAuditEntry } from "./audit.js";
-import { sendLoginOtp, sendLoginNotification } from "../lib/alerter.js";
-
-// ── Email OTP in-memory store ─────────────────────────────────────────────────
-// key: userId, value: { otp, expiresAt (ms timestamp) }
-const otpStore = new Map<string, { otp: string; expiresAt: number }>();
-
-function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
+import { sendLoginNotification } from "../lib/alerter.js";
 
 const router = Router();
 
@@ -94,30 +86,6 @@ router.post("/auth/login", (req, res) => {
   if (!passwordOk) {
     console.warn(`[auth] Login rejected: incorrect password for "${emailLower}"`);
     return res.status(401).json({ error: "Incorrect password." });
-  }
-
-  // ── Email OTP for admin logins (only when SMTP is configured) ───────────
-  const emailConfigured = !!(process.env.RESEND_API_KEY);
-  if (found.role === "admin" && emailConfigured) {
-    const submittedOtp = (req.body as any).emailOtp as string | undefined;
-    if (!submittedOtp) {
-      const otp = generateOtp();
-      otpStore.set(found.id, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
-      sendLoginOtp(found.email, found.name, otp).catch((e) =>
-        console.warn("[auth] Email OTP send failed:", e instanceof Error ? e.message : e)
-      );
-      console.log(`[auth] Email OTP generated for ${found.email} — code: ${otp}`);
-      return res.status(202).json({ requiresEmailOtp: true, message: "A 6-digit code has been sent to your email." });
-    }
-    const stored = otpStore.get(found.id);
-    if (!stored || Date.now() > stored.expiresAt) {
-      otpStore.delete(found.id);
-      return res.status(401).json({ error: "OTP expired. Please log in again." });
-    }
-    if (submittedOtp !== stored.otp) {
-      return res.status(401).json({ error: "Incorrect OTP code." });
-    }
-    otpStore.delete(found.id);
   }
 
   // ── TOTP 2FA (non-admin, if enabled) ─────────────────────────────────────

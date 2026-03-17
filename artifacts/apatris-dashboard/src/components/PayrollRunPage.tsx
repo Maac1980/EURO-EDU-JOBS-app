@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 // 2026 Polish ZUS/PIT constants for umowa zlecenie (full mandatory contributions)
-const SOCIAL_ZUS_RATE       = 0.1371; // Emerytalne 9.76% + Rentowe 1.5% + Chorobowe 2.45%
+const SOCIAL_ZUS_RATE       = 0.1126; // Emerytalne 9.76% + Rentowe 1.50% (no chorobowe)
 const HEALTH_RATE           = 0.09;   // Zdrowotna — 9% of (gross − social ZUS)
 const KUP_RATE              = 0.20;   // Koszty uzyskania przychodu — 20% of przychód (gross − ZUS)
 const PIT_RATE              = 0.12;   // First tax bracket 2026
@@ -87,7 +87,7 @@ function calcDeductions(gross: number): { socialZus: number; zdrowotna: number; 
   const zdrowotna  = healthBase * HEALTH_RATE;
   const kup        = healthBase * KUP_RATE;       // 20% of przychód (gross − ZUS), not of gross
   const taxBase    = Math.max(0, Math.round(healthBase - kup));
-  const pit        = Math.max(0, taxBase * PIT_RATE - MONTHLY_RELIEF);
+  const pit        = Math.max(0, Math.round(taxBase * PIT_RATE - MONTHLY_RELIEF));
   return { socialZus, zdrowotna, pit, total: socialZus + zdrowotna + pit };
 }
 
@@ -322,14 +322,14 @@ export function PayrollRunPage() {
       const gross = h * rate;
       if (gross === 0) return;
       const em_e = gross * 0.0976;
-      const re_e = gross * 0.015;
-      const ch_e = gross * 0.0245;
-      const totalEmp = em_e + re_e + ch_e;
+      const re_e = gross * 0.0150;
+      const ch_e = 0; // chorobowe not applicable
+      const totalEmp = em_e + re_e; // 11.26% — pension + disability only
       const zdBase = gross - totalEmp;
       const zdr = zdBase * 0.09;
       const kup = zdBase * 0.20;  // 20% of przychód (gross − ZUS)
       const taxBase = Math.max(0, Math.round(zdBase - kup));
-      const pit = Math.max(0, taxBase * 0.12 - 300);
+      const pit = Math.max(0, Math.round(taxBase * 0.12 - 300));
       const netto = gross - totalEmp - zdr - pit;
       const em_er = gross * 0.0976;
       const re_er = gross * 0.065;
@@ -1261,10 +1261,11 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
     const h  = parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0;
     const rt = parseFloat(edits[r.id]?.rate  ?? String(r.hourlyRate))  || 0;
     const g  = h * rt;
-    const sz = g * 0.1371;
-    const zd = (g - sz) * 0.09;
-    const tb = Math.max(0, g - sz - g * 0.20);
-    const pt = Math.max(0, tb * 0.12 - 300);
+    const sz = g * 0.1126;                         // 11.26% — pension 9.76% + disability 1.50%
+    const hb = g - sz;                              // health base = przychód podatkowy
+    const zd = hb * 0.09;
+    const tb = Math.max(0, Math.round(hb * 0.80)); // taxBase = round(przychód × 80%)
+    const pt = Math.max(0, Math.round(tb * 0.12 - 300));
     return { h, g, deductions: sz + zd + pt, netto: g - sz - zd - pt };
   };
   const closedRows  = filtered.filter((r) => !r._draft);
@@ -1402,13 +1403,13 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                   const hours    = parseFloat(e.hours) || 0;
                   const rate     = parseFloat(e.rate) || 0;
                   const gross    = hours * rate;
-                  const socialZus  = gross * 0.1371;
+                  const socialZus  = gross * 0.1126;      // 11.26% pension + disability
                   const healthBase = gross - socialZus;   // przychód podatkowy
                   const zdrowotna  = healthBase * 0.09;
-                  const kup        = healthBase * 0.20;   // KUP on przychód, not gross
+                  const kup        = healthBase * 0.20;
                   const taxBase    = Math.max(0, Math.round(healthBase - kup));
                   const pitGross   = taxBase * 0.12;
-                  const pit        = Math.max(0, pitGross - 300);
+                  const pit        = Math.max(0, Math.round(pitGross - 300));
                   const netto      = gross - socialZus - zdrowotna - pit;
                   const totalDeduct = socialZus + zdrowotna + pit;
                   const isDirty   = !!edits[r.id]?.dirty;
@@ -1497,7 +1498,7 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                         ) : (
                           <div className="space-y-1">
                             <div className="flex items-center justify-between gap-3">
-                              <span className="text-[9px] text-gray-500 font-mono">ZUS 13.71%</span>
+                              <span className="text-[9px] text-gray-500 font-mono">ZUS 11.26%</span>
                               <span className="text-[9px] font-mono tabular-nums" style={{ color: "#fb923c" }}>−{socialZus.toFixed(2)}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3">
@@ -1613,7 +1614,7 @@ function calcSingleZUS(grossNum: number, inclChorobowe: boolean, inclPit2 = fals
   const kup       = zdrowotnaBase * 0.20;   // 20% of przychód (gross − ZUS), not of gross
   const taxBase   = Math.max(0, Math.round(zdrowotnaBase - kup));
   const pitGross  = taxBase * 0.12;
-  const pit       = inclPit2 ? Math.max(0, pitGross - 300) : pitGross;
+  const pit       = inclPit2 ? Math.max(0, Math.round(pitGross - 300)) : Math.round(pitGross);
   const netto     = grossNum - totalZusEmp - zdrowotna - pit;
   return { emerytalne_e, rentowe_e, chorobowe_e, totalZusEmp, emerytalne_er, rentowe_er, wypadkowe, fp, fgsb, totalZusEr, zdrowotnaBase, zdrowotna, kup, taxBase, pitGross, pit, netto };
 }
@@ -1786,12 +1787,12 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
 
   /* single contract state */
   const [gross, setGross]               = React.useState("5024");
-  const [inclChorob, setInclChorob]     = React.useState(true);
+  const [inclChorob, setInclChorob]     = React.useState(false);
   const [inclPit2, setInclPit2]         = React.useState(true);
 
   /* dual contract state */
   const [gross1, setGross1]             = React.useState("5024");
-  const [inclChorob1, setInclChorob1]   = React.useState(true);
+  const [inclChorob1, setInclChorob1]   = React.useState(false);
   const [rate2, setRate2]               = React.useState("25");
   const [hours2, setHours2]             = React.useState("80");
   const [inclChorob2, setInclChorob2]   = React.useState(false);

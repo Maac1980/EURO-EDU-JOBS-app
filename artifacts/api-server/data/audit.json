@@ -152,5 +152,16 @@
     },
     "action": "ADMIN_LOGIN",
     "timestamp": "2026-03-17T20:25:10.421Z"
+  },
+  {
+    "workerId": "1",
+    "actor": "anna.b@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "admin",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-17T21:09:06.233Z"
   }
 ]

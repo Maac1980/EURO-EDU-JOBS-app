@@ -67,7 +67,13 @@ async function buildAll() {
       "import.meta.url": "importMetaUrl",
     },
     banner: {
-      js: 'const importMetaUrl = require("url").pathToFileURL(__filename).href;',
+      // In dev (ESM), each source file sits at src/routes/*.ts or src/lib/*.ts,
+      // so "../../data" resolves to artifacts/api-server/data/ ✓
+      // In prod the entire codebase is merged into dist/index.cjs, so
+      // "../../data" from dist/ would land at artifacts/data/ — wrong.
+      // Faking the URL as if the bundle lives at src/lib/ makes every
+      // "../../data" resolve correctly to artifacts/api-server/data/ ✓
+      js: 'const importMetaUrl = require("url").pathToFileURL(require("path").join(__dirname, "../src/lib/bundle.js")).href;',
     },
     minify: true,
     external: externals,

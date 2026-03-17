@@ -1,0 +1,21 @@
+ACT AS A LEAD UI/UX ARCHITECT. EXECUTE A COMPLETE FRONTEND REDESIGN OF THE DESKTOP LAYOUT TO CREATE A PREMIUM, FULL-SCREEN ENTERPRISE SAAS DASHBOARD. 
+
+1. NUKE THE SIDEBAR & DUPLICATES:
+   - Completely DELETE the left sidebar container entirely. The main dashboard must take up 100% of the screen width (width: 100vw).
+   - Find and REMOVE all duplicate EEJ logos. There must be exactly ONE logo in the entire UI.
+
+2. THE UNIFIED TOP HEADER (CLEAN & MINIMAL):
+   - Create a single top navigation bar (height: 75px, full width, dark background, subtle bottom border, padding: 0 40px, display: flex; justify-content: space-between; align-items: center;).
+   - Left Side: ONE prominent 'EEJ' Logo and the tagline "EURO EDU JOBS | YOUR RELIABLE PARTNERS IN EUROPE". Ensure crisp typography.
+   - Right Side: Language Selector (EN/PL) and the 'Anna B. Admin' user profile cleanly aligned. 
+   - STRICT RULE: Remove ALL other action buttons (Add Worker, Export, etc.) and navigation text from this top bar.
+
+3. THE SQUARE NAVIGATION GRID (MAIN DASHBOARD):
+   - Inside the main page (immediately below the header), create a CSS Grid layout for the primary navigation: `display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin: 30px 40px;`
+   - Create large, premium square cards for: [Compliance] [Payroll] [Deployment] [Doc Alerts].
+   - Styling: Square aspect ratio, large centered icons, clean text below the icon, dark card background (border-radius: 12px) with a premium hover effect (e.g., subtle lift and EEJ-yellow border highlight).
+
+4. PAGE ACTION BUTTONS (CLEAN UI):
+   - Just below the square navigation grid, place the action buttons: [Add Worker] [Bulk Import (CSV)] [AI Smart Upload] [Generate Report] [Export] [Download PDF] [Install App].
+   - Layout: `display: flex; gap: 12px; flex-wrap: wrap; margin: 0 40px 20px 40px;`
+   - Styling: Strip away the overlapping neon borders. Make 'Add Worker' a solid primary color (EEJ Yellow/Green with dark text, no border). Make the rest secondary buttons (subtle dark grey, light text, clean 6px border-radius, subtle hover state).

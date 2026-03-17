@@ -391,25 +391,9 @@ html, body {
   position: relative;
 }
 
-/* 3. LEFT SIDEBAR — desktop only */
+/* 3. LEFT SIDEBAR — hidden on all breakpoints (replaced by top nav) */
 .eej-sidebar {
-  display: none;
-}
-
-@media (min-width: 769px) {
-  .eej-sidebar {
-    display: flex;
-    flex-direction: column;
-    width: 240px;
-    min-width: 240px;
-    height: 100vh;
-    background: #0f1117;
-    border-right: 1px solid rgba(233, 255, 112, 0.1);
-    flex-shrink: 0;
-    z-index: 20;
-    overflow: hidden;
-    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.5), 1px 0 0 rgba(233, 255, 112, 0.05);
-  }
+  display: none !important;
 }
 
 .eej-sidebar-logo {

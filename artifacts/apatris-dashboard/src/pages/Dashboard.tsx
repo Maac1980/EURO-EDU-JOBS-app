@@ -485,217 +485,173 @@ export default function Dashboard() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[30%] bg-destructive/3 blur-[160px] rounded-full" />
       </div>
 
-      {/* ═══════════════════════════════════════════
-          LEFT SIDEBAR — desktop (≥769px) only
-      ═══════════════════════════════════════════ */}
-      <aside className="eej-sidebar">
-        {/* Logo */}
-        <div className="eej-sidebar-logo">
-          <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center" style={{ background: "#E9FF70", boxShadow: "0 0 0 1px rgba(233,255,112,0.3), 0 4px 12px rgba(233,255,112,0.2)" }}>
-            <span className="text-xs font-black tracking-tighter" style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}>EEJ</span>
-          </div>
-          <div>
-            <div className="text-xs font-black tracking-[0.12em] uppercase text-white leading-none">Euro Edu Jobs</div>
-            <div className="text-[8px] font-bold font-mono tracking-[0.15em] uppercase mt-0.5" style={{ color: "#E9FF70", opacity: 0.7 }}>Your Reliable Partners In Europe</div>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav className="eej-sidebar-nav">
-          {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)
-            .filter((tab) => {
-              if (tab === "settings") return isAdmin;
-              if (tab === "payroll") return isAdmin || isCoordinator;
-              return true;
-            })
-            .map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab)} className={`eej-sidebar-nav-item${activeTab === tab ? " active" : ""}`}>
-                {tab === "compliance" && <ShieldAlert className="w-4 h-4 flex-shrink-0" />}
-                {tab === "payroll"    && <Calculator  className="w-4 h-4 flex-shrink-0" />}
-                {tab === "deployment" && <MapPin       className="w-4 h-4 flex-shrink-0" />}
-                {tab === "alerts"     && <AlertOctagon className="w-4 h-4 flex-shrink-0" />}
-                {tab === "settings"   && <Settings     className="w-4 h-4 flex-shrink-0" />}
-                {tab === "compliance" ? t("tabs.compliance")
-                  : tab === "payroll"    ? t("tabs.payroll")
-                  : tab === "deployment" ? t("tabs.deployment")
-                  : tab === "alerts"     ? t("tabs.alerts")
-                  : t("tabs.settings")}
-              </button>
-            ))}
-        </nav>
-
-        {/* Footer: user info + logout */}
-        <div className="eej-sidebar-footer">
-          <div className="flex items-center gap-2 px-2 py-1 rounded-lg mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#E9FF70" }}>
-              <span className="text-[9px] font-black" style={{ color: "#333" }}>{user?.name?.[0]?.toUpperCase() ?? "U"}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-bold text-white truncate">{user?.name ?? "User"}</div>
-              <div className="text-[8px] font-mono truncate" style={{ color: "#E9FF70", opacity: 0.6 }}>{user?.role?.toUpperCase()}</div>
-            </div>
-            <button onClick={logout} title={t("header.logout")} className="text-gray-500 hover:text-red-400 transition-colors">
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="text-[8px] font-mono text-center" style={{ color: "rgba(255,255,255,0.15)" }}>© 2026 Euro Edu Jobs</div>
-        </div>
-      </aside>
 
       {/* ═══════════════════════════════════════════
           MAIN COLUMN  —  header + scrollable area
       ═══════════════════════════════════════════ */}
       <div className="eej-main">
 
-      {/* Header */}
-      <header
-        className="h-16 border-b border-slate-700 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between"
-        style={{ boxShadow: "0 1px 0 rgba(233,255,112,0.08), 0 4px 20px rgba(0,0,0,0.3)" }}
-      >
-        <div className="flex items-center gap-3">
-          {/* EEJ Lime Square Logo */}
-          <div
-            className="w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center"
-            style={{ background: "#E9FF70", boxShadow: "0 0 0 1px rgba(233,255,112,0.3), 0 4px 12px rgba(233,255,112,0.2)" }}
-            aria-label="Euro Edu Jobs Logo"
-          >
-            <span
-              className="text-sm font-black tracking-tighter"
-              style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}
-            >
-              EEJ
-            </span>
+      {/* ═══════════ UNIFIED TOP HEADER ═══════════ */}
+      <header style={{
+        height: 75,
+        minHeight: 75,
+        padding: "0 40px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        background: "#0f1117",
+        borderBottom: "1px solid rgba(233,255,112,0.12)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+        flexShrink: 0,
+        position: "sticky",
+        top: 0,
+        zIndex: 30,
+      }}>
+        {/* Left: ONE logo + tagline */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{
+            width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+            background: "#E9FF70", display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 0 0 1px rgba(233,255,112,0.3), 0 4px 16px rgba(233,255,112,0.2)",
+          }}>
+            <span style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif", fontWeight: 900, fontSize: 15, letterSpacing: "-0.05em" }}>EEJ</span>
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-[0.12em] uppercase leading-none text-white">
-              {t("header.title")}
-            </h1>
-            <p
-              className="text-[9px] font-bold font-mono tracking-[0.18em] uppercase leading-none mt-0.5"
-              style={{ color: "#E9FF70", opacity: 0.75 }}
-            >
-              {t("header.tagline")}
-            </p>
+            <div style={{ color: "#ffffff", fontWeight: 900, fontSize: 16, letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1 }}>
+              EURO EDU JOBS
+            </div>
+            <div style={{ color: "#E9FF70", fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.7, marginTop: 4, fontFamily: "monospace" }}>
+              YOUR RELIABLE PARTNERS IN EUROPE
+            </div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          {/* + Add Worker — admin and coordinator only */}
-          {(isAdmin || isCoordinator) && (
-          <>
-          <button
-            onClick={() => setAddWorkerOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
-            style={{ background: "#E9FF70", color: "#333333" }}
-            title={t("addWorker.title")}
-          >
-            <UserPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">{t("addWorker.title")}</span>
-          </button>
-          <button
-            onClick={() => setBulkCsvOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
-            style={{ background: "rgba(233,255,112,0.12)", color: "#E9FF70", border: "1px solid rgba(233,255,112,0.3)" }}
-            title="Bulk Import via CSV"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Bulk Import (CSV)</span>
-          </button>
-          </>
-          )}
 
-          {/* ⚡ AI Smart Upload */}
-          <button
-            onClick={() => setBulkUploadOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
-            style={{ background: "#E9FF70", color: "#333333" }}
-          >
-            <Zap className="w-4 h-4" />
-            <span className="hidden sm:inline">{t("header.aiUpload")}</span>
-          </button>
-
-          <button
-            onClick={() => setReportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:opacity-90"
-            style={{ border: "1px solid rgba(233,255,112,0.4)", color: "#E9FF70" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#E9FF70"; (e.currentTarget as HTMLButtonElement).style.color = "#333333"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = "#E9FF70"; }}
-          >
-            <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">{t("header.generateReport")}</span>
-          </button>
-
-          <button
-            onClick={exportCsv}
-            title="Save worker list to your device — opens in Microsoft Excel or Google Sheets"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-bold uppercase tracking-wide transition-all hover:opacity-90"
-            style={{ border: "1px solid rgba(233,255,112,0.4)", color: "#E9FF70" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#E9FF70"; (e.currentTarget as HTMLButtonElement).style.color = "#333333"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ""; (e.currentTarget as HTMLButtonElement).style.color = "#E9FF70"; }}
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export</span>
-          </button>
-
-          <PdfDownloadButton sites={uniqueClients} />
-
-          {/* Notification Bell */}
-          <NotificationBell onSelectWorker={(id) => setSelectedWorkerId(id)} />
-
+        {/* Right: Language + Notification + User + Logout */}
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <LanguageToggle />
-          
-          <div className="w-px h-6 bg-white/10" />
-          
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden md:block">
-              <p className="text-sm font-bold text-white leading-tight">{user?.name}</p>
-              <p className="text-xs text-primary font-mono">{user?.role}</p>
+          <NotificationBell onSelectWorker={(id) => setSelectedWorkerId(id)} />
+          <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.1)" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ color: "#ffffff", fontWeight: 700, fontSize: 13, lineHeight: 1 }}>{user?.name ?? "User"}</div>
+              <div style={{ color: "#E9FF70", fontSize: 10, fontWeight: 600, fontFamily: "monospace", textTransform: "uppercase", marginTop: 3, opacity: 0.8 }}>{user?.role}</div>
             </div>
-            <a
-              href="https://edu-jobs.eu"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
-              style={{ border: "1px solid rgba(233,255,112,0.35)", color: "#E9FF70" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = "#E9FF70"; (e.currentTarget as HTMLAnchorElement).style.color = "#333333"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = ""; (e.currentTarget as HTMLAnchorElement).style.color = "#E9FF70"; }}
-              title="Back to Main Website"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Main Website</span>
-            </a>
-            {!isAdmin && (
-              <button
-                onClick={() => { setChangePwOpen(true); setChangePwMsg(null); }}
-                title="Change my password"
-                className="p-2 text-muted-foreground hover:text-white transition-colors"
-              >
-                <KeyRound className="w-4 h-4" />
-              </button>
-            )}
-            {!appInstalled && (
-              <button
-                onClick={handleInstallApp}
-                title="Install EEJ app on this device"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
-                style={{ background: "#E9FF70", color: "#333333" }}
-              >
-                <Download className="w-3.5 h-3.5" />
-                Install App
-              </button>
-            )}
-            <button onClick={logout} title={t("header.logout")} className="p-2 text-muted-foreground hover:text-white transition-colors">
-              <LogOut className="w-5 h-5" />
-            </button>
+            <div style={{
+              width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
+              background: "#E9FF70", display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <span style={{ color: "#333333", fontWeight: 900, fontSize: 15 }}>{user?.name?.[0]?.toUpperCase() ?? "U"}</span>
+            </div>
           </div>
+          <button onClick={logout} title={t("header.logout")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", padding: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#ff6b6b")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </header>
 
       {/* ── Scrollable content area ── */}
       <div className="app-content-scroll">
-      <main className="p-4 lg:p-6 z-10 max-w-[1600px] mx-auto w-full space-y-4">
 
-        {/* ── Tab Bar — hidden via CSS; sidebar handles desktop, bottom bar handles mobile ── */}
+      {/* ═══════════ SQUARE NAV GRID ═══════════ */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 20, margin: "30px 40px 0" }}>
+        {(([
+          { tab: "compliance", icon: ShieldAlert, label: t("tabs.compliance"), hide: false },
+          { tab: "payroll",    icon: Calculator,  label: t("tabs.payroll"),    hide: !isAdmin && !isCoordinator },
+          { tab: "deployment", icon: MapPin,       label: t("tabs.deployment"), hide: false },
+          { tab: "alerts",     icon: AlertOctagon, label: t("tabs.alerts"),    hide: false },
+          { tab: "settings",   icon: Settings,     label: t("tabs.settings"),  hide: !isAdmin },
+        ] as { tab: "compliance"|"payroll"|"deployment"|"alerts"|"settings"; icon: React.ElementType; label: string; hide: boolean }[]).filter((c) => !c.hide).map(({ tab, icon: Icon, label }) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              aspectRatio: "1 / 1",
+              background: activeTab === tab ? "rgba(233,255,112,0.1)" : "#161920",
+              border: activeTab === tab ? "2px solid #E9FF70" : "2px solid rgba(255,255,255,0.07)",
+              borderRadius: 12,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14,
+              cursor: "pointer",
+              transition: "all 0.18s ease",
+              boxShadow: activeTab === tab ? "0 0 32px rgba(233,255,112,0.12), 0 8px 24px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.2)",
+              transform: activeTab === tab ? "translateY(-2px)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== tab) {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(233,255,112,0.4)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 24px rgba(233,255,112,0.08), 0 8px 24px rgba(0,0,0,0.3)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== tab) {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.07)";
+                (e.currentTarget as HTMLButtonElement).style.transform = "none";
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.2)";
+              }
+            }}
+          >
+            <Icon size={34} color={activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.4)"} strokeWidth={1.5} />
+            <span style={{
+              color: activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.55)",
+              fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em",
+            }}>{label}</span>
+          </button>
+        )))}
+      </div>
+
+      {/* ═══════════ ACTION BUTTONS ROW ═══════════ */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", margin: "20px 40px" }}>
+        {(isAdmin || isCoordinator) && (
+          <button onClick={() => setAddWorkerOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#E9FF70", color: "#333333", border: "none", fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer", transition: "opacity 0.15s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")} onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
+            <UserPlus size={14} /> {t("addWorker.title")}
+          </button>
+        )}
+        {(isAdmin || isCoordinator) && (
+          <button onClick={() => setBulkCsvOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#1e2028", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", transition: "all 0.15s" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#252830"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e2028"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)"; }}>
+            <Download size={14} /> Bulk Import (CSV)
+          </button>
+        )}
+        <button onClick={() => setBulkUploadOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#1e2028", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", transition: "all 0.15s" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#252830"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e2028"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)"; }}>
+          <Zap size={14} /> {t("header.aiUpload")}
+        </button>
+        <button onClick={() => setReportOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#1e2028", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", transition: "all 0.15s" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#252830"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e2028"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)"; }}>
+          <FileText size={14} /> {t("header.generateReport")}
+        </button>
+        <button onClick={exportCsv} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#1e2028", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", transition: "all 0.15s" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#252830"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e2028"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)"; }}>
+          <Download size={14} /> Export
+        </button>
+        <PdfDownloadButton sites={uniqueClients} />
+        {!appInstalled && (
+          <button onClick={handleInstallApp} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#1e2028", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", transition: "all 0.15s" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#252830"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e2028"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)"; }}>
+            <Smartphone size={14} /> Install App
+          </button>
+        )}
+        {!isAdmin && (
+          <button onClick={() => { setChangePwOpen(true); setChangePwMsg(null); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#1e2028", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", transition: "all 0.15s" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#252830"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e2028"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.75)"; }}>
+            <KeyRound size={14} /> Change Password
+          </button>
+        )}
+      </div>
+
+      <main className="px-10 pb-6 z-10 max-w-[1600px] mx-auto w-full space-y-4">
+
+        {/* ── Tab Bar — hidden via CSS; bottom bar handles mobile ── */}
         <div className="eej-tab-bar overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit min-w-max">
           {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)

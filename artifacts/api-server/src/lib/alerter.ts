@@ -664,28 +664,6 @@ export async function sendLoginNotification(user: {
     }
   }
 
-  // ── WhatsApp / SMS ────────────────────────────────────────────────────────
-  const adminPhone = process.env.ADMIN_PHONE;
-  const twilioSid  = process.env.TWILIO_ACCOUNT_SID;
-  const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
-
-  if (adminPhone && twilioSid && twilioAuth) {
-    const smsBody =
-      `[EEJ] ✅ Logowanie: ${user.name} (${roleLine}) o ${timeStr}. IP: ${ip}. ` +
-      `Nie rozpoznajesz? Zmień hasło natychmiast.`;
-    try {
-      // Prefer WhatsApp if TWILIO_WHATSAPP_FROM is set, else fall back to SMS
-      if (process.env.TWILIO_WHATSAPP_FROM) {
-        await sendWhatsAppMessage(adminPhone, smsBody);
-        console.log(`[alerter] ✓ Login WhatsApp → ${adminPhone}`);
-      } else if (process.env.TWILIO_SMS_FROM) {
-        await sendSmsMessage(adminPhone, smsBody);
-        console.log(`[alerter] ✓ Login SMS → ${adminPhone}`);
-      }
-    } catch (e) {
-      console.warn("[alerter] Login WhatsApp/SMS failed:", e instanceof Error ? e.message : e);
-    }
-  }
 }
 
 // ── Weekly digest email ───────────────────────────────────────────────────────

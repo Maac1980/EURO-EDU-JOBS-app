@@ -475,12 +475,75 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-foreground flex flex-col relative">
+    <div className="eej-app-shell bg-slate-900 text-foreground">
+      {/* Ambient glow — decorative, pointer-events none */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/8 blur-[140px] rounded-full" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[40%] h-[40%] bg-primary/5 blur-[120px] rounded-full" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[30%] bg-destructive/3 blur-[160px] rounded-full" />
       </div>
+
+      {/* ═══════════════════════════════════════════
+          LEFT SIDEBAR — desktop (≥769px) only
+      ═══════════════════════════════════════════ */}
+      <aside className="eej-sidebar">
+        {/* Logo */}
+        <div className="eej-sidebar-logo">
+          <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center" style={{ background: "#E9FF70", boxShadow: "0 0 0 1px rgba(233,255,112,0.3), 0 4px 12px rgba(233,255,112,0.2)" }}>
+            <span className="text-xs font-black tracking-tighter" style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}>EEJ</span>
+          </div>
+          <div>
+            <div className="text-xs font-black tracking-[0.12em] uppercase text-white leading-none">Euro Edu Jobs</div>
+            <div className="text-[8px] font-bold font-mono tracking-[0.15em] uppercase mt-0.5" style={{ color: "#E9FF70", opacity: 0.7 }}>Compliance Portal</div>
+          </div>
+        </div>
+
+        {/* Nav */}
+        <nav className="eej-sidebar-nav">
+          {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)
+            .filter((tab) => {
+              if (tab === "settings") return isAdmin;
+              if (tab === "payroll") return isAdmin || isCoordinator;
+              return true;
+            })
+            .map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab)} className={`eej-sidebar-nav-item${activeTab === tab ? " active" : ""}`}>
+                {tab === "compliance" && <ShieldAlert className="w-4 h-4 flex-shrink-0" />}
+                {tab === "payroll"    && <Calculator  className="w-4 h-4 flex-shrink-0" />}
+                {tab === "deployment" && <MapPin       className="w-4 h-4 flex-shrink-0" />}
+                {tab === "alerts"     && <AlertOctagon className="w-4 h-4 flex-shrink-0" />}
+                {tab === "settings"   && <Settings     className="w-4 h-4 flex-shrink-0" />}
+                {tab === "compliance" ? t("tabs.compliance")
+                  : tab === "payroll"    ? t("tabs.payroll")
+                  : tab === "deployment" ? t("tabs.deployment")
+                  : tab === "alerts"     ? t("tabs.alerts")
+                  : t("tabs.settings")}
+              </button>
+            ))}
+        </nav>
+
+        {/* Footer: user info + logout */}
+        <div className="eej-sidebar-footer">
+          <div className="flex items-center gap-2 px-2 py-1 rounded-lg mb-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#E9FF70" }}>
+              <span className="text-[9px] font-black" style={{ color: "#333" }}>{user?.name?.[0]?.toUpperCase() ?? "U"}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-bold text-white truncate">{user?.name ?? "User"}</div>
+              <div className="text-[8px] font-mono truncate" style={{ color: "#E9FF70", opacity: 0.6 }}>{user?.role?.toUpperCase()}</div>
+            </div>
+            <button onClick={logout} title={t("header.logout")} className="text-gray-500 hover:text-red-400 transition-colors">
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="text-[8px] font-mono text-center" style={{ color: "rgba(255,255,255,0.15)" }}>v2026 · EEJ Portal</div>
+        </div>
+      </aside>
+
+      {/* ═══════════════════════════════════════════
+          MAIN COLUMN  —  header + scrollable area
+      ═══════════════════════════════════════════ */}
+      <div className="eej-main">
 
       {/* Header */}
       <header
@@ -615,10 +678,12 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 p-4 lg:p-6 z-10 max-w-[1600px] mx-auto w-full space-y-4">
+      {/* ── Scrollable content area ── */}
+      <div className="app-content-scroll">
+      <main className="p-4 lg:p-6 z-10 max-w-[1600px] mx-auto w-full space-y-4">
 
-        {/* ── Tab Bar ── */}
-        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        {/* ── Tab Bar — hidden via CSS; sidebar handles desktop, bottom bar handles mobile ── */}
+        <div className="eej-tab-bar overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit min-w-max">
           {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)
             .filter((tab) => {
@@ -1772,6 +1837,37 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+      </div>{/* /app-content-scroll */}
+
+      {/* ═══════════════════════════════════════════
+          BOTTOM APP BAR — mobile (≤768px) only
+      ═══════════════════════════════════════════ */}
+      <nav className="eej-bottom-bar">
+        {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)
+          .filter((tab) => {
+            if (tab === "settings") return isAdmin;
+            if (tab === "payroll") return isAdmin || isCoordinator;
+            return true;
+          })
+          .map((tab) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`eej-bottom-nav-btn${activeTab === tab ? " active" : ""}`}>
+              {tab === "compliance" && <ShieldAlert className="w-5 h-5" />}
+              {tab === "payroll"    && <Calculator  className="w-5 h-5" />}
+              {tab === "deployment" && <MapPin       className="w-5 h-5" />}
+              {tab === "alerts"     && <AlertOctagon className="w-5 h-5" />}
+              {tab === "settings"   && <Settings     className="w-5 h-5" />}
+              <span>
+                {tab === "compliance" ? "Workers"
+                  : tab === "payroll"    ? "Payroll"
+                  : tab === "deployment" ? "Sites"
+                  : tab === "alerts"     ? "Alerts"
+                  : "Settings"}
+              </span>
+            </button>
+          ))}
+      </nav>
+
+      </div>{/* /eej-main */}
 
       {/* ── Install / Download App Modal ── */}
       {showInstallModal && (() => {

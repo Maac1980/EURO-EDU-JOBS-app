@@ -682,7 +682,7 @@ export function PayrollRunPage() {
           <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.04)" }}>
             <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>{t("payroll.gridZusTitle")}</span>
           </div>
-          <div className="overflow-x-auto">
+          <div className="eej-table-scroll overflow-x-auto">
             <table className="w-full text-xs" style={{ minWidth: "1100px" }}>
               <thead>
                 <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -912,7 +912,7 @@ export function PayrollRunPage() {
         <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.04)" }}>
           <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: LIME }}>{t("payroll.gridRunTitle")}</span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="eej-table-scroll overflow-x-auto">
           <table className="w-full text-xs" style={{ minWidth: "1000px" }}>
             <thead>
               <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1373,7 +1373,7 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
         ) : error ? (
           <div className="py-12 text-center text-sm text-red-400 font-mono">{error}</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="eej-table-scroll overflow-x-auto">
             <table className="w-full" style={{ minWidth: "880px", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "rgba(0,0,0,0.3)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>

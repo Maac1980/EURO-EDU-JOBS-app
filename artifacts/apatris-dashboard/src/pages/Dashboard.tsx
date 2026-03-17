@@ -8,7 +8,7 @@ import {
   Search, Filter, LogOut, FileText, Bell, RefreshCcw, Eye, Zap, Pencil, ExternalLink,
   MapPin, UserCheck, UserMinus, Building2, Settings, Database, CheckCircle, XCircle,
   AlertOctagon, Mail, Phone, MessageSquare, AlertCircle, Shield, UserPlus, Trash2, Calculator,
-  Download, CalendarDays, KeyRound, Lock, Wifi, WifiOff, Loader2
+  Download, CalendarDays, KeyRound, Lock, Wifi, WifiOff, Loader2, X
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTranslation } from "react-i18next";
@@ -178,19 +178,24 @@ export default function Dashboard() {
   
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [appInstalled, setAppInstalled] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   useEffect(() => {
     const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener("beforeinstallprompt", handler);
     window.addEventListener("appinstalled", () => { setAppInstalled(true); setInstallPrompt(null); });
+    if (window.matchMedia("(display-mode: standalone)").matches) setAppInstalled(true);
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   const handleInstallApp = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === "accepted") { setAppInstalled(true); setInstallPrompt(null); }
+    if (installPrompt) {
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") { setAppInstalled(true); setInstallPrompt(null); }
+    } else {
+      setShowInstallModal(true);
+    }
   };
 
   const [activeTab, setActiveTab] = useState<"compliance" | "payroll" | "deployment" | "alerts" | "settings">("compliance");
@@ -590,7 +595,7 @@ export default function Dashboard() {
                 <KeyRound className="w-4 h-4" />
               </button>
             )}
-            {installPrompt && !appInstalled && (
+            {!appInstalled && (
               <button
                 onClick={handleInstallApp}
                 title="Install EEJ app on this device"
@@ -1765,6 +1770,53 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* ── Install App Modal ── */}
+      {showInstallModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => setShowInstallModal(false)}>
+          <div className="rounded-2xl p-6 w-full max-w-sm space-y-5" style={{ background: "#1e293b", border: "1px solid rgba(233,255,112,0.25)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-black uppercase tracking-wide" style={{ color: "#E9FF70" }}>Install EEJ App</h2>
+              <button onClick={() => setShowInstallModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-gray-300 text-sm">Add the portal to your home screen so it opens like a native app — no browser bar, full screen.</p>
+
+            <div className="space-y-4">
+              <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(233,255,112,0.06)", border: "1px solid rgba(233,255,112,0.15)" }}>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "#E9FF70" }}>📱 iPhone / iPad (Safari)</p>
+                <ol className="text-gray-300 text-sm space-y-1 list-decimal list-inside">
+                  <li>Open this page in <strong>Safari</strong></li>
+                  <li>Tap the <strong>Share</strong> button (box with arrow at bottom)</li>
+                  <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                  <li>Tap <strong>Add</strong> — done ✓</li>
+                </ol>
+              </div>
+
+              <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(233,255,112,0.06)", border: "1px solid rgba(233,255,112,0.15)" }}>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "#E9FF70" }}>🤖 Android (Chrome)</p>
+                <ol className="text-gray-300 text-sm space-y-1 list-decimal list-inside">
+                  <li>Open this page in <strong>Chrome</strong></li>
+                  <li>Tap the <strong>three dots menu</strong> (top right)</li>
+                  <li>Tap <strong>"Add to Home screen"</strong></li>
+                  <li>Tap <strong>Install</strong> — done ✓</li>
+                </ol>
+              </div>
+
+              <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(233,255,112,0.06)", border: "1px solid rgba(233,255,112,0.15)" }}>
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "#E9FF70" }}>💻 Desktop (Chrome / Edge)</p>
+                <ol className="text-gray-300 text-sm space-y-1 list-decimal list-inside">
+                  <li>Look for the <strong>install icon</strong> in the address bar (right side)</li>
+                  <li>Click it and confirm — done ✓</li>
+                </ol>
+              </div>
+            </div>
+
+            <button onClick={() => setShowInstallModal(false)} className="w-full py-2.5 rounded-xl text-sm font-bold uppercase tracking-wide transition-all hover:opacity-90" style={{ background: "#E9FF70", color: "#333333" }}>
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       <CommandPalette onSelectWorker={(id) => setSelectedWorkerId(id)} />
 

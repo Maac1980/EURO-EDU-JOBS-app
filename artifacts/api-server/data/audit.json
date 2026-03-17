@@ -86,5 +86,38 @@
     },
     "action": "ADMIN_LOGIN",
     "timestamp": "2026-03-17T09:48:39.191Z"
+  },
+  {
+    "workerId": "1",
+    "actor": "anna.b@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "admin",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-17T19:54:48.072Z"
+  },
+  {
+    "workerId": "1",
+    "actor": "anna.b@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "admin",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-17T19:55:57.684Z"
+  },
+  {
+    "workerId": "1",
+    "actor": "anna.b@edu-jobs.eu",
+    "field": "SESSION",
+    "newValue": {
+      "role": "admin",
+      "site": null
+    },
+    "action": "ADMIN_LOGIN",
+    "timestamp": "2026-03-17T19:56:08.823Z"
   }
 ]

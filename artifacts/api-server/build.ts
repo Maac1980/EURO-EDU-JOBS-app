@@ -62,6 +62,12 @@ async function buildAll() {
     outfile: path.resolve(distDir, "index.cjs"),
     define: {
       "process.env.NODE_ENV": '"production"',
+      // import.meta.url is undefined in CJS bundles — polyfill it so that
+      // fileURLToPath(import.meta.url) works at runtime.
+      "import.meta.url": "importMetaUrl",
+    },
+    banner: {
+      js: 'const importMetaUrl = require("url").pathToFileURL(__filename).href;',
     },
     minify: true,
     external: externals,

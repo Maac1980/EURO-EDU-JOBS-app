@@ -9,7 +9,12 @@ import {
   FileText, Edit2, Search
 } from "lucide-react";
 
-const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5% — chorobowe & PIT excluded (workers on zwolnienia)
+// 2026 Polish ZUS/PIT constants for umowa zlecenie (full mandatory contributions)
+const SOCIAL_ZUS_RATE  = 0.1371; // Emerytalne 9.76% + Rentowe 1.5% + Chorobowe 2.45%
+const HEALTH_RATE      = 0.09;   // Zdrowotna — calculated on gross minus social ZUS
+const KUP_RATE         = 0.20;   // Koszty uzyskania przychodu
+const PIT_RATE         = 0.12;   // First tax bracket 2026
+const MONTHLY_RELIEF   = 300;    // Miesięczna kwota zmniejszająca podatek (30 000 zł / year × 12%)
 // Employer-side ZUS on top of gross: emerytalne 9.76% + rentowe 6.5% + wypadkowe 1.67% + FP 2.45% + FGŚP 0.10%
 const EMPLOYER_ZUS_RATE = 0.0976 + 0.065 + 0.0167 + 0.0245 + 0.001; // ≈ 20.48%
 
@@ -76,14 +81,24 @@ const DEFAULT_RATES: ZusRates = {
   pitFlat: 12,
 };
 
+function calcDeductions(gross: number): { socialZus: number; zdrowotna: number; pit: number; total: number } {
+  const socialZus  = gross * SOCIAL_ZUS_RATE;
+  const zdrowotna  = (gross - socialZus) * HEALTH_RATE;
+  const kup        = gross * KUP_RATE;
+  const taxBase    = Math.max(0, Math.round(gross - socialZus - kup));
+  const pit        = Math.max(0, taxBase * PIT_RATE - MONTHLY_RELIEF);
+  return { socialZus, zdrowotna, pit, total: socialZus + zdrowotna + pit };
+}
+
 function calcNetto(row: GridRow, withZus = false): number {
   const h = parseFloat(row._hours) || 0;
   const r = parseFloat(row._rate) || row.hourlyNettoRate || 0;
   const a = parseFloat(row._advance) || 0;
   const p = parseFloat(row._penalties) || 0;
   const gross = h * r;
-  const zus = withZus ? gross * ZUS_RATE : 0;
-  return gross - zus - a - p;
+  if (!withZus) return gross - a - p;
+  const { total } = calcDeductions(gross);
+  return gross - total - a - p;
 }
 
 function getCurrentMonthYear(): string {
@@ -236,7 +251,10 @@ export function PayrollRunPage() {
   const totalGross = rows.reduce((s, r) => s + ((parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate)), 0);
   const totalAdvances = rows.reduce((s, r) => s + (parseFloat(r._advance) || 0), 0);
   const totalPenalties = rows.reduce((s, r) => s + (parseFloat(r._penalties) || 0), 0);
-  const totalZus = withZus ? totalGross * ZUS_RATE : 0;
+  const totalZus = withZus ? rows.reduce((s, r) => {
+    const gross = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate || 0);
+    return s + (gross > 0 ? calcDeductions(gross).socialZus : 0);
+  }, 0) : 0;
   const totalNetto = rows.reduce((s, r) => s + calcNetto(r, withZus), 0);
   const totalApatrisCost = totalGross * (1 + EMPLOYER_ZUS_RATE);
 
@@ -1164,8 +1182,8 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
     const rate = parseFloat(e.rate) || 0;
     const advance = parseFloat(e.advance) || 0;
     const gross = hours * rate;
-    const zus = gross * ZUS_RATE;
-    const netto = gross - zus - advance;
+    const { total: totalDeductions } = gross > 0 ? calcDeductions(gross) : { total: 0 };
+    const netto = gross - totalDeductions - advance;
 
     try {
       if (r._draft) {
@@ -1195,7 +1213,7 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
         });
         setRecords((prev) => prev.map((rec) =>
           rec.id === r.id
-            ? { ...rec, totalHours: hours, hourlyRate: rate, advancesDeducted: advance, siteLocation: e.site, grossPay: gross, zusBaseSalary: zus, finalNettoPayout: netto }
+            ? { ...rec, totalHours: hours, hourlyRate: rate, advancesDeducted: advance, siteLocation: e.site, grossPay: gross, zusBaseSalary: gross * SOCIAL_ZUS_RATE, finalNettoPayout: netto }
             : rec
         ));
       }
@@ -1217,7 +1235,7 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
       totalHours: w.totalHours ?? 0,
       hourlyRate: w.hourlyNettoRate ?? 0,
       grossPay: (w.totalHours ?? 0) * (w.hourlyNettoRate ?? 0),
-      zusBaseSalary: (w.totalHours ?? 0) * (w.hourlyNettoRate ?? 0) * ZUS_RATE,
+      zusBaseSalary: (w.totalHours ?? 0) * (w.hourlyNettoRate ?? 0) * SOCIAL_ZUS_RATE,
       advancesDeducted: w.advancePayment ?? 0,
       penaltiesDeducted: w.penalties ?? 0,
       finalNettoPayout: (w.totalHours ?? 0) * (w.hourlyNettoRate ?? 0) - (w.advancePayment ?? 0) - (w.penalties ?? 0),

@@ -83,7 +83,7 @@ router.patch("/payroll/workers/:id/iban", authenticateToken, requireCoordinatorO
 
 // ── PATCH /api/payroll/workers/batch ─────────────────────────────────────────
 // Batch-update totalHours / advancePayment / penalties for multiple workers
-const ZUS_RATE = 0.1126; // Emerytalne 9.76% + Rentowe 1.5%
+const ZUS_RATE = 0.1371; // Emerytalne 9.76% + Rentowe 1.5% + Chorobowe 2.45% (full 2026 rate)
 
 router.patch("/payroll/workers/batch", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {

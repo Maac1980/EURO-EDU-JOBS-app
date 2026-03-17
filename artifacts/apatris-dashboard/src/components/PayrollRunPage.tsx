@@ -724,7 +724,8 @@ export function PayrollRunPage() {
                     const gross = hours * (parseFloat(row._rate) || row.hourlyNettoRate);
                     const empZus = gross * empZusRate;
                     const healthIns = (gross - empZus) * (rates.zdrowotne / 100);
-                    const estPit = (gross - empZus) * (1 - rates.kup / 100) * (rates.pitFlat / 100);
+                    const _taxBase = Math.round((gross - empZus) * (1 - rates.kup / 100));
+                    const estPit = Math.max(0, Math.round(_taxBase * (rates.pitFlat / 100) - MONTHLY_RELIEF));
                     const netAfterTax = gross - empZus - healthIns - estPit;
                     const advance = parseFloat(row._advance) || 0;
                     const isEditingIban = ibanEditId === row.id;
@@ -874,7 +875,8 @@ export function PayrollRunPage() {
                       – {displayed.reduce((s, r) => {
                         const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
                         const ez = g * empZusRate;
-                        return s + (g - ez) * (1 - rates.kup / 100) * (rates.pitFlat / 100);
+                        const tb = Math.round((g - ez) * (1 - rates.kup / 100));
+                        return s + Math.max(0, Math.round(tb * (rates.pitFlat / 100) - MONTHLY_RELIEF));
                       }, 0).toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: "#4ade80" }}>
@@ -882,7 +884,8 @@ export function PayrollRunPage() {
                         const g = (parseFloat(r._hours) || 0) * (parseFloat(r._rate) || r.hourlyNettoRate);
                         const ez = g * empZusRate;
                         const hi = (g - ez) * (rates.zdrowotne / 100);
-                        const pit = (g - ez) * (1 - rates.kup / 100) * (rates.pitFlat / 100);
+                        const tb = Math.round((g - ez) * (1 - rates.kup / 100));
+                        const pit = Math.max(0, Math.round(tb * (rates.pitFlat / 100) - MONTHLY_RELIEF));
                         return s + g - ez - hi - pit;
                       }, 0).toFixed(2)}
                     </td>

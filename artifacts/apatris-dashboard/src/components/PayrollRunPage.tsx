@@ -1634,54 +1634,80 @@ function BruttoNettoCalc() {
   const [brutto, setBrutto] = React.useState("5024");
   const g = parseFloat(brutto) || 0;
 
-  // Step 1: Worker ZUS — pension (9.76%) + disability (1.50%), no chorobowe
-  const workerZUS   = g * (0.0976 + 0.0150);              // 11.26%
-  // Step 2: Health base = gross − worker ZUS
-  const healthBase  = g - workerZUS;
-  // Step 3: Health tax = 9% of health base
-  const healthTax   = healthBase * 0.09;
-  // Step 4: Tax base = health base − KUP (20% of health base), rounded
-  const kup         = healthBase * 0.20;
-  const taxBase     = Math.round(healthBase - kup);        // = round(healthBase × 0.80)
-  // Step 5: Income tax = (tax base × 12%) − 300 PIT-2 relief, rounded, min 0
-  const incomeTax   = Math.max(0, Math.round(taxBase * 0.12 - 300));
-  // Step 6: Net
-  const netto       = g - workerZUS - healthTax - incomeTax;
+  /* ── 13-step calculation (2026 Umowa Zlecenie, PIT-2 filed) ── */
+  const pension    = g * 0.0976;                         // step 2
+  const disability = g * 0.0150;                         // step 3
+  const sickness   = 0;                                  // step 4 — chorobowe unchecked
+  const totalZUS   = pension + disability + sickness;    // step 5
+  const healthBase = g - totalZUS;                       // step 6
+  const healthTax  = healthBase * 0.09;                  // step 7
+  const kup        = healthBase * 0.20;                  // step 8
+  const taxBase    = Math.round(healthBase - kup);       // step 9
+  const grossTax   = taxBase * 0.12;                     // step 10
+  const pitReduc   = 300;                                // step 11 — PIT-2 (1 employer)
+  const incomeTax  = Math.max(0, Math.round(grossTax - pitReduc)); // step 12
+  const netto      = g - totalZUS - healthTax - incomeTax;         // step 13
 
-  const Row = ({ label, sub, value, highlight, isResult }: {
-    label: string; sub?: string; value: string; highlight?: boolean; isResult?: boolean
-  }) => (
-    <div className={`flex items-center justify-between py-2 ${isResult ? "border-t mt-1 pt-3" : "border-b"}`}
-         style={{ borderColor: isResult ? LIME : "rgba(255,255,255,0.06)" }}>
-      <div>
-        <span className={`text-xs font-bold ${isResult ? "text-white text-sm" : "text-gray-300"}`}>{label}</span>
-        {sub && <span className="text-[10px] font-mono text-gray-500 ml-2">{sub}</span>}
+  type RowType = "base" | "deduct" | "info" | "subtotal" | "result";
+  const Step = ({
+    n, desc, formula, amount, type = "base",
+  }: { n: number; desc: string; formula: string; amount: number; type?: RowType }) => {
+    const isDeduct  = type === "deduct";
+    const isResult  = type === "result";
+    const isSubtotal = type === "subtotal";
+    const isInfo    = type === "info";
+    const amtColor  = isResult ? LIME : isDeduct ? "#f87171" : isInfo ? "#94a3b8" : isSubtotal ? "#fbbf24" : "rgba(255,255,255,0.85)";
+    const sign      = isDeduct ? "−" : isResult || isSubtotal ? "" : "";
+    return (
+      <div className={`grid grid-cols-[28px_1fr_auto] gap-x-3 items-start py-2 ${isResult ? "" : "border-b"}`}
+           style={{ borderColor: "rgba(255,255,255,0.06)", background: isResult ? "rgba(233,255,112,0.05)" : "transparent", borderRadius: isResult ? "8px" : 0, padding: isResult ? "10px 8px" : undefined }}>
+        {/* Step number */}
+        <span className="text-[10px] font-black tabular-nums mt-0.5 text-center rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0"
+              style={{ background: isResult ? LIME : "rgba(255,255,255,0.07)", color: isResult ? "#333" : "rgba(255,255,255,0.35)", fontSize: "9px" }}>
+          {n}
+        </span>
+        {/* Description + formula */}
+        <div className="min-w-0">
+          <div className={`text-xs font-bold leading-tight ${isResult ? "text-white" : "text-gray-200"}`}>{desc}</div>
+          <div className="text-[10px] font-mono text-gray-500 mt-0.5 truncate">{formula}</div>
+        </div>
+        {/* Amount */}
+        <span className={`font-mono font-black tabular-nums text-right whitespace-nowrap ${isResult ? "text-base" : "text-xs"}`}
+              style={{ color: amtColor }}>
+          {isDeduct ? "− " : ""}{sign}zł {Math.abs(amount).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
       </div>
-      <span className={`font-mono font-black tabular-nums ${isResult ? "text-base" : "text-xs"}`}
-            style={{ color: highlight === false ? "#f87171" : isResult ? LIME : "rgba(255,255,255,0.75)" }}>
-        {value}
-      </span>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="glass-panel rounded-2xl p-6" style={{ border: `1.5px solid ${LIME_BORDER}` }}>
-      <div className="flex items-center gap-3 mb-5">
-        <div className="rounded-lg p-2" style={{ background: "rgba(233,255,112,0.12)" }}>
-          <Calculator className="w-4 h-4" style={{ color: LIME }} />
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg p-2 flex-shrink-0" style={{ background: "rgba(233,255,112,0.12)" }}>
+            <Calculator className="w-4 h-4" style={{ color: LIME }} />
+          </div>
+          <div>
+            <div className="text-sm font-black uppercase tracking-widest text-white">Brutto → Netto Calculator</div>
+            <div className="text-[10px] font-mono mt-0.5" style={{ color: LIME, opacity: 0.7 }}>
+              Umowa Zlecenie 2026 · No Chorobowe · PIT-2 Filed (1 Employer)
+            </div>
+          </div>
         </div>
-        <div>
-          <div className="text-sm font-black uppercase tracking-widest text-white">Brutto → Netto</div>
-          <div className="text-[10px] font-mono mt-0.5" style={{ color: LIME, opacity: 0.7 }}>
-            Umowa Zlecenie 2026 · 11.26% ZUS · PIT-2
+        {/* Live netto badge */}
+        <div className="text-right flex-shrink-0">
+          <div className="text-[9px] font-black uppercase tracking-widest text-gray-500">Net Take-Home</div>
+          <div className="text-2xl font-black tabular-nums" style={{ color: LIME }}>
+            zł {netto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>
 
-      {/* Input */}
+      {/* Gross input */}
       <div className="mb-5">
         <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">
-          Gross Amount (Brutto)
+          Gross Amount (Brutto) — zł
         </label>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-black" style={{ color: LIME }}>zł</span>
@@ -1693,44 +1719,63 @@ function BruttoNettoCalc() {
         </div>
       </div>
 
-      {/* Breakdown */}
-      <div className="rounded-xl p-4" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Calculation Breakdown</div>
+      {/* 13-step breakdown */}
+      <div className="rounded-xl p-4 space-y-0" style={{ background: "rgba(0,0,0,0.28)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="grid grid-cols-[28px_1fr_auto] gap-x-3 pb-2 mb-1 border-b" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+          <span className="text-[9px] font-black uppercase text-gray-600">#</span>
+          <span className="text-[9px] font-black uppercase text-gray-600">Description</span>
+          <span className="text-[9px] font-black uppercase text-gray-600 text-right">Amount (PLN)</span>
+        </div>
 
-        <Row label="Gross (Brutto)"
-             value={`zł ${g.toFixed(2)}`} />
-        <Row label="Worker ZUS"
-             sub="Pension 9.76% + Disability 1.50% = 11.26%"
-             value={`− zł ${workerZUS.toFixed(2)}`}
-             highlight={false} />
-        <Row label="Health Base"
-             sub="Gross − Worker ZUS"
-             value={`= zł ${healthBase.toFixed(2)}`} />
-        <Row label="Health Tax (Zdrowotna)"
-             sub={`9% × zł ${healthBase.toFixed(2)}`}
-             value={`− zł ${healthTax.toFixed(2)}`}
-             highlight={false} />
-        <Row label="KUP Deduction"
-             sub={`20% × zł ${healthBase.toFixed(2)} (tax cost only)`}
-             value={`zł ${kup.toFixed(2)}`} />
-        <Row label="Tax Base (Podstawa)"
-             sub={`round(Health Base × 80%)`}
-             value={`= zł ${taxBase.toFixed(0)}`} />
-        <Row label="Income Tax (Zaliczka PIT)"
-             sub={`round(zł ${taxBase} × 12%) − 300 PIT-2`}
-             value={`− zł ${incomeTax.toFixed(0)}`}
-             highlight={false} />
-        <Row label="NET PAYOUT (Netto)"
-             sub={`Gross − ZUS − Health Tax − Income Tax`}
-             value={`zł ${netto.toFixed(2)}`}
-             isResult />
+        <Step n={1}  desc="Contract Gross (Brutto)"
+              formula="Starting base amount"
+              amount={g} />
+        <Step n={2}  desc="Pension Contribution (Emerytalna)"
+              formula={`9.76% of Gross (${g.toFixed(0)} × 0.0976)`}
+              amount={pension} type="deduct" />
+        <Step n={3}  desc="Disability Contribution (Rentowa)"
+              formula={`1.50% of Gross (${g.toFixed(0)} × 0.0150)`}
+              amount={disability} type="deduct" />
+        <Step n={4}  desc="Sickness Contribution (Chorobowa)"
+              formula="0.00% — unchecked / not applicable"
+              amount={sickness} type="info" />
+        <Step n={5}  desc="Total Worker ZUS Deducted"
+              formula="Pension + Disability + Sickness"
+              amount={totalZUS} type="subtotal" />
+        <Step n={6}  desc="Base for Health Tax"
+              formula={`Gross − Total Worker ZUS (${g.toFixed(2)} − ${totalZUS.toFixed(2)})`}
+              amount={healthBase} />
+        <Step n={7}  desc="Health Insurance (Zdrowotna)"
+              formula={`9% of Health Base (${healthBase.toFixed(2)} × 0.09)`}
+              amount={healthTax} type="deduct" />
+        <Step n={8}  desc="Tax Deductible Costs (KUP)"
+              formula={`20% of Health Base (${healthBase.toFixed(2)} × 0.20)`}
+              amount={kup} type="info" />
+        <Step n={9}  desc="Taxable Base (Podstawa Opodatkowania)"
+              formula={`round(Health Base − KUP) = round(${(healthBase - kup).toFixed(2)})`}
+              amount={taxBase} />
+        <Step n={10} desc="Gross Income Tax"
+              formula={`12% of Taxable Base (${taxBase} × 0.12)`}
+              amount={grossTax} />
+        <Step n={11} desc="PIT Reduction (Kwota Zmniejszająca)"
+              formula="1 Employer Selected — PIT-2 filed"
+              amount={pitReduc} type="deduct" />
+        <Step n={12} desc="Final Income Tax (Zaliczka PIT)"
+              formula={`round(Gross Tax − Reduction) = round(${grossTax.toFixed(2)} − ${pitReduc})`}
+              amount={incomeTax} type="deduct" />
+
+        <div className="pt-1">
+          <Step n={13} desc="Final Netto Payout"
+                formula="Gross − ZUS (5) − Health (7) − Income Tax (12)"
+                amount={netto} type="result" />
+        </div>
       </div>
 
-      {/* Reference badge */}
+      {/* Footer badge */}
       <div className="mt-3 flex items-center gap-2 text-[10px] font-mono text-gray-500">
         <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase"
               style={{ background: "rgba(233,255,112,0.1)", color: LIME }}>2026</span>
-        Min. wage 160h × zł31.40 = zł5,024 → Netto zł3,929.05
+        Min. wage reference: 160h × zł 31.40 = zł 5,024 brutto → zł 3,929.05 netto
       </div>
     </div>
   );

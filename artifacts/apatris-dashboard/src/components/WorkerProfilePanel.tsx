@@ -575,7 +575,16 @@ export function WorkerProfilePanel({
                 <div className="flex items-center gap-3 text-sm">
                   <Phone className="w-4 h-4 flex-shrink-0" style={{ color: "#E9FF70" }} />
                   <span className="text-gray-300 font-mono flex-1">
-                    {worker.phone || t("panel.noPhone")}
+                    {worker.phone ? (
+                      <a
+                        href={`tel:${worker.phone.replace(/\s/g, "")}`}
+                        className="hover:underline"
+                        style={{ color: "#E9FF70" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {worker.phone}
+                      </a>
+                    ) : t("panel.noPhone")}
                   </span>
                   {worker.phone && (
                     <a

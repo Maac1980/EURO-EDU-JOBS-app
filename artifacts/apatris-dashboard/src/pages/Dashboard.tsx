@@ -176,6 +176,23 @@ export default function Dashboard() {
   const { user, logout, isAdmin, isCoordinator, isManager } = useAuth();
   const { t } = useTranslation();
   
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [appInstalled, setAppInstalled] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", () => { setAppInstalled(true); setInstallPrompt(null); });
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") { setAppInstalled(true); setInstallPrompt(null); }
+  };
+
   const [activeTab, setActiveTab] = useState<"compliance" | "payroll" | "deployment" | "alerts" | "settings">("compliance");
   const [search, setSearch] = useState("");
   const [specialization, setSpecialization] = useState("");
@@ -571,6 +588,17 @@ export default function Dashboard() {
                 className="p-2 text-muted-foreground hover:text-white transition-colors"
               >
                 <KeyRound className="w-4 h-4" />
+              </button>
+            )}
+            {installPrompt && !appInstalled && (
+              <button
+                onClick={handleInstallApp}
+                title="Install EEJ app on this device"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all hover:opacity-90"
+                style={{ background: "#E9FF70", color: "#333333" }}
+              >
+                <Download className="w-3.5 h-3.5" />
+                Install App
               </button>
             )}
             <button onClick={logout} title={t("header.logout")} className="p-2 text-muted-foreground hover:text-white transition-colors">

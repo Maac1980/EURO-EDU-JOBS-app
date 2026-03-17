@@ -26,6 +26,7 @@ import { ComplianceTrendChart } from "@/components/ComplianceTrendChart";
 import { PdfDownloadButton } from "@/components/PdfDownloadButton";
 import { AuditTrailPanel } from "@/components/AuditTrailPanel";
 import { AddWorkerModal } from "@/components/AddWorkerModal";
+import { BulkCsvImportModal } from "@/components/BulkCsvImportModal";
 import { PayrollRunPage } from "@/components/PayrollRunPage";
 import { TeamManagementCard } from "@/components/TeamManagementCard";
 import { ClientManagementCard } from "@/components/ClientManagementCard";
@@ -218,6 +219,7 @@ export default function Dashboard() {
   const [renewOpen, setRenewOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [bulkCsvOpen, setBulkCsvOpen] = useState(false);
   const [addWorkerOpen, setAddWorkerOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -580,6 +582,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-2">
           {/* + Add Worker — admin and coordinator only */}
           {(isAdmin || isCoordinator) && (
+          <>
           <button
             onClick={() => setAddWorkerOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
@@ -589,6 +592,16 @@ export default function Dashboard() {
             <UserPlus className="w-4 h-4" />
             <span className="hidden sm:inline">{t("addWorker.title")}</span>
           </button>
+          <button
+            onClick={() => setBulkCsvOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-black uppercase tracking-wide transition-all hover:opacity-90"
+            style={{ background: "rgba(233,255,112,0.12)", color: "#E9FF70", border: "1px solid rgba(233,255,112,0.3)" }}
+            title="Bulk Import via CSV"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Bulk Import (CSV)</span>
+          </button>
+          </>
           )}
 
           {/* ⚡ AI Smart Upload */}
@@ -1980,6 +1993,7 @@ export default function Dashboard() {
 
       <ComplianceReportModal isOpen={reportOpen} onClose={() => setReportOpen(false)} />
       <BulkUploadModal isOpen={bulkUploadOpen} onClose={() => setBulkUploadOpen(false)} />
+      <BulkCsvImportModal isOpen={bulkCsvOpen} onClose={() => setBulkCsvOpen(false)} />
       <AddWorkerModal isOpen={addWorkerOpen} onClose={() => setAddWorkerOpen(false)} />
 
       {/* Change Password Modal */}

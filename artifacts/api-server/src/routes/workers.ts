@@ -204,6 +204,58 @@ router.post("/apply", applyUpload.single("cv"), async (req, res) => {
   }
 });
 
+// POST /workers/bulk-import — CSV bulk create (array of worker objects)
+router.post("/workers/bulk-import", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  try {
+    const rows = req.body.workers as Record<string, unknown>[];
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: "No worker rows provided." });
+    }
+    const results: { name: string; success: boolean; error?: string }[] = [];
+
+    for (const row of rows) {
+      const name = typeof row.name === "string" ? row.name.trim() : "";
+      if (!name) { results.push({ name: "(blank)", success: false, error: "Name is required" }); continue; }
+
+      const fields: Record<string, unknown> = { NAME: name };
+      if (row.specialization)    fields["Job Role"]             = row.specialization;
+      if (row.email)             fields["Email"]                = row.email;
+      if (row.phone)             fields["Phone"]                = row.phone;
+      if (row.siteLocation)      fields["Assigned Site"]        = row.siteLocation;
+      if (row.hourlyNettoRate)   fields["HOURLY NETTO RATE"]    = Number(row.hourlyNettoRate) || 0;
+      if (row.trcExpiry)         fields["TRC Expiry"]           = row.trcExpiry;
+      if (row.workPermitExpiry)  fields["Work Permit Expiry"]   = row.workPermitExpiry;
+      if (row.contractEndDate)   fields["Contract End Date"]    = row.contractEndDate;
+      if (row.bhpStatus)         fields["BHP Status"]           = row.bhpStatus;
+      if (row.yearsOfExperience) fields["Experience"]           = row.yearsOfExperience;
+      if (row.highestQualification) fields["Qualification"]     = row.highestQualification;
+      if (row.nationality)       fields["NATIONALITY"]          = row.nationality;
+      if (row.contractType)      fields["CONTRACT TYPE"]        = row.contractType;
+      if (row.iban)              fields["IBAN"]                 = String(row.iban).toUpperCase();
+      if (row.pesel)             fields["PESEL"]                = row.pesel;
+      if (row.nip)               fields["NIP"]                  = row.nip;
+      if (row.visaType)          fields["VISA TYPE"]            = row.visaType;
+      if (row.badaniaLekExpiry)  fields["BADANIA LEKARSKIE"]    = row.badaniaLekExpiry;
+      if (row.pipelineStage)     fields["PIPELINE STAGE"]       = row.pipelineStage;
+
+      try {
+        const rec = await createRecord(fields);
+        appendAuditEntry({ workerId: rec.id, actor: "admin", field: "ALL", newValue: fields, action: "create" });
+        results.push({ name, success: true });
+      } catch (e) {
+        results.push({ name, success: false, error: e instanceof Error ? e.message : "Unknown error" });
+      }
+    }
+
+    const succeeded = results.filter((r) => r.success).length;
+    const failed    = results.filter((r) => !r.success).length;
+    return res.status(200).json({ succeeded, failed, results });
+  } catch (err) {
+    console.error("[bulk-import] error:", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to bulk import." });
+  }
+});
+
 // POST /workers — manually create a new worker record
 router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {

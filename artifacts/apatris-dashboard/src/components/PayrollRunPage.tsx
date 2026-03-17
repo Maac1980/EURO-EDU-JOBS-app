@@ -1827,8 +1827,10 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
   // Zdrowotna mandatory regardless
   const zdBase2 = grossRaw2 - zusEmp2;
   const zdr2    = zdBase2 * 0.09;
-  // PIT — no tax-free allowance if already used at Company 1
-  const pit2    = Math.max(0, (zdBase2 - 250) * 0.12);
+  // PIT — KUP 20% applies, but NO 300 zł PIT-2 relief at Company 2 (already used at Company 1)
+  const kup2      = zdBase2 * 0.20;
+  const taxBase2  = Math.max(0, Math.round(zdBase2 - kup2));
+  const pit2      = Math.round(taxBase2 * 0.12);
   const netto2  = grossRaw2 - zusEmp2 - zdr2 - pit2;
 
   // Savings vs if Company 2 had full ZUS

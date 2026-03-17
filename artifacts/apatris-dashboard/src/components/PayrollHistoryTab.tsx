@@ -94,7 +94,11 @@ export function PayrollHistoryTab({ workerId, workerName }: PayrollHistoryTabPro
     const advance = parseFloat(e.advance) || 0;
     const gross = hours * rate;
     const zus = gross * ZUS_RATE;
-    const netto = gross - zus - advance - (r.penaltiesDeducted ?? 0);
+    const healthBase = gross - zus;
+    const zdrowotna = healthBase * 0.09;
+    const taxBase = Math.max(0, Math.round(healthBase * 0.80));
+    const pit = Math.max(0, Math.round(taxBase * 0.12 - 300));
+    const netto = gross - zus - zdrowotna - pit - advance - (r.penaltiesDeducted ?? 0);
 
     try {
       await fetch(`${base}/api/payroll/records/${r.id}`, {
@@ -120,7 +124,12 @@ export function PayrollHistoryTab({ workerId, workerName }: PayrollHistoryTabPro
     const rt = parseFloat(e.rate) || 0;
     const adv = parseFloat(e.advance) || 0;
     const gross = h * rt;
-    return gross - gross * ZUS_RATE - adv - (r.penaltiesDeducted ?? 0);
+    const zus = gross * ZUS_RATE;
+    const healthBase = gross - zus;
+    const zdrowotna = healthBase * 0.09;
+    const taxBase = Math.max(0, Math.round(healthBase * 0.80));
+    const pit = Math.max(0, Math.round(taxBase * 0.12 - 300));
+    return gross - zus - zdrowotna - pit - adv - (r.penaltiesDeducted ?? 0);
   };
 
   const totalHours = history.reduce((s, r) => s + (parseFloat(edits[r.id]?.hours ?? String(r.totalHours)) || 0), 0);

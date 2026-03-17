@@ -97,8 +97,8 @@ router.post("/auth/login", (req, res) => {
   }
 
   // ── Email OTP for admin logins (only when SMTP is configured) ───────────
-  const smtpConfigured = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-  if (found.role === "admin" && smtpConfigured) {
+  const emailConfigured = !!(process.env.RESEND_API_KEY);
+  if (found.role === "admin" && emailConfigured) {
     const submittedOtp = (req.body as any).emailOtp as string | undefined;
     if (!submittedOtp) {
       const otp = generateOtp();

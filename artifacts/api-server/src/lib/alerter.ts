@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import twilio from "twilio";
 import cron from "node-cron";
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
@@ -10,6 +11,62 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROFILE_FILE = join(__dirname, "../../data/admin-profile.json");
 const USERS_FILE = join(__dirname, "../../data/users.json");
 const ALERT_RESULT_FILE = join(__dirname, "../../data/last-alert-result.json");
+
+// ── Universal email sender: Resend (HTTPS) preferred, SMTP fallback ──────────
+export async function sendEmail(opts: {
+  from: string;
+  to: string | string[];
+  subject: string;
+  html: string;
+  attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
+}): Promise<void> {
+  const resendKey = process.env.RESEND_API_KEY;
+
+  if (resendKey) {
+    const resend = new Resend(resendKey);
+    const toArr = Array.isArray(opts.to) ? opts.to : [opts.to];
+    const payload: Parameters<typeof resend.emails.send>[0] = {
+      from: opts.from,
+      to: toArr,
+      subject: opts.subject,
+      html: opts.html,
+    };
+    if (opts.attachments?.length) {
+      payload.attachments = opts.attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      }));
+    }
+    const { error } = await resend.emails.send(payload);
+    if (error) throw new Error((error as any).message ?? JSON.stringify(error));
+    return;
+  }
+
+  // Fallback: SMTP via nodemailer (works on deployed VMs, blocked in Replit dev)
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
+  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
+  if (!smtpUser || !smtpPass) {
+    throw new Error("No email transport configured. Add RESEND_API_KEY (recommended) or SMTP_USER/SMTP_PASS.");
+  }
+  const transporter = nodemailer.createTransport({
+    host: smtpHost, port: smtpPort,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+  await transporter.sendMail({
+    from: opts.from,
+    to: Array.isArray(opts.to) ? opts.to.join(", ") : opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    attachments: opts.attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType,
+    })),
+  });
+}
 
 interface PersistedAlertResult extends AlertResult {
   ranAt: string;
@@ -196,14 +253,12 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
       return result;
     }
 
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-    const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
-    const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-    const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+    const smtpFrom = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@edu-jobs.eu";
+    const resendKey = process.env.RESEND_API_KEY;
+    const smtpReady = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
 
-    if (!smtpUser || !smtpPass) {
-      result.error = "SMTP not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT to Secrets to send emails.";
+    if (!resendKey && !smtpReady) {
+      result.error = "No email transport configured. Add RESEND_API_KEY (recommended) or SMTP secrets.";
       persistAlertResult(result);
       return result;
     }
@@ -275,19 +330,12 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
   </div>
 </body></html>`;
 
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-    });
-
     const coordinatorEmails = getCoordinatorEmails().filter((e) => e !== emailTo);
+    const toList = [emailTo, ...coordinatorEmails];
 
-    await transporter.sendMail({
+    await sendEmail({
       from: `EURO EDU JOBS Compliance <${smtpFrom}>`,
-      to: emailTo,
-      ...(coordinatorEmails.length > 0 ? { cc: coordinatorEmails.join(", ") } : {}),
+      to: toList,
       subject: testMode
         ? `🧪 EEJ Test Alert — ${result.docsFound} documents found across ${result.scanned} workers`
         : `⚠ EEJ Alert: ${result.redCount} Critical + ${result.yellowCount} Warning documents`,
@@ -328,22 +376,7 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
 export async function sendWorkerExpiryReminders(): Promise<{ sent: number; skipped: number; errors: string[] }> {
   const result = { sent: 0, skipped: 0, errors: [] as string[] };
 
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
-  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
-
-  if (!smtpUser || !smtpPass) {
-    result.errors.push("SMTP not configured.");
-    return result;
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost, port: smtpPort,
-    secure: smtpPort === 465,
-    auth: { user: smtpUser, pass: smtpPass },
-  });
+  const smtpFrom = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@edu-jobs.eu";
 
   let workers;
   try {
@@ -405,7 +438,7 @@ export async function sendWorkerExpiryReminders(): Promise<{ sent: number; skipp
     </body></html>`;
 
     try {
-      await transporter.sendMail({
+      await sendEmail({
         from: `EURO EDU JOBS <${smtpFrom}>`,
         to: worker.email,
         subject: `Ważne: Twoje dokumenty wygasają za ${expiring[0].days} dni — EEJ`,
@@ -439,19 +472,7 @@ export async function sendPayslipEmail(
     zusDeducted: number; finalNettoPayout: number; siteLocation: string;
   }
 ): Promise<void> {
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
-  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
-
-  if (!smtpUser || !smtpPass) throw new Error("SMTP not configured.");
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost, port: smtpPort,
-    secure: smtpPort === 465,
-    auth: { user: smtpUser, pass: smtpPass },
-  });
+  const smtpFrom = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@edu-jobs.eu";
 
   const tableRows = payslipData ? `
     <tr><td style="padding:10px 16px;color:#555;border-bottom:1px solid #f0f0f0">Godziny przepracowane</td><td style="padding:10px 16px;font-weight:bold;text-align:right;border-bottom:1px solid #f0f0f0">${payslipData.totalHours.toFixed(1)} h</td></tr>
@@ -487,7 +508,7 @@ export async function sendPayslipEmail(
     </table>
   </body></html>`;
 
-  await transporter.sendMail({
+  await sendEmail({
     from: `EURO EDU JOBS Payroll <${smtpFrom}>`,
     to: workerEmail,
     subject: `Twój odcinek wypłaty za ${monthYear} — EURO EDU JOBS`,
@@ -506,21 +527,9 @@ export async function sendLoginOtp(
   name: string,
   otp: string
 ): Promise<void> {
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
-  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+  const smtpFrom = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@edu-jobs.eu";
 
-  if (!smtpUser || !smtpPass) throw new Error("SMTP not configured for email OTP.");
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost, port: smtpPort,
-    secure: smtpPort === 465,
-    auth: { user: smtpUser, pass: smtpPass },
-  });
-
-  await transporter.sendMail({
+  await sendEmail({
     from: `EURO EDU JOBS Security <${smtpFrom}>`,
     to: toEmail,
     subject: `Twój kod logowania EEJ: ${otp}`,
@@ -560,11 +569,7 @@ export async function sendLoginNotification(user: {
   const roleLine = user.role.charAt(0).toUpperCase() + user.role.slice(1) + (user.site ? ` · ${user.site}` : "");
 
   // ── HTML email ────────────────────────────────────────────────────────────
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
-  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+  const smtpFrom = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@edu-jobs.eu";
   const adminProfile = getAdminProfile();
   const alertTo   = adminProfile?.email ?? process.env.ALERT_EMAIL_TO;
 
@@ -645,14 +650,9 @@ export async function sendLoginNotification(user: {
 </body>
 </html>`;
 
-  if (smtpUser && smtpPass && alertTo) {
+  if (alertTo) {
     try {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost, port: smtpPort,
-        secure: smtpPort === 465,
-        auth: { user: smtpUser, pass: smtpPass },
-      });
-      await transporter.sendMail({
+      await sendEmail({
         from: `"EEJ Security" <${smtpFrom}>`,
         to: alertTo,
         subject: `[EEJ] Logowanie: ${user.name} (${user.role}) — ${timeStr}`,
@@ -668,12 +668,7 @@ export async function sendLoginNotification(user: {
 
 // ── Weekly digest email ───────────────────────────────────────────────────────
 export async function sendWeeklyDigest(): Promise<{ sent: boolean; error?: string }> {
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
-  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
-  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
-  if (!smtpUser || !smtpPass) return { sent: false, error: "SMTP not configured." };
+  const smtpFrom = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@edu-jobs.eu";
 
   const adminProfile = getAdminProfile();
   const to = adminProfile?.email ?? process.env.ALERT_EMAIL_TO;
@@ -740,8 +735,7 @@ export async function sendWeeklyDigest(): Promise<{ sent: boolean; error?: strin
   </body></html>`;
 
   try {
-    const transporter = nodemailer.createTransport({ host: smtpHost, port: smtpPort, secure: smtpPort === 465, auth: { user: smtpUser, pass: smtpPass } });
-    await transporter.sendMail({
+    await sendEmail({
       from: `"EEJ Compliance" <${smtpFrom}>`,
       to,
       subject: `[EEJ] Tygodniowy Raport — ${total} dok. do odnowienia`,

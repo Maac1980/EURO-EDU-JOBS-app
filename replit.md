@@ -259,14 +259,57 @@ Every admin-role user must complete a 6-digit email OTP step on every login:
 - `POST /api/workers/:id/gdpr-erase` — admin only; wipes: name → "GDPR_ERASED", email/phone/PESEL/NIP/IBAN → null; logs to audit.json
 - CandidateEditPanel shows GDPR Erase button (admin-only, two-step confirm before firing)
 
-## ZUS/PIT Toggle (Payroll)
+## ZUS/PIT Formula (2026 — Umowa Zlecenie)
 
-In `PayrollRunPage.tsx`:
-- Toggle button: **ZUS pracownika 11,26%** (Emerytalne 9,76% + Rentowe 1,5%, no chorobowe, no PIT-2)
-- `ZUS_RATE = 0.1126` constant; deducted from gross pay in `calcNetto(row, withZus)`
-- When active: summary card 3 shows ZUS total in red; netto column reflects deduction
-- Affects all calculated netto totals including table footer and close-month preview
-- `withZus` state is local to the payroll page — does not affect the persisted `finalNettoPayout` in ledger records
+Applied universally across all payroll calculations in the app. Confirmed against the official Polish salary calculator (wynagrodzenia.pl / gov.pl).
+
+### 13-Step Formula (no chorobowe, PIT-2 filed, 1 employer):
+1. **Gross** (brutto) — starting amount
+2. **Pension (Emerytalna)** = Gross × 9.76%
+3. **Disability (Rentowa)** = Gross × 1.50%
+4. **Sickness (Chorobowa)** = 0.00% (unchecked / not applicable)
+5. **Total Worker ZUS** = Pension + Disability = **11.26%**
+6. **Health Base** = Gross − Total Worker ZUS
+7. **Health Insurance (Zdrowotna)** = Health Base × 9%
+8. **KUP** = Health Base × 20% (tax-deductible cost, applied to przychód podatkowy)
+9. **Tax Base (Podstawa)** = round(Health Base − KUP) = round(Health Base × 80%)
+10. **Gross Income Tax** = Tax Base × 12%
+11. **PIT Reduction (PIT-2)** = −300 zł/month (1 employer authorised)
+12. **Final Income Tax (Zaliczka PIT)** = max(0, round(Gross Tax − 300))
+13. **Net Payout (Netto)** = Gross − ZUS (step 5) − Health Tax (step 7) − Income Tax (step 12)
+
+### Reference output (160h × zł31.40 minimum wage):
+- Gross: **zł 5,024.00** → Net: **zł 3,929.05** ✓
+
+### Constants used everywhere:
+- `SOCIAL_ZUS_RATE = 0.1126` (PayrollRunPage.tsx)
+- `ZUS_RATE = 0.1126` (api-server/src/routes/payroll.ts)
+- `HEALTH_RATE = 0.09`, `KUP_RATE = 0.20`, `PIT_RATE = 0.12`, `MONTHLY_RELIEF = 300`
+
+### Applies to:
+- `calcDeductions()` — main payroll grid netto
+- `calcRow()` — KPI summary cards
+- CSV/bank export calculation
+- Per-row sidebar ZUS breakdown in payroll grid
+- `calcSingleZUS()` — ZUS Calculator panel (single contract)
+- Dual-contract ZUS Calculator panel
+- API server batch payroll endpoint
+- **Brutto→Netto Calculator** (ZUS Calculator tab, top section)
+
+## Brutto → Netto Calculator (ZUS Calculator Tab)
+
+Standalone `BruttoNettoCalc` component at the top of the ZUS Calculator page. Shows all 13 steps in a numbered table with live formula hints per row. Defaults to zł 5,024 (160h minimum wage). Updates instantly on any gross input.
+
+Hour → Net reference table (zł31.40/h, 2026):
+| Hours | Gross | Net |
+|---|---|---|
+| 90h | zł 2,826.00 | **zł 2,282.09** |
+| 110h | zł 3,454.00 | **zł 2,789.22** |
+| 120h | zł 3,768.00 | **zł 3,021.79** |
+| 130h | zł 4,082.00 | **zł 3,248.35** |
+| 160h | zł 5,024.00 | **zł 3,929.05** |
+
+Note: For 90h and 110h, gross income tax < PIT-2 relief (zł 300), so final PIT = 0.
 
 ## Bank CSV Export for Polish Transfers
 

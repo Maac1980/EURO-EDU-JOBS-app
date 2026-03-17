@@ -10,11 +10,12 @@ import {
 } from "lucide-react";
 
 // 2026 Polish ZUS/PIT constants for umowa zlecenie (full mandatory contributions)
-const SOCIAL_ZUS_RATE  = 0.1371; // Emerytalne 9.76% + Rentowe 1.5% + Chorobowe 2.45%
-const HEALTH_RATE      = 0.09;   // Zdrowotna — calculated on gross minus social ZUS
-const KUP_RATE         = 0.20;   // Koszty uzyskania przychodu
-const PIT_RATE         = 0.12;   // First tax bracket 2026
-const MONTHLY_RELIEF   = 300;    // Miesięczna kwota zmniejszająca podatek (30 000 zł / year × 12%)
+const SOCIAL_ZUS_RATE       = 0.1371; // Emerytalne 9.76% + Rentowe 1.5% + Chorobowe 2.45%
+const HEALTH_RATE           = 0.09;   // Zdrowotna — calculated on gross minus social ZUS
+const HEALTH_DEDUCTIBLE     = 0.0775; // 7.75% of zdrowotna base is deductible from PIT advance
+const KUP_RATE              = 0.20;   // Koszty uzyskania przychodu
+const PIT_RATE              = 0.12;   // First tax bracket 2026
+const MONTHLY_RELIEF        = 300;    // Miesięczna kwota zmniejszająca podatek (30 000 zł / year × 12%)
 // Employer-side ZUS on top of gross: emerytalne 9.76% + rentowe 6.5% + wypadkowe 1.67% + FP 2.45% + FGŚP 0.10%
 const EMPLOYER_ZUS_RATE = 0.0976 + 0.065 + 0.0167 + 0.0245 + 0.001; // ≈ 20.48%
 
@@ -82,11 +83,13 @@ const DEFAULT_RATES: ZusRates = {
 };
 
 function calcDeductions(gross: number): { socialZus: number; zdrowotna: number; pit: number; total: number } {
-  const socialZus  = gross * SOCIAL_ZUS_RATE;
-  const zdrowotna  = (gross - socialZus) * HEALTH_RATE;
-  const kup        = gross * KUP_RATE;
-  const taxBase    = Math.max(0, Math.round(gross - socialZus - kup));
-  const pit        = Math.max(0, taxBase * PIT_RATE - MONTHLY_RELIEF);
+  const socialZus          = gross * SOCIAL_ZUS_RATE;
+  const healthBase         = gross - socialZus;
+  const zdrowotna          = healthBase * HEALTH_RATE;
+  const zdrowotnaDeductible = healthBase * HEALTH_DEDUCTIBLE; // 7.75% reduces PIT advance
+  const kup                = gross * KUP_RATE;
+  const taxBase            = Math.max(0, Math.round(gross - socialZus - kup));
+  const pit                = Math.max(0, taxBase * PIT_RATE - MONTHLY_RELIEF - zdrowotnaDeductible);
   return { socialZus, zdrowotna, pit, total: socialZus + zdrowotna + pit };
 }
 
@@ -328,7 +331,8 @@ export function PayrollRunPage() {
       const zdr = zdBase * 0.09;
       const kup = gross * 0.20;
       const taxBase = Math.max(0, gross - totalEmp - kup);
-      const pit = Math.max(0, taxBase * 0.12 - 300);
+      const zdDeductible = zdBase * 0.0775;
+      const pit = Math.max(0, taxBase * 0.12 - 300 - zdDeductible);
       const netto = gross - totalEmp - zdr - pit;
       const em_er = gross * 0.0976;
       const re_er = gross * 0.065;
@@ -1401,13 +1405,15 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                   const hours    = parseFloat(e.hours) || 0;
                   const rate     = parseFloat(e.rate) || 0;
                   const gross    = hours * rate;
-                  const socialZus = gross * 0.1371;
-                  const zdrowotna = (gross - socialZus) * 0.09;
-                  const kup       = gross * 0.20;
-                  const taxBase   = Math.max(0, gross - socialZus - kup);
-                  const pitGross  = taxBase * 0.12;
-                  const pit       = Math.max(0, pitGross - 300);
-                  const netto     = gross - socialZus - zdrowotna - pit;
+                  const socialZus       = gross * 0.1371;
+                  const healthBase2     = gross - socialZus;
+                  const zdrowotna       = healthBase2 * 0.09;
+                  const zdrowotnaDeduct = healthBase2 * 0.0775;
+                  const kup             = gross * 0.20;
+                  const taxBase         = Math.max(0, gross - socialZus - kup);
+                  const pitGross        = taxBase * 0.12;
+                  const pit             = Math.max(0, pitGross - 300 - zdrowotnaDeduct);
+                  const netto           = gross - socialZus - zdrowotna - pit;
                   const totalDeduct = socialZus + zdrowotna + pit;
                   const isDirty   = !!edits[r.id]?.dirty;
                   const isCurrentMonth = r.monthYear === currentMonthYear;
@@ -1608,10 +1614,13 @@ function calcSingleZUS(grossNum: number, inclChorobowe: boolean, inclPit2 = fals
   const zdrowotna     = zdrowotnaBase * 0.09;
   // PIT for zlecenie: KUP = 20% of gross (brutto), tax base = gross − ZUS − KUP
   // PIT-2: if filed, reduces monthly advance tax by flat 300 zł (kwota zmniejszająca)
-  const kup           = grossNum * 0.20;
-  const taxBase       = Math.max(0, grossNum - totalZusEmp - kup);
-  const pitGross      = taxBase * 0.12;
-  const pit           = inclPit2 ? Math.max(0, pitGross - 300) : pitGross;
+  const kup               = grossNum * 0.20;
+  const taxBase           = Math.max(0, grossNum - totalZusEmp - kup);
+  const pitGross          = taxBase * 0.12;
+  const zdDeductible2     = zdrowotnaBase * 0.0775; // 7.75% of zdrowotna base deductible from PIT
+  const pit               = inclPit2
+    ? Math.max(0, pitGross - 300 - zdDeductible2)
+    : Math.max(0, pitGross - zdDeductible2);
   const netto         = grossNum - totalZusEmp - zdrowotna - pit;
   return { emerytalne_e, rentowe_e, chorobowe_e, totalZusEmp, emerytalne_er, rentowe_er, wypadkowe, fp, fgsb, totalZusEr, zdrowotnaBase, zdrowotna, kup, taxBase, pitGross, pit, netto };
 }
@@ -1740,7 +1749,7 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
               {inclChorob && <CalcRow label="Chorobowe" sub="2.45%" value={`- zł${s.chorobowe_e.toFixed(2)}`} />}
               <CalcRow label="Zdrowotna" sub={`9% × zł${s.zdrowotnaBase.toFixed(2)}`} value={`- zł${s.zdrowotna.toFixed(2)}`} />
               <CalcRow label="KUP (zlecenie)" sub={`20% × gross zł${(parseFloat(gross)||0).toFixed(2)} = zł${s.kup.toFixed(2)}`} value="tax deduction" />
-              <CalcRow label="PIT-12 advance" sub={inclPit2 ? `(zł${s.pitGross.toFixed(2)} − PIT-2 300)` : `12% × zł${s.taxBase.toFixed(2)}`} value={`- zł${s.pit.toFixed(2)}`} />
+              <CalcRow label="PIT-12 advance" sub={inclPit2 ? `(zł${s.pitGross.toFixed(2)} − PIT-2 300 − 7.75% odl.)` : `(12% × zł${s.taxBase.toFixed(2)} − 7.75% odl.)`} value={`- zł${s.pit.toFixed(2)}`} />
             </div>
           </div>
 

@@ -548,6 +548,146 @@ export async function sendLoginOtp(
   });
 }
 
+// ── Login notification — email + WhatsApp/SMS to admin ───────────────────────
+export async function sendLoginNotification(user: {
+  name: string;
+  email: string;
+  role: string;
+  site?: string | null;
+}, ip: string): Promise<void> {
+  const now = new Date();
+  const timeStr = now.toLocaleString("pl-PL", { timeZone: "Europe/Warsaw", dateStyle: "short", timeStyle: "short" });
+  const roleLine = user.role.charAt(0).toUpperCase() + user.role.slice(1) + (user.site ? ` · ${user.site}` : "");
+
+  // ── HTML email ────────────────────────────────────────────────────────────
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
+  const smtpPort = Number(process.env.SMTP_PORT ?? "587");
+  const smtpFrom = process.env.SMTP_FROM ?? smtpUser;
+  const adminProfile = getAdminProfile();
+  const alertTo   = adminProfile?.email ?? process.env.ALERT_EMAIL_TO;
+
+  const emailHtml = `<!DOCTYPE html>
+<html lang="pl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#111;font-family:'Helvetica Neue',Arial,sans-serif">
+
+  <!-- Wrapper -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:40px auto">
+
+    <!-- Header -->
+    <tr><td style="background:#1a1a1a;border-radius:16px 16px 0 0;padding:28px 32px;border-bottom:2px solid #E9FF70">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td><span style="color:#E9FF70;font-size:18px;font-weight:900;letter-spacing:1px">EURO EDU JOBS</span><br>
+              <span style="color:#666;font-size:9px;letter-spacing:3px;text-transform:uppercase">Compliance Portal</span></td>
+          <td align="right"><span style="background:#E9FF70;color:#333;font-size:9px;font-weight:900;letter-spacing:2px;padding:4px 10px;border-radius:999px;text-transform:uppercase">Login Alert</span></td>
+        </tr>
+      </table>
+    </td></tr>
+
+    <!-- Body -->
+    <tr><td style="background:#1e1e1e;padding:32px">
+
+      <p style="margin:0 0 6px;font-size:22px;font-weight:900;color:#fff;line-height:1.2">
+        🔐 Nowe Logowanie<br>
+        <span style="font-size:13px;font-weight:400;color:#888">New session detected on the EEJ portal</span>
+      </p>
+
+      <!-- Divider -->
+      <div style="height:1px;background:linear-gradient(90deg,#E9FF70 0%,transparent 100%);margin:20px 0"></div>
+
+      <!-- Details table -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;background:#252525">
+        <tr style="border-bottom:1px solid #333">
+          <td style="padding:12px 16px;font-size:10px;font-weight:700;color:#666;letter-spacing:2px;text-transform:uppercase;width:120px">Użytkownik</td>
+          <td style="padding:12px 16px;font-size:13px;font-weight:700;color:#fff">${user.name}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #333">
+          <td style="padding:12px 16px;font-size:10px;font-weight:700;color:#666;letter-spacing:2px;text-transform:uppercase">Email</td>
+          <td style="padding:12px 16px;font-size:13px;color:#aaa;font-family:monospace">${user.email}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #333">
+          <td style="padding:12px 16px;font-size:10px;font-weight:700;color:#666;letter-spacing:2px;text-transform:uppercase">Rola</td>
+          <td style="padding:12px 16px">
+            <span style="background:#E9FF70;color:#333;font-size:10px;font-weight:900;padding:3px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:1px">${roleLine}</span>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid #333">
+          <td style="padding:12px 16px;font-size:10px;font-weight:700;color:#666;letter-spacing:2px;text-transform:uppercase">Czas</td>
+          <td style="padding:12px 16px;font-size:13px;color:#fff;font-family:monospace">${timeStr} (CET)</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 16px;font-size:10px;font-weight:700;color:#666;letter-spacing:2px;text-transform:uppercase">Adres IP</td>
+          <td style="padding:12px 16px;font-size:13px;color:#aaa;font-family:monospace">${ip}</td>
+        </tr>
+      </table>
+
+      <!-- Warning -->
+      <div style="margin-top:20px;padding:14px 16px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;border-radius:0 8px 8px 0">
+        <p style="margin:0;font-size:11px;color:#f87171;line-height:1.5">
+          <strong>Nie rozpoznajesz tego logowania?</strong><br>
+          Natychmiast zmień hasło i skontaktuj się z administratorem systemu.
+        </p>
+      </div>
+
+    </td></tr>
+
+    <!-- Footer -->
+    <tr><td style="background:#151515;border-radius:0 0 16px 16px;padding:16px 32px;border-top:1px solid #2a2a2a">
+      <p style="margin:0;font-size:9px;color:#444;text-align:center;letter-spacing:1px;text-transform:uppercase">
+        EURO EDU JOBS · Automated Security Alert · edu-jobs.eu
+      </p>
+    </td></tr>
+
+  </table>
+</body>
+</html>`;
+
+  if (smtpUser && smtpPass && alertTo) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost, port: smtpPort,
+        secure: smtpPort === 465,
+        auth: { user: smtpUser, pass: smtpPass },
+      });
+      await transporter.sendMail({
+        from: `"EEJ Security" <${smtpFrom}>`,
+        to: alertTo,
+        subject: `[EEJ] Logowanie: ${user.name} (${user.role}) — ${timeStr}`,
+        html: emailHtml,
+      });
+      console.log(`[alerter] ✓ Login notification email → ${alertTo}`);
+    } catch (e) {
+      console.warn("[alerter] Login email failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // ── WhatsApp / SMS ────────────────────────────────────────────────────────
+  const adminPhone = process.env.ADMIN_PHONE;
+  const twilioSid  = process.env.TWILIO_ACCOUNT_SID;
+  const twilioAuth = process.env.TWILIO_AUTH_TOKEN;
+
+  if (adminPhone && twilioSid && twilioAuth) {
+    const smsBody =
+      `[EEJ] ✅ Logowanie: ${user.name} (${roleLine}) o ${timeStr}. IP: ${ip}. ` +
+      `Nie rozpoznajesz? Zmień hasło natychmiast.`;
+    try {
+      // Prefer WhatsApp if TWILIO_WHATSAPP_FROM is set, else fall back to SMS
+      if (process.env.TWILIO_WHATSAPP_FROM) {
+        await sendWhatsAppMessage(adminPhone, smsBody);
+        console.log(`[alerter] ✓ Login WhatsApp → ${adminPhone}`);
+      } else if (process.env.TWILIO_SMS_FROM) {
+        await sendSmsMessage(adminPhone, smsBody);
+        console.log(`[alerter] ✓ Login SMS → ${adminPhone}`);
+      }
+    } catch (e) {
+      console.warn("[alerter] Login WhatsApp/SMS failed:", e instanceof Error ? e.message : e);
+    }
+  }
+}
+
 // ── Weekly digest email ───────────────────────────────────────────────────────
 export async function sendWeeklyDigest(): Promise<{ sent: boolean; error?: string }> {
   const smtpUser = process.env.SMTP_USER;

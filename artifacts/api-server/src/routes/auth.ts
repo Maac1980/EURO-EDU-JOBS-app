@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import { JWT_SECRET, authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
 import { verify2FAToken, user2FAEnabled } from "./twofa.js";
 import { appendAuditEntry } from "./audit.js";
-import { sendLoginOtp } from "../lib/alerter.js";
+import { sendLoginOtp, sendLoginNotification } from "../lib/alerter.js";
 
 // ── Email OTP in-memory store ─────────────────────────────────────────────────
 // key: userId, value: { otp, expiresAt (ms timestamp) }
@@ -151,6 +151,17 @@ router.post("/auth/login", (req, res) => {
   });
 
   console.log(`[auth] ✓ Login: ${found.email} (${found.role}${found.site ? " @ " + found.site : ""})`);
+
+  // ── Fire login notification (email + WhatsApp/SMS) ─────────────────────
+  const clientIp =
+    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+    req.socket.remoteAddress ??
+    "unknown";
+  sendLoginNotification(
+    { name: found.name, email: found.email, role: found.role, site: found.site },
+    clientIp
+  ).catch((e) => console.warn("[auth] Login notification failed:", e instanceof Error ? e.message : e));
+
   return res.json({ token, user: payload });
 });
 

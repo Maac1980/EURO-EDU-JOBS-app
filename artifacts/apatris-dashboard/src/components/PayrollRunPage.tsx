@@ -1629,6 +1629,113 @@ const CalcRow = ({ label, value, sub, highlight, saving }: { label: string; valu
   </div>
 );
 
+/* ── Brutto → Netto quick-calculator (11.26% ZUS, no chorobowe, PIT-2 filed) ── */
+function BruttoNettoCalc() {
+  const [brutto, setBrutto] = React.useState("5024");
+  const g = parseFloat(brutto) || 0;
+
+  // Step 1: Worker ZUS — pension (9.76%) + disability (1.50%), no chorobowe
+  const workerZUS   = g * (0.0976 + 0.0150);              // 11.26%
+  // Step 2: Health base = gross − worker ZUS
+  const healthBase  = g - workerZUS;
+  // Step 3: Health tax = 9% of health base
+  const healthTax   = healthBase * 0.09;
+  // Step 4: Tax base = health base − KUP (20% of health base), rounded
+  const kup         = healthBase * 0.20;
+  const taxBase     = Math.round(healthBase - kup);        // = round(healthBase × 0.80)
+  // Step 5: Income tax = (tax base × 12%) − 300 PIT-2 relief, rounded, min 0
+  const incomeTax   = Math.max(0, Math.round(taxBase * 0.12 - 300));
+  // Step 6: Net
+  const netto       = g - workerZUS - healthTax - incomeTax;
+
+  const Row = ({ label, sub, value, highlight, isResult }: {
+    label: string; sub?: string; value: string; highlight?: boolean; isResult?: boolean
+  }) => (
+    <div className={`flex items-center justify-between py-2 ${isResult ? "border-t mt-1 pt-3" : "border-b"}`}
+         style={{ borderColor: isResult ? LIME : "rgba(255,255,255,0.06)" }}>
+      <div>
+        <span className={`text-xs font-bold ${isResult ? "text-white text-sm" : "text-gray-300"}`}>{label}</span>
+        {sub && <span className="text-[10px] font-mono text-gray-500 ml-2">{sub}</span>}
+      </div>
+      <span className={`font-mono font-black tabular-nums ${isResult ? "text-base" : "text-xs"}`}
+            style={{ color: highlight === false ? "#f87171" : isResult ? LIME : "rgba(255,255,255,0.75)" }}>
+        {value}
+      </span>
+    </div>
+  );
+
+  return (
+    <div className="glass-panel rounded-2xl p-6" style={{ border: `1.5px solid ${LIME_BORDER}` }}>
+      <div className="flex items-center gap-3 mb-5">
+        <div className="rounded-lg p-2" style={{ background: "rgba(233,255,112,0.12)" }}>
+          <Calculator className="w-4 h-4" style={{ color: LIME }} />
+        </div>
+        <div>
+          <div className="text-sm font-black uppercase tracking-widest text-white">Brutto → Netto</div>
+          <div className="text-[10px] font-mono mt-0.5" style={{ color: LIME, opacity: 0.7 }}>
+            Umowa Zlecenie 2026 · 11.26% ZUS · PIT-2
+          </div>
+        </div>
+      </div>
+
+      {/* Input */}
+      <div className="mb-5">
+        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">
+          Gross Amount (Brutto)
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base font-black" style={{ color: LIME }}>zł</span>
+          <input
+            type="number" value={brutto} onChange={(e) => setBrutto(e.target.value)} min={0}
+            className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-900 text-white text-xl font-black tabular-nums focus:outline-none"
+            style={{ border: `1.5px solid ${LIME_BORDER}`, caretColor: LIME }}
+          />
+        </div>
+      </div>
+
+      {/* Breakdown */}
+      <div className="rounded-xl p-4" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Calculation Breakdown</div>
+
+        <Row label="Gross (Brutto)"
+             value={`zł ${g.toFixed(2)}`} />
+        <Row label="Worker ZUS"
+             sub="Pension 9.76% + Disability 1.50% = 11.26%"
+             value={`− zł ${workerZUS.toFixed(2)}`}
+             highlight={false} />
+        <Row label="Health Base"
+             sub="Gross − Worker ZUS"
+             value={`= zł ${healthBase.toFixed(2)}`} />
+        <Row label="Health Tax (Zdrowotna)"
+             sub={`9% × zł ${healthBase.toFixed(2)}`}
+             value={`− zł ${healthTax.toFixed(2)}`}
+             highlight={false} />
+        <Row label="KUP Deduction"
+             sub={`20% × zł ${healthBase.toFixed(2)} (tax cost only)`}
+             value={`zł ${kup.toFixed(2)}`} />
+        <Row label="Tax Base (Podstawa)"
+             sub={`round(Health Base × 80%)`}
+             value={`= zł ${taxBase.toFixed(0)}`} />
+        <Row label="Income Tax (Zaliczka PIT)"
+             sub={`round(zł ${taxBase} × 12%) − 300 PIT-2`}
+             value={`− zł ${incomeTax.toFixed(0)}`}
+             highlight={false} />
+        <Row label="NET PAYOUT (Netto)"
+             sub={`Gross − ZUS − Health Tax − Income Tax`}
+             value={`zł ${netto.toFixed(2)}`}
+             isResult />
+      </div>
+
+      {/* Reference badge */}
+      <div className="mt-3 flex items-center gap-2 text-[10px] font-mono text-gray-500">
+        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase"
+              style={{ background: "rgba(233,255,112,0.1)", color: LIME }}>2026</span>
+        Min. wage 160h × zł31.40 = zł5,024 → Netto zł3,929.05
+      </div>
+    </div>
+  );
+}
+
 function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
   const [zusTab, setZusTab]             = React.useState<"single" | "dual">("single");
 
@@ -1686,6 +1793,9 @@ function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
 
   return (
     <div className="space-y-5">
+      {/* ════ BRUTTO → NETTO QUICK CALCULATOR ════ */}
+      <BruttoNettoCalc />
+
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
         <div>
           <h2 className="text-xl font-black text-white uppercase tracking-wide">{t("payroll.zusCalc")}</h2>

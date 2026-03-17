@@ -496,7 +496,7 @@ export default function Dashboard() {
           </div>
           <div>
             <div className="text-xs font-black tracking-[0.12em] uppercase text-white leading-none">Euro Edu Jobs</div>
-            <div className="text-[8px] font-bold font-mono tracking-[0.15em] uppercase mt-0.5" style={{ color: "#E9FF70", opacity: 0.7 }}>Compliance Portal</div>
+            <div className="text-[8px] font-bold font-mono tracking-[0.15em] uppercase mt-0.5" style={{ color: "#E9FF70", opacity: 0.7 }}>Your Reliable Partners In Europe</div>
           </div>
         </div>
 
@@ -538,7 +538,7 @@ export default function Dashboard() {
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="text-[8px] font-mono text-center" style={{ color: "rgba(255,255,255,0.15)" }}>v2026 · EEJ Portal</div>
+          <div className="text-[8px] font-mono text-center" style={{ color: "rgba(255,255,255,0.15)" }}>© 2026 Euro Edu Jobs</div>
         </div>
       </aside>
 

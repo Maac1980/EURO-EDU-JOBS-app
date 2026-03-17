@@ -6,13 +6,41 @@
   "greenCount": 0,
   "emailSent": false,
   "emailTo": "anna.b@edu-jobs.eu",
-  "error": "SMTP not configured. Add SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT to Secrets to send emails.",
+  "error": "getaddrinfo ENOTFOUND \tsmtp.gmail.com",
   "alerts": [
     {
       "name": "Fatima El Amine",
       "doc": "TRC Residence Card",
       "expiry": "2026-03-05",
       "days": -12,
+      "zone": "red"
+    },
+    {
+      "name": "Piotr Kowalski",
+      "doc": "TRC Residence Card",
+      "expiry": "2026-03-20",
+      "days": 3,
+      "zone": "red"
+    },
+    {
+      "name": "Piotr Kowalski",
+      "doc": "Work Permit",
+      "expiry": "2026-03-27",
+      "days": 10,
+      "zone": "red"
+    },
+    {
+      "name": "Marco Bianchi",
+      "doc": "TRC Residence Card",
+      "expiry": "2026-04-02",
+      "days": 16,
+      "zone": "red"
+    },
+    {
+      "name": "Piotr Kowalski",
+      "doc": "BHP Certificate",
+      "expiry": "2026-04-06",
+      "days": 20,
       "zone": "red"
     },
     {
@@ -30,10 +58,10 @@
       "zone": "yellow"
     },
     {
-      "name": "Dmytro Kovalenko",
+      "name": "Marco Bianchi",
       "doc": "Work Permit",
-      "expiry": "2026-05-09",
-      "days": 53,
+      "expiry": "2026-04-29",
+      "days": 43,
       "zone": "yellow"
     },
     {
@@ -44,40 +72,12 @@
       "zone": "yellow"
     },
     {
-      "name": "Marco Bianchi",
-      "doc": "TRC Residence Card",
-      "expiry": "2026-04-02",
-      "days": 16,
-      "zone": "red"
-    },
-    {
-      "name": "Marco Bianchi",
+      "name": "Dmytro Kovalenko",
       "doc": "Work Permit",
-      "expiry": "2026-04-29",
-      "days": 43,
+      "expiry": "2026-05-09",
+      "days": 53,
       "zone": "yellow"
-    },
-    {
-      "name": "Piotr Kowalski",
-      "doc": "TRC Residence Card",
-      "expiry": "2026-03-20",
-      "days": 3,
-      "zone": "red"
-    },
-    {
-      "name": "Piotr Kowalski",
-      "doc": "Work Permit",
-      "expiry": "2026-03-27",
-      "days": 10,
-      "zone": "red"
-    },
-    {
-      "name": "Piotr Kowalski",
-      "doc": "BHP Certificate",
-      "expiry": "2026-04-06",
-      "days": 20,
-      "zone": "red"
     }
   ],
-  "ranAt": "2026-03-17T19:08:39.352Z"
+  "ranAt": "2026-03-17T19:33:58.687Z"
 }

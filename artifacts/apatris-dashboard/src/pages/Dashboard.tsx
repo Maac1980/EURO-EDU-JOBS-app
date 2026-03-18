@@ -1846,8 +1846,7 @@ export default function Dashboard() {
 
       {/* ── Install / Download App Modal ── */}
       {showInstallModal && (() => {
-        const base_ = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-        const appUrl = `${window.location.origin}${base_}/`;
+        const appUrl = `${window.location.origin}/eej-mobile/`;
         const copyUrl = () => {
           navigator.clipboard.writeText(appUrl).then(() => {
             setUrlCopied(true);

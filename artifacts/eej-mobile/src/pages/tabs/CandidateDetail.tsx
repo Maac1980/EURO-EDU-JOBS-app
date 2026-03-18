@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   X,
   Mail,
@@ -12,10 +12,23 @@ import {
   CheckCircle,
   XCircle,
   ClipboardList,
+  Upload,
+  Paperclip,
+  CheckCircle2,
 } from "lucide-react";
 import type { Candidate, CandidateDocument, DocReviewStatus } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
 import WorkerProfileSheet from "@/components/WorkerProfileSheet";
+
+const DETAIL_UPLOAD_SLOTS = [
+  { id: "passport",    label: "Passport / ID Card" },
+  { id: "trc",         label: "TRC Residence Card" },
+  { id: "work-permit", label: "Work Permit" },
+  { id: "bhp",         label: "BHP Certificate" },
+  { id: "badania",     label: "Badania Lekarskie" },
+  { id: "oswiad",      label: "Oświadczenie" },
+  { id: "other",       label: "Other Document" },
+];
 
 interface Props {
   candidate: Candidate;
@@ -41,6 +54,16 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
     Object.fromEntries(candidate.documents.map((d) => [d.id, d.status]))
   );
   const [showFullProfile, setShowFullProfile] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  function handleFileUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
+    showToast(`Uploaded: ${file.name}`, "success");
+    e.target.value = "";
+  }
 
   function approve(doc: CandidateDocument) {
     setDocStatuses((prev) => ({ ...prev, [doc.id]: "approved" }));
@@ -151,6 +174,44 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
                       </button>
                     </div>
                   )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Upload Documents Section */}
+          <div className="detail-section-label" style={{ marginTop: 4 }}>Upload Documents</div>
+          <div className="detail-upload-note">
+            <Upload size={13} color="#6B7280" strokeWidth={2} />
+            <span>Upload or replace candidate documents — PDF, JPG, PNG supported</span>
+          </div>
+          <div className="detail-upload-list">
+            {DETAIL_UPLOAD_SLOTS.map(({ id, label }) => {
+              const uploaded = uploadedFiles[id];
+              return (
+                <div key={id} className="wp-upload-slot">
+                  <div className="wp-upload-slot-info">
+                    <Paperclip size={14} color={uploaded ? "#059669" : "#9CA3AF"} strokeWidth={2} style={{ flexShrink: 0 }} />
+                    <div>
+                      <div className="wp-upload-slot-label">{label}</div>
+                      {uploaded && <div className="wp-upload-slot-file">{uploaded}</div>}
+                    </div>
+                  </div>
+                  <button
+                    className={"wp-upload-btn" + (uploaded ? " wp-upload-btn--done" : "")}
+                    onClick={() => fileRefs.current[id]?.click()}
+                  >
+                    {uploaded
+                      ? <><CheckCircle2 size={12} strokeWidth={2.5} /> Replace</>
+                      : <><Upload size={12} strokeWidth={2.5} /> Upload</>}
+                  </button>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    style={{ display: "none" }}
+                    ref={(el) => { fileRefs.current[id] = el; }}
+                    onChange={(e) => handleFileUpload(id, e)}
+                  />
                 </div>
               );
             })}

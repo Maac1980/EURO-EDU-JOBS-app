@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   X,
   User,
@@ -24,6 +24,8 @@ import {
   FileClock,
   FileX,
   FileQuestion,
+  Upload,
+  Paperclip,
 } from "lucide-react";
 import type { Candidate } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
@@ -131,10 +133,23 @@ function EditDate({ label, value, onChange }: { label: string; value: string; on
   );
 }
 
+const UPLOAD_SLOTS = [
+  { id: "passport",    label: "Passport / ID Card" },
+  { id: "trc",         label: "TRC Residence Card" },
+  { id: "work-permit", label: "Work Permit" },
+  { id: "bhp",         label: "BHP Certificate" },
+  { id: "badania",     label: "Badania Lekarskie" },
+  { id: "oswiad",      label: "Oświadczenie" },
+  { id: "udt",         label: "UDT Certificate" },
+  { id: "other",       label: "Other Document" },
+];
+
 export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, onClose, onSave }: Props) {
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>("identity");
   const [editing, setEditing] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [email, setEmail] = useState(candidate.email || "");
   const [phone, setPhone] = useState(candidate.phone || "");
@@ -185,6 +200,14 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
     onSave?.(updated);
     setEditing(false);
     showToast("Profile saved successfully", "success");
+  }
+
+  function handleFileUpload(slotId: string, label: string, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
+    showToast(`Uploaded: ${file.name}`, "success");
+    e.target.value = "";
   }
 
   function cancelEdit() {
@@ -398,6 +421,39 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
                     <span className="candidate-badge" style={{ fontSize: 10, background: cfg.bg, color: cfg.color, border: `1.5px solid ${cfg.border}` }}>
                       {cfg.label}
                     </span>
+                  </div>
+                );
+              })}
+
+              <SectionHeader label="Upload Documents" />
+              <div className="wp-upload-note">
+                <Upload size={13} color="#6B7280" strokeWidth={2} />
+                <span>Tap any slot to upload or replace a file — supports PDF, JPG, PNG</span>
+              </div>
+              {UPLOAD_SLOTS.map(({ id, label }) => {
+                const uploaded = uploadedFiles[id];
+                return (
+                  <div key={id} className="wp-upload-slot">
+                    <div className="wp-upload-slot-info">
+                      <Paperclip size={14} color={uploaded ? "#059669" : "#9CA3AF"} strokeWidth={2} style={{ flexShrink: 0 }} />
+                      <div>
+                        <div className="wp-upload-slot-label">{label}</div>
+                        {uploaded && <div className="wp-upload-slot-file">{uploaded}</div>}
+                      </div>
+                    </div>
+                    <button
+                      className={"wp-upload-btn" + (uploaded ? " wp-upload-btn--done" : "")}
+                      onClick={() => fileRefs.current[id]?.click()}
+                    >
+                      {uploaded ? <><CheckCircle2 size={12} strokeWidth={2.5} /> Replace</> : <><Upload size={12} strokeWidth={2.5} /> Upload</>}
+                    </button>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      style={{ display: "none" }}
+                      ref={(el) => { fileRefs.current[id] = el; }}
+                      onChange={(e) => handleFileUpload(id, label, e)}
+                    />
                   </div>
                 );
               })}

@@ -38,15 +38,20 @@ interface Props {
   canEdit?: boolean;
 }
 
-const DOC_CFG: Record<DocReviewStatus, {
+type DocCfgKey = DocReviewStatus | "cleared" | "expiring" | "pending";
+const DOC_CFG: Record<DocCfgKey, {
   bg: string; text: string; border: string; label: string;
   Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 }> = {
-  "approved":     { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Approved",     Icon: FileCheck   },
-  "under-review": { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Under Review",  Icon: FileClock   },
+  "approved":     { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Approved",     Icon: FileCheck    },
+  "cleared":      { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Cleared",      Icon: FileCheck    },
+  "under-review": { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Under Review", Icon: FileClock    },
+  "pending":      { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Pending",      Icon: FileClock    },
+  "expiring":     { bg: "#FFFBEB", text: "#D97706", border: "#FCD34D", label: "Expiring Soon", Icon: FileClock   },
   "rejected":     { bg: "#FEF2F2", text: "#DC2626", border: "#FCA5A5", label: "Rejected",      Icon: FileX       },
   "missing":      { bg: "#FFF7ED", text: "#C2410C", border: "#FDBA74", label: "Missing",       Icon: FileQuestion },
 };
+const FALLBACK_CFG = DOC_CFG["missing"];
 
 export default function CandidateDetail({ candidate, onClose, seeFinancials = false, canViewFullProfile = false, canEdit = false }: Props) {
   const { showToast } = useToast();
@@ -131,7 +136,7 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
           <div className="detail-docs-list">
             {candidate.documents.map((doc) => {
               const currentStatus = docStatuses[doc.id];
-              const cfg = DOC_CFG[currentStatus];
+              const cfg = DOC_CFG[currentStatus as DocCfgKey] ?? FALLBACK_CFG;
               const canAct = currentStatus === "under-review";
 
               return (

@@ -9,15 +9,19 @@ import { useToast } from "@/lib/toast";
 
 const MY = MOCK_CANDIDATES[3];
 
-const DOC_CFG: Record<DocReviewStatus, {
+const DOC_CFG: Record<string, {
   bg: string; text: string; border: string; label: string;
   Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 }> = {
-  "approved":     { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Approved",     Icon: FileCheck   },
-  "under-review": { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Under Review",  Icon: FileClock   },
-  "rejected":     { bg: "#FEF2F2", text: "#DC2626", border: "#FCA5A5", label: "Rejected",      Icon: FileX       },
+  "approved":     { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Approved",      Icon: FileCheck    },
+  "cleared":      { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Cleared",       Icon: FileCheck    },
+  "under-review": { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Under Review",  Icon: FileClock    },
+  "pending":      { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Pending",       Icon: FileClock    },
+  "expiring":     { bg: "#FFFBEB", text: "#D97706", border: "#FCD34D", label: "Expiring Soon", Icon: FileClock    },
+  "rejected":     { bg: "#FEF2F2", text: "#DC2626", border: "#FCA5A5", label: "Rejected",      Icon: FileX        },
   "missing":      { bg: "#FFF7ED", text: "#C2410C", border: "#FDBA74", label: "Missing",       Icon: FileQuestion },
 };
+const FALLBACK_CFG = DOC_CFG["missing"];
 
 const UPLOAD_SLOTS = [
   { id: "passport",    label: "Passport / ID Card",  hint: "Main identity document" },
@@ -80,7 +84,7 @@ export default function MyDocsTab() {
       <div className="section-label" style={{ marginTop: 16 }}>Document Status</div>
       <div className="my-docs-list">
         {MY.documents.map((doc) => {
-          const cfg = DOC_CFG[doc.status];
+          const cfg = DOC_CFG[doc.status] ?? FALLBACK_CFG;
           return (
             <div key={doc.id} className="my-doc-row" style={{ background: cfg.bg + "55", border: `1.5px solid ${cfg.border}` }}>
               <div className="my-doc-icon" style={{ background: cfg.bg }}>

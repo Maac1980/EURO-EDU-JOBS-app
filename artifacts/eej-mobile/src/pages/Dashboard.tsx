@@ -8,6 +8,10 @@ import LegalHome       from "./tabs/LegalHome";
 import OperationsHome  from "./tabs/OperationsHome";
 import CandidateHome   from "./tabs/CandidateHome";
 import CandidatesList  from "./tabs/CandidatesList";
+import ProfileTab      from "./tabs/ProfileTab";
+import AlertsTab       from "./tabs/AlertsTab";
+import MyDocsTab       from "./tabs/MyDocsTab";
+import UpdatesTab      from "./tabs/UpdatesTab";
 import PlaceholderTab  from "./tabs/PlaceholderTab";
 
 const ROLE_COLOR: Record<Role, string> = {
@@ -38,19 +42,18 @@ function TabContent({ role, tab }: { role: Role; tab: ActiveTab }) {
     return <CandidatesList role={role} />;
   }
   if (tab === "upload") {
-    return <PlaceholderTab emoji="📤" title="Upload Documents" description="Bulk upload candidate documents and assign to profiles." />;
+    if (role === "candidate") return <MyDocsTab />;
+    return <PlaceholderTab emoji="📤" title="Bulk Upload" description="Drag and drop candidate documents to assign to profiles in batch." />;
   }
   if (tab === "alerts") {
-    if (role === "candidate") return (
-      <PlaceholderTab emoji="🔔" title="My Updates" description="Document status updates and deployment notifications will appear here." />
-    );
-    return <PlaceholderTab emoji="🔔" title="Compliance Alerts" description="System-wide document expiry and compliance alerts." />;
+    if (role === "candidate") return <UpdatesTab />;
+    return <AlertsTab role={role} />;
   }
   if (tab === "mydocs") {
-    return <PlaceholderTab emoji="📄" title="My Documents" description="Upload and track your employment documents here." />;
+    return <MyDocsTab />;
   }
   if (tab === "profile") {
-    return <PlaceholderTab emoji="👤" title="Profile" description="Account settings and designation details." />;
+    return <ProfileTab />;
   }
   return null;
 }

@@ -148,6 +148,47 @@ Frontend credentials are now configurable via Vite env vars:
 - **Non-Compliant**: BHP Status = "Expired" OR any document already expired
 - **Compliant**: all documents > 60 days from expiry
 
+## EEJ Mobile App (eej-mobile)
+
+Mobile-first React PWA at `/eej-mobile/`. Pure custom CSS (no Tailwind). No backend connection — uses mock data.
+
+### Brand: Navy `#1B2A4A` + Yellow `#FFD600`
+
+### 4-Tier RBAC
+| Tier | Role | Access |
+|---|---|---|
+| T1 | Executive Board & Finance | All 4 tabs + Financials in worker profiles |
+| T2 | Head of Legal & Compliance | All except financials |
+| T3 | Workforce & Commercial Ops | Doc verification, add candidates, alerts |
+| T4 | Candidate | Own profile + document upload only |
+
+### Tabs by Role
+- **T1**: Home (KPI + Revenue + ZUS), Candidates (list + full profile), Alerts (compliance + ZUS), Profile
+- **T2**: Home (Alert Centre), Candidates (list + profile), Alerts (compliance), Profile
+- **T3**: Home (Recruitment Hub + pipeline + B2B), Candidates (doc verification), Alerts (ops), Profile
+- **T4**: Home (own profile + upload), My Docs (full doc management), Updates (notifications), Profile
+
+### Key Components
+- `WorkerProfileSheet.tsx` — Full editable profile bottom sheet (4 tabs: Identity, Employment, Documents, Financials). Document upload slots for all 8 doc types. T1 can edit all including financials; T2 no financials.
+- `CandidateDetail.tsx` — Slide-up doc review sheet for all staff roles. Approve/reject docs + upload section.
+- `ProfileTab.tsx` — Real profile page: role hero card, permissions grid (green/grey), session info, logout.
+- `AlertsTab.tsx` — Real compliance alerts: T1 gets COMPLIANCE_ALERTS + ZUS financial alerts; T2 gets Alert Centre; T3 gets ops action-required list.
+- `MyDocsTab.tsx` — T4 document management: status summary chips, doc list with expiry dates, 8 upload slots.
+- `UpdatesTab.tsx` — T4 notification feed: 7 mock updates (approved, deployment notice, expiry warning etc.) with unread dot indicator.
+- `OperationsHome.tsx` — T3 hub with real Add Candidate form (name, email, phone, nationality, role, site, pipeline stage — validates required fields, shows toast).
+
+### Financial Calculations (T1 only)
+- Gross Pay = hours × hourlyNettoRate
+- Final Payout = Gross − Advance
+- ZUS Liability = Gross × 11.26%
+
+### Data
+- `mockData.ts` — 5 candidates with full employment, identity, document expiry, and financial fields
+- `EXEC_STATS` — KPI numbers for T1 Executive Home
+- `COMPLIANCE_ALERTS` — visa/TRC expiry + missing passport + work permit data for T1/T2 alerts
+- `OPS_PIPELINE` — pipeline stage counts for T3 Recruitment Hub
+- `B2B_CONTRACTS` — 3 client contracts shown in T3 Home
+
 ## Candidate Self-Service Portal
 
 Workers get a unique, shareable link to view their own profile and submit hours:

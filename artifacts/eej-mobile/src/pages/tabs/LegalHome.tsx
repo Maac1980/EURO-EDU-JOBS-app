@@ -1,8 +1,12 @@
-import { AlertTriangle, ShieldAlert, FileCheck2 } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ShieldAlert, FileCheck2, UserPlus } from "lucide-react";
 import { COMPLIANCE_ALERTS } from "@/data/mockData";
 import PlatformModules from "@/components/PlatformModules";
+import AddCandidateModal from "@/components/AddCandidateModal";
 
 export default function LegalHome() {
+  const [showAdd, setShowAdd] = useState(false);
+
   return (
     <div className="tab-page">
       <div className="tab-greeting">
@@ -14,6 +18,18 @@ export default function LegalHome() {
           {COMPLIANCE_ALERTS.visaExpiring.length + COMPLIANCE_ALERTS.missingPassports.length} Active
         </div>
       </div>
+
+      {/* Quick Action — Add Candidate */}
+      <button className="ops-add-btn" style={{ margin: "0 0 12px" }} onClick={() => setShowAdd(true)}>
+        <div className="ops-add-icon">
+          <UserPlus size={20} color="#1B2A4A" strokeWidth={2.5} />
+        </div>
+        <div className="ops-add-text">
+          <div className="ops-add-title">Add New Candidate</div>
+          <div className="ops-add-sub">Register to the workforce pipeline</div>
+        </div>
+        <div className="ops-add-arrow">+</div>
+      </button>
 
       {/* Visa / TRC Expiring */}
       <div className="alert-section-header amber">
@@ -77,6 +93,7 @@ export default function LegalHome() {
       />
 
       <div style={{ height: 100 }} />
+      {showAdd && <AddCandidateModal onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

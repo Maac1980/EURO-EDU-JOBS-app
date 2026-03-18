@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Users,
   TrendingUp,
@@ -5,11 +6,15 @@ import {
   Plane,
   FileText,
   ArrowUpRight,
+  UserPlus,
 } from "lucide-react";
 import { EXEC_STATS } from "@/data/mockData";
 import PlatformModules from "@/components/PlatformModules";
+import AddCandidateModal from "@/components/AddCandidateModal";
 
 export default function ExecutiveHome() {
+  const [showAdd, setShowAdd] = useState(false);
+
   return (
     <div className="tab-page">
       <div className="tab-greeting">
@@ -19,6 +24,18 @@ export default function ExecutiveHome() {
         </div>
         <div className="tab-greeting-date">{formatDate()}</div>
       </div>
+
+      {/* Quick Action — Add Candidate */}
+      <button className="ops-add-btn" style={{ margin: "0 0 4px" }} onClick={() => setShowAdd(true)}>
+        <div className="ops-add-icon">
+          <UserPlus size={20} color="#1B2A4A" strokeWidth={2.5} />
+        </div>
+        <div className="ops-add-text">
+          <div className="ops-add-title">Add New Candidate</div>
+          <div className="ops-add-sub">Register to the workforce pipeline</div>
+        </div>
+        <div className="ops-add-arrow">+</div>
+      </button>
 
       {/* KPI Row */}
       <div className="kpi-row">
@@ -98,6 +115,7 @@ export default function ExecutiveHome() {
       />
 
       <div style={{ height: 100 }} />
+      {showAdd && <AddCandidateModal onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

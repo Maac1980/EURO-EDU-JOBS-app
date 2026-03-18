@@ -137,9 +137,14 @@ export default function OperationsHome() {
 
       <div style={{ height: 100 }} />
 
-      {/* Candidate Detail Sheet — T3 doc verification */}
+      {/* Candidate Detail Sheet — T3 doc verification only, no full profile access */}
       {selected && (
-        <CandidateDetail candidate={selected} onClose={() => setSelected(null)} />
+        <CandidateDetail
+          candidate={selected}
+          onClose={() => setSelected(null)}
+          seeFinancials={false}
+          canViewFullProfile={false}
+        />
       )}
 
       {/* Add Candidate Modal (placeholder) */}

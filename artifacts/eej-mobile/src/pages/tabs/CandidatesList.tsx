@@ -128,7 +128,12 @@ export default function CandidatesList({ role }: Props) {
       </div>
 
       {selected && (
-        <CandidateDetail candidate={selected} onClose={() => setSelected(null)} />
+        <CandidateDetail
+          candidate={selected}
+          onClose={() => setSelected(null)}
+          seeFinancials={perms.seeFinancials}
+          canViewFullProfile={perms.seeGlobalCandidates && (role === "executive" || role === "legal")}
+        />
       )}
     </div>
   );

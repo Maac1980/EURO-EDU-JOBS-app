@@ -22,6 +22,34 @@ export interface Candidate {
   email: string;
   visaDaysLeft?: number;
   documents: CandidateDocument[];
+
+  /* Employment */
+  siteLocation?: string;
+  contractType?: string;
+  contractEndDate?: string;
+  pipelineStage?: string;
+  yearsOfExperience?: string;
+  visaType?: string;
+
+  /* Identity / Legal */
+  pesel?: string;
+  nip?: string;
+  iban?: string;
+  rodoConsentDate?: string;
+
+  /* Document Expiries */
+  trcExpiry?: string;
+  workPermitExpiry?: string;
+  bhpExpiry?: string;
+  badaniaLekExpiry?: string;
+  oswiadczenieExpiry?: string;
+  udtCertExpiry?: string;
+
+  /* Financials — T1 only */
+  hourlyNettoRate?: number;
+  totalHours?: number;
+  advancePayment?: number;
+  zusStatus?: string;
 }
 
 export const MOCK_CANDIDATES: Candidate[] = [
@@ -36,6 +64,26 @@ export const MOCK_CANDIDATES: Candidate[] = [
     nationality: "Polish",
     phone: "+48 600 123 456",
     email: "m.kowalski@eej.eu",
+    siteLocation: "BuildPro Sp. z o.o.",
+    contractType: "Umowa o pracę",
+    contractEndDate: "2026-12-31",
+    pipelineStage: "On Assignment",
+    yearsOfExperience: "8",
+    visaType: "EU Citizen",
+    pesel: "86031412345",
+    nip: "123-456-78-90",
+    iban: "PL61 1090 1014 0000 0712 1981 2874",
+    rodoConsentDate: "2026-01-10",
+    trcExpiry: "2028-01-09",
+    workPermitExpiry: "2027-02-04",
+    bhpExpiry: "2027-01-19",
+    badaniaLekExpiry: "2027-03-01",
+    oswiadczenieExpiry: "2026-09-15",
+    udtCertExpiry: "2027-06-30",
+    hourlyNettoRate: 48,
+    totalHours: 172,
+    advancePayment: 1200,
+    zusStatus: "Active — ZUS opłacony",
     documents: [
       { id: "d1", name: "Passport",            status: "approved",      uploadedAt: "12 Jan 2026", expiresAt: "11 Jan 2031" },
       { id: "d2", name: "Work Permit (A1)",    status: "approved",      uploadedAt: "05 Feb 2026", expiresAt: "04 Feb 2027" },
@@ -56,6 +104,25 @@ export const MOCK_CANDIDATES: Candidate[] = [
     phone: "+48 700 987 321",
     email: "d.shevchenko@eej.eu",
     visaDaysLeft: 14,
+    siteLocation: "MediCare PL",
+    contractType: "Umowa zlecenie",
+    contractEndDate: "2026-06-30",
+    pipelineStage: "Cleared to Deploy",
+    yearsOfExperience: "5",
+    visaType: "Temporary Residence",
+    pesel: "92051567890",
+    nip: "987-654-32-10",
+    iban: "PL10 1050 0099 7603 1234 5678 9012",
+    rodoConsentDate: "2025-09-08",
+    trcExpiry: "2026-04-01",
+    workPermitExpiry: "2026-10-14",
+    bhpExpiry: "2026-09-15",
+    badaniaLekExpiry: "2026-11-10",
+    oswiadczenieExpiry: "2026-06-01",
+    hourlyNettoRate: 38,
+    totalHours: 160,
+    advancePayment: 800,
+    zusStatus: "Active — ZUS opłacony",
     documents: [
       { id: "d1", name: "Passport",            status: "approved",      uploadedAt: "08 Sep 2025", expiresAt: "07 Sep 2030" },
       { id: "d2", name: "TRC Residence Card",  status: "under-review",  uploadedAt: "02 Mar 2026"  },
@@ -75,6 +142,25 @@ export const MOCK_CANDIDATES: Candidate[] = [
     nationality: "Syrian",
     phone: "+48 512 654 789",
     email: "a.alrashid@eej.eu",
+    siteLocation: "LogiTrans Wrocław",
+    contractType: "Umowa zlecenie",
+    contractEndDate: "2026-08-31",
+    pipelineStage: "Docs Submitted",
+    yearsOfExperience: "3",
+    visaType: "Refugee Status",
+    pesel: "95112234567",
+    nip: "",
+    iban: "",
+    rodoConsentDate: "2026-03-05",
+    trcExpiry: "",
+    workPermitExpiry: "2026-09-30",
+    bhpExpiry: "2026-10-06",
+    badaniaLekExpiry: "",
+    oswiadczenieExpiry: "",
+    hourlyNettoRate: 32,
+    totalHours: 80,
+    advancePayment: 0,
+    zusStatus: "Pending registration",
     documents: [
       { id: "d1", name: "Passport",            status: "missing"                                    },
       { id: "d2", name: "Work Permit (A1)",    status: "under-review",  uploadedAt: "05 Mar 2026"  },
@@ -94,6 +180,26 @@ export const MOCK_CANDIDATES: Candidate[] = [
     nationality: "Ukrainian",
     phone: "+48 730 222 111",
     email: "n.petrenko@eej.eu",
+    siteLocation: "MediCare PL",
+    contractType: "Umowa o pracę",
+    contractEndDate: "2027-01-15",
+    pipelineStage: "Cleared to Deploy",
+    yearsOfExperience: "6",
+    visaType: "Temporary Residence",
+    pesel: "97042112345",
+    nip: "321-098-45-67",
+    iban: "PL27 1140 2004 0000 3802 7543 2100",
+    rodoConsentDate: "2025-12-14",
+    trcExpiry: "2027-12-19",
+    workPermitExpiry: "2027-01-02",
+    bhpExpiry: "2027-01-10",
+    badaniaLekExpiry: "2027-01-11",
+    oswiadczenieExpiry: "2026-12-01",
+    udtCertExpiry: "2027-12-31",
+    hourlyNettoRate: 42,
+    totalHours: 168,
+    advancePayment: 600,
+    zusStatus: "Active — ZUS opłacony",
     documents: [
       { id: "d1", name: "Passport",            status: "approved",      uploadedAt: "14 Dec 2025", expiresAt: "13 Dec 2030" },
       { id: "d2", name: "TRC Residence Card",  status: "approved",      uploadedAt: "20 Dec 2025", expiresAt: "19 Dec 2027" },
@@ -114,6 +220,25 @@ export const MOCK_CANDIDATES: Candidate[] = [
     phone: "+48 600 444 777",
     email: "o.bondar@eej.eu",
     visaDaysLeft: 30,
+    siteLocation: "LogiTrans Wrocław",
+    contractType: "Umowa zlecenie",
+    contractEndDate: "2026-10-31",
+    pipelineStage: "Under Review",
+    yearsOfExperience: "4",
+    visaType: "Temporary Residence",
+    pesel: "00250912345",
+    nip: "456-789-01-23",
+    iban: "PL61 1090 1014 0000 0712 3344 5566",
+    rodoConsentDate: "2025-11-22",
+    trcExpiry: "2026-03-31",
+    workPermitExpiry: "2026-04-30",
+    bhpExpiry: "2027-02-05",
+    badaniaLekExpiry: "2027-02-06",
+    oswiadczenieExpiry: "2026-07-01",
+    hourlyNettoRate: 35,
+    totalHours: 120,
+    advancePayment: 500,
+    zusStatus: "Pending — docs incomplete",
     documents: [
       { id: "d1", name: "Passport",            status: "approved",      uploadedAt: "22 Nov 2025", expiresAt: "21 Nov 2030" },
       { id: "d2", name: "Work Permit (A1)",    status: "under-review",  uploadedAt: "10 Mar 2026"  },

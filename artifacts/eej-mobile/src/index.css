@@ -1639,3 +1639,314 @@
   color: #C4B5FD;
   font-weight: 600;
 }
+
+
+/* ═══════════════════════════════════════════════════════
+   WORKER PROFILE SHEET — Full desktop-parity profile view
+   T1: all sections incl. financials
+   T2: identity + employment + documents (no financials)
+═══════════════════════════════════════════════════════ */
+
+/* "View Full Worker Profile" trigger button in CandidateDetail */
+.wp-open-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  background: #1B2A4A;
+  border: none;
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.wp-open-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  background: #FFD600;
+  color: #1B2A4A;
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+/* Sheet itself — taller than CandidateDetail to show all content */
+.wp-sheet {
+  max-height: 96vh !important;
+}
+
+/* Header */
+.wp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0 16px 14px;
+  gap: 10px;
+}
+.wp-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.wp-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #1B2A4A;
+  color: #FFD600;
+  font-size: 15px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.wp-header-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.2;
+}
+.wp-header-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-top: 2px;
+}
+.wp-header-loc {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: #9CA3AF;
+  margin-top: 4px;
+}
+.wp-flag {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Tab bar */
+.wp-tab-bar {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid #F3F4F6;
+}
+.wp-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #E5E7EB;
+  background: #F9FAFB;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9CA3AF;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.wp-tab--active {
+  background: #FFD600;
+  border-color: #FFD600;
+  color: #1B2A4A;
+}
+
+/* Body / scroll area */
+.wp-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px 0;
+}
+
+/* Section group */
+.wp-section-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Section header divider */
+.wp-section-header {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9CA3AF;
+  margin: 18px 0 8px;
+}
+.wp-section-header:first-child {
+  margin-top: 4px;
+}
+
+/* Info Row */
+.wp-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #F3F4F6;
+}
+.wp-info-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.wp-info-content {
+  flex: 1;
+  min-width: 0;
+}
+.wp-info-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.wp-info-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  word-break: break-all;
+}
+.wp-mono {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+/* Document expiry rows */
+.wp-doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid #F3F4F6;
+  gap: 8px;
+}
+.wp-doc-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  flex: 1;
+  min-width: 0;
+}
+.wp-expiry-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Submitted files */
+.wp-submitted-doc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid #F3F4F6;
+  gap: 8px;
+}
+.wp-submitted-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Financial Calc Card */
+.wp-calc-card {
+  background: #F9FAFB;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wp-zus-card {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+.wp-calc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wp-calc-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B7280;
+}
+.wp-calc-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  font-family: 'Courier New', Courier, monospace;
+}
+.wp-calc-neg {
+  color: #DC2626;
+}
+.wp-calc-divider {
+  height: 1px;
+  background: #E5E7EB;
+  margin: 2px 0;
+}
+.wp-calc-total {
+  margin-top: 2px;
+}
+.wp-calc-highlight {
+  color: #059669;
+  font-size: 16px;
+}
+.wp-zus-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+
+/* Warning banner */
+.wp-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #FFFBEB;
+  border: 1.5px solid #FDE68A;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400E;
+  line-height: 1.5;
+  margin-top: 4px;
+}

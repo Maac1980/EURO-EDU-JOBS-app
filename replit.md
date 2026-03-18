@@ -16,6 +16,14 @@ Full-stack international recruitment and compliance management portal (EEJ brand
 - **API codegen**: Orval (from OpenAPI spec)
 - **External Data**: Airtable (via REST API, server-side)
 
+## EEJ Mobile Auth System
+- `System_Users` Airtable table auto-created on startup if absent
+- Initial staff seeded: `ceo@euro-edu-jobs.eu`, `legal@euro-edu-jobs.eu`, `ops@euro-edu-jobs.eu` — password: `EEJ2026!`
+- Password hashing: Node.js built-in `crypto.scrypt` (no extra deps), format `salt:hex`
+- JWT issued on login, stored in `localStorage` as `eej_token_v2`, session stored as `eej_session_v2`
+- T1 executives can add/remove staff via "Manage Staff Accounts" button on the Executive dashboard
+- Key files: `api-server/src/lib/airtable-users.ts`, `api-server/src/routes/eej-auth.ts`, `eej-mobile/src/lib/auth.tsx`
+
 ## Brand Identity
 
 - **Primary Color**: `#E9FF70` (Lime Yellow)

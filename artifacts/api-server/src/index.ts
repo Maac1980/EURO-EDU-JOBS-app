@@ -1,5 +1,6 @@
 import app from "./app";
 import { startAlerter } from "./lib/alerter.js";
+import { ensureSystemUsersTable } from "./lib/airtable-users.js";
 
 const rawPort = process.env["PORT"];
 
@@ -18,4 +19,7 @@ if (Number.isNaN(port) || port <= 0) {
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   startAlerter();
+  ensureSystemUsersTable().catch((e) =>
+    console.warn("[startup] ensureSystemUsersTable failed:", e instanceof Error ? e.message : e)
+  );
 });

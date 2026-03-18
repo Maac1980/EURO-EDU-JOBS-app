@@ -7,13 +7,16 @@ import {
   FileText,
   ArrowUpRight,
   UserPlus,
+  ShieldCheck,
 } from "lucide-react";
 import { EXEC_STATS } from "@/data/mockData";
 import PlatformModules from "@/components/PlatformModules";
 import AddCandidateModal from "@/components/AddCandidateModal";
+import AddUserModal from "@/components/AddUserModal";
 
 export default function ExecutiveHome() {
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd,     setShowAdd]     = useState(false);
+  const [showAddUser, setShowAddUser] = useState(false);
 
   return (
     <div className="tab-page">
@@ -25,8 +28,8 @@ export default function ExecutiveHome() {
         <div className="tab-greeting-date">{formatDate()}</div>
       </div>
 
-      {/* Quick Action — Add Candidate */}
-      <button className="ops-add-btn" style={{ margin: "0 0 4px" }} onClick={() => setShowAdd(true)}>
+      {/* Quick Actions Row */}
+      <button className="ops-add-btn" style={{ margin: "0 0 8px" }} onClick={() => setShowAdd(true)}>
         <div className="ops-add-icon">
           <UserPlus size={20} color="#1B2A4A" strokeWidth={2.5} />
         </div>
@@ -35,6 +38,18 @@ export default function ExecutiveHome() {
           <div className="ops-add-sub">Register to the workforce pipeline</div>
         </div>
         <div className="ops-add-arrow">+</div>
+      </button>
+
+      {/* ── Add User button — T1 only ── */}
+      <button className="ops-add-btn" style={{ margin: "0 0 4px", background: "#F0F4FF", border: "1.5px solid #C7D2FE" }} onClick={() => setShowAddUser(true)}>
+        <div className="ops-add-icon" style={{ background: "#EEF2FF" }}>
+          <ShieldCheck size={20} color="#6366F1" strokeWidth={2.5} />
+        </div>
+        <div className="ops-add-text">
+          <div className="ops-add-title" style={{ color: "#4338CA" }}>Manage Staff Accounts</div>
+          <div className="ops-add-sub">Add / remove system users via Airtable</div>
+        </div>
+        <div className="ops-add-arrow" style={{ color: "#6366F1" }}>+</div>
       </button>
 
       {/* KPI Row */}
@@ -115,7 +130,8 @@ export default function ExecutiveHome() {
       />
 
       <div style={{ height: 100 }} />
-      {showAdd && <AddCandidateModal onClose={() => setShowAdd(false)} />}
+      {showAdd     && <AddCandidateModal onClose={() => setShowAdd(false)} />}
+      {showAddUser && <AddUserModal      onClose={() => setShowAddUser(false)} />}
     </div>
   );
 }

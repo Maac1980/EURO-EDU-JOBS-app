@@ -2,49 +2,30 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { Eye, EyeOff, Fingerprint, Wifi } from "lucide-react";
 
-const DEMO_ACCOUNTS = [
-  { tier: "T1", email: "ceo@euro-edu-jobs.eu",   name: "Anna Brzozowska",  label: "Executive" },
-  { tier: "T2", email: "legal@euro-edu-jobs.eu",  name: "Marta Wiśniewska", label: "Legal" },
-  { tier: "T3", email: "ops@euro-edu-jobs.eu",    name: "Piotr Nowak",      label: "Operations" },
-  { tier: "T4", email: "n.petrenko@eej.eu",       name: "Natalia Petrenko", label: "Candidate" },
-  { tier: "T4", email: "m.kowalski@eej.eu",       name: "Mariusz Kowalski", label: "Candidate" },
-  { tier: "T4", email: "d.shevchenko@eej.eu",     name: "Daria Shevchenko", label: "Candidate" },
-  { tier: "T4", email: "a.alrashid@eej.eu",       name: "Ahmed Al-Rashid",  label: "Candidate" },
-  { tier: "T4", email: "o.bondar@eej.eu",         name: "Oleksandr Bondar", label: "Candidate" },
-];
-
 export default function Login() {
   const { login } = useAuth();
-  const [email, setEmail]         = useState("");
-  const [password, setPassword]   = useState("");
-  const [showPw, setShowPw]       = useState(false);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
-  const [showAccounts, setShowAccounts] = useState(false);
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw,   setShowPw]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !password) { setError("Please enter your email and password."); return; }
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
     setError(null);
     setLoading(true);
-    setTimeout(() => {
-      const err = login(email, password);
-      setLoading(false);
-      if (err) setError(err);
-    }, 700);
-  }
-
-  function fillAccount(acEmail: string) {
-    setEmail(acEmail);
-    setPassword("EEJ2026!");
-    setError(null);
-    setShowAccounts(false);
+    const err = await login(email, password);
+    setLoading(false);
+    if (err) setError(err);
   }
 
   return (
     <div className="g3-root">
 
-      {/* Geometric background nodes */}
       <div className="g3-geo" aria-hidden="true">
         <div className="g3-node" style={{ top: "8%",  left: "12%" }} />
         <div className="g3-node" style={{ top: "15%", left: "72%" }} />
@@ -68,7 +49,6 @@ export default function Login() {
         </svg>
       </div>
 
-      {/* Top bar */}
       <div className="g3-topbar">
         <div className="g3-logo-block">
           <div className="g3-logo-box">
@@ -79,10 +59,7 @@ export default function Login() {
         <span className="g3-portal-label">SECURE WORKFORCE PORTAL</span>
       </div>
 
-      {/* Glassmorphic card */}
       <div className="g3-card">
-
-        {/* Brand cluster */}
         <div className="g3-brand">
           <h1 className="g3-brand-name">EURO EDU JOBS</h1>
           <p className="g3-brand-sub">Enterprise Workforce Platform</p>
@@ -129,35 +106,14 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="g3-forgot">Forgot Password?</div>
-
-        <button type="button" className="g3-register-btn" onClick={() => setShowAccounts(v => !v)}>
-          {showAccounts ? "HIDE DEMO ACCOUNTS" : "REGISTER NEW DEVICE / ACCOUNT"}
-        </button>
-
-        {showAccounts && (
-          <div className="g3-accounts-panel">
-            <div className="g3-accounts-note">Tap any account to auto-fill · Password: <strong>EEJ2026!</strong></div>
-            {DEMO_ACCOUNTS.map(ac => (
-              <button key={ac.email} type="button" className="g3-account-row" onClick={() => fillAccount(ac.email)}>
-                <span className="g3-account-tier">{ac.tier}</span>
-                <span className="g3-account-info">
-                  <span className="g3-account-name">{ac.name}</span>
-                  <span className="g3-account-email">{ac.email}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="g3-forgot">Forgot Password? Contact your administrator.</div>
 
         <div className="g3-bio">
           <Fingerprint size={20} className="g3-bio-icon" strokeWidth={1.5} />
           <span>Use Biometrics</span>
         </div>
-
       </div>
 
-      {/* Footer */}
       <div className="g3-footer">
         <span>© 2026 Euro Edu Jobs · RBAC v3 · Secure Access</span>
         <Wifi size={13} strokeWidth={1.5} style={{ opacity: 0.5 }} />

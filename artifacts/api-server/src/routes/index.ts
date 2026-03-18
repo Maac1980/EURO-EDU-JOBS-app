@@ -12,9 +12,11 @@ import { twofaRouter } from "./twofa.js";
 import notificationsRouter from "./notifications.js";
 import workerNotesRouter from "./worker-notes.js";
 import eejMobileRouter from "./eej-mobile.js";
+import eejAuthRouter from "./eej-auth.js";
 
 const router: IRouter = Router();
 
+router.use(eejAuthRouter);
 router.use(authRouter);
 router.use(adminRouter);
 router.use(complianceRouter);

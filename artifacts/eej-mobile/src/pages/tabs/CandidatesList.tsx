@@ -35,7 +35,7 @@ const STAGE_COLORS: Record<string, string> = {
 interface Props { role: Role; }
 
 export default function CandidatesList({ role }: Props) {
-  const { candidates } = useCandidates();
+  const { candidates, loading, error } = useCandidates();
   const [query, setQuery]               = useState("");
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
   const [selected, setSelected]         = useState<Candidate | null>(null);
@@ -150,12 +150,23 @@ export default function CandidatesList({ role }: Props) {
           </div>
         )}
 
-        {filtered.length === 0 ? (
+        {loading && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "20px 0", color: "#6B7280", fontSize: 13 }}>
+            <div style={{ width: 16, height: 16, border: "2px solid #FFD600", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+            Loading live data from Airtable…
+          </div>
+        )}
+        {error && !loading && (
+          <div style={{ margin: "0 0 10px", padding: "8px 12px", background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 8, fontSize: 12, color: "#92400E" }}>
+            ⚠ {error}
+          </div>
+        )}
+        {filtered.length === 0 && !loading ? (
           <div className="candidates-empty">
             <Search size={32} color="#D1D5DB" strokeWidth={1.5} />
             <div>No candidates match your search</div>
           </div>
-        ) : (
+        ) : !loading && (
           filtered.map((c) => {
             const colors     = STATUS_COLORS[c.status];
             const clickable  = perms.approveDocs;

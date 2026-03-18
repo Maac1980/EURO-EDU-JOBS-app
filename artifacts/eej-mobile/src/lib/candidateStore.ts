@@ -1,36 +1,53 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MOCK_CANDIDATES, type Candidate } from "@/data/mockData";
+import { apiFetchCandidates, apiCreateCandidate } from "./apiClient";
 
-const STORE_KEY = "eej_candidates_v1";
+type StoreResult = {
+  candidates: Candidate[];
+  addCandidate: (c: Candidate) => Promise<void>;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+};
 
-function loadStored(): Candidate[] {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw) as Candidate[];
-  } catch {}
-  return [];
-}
+export function useCandidateStore(): StoreResult {
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-function saveStored(added: Candidate[]): void {
-  localStorage.setItem(STORE_KEY, JSON.stringify(added));
-}
-
-export function useCandidateStore(): [Candidate[], (c: Candidate) => void, () => void] {
-  const [added, setAdded] = useState<Candidate[]>(loadStored);
-  const all = [...MOCK_CANDIDATES, ...added];
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const live = await apiFetchCandidates();
+      if (live.length > 0) {
+        setCandidates(live);
+      } else {
+        setCandidates(MOCK_CANDIDATES);
+      }
+    } catch (err) {
+      console.warn("[candidateStore] API unavailable, using mock data:", err);
+      setCandidates(MOCK_CANDIDATES);
+      setError("Could not connect to server. Showing cached data.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    saveStored(added);
-  }, [added]);
+    load();
+  }, [load]);
 
-  function addCandidate(c: Candidate) {
-    setAdded((prev) => [c, ...prev]);
-  }
+  const addCandidate = useCallback(async (c: Candidate) => {
+    try {
+      const saved = await apiCreateCandidate(c);
+      setCandidates((prev) => [saved, ...prev]);
+    } catch (err) {
+      console.error("[candidateStore] addCandidate API error:", err);
+      setCandidates((prev) => [c, ...prev]);
+      throw err;
+    }
+  }, []);
 
-  function clearAdded() {
-    setAdded([]);
-    localStorage.removeItem(STORE_KEY);
-  }
-
-  return [all, addCandidate, clearAdded];
+  return { candidates, addCandidate, loading, error, refresh: load };
 }

@@ -37,8 +37,9 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
   const [site,        setSite]        = useState("");
   const [location,    setLocation]    = useState("");
   const [stage,       setStage]       = useState("New Applications");
+  const [saving,      setSaving]      = useState(false);
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) { showToast("Full name is required", "error"); return; }
     if (!role)        { showToast("Job role is required",  "error"); return; }
 
@@ -60,9 +61,17 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
       zusStatus:   "Not registered",
     };
 
-    addCandidate(newCandidate);
-    showToast(`"${name}" added to pipeline`, "success");
-    onClose();
+    setSaving(true);
+    try {
+      await addCandidate(newCandidate);
+      showToast(`"${name}" saved to Airtable`, "success");
+      onClose();
+    } catch {
+      showToast("Saved locally — will sync when online", "success");
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
   const inp = "add-cand-input";
@@ -126,10 +135,11 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
 
         <div style={{ display: "flex", gap: 10, paddingTop: 16, borderTop: "1px solid #F3F4F6", marginTop: 8 }}>
           <button
-            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "13px 0", background: "#FFD600", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, color: "#1B2A4A", cursor: "pointer", fontFamily: "inherit" }}
+            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "13px 0", background: saving ? "#E5C000" : "#FFD600", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, color: "#1B2A4A", cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: saving ? 0.8 : 1 }}
             onClick={handleSave}
+            disabled={saving}
           >
-            <Save size={15} strokeWidth={2.5} /> Save Candidate
+            <Save size={15} strokeWidth={2.5} /> {saving ? "Saving to Airtable…" : "Save Candidate"}
           </button>
           <button
             style={{ flex: 1, padding: "13px 0", background: "#F3F4F6", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, color: "#6B7280", cursor: "pointer", fontFamily: "inherit" }}

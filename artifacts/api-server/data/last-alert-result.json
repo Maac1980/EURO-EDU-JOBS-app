@@ -1,5 +1,5 @@
 {
-  "scanned": 10,
+  "scanned": 11,
   "docsFound": 10,
   "redCount": 6,
   "yellowCount": 4,
@@ -79,5 +79,5 @@
       "zone": "yellow"
     }
   ],
-  "ranAt": "2026-03-18T18:32:43.750Z"
+  "ranAt": "2026-03-18T19:18:32.747Z"
 }

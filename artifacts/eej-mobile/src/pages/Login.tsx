@@ -73,7 +73,8 @@ export default function Login() {
             <input
               className={"g3-input" + (error ? " g3-input--err" : "")}
               type="email"
-              autoComplete="email"
+              name="email"
+              autoComplete="username"
               placeholder="name@company.com"
               value={email}
               onChange={e => { setEmail(e.target.value); setError(null); }}
@@ -87,6 +88,7 @@ export default function Login() {
               <input
                 className={"g3-input g3-input--pw" + (error ? " g3-input--err" : "")}
                 type={showPw ? "text" : "password"}
+                name="password"
                 autoComplete="current-password"
                 placeholder="Enter your password"
                 value={password}

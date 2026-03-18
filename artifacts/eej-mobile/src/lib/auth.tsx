@@ -118,12 +118,32 @@ function sessionToUser(cred: Credential): User {
   };
 }
 
+function isValidUser(obj: unknown): obj is User {
+  if (!obj || typeof obj !== "object") return false;
+  const u = obj as Record<string, unknown>;
+  return (
+    typeof u.role === "string" &&
+    typeof u.tier === "number" &&
+    typeof u.name === "string" &&
+    typeof u.email === "string" &&
+    typeof u.designation === "string" &&
+    typeof u.shortName === "string"
+  );
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     try {
       const stored = localStorage.getItem(SESSION_KEY);
-      if (stored) return JSON.parse(stored) as User;
-    } catch {}
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (isValidUser(parsed)) return parsed;
+        // stale/invalid session — wipe it
+        localStorage.removeItem(SESSION_KEY);
+      }
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+    }
     return null;
   });
 

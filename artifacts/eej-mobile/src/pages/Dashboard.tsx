@@ -1,44 +1,56 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { BottomNav } from "@/components/BottomNav";
+import { ToastContainer } from "@/components/Toast";
 import type { ActiveTab, Role } from "@/types";
-import OwnerHome from "./tabs/OwnerHome";
-import ManagerHome from "./tabs/ManagerHome";
-import CandidatesList from "./tabs/CandidatesList";
-import PlaceholderTab from "./tabs/PlaceholderTab";
+import ExecutiveHome   from "./tabs/ExecutiveHome";
+import LegalHome       from "./tabs/LegalHome";
+import OperationsHome  from "./tabs/OperationsHome";
+import CandidateHome   from "./tabs/CandidateHome";
+import CandidatesList  from "./tabs/CandidatesList";
+import PlaceholderTab  from "./tabs/PlaceholderTab";
 
 const ROLE_COLOR: Record<Role, string> = {
-  owner:   "#1B2A4A",
-  manager: "#2D4270",
-  office:  "#1B5E8A",
-  worker:  "#1A6B4A",
+  executive:  "#1B2A4A",
+  legal:      "#2D4270",
+  operations: "#1B5E8A",
+  candidate:  "#1A6B4A",
+};
+
+const ROLE_TIER: Record<Role, string> = {
+  executive:  "T1",
+  legal:      "T2",
+  operations: "T3",
+  candidate:  "T4",
 };
 
 function TabContent({ role, tab }: { role: Role; tab: ActiveTab }) {
   if (tab === "home") {
-    if (role === "owner") return <OwnerHome />;
-    if (role === "manager") return <ManagerHome />;
-    if (role === "office") return (
-      <PlaceholderTab emoji="🗂️" title="Office Home" description="Candidate intake, document requests, and recruiter tasks." />
-    );
-    return (
-      <PlaceholderTab emoji="👤" title="Worker Home" description="Your shift schedule, documents, and upcoming deployments." />
-    );
+    if (role === "executive")  return <ExecutiveHome />;
+    if (role === "legal")      return <LegalHome />;
+    if (role === "operations") return <OperationsHome />;
+    if (role === "candidate")  return <CandidateHome />;
   }
   if (tab === "candidates") {
-    return <CandidatesList />;
+    if (role === "candidate") return (
+      <PlaceholderTab emoji="🔒" title="Access Restricted" description="The global candidate directory is visible only to staff designations." />
+    );
+    return <CandidatesList role={role} />;
+  }
+  if (tab === "upload") {
+    return <PlaceholderTab emoji="📤" title="Upload Documents" description="Bulk upload candidate documents and assign to profiles." />;
   }
   if (tab === "alerts") {
-    return <PlaceholderTab emoji="🔔" title="Alerts" description="Compliance alerts and document expiry notifications." />;
-  }
-  if (tab === "profile") {
-    return <PlaceholderTab emoji="👤" title="Profile" description="Your account settings and preferences." />;
+    if (role === "candidate") return (
+      <PlaceholderTab emoji="🔔" title="My Updates" description="Document status updates and deployment notifications will appear here." />
+    );
+    return <PlaceholderTab emoji="🔔" title="Compliance Alerts" description="System-wide document expiry and compliance alerts." />;
   }
   if (tab === "mydocs") {
     return <PlaceholderTab emoji="📄" title="My Documents" description="Upload and track your employment documents here." />;
   }
-  if (tab === "timesheet") {
-    return <PlaceholderTab emoji="🗓️" title="Timesheet" description="Log your hours and view payslip summaries." />;
+  if (tab === "profile") {
+    return <PlaceholderTab emoji="👤" title="Profile" description="Account settings and designation details." />;
   }
   return null;
 }
@@ -50,19 +62,25 @@ export default function Dashboard() {
   if (!user) return null;
 
   const accentColor = ROLE_COLOR[user.role];
-  const showCandidatesTab = user.role !== "worker";
+  const tierLabel   = ROLE_TIER[user.role];
 
   return (
     <div className="eej-screen">
-      <div className="eej-container">
+      <div className="eej-container" style={{ position: "relative" }}>
+
+        {/* Toast Layer */}
+        <ToastContainer />
 
         {/* Top Header */}
         <header className="dash-header" style={{ background: accentColor }}>
           <div className="dash-header-left">
             <div className="dash-logo-sm">EEJ</div>
             <div>
-              <div className="dash-header-title">{user.name} Dashboard</div>
-              <div className="dash-header-sub">Euro Edu Jobs · {formatDate()}</div>
+              <div className="dash-header-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {user.shortName}
+                <span className="dash-tier-chip">{tierLabel}</span>
+              </div>
+              <div className="dash-header-sub">{user.designation}</div>
             </div>
           </div>
           <button className="dash-logout" onClick={logout} title="Logout">
@@ -90,8 +108,4 @@ function LogoutIcon() {
       <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   );
-}
-
-function formatDate() {
-  return new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }

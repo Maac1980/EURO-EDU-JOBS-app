@@ -555,8 +555,8 @@ export default function Dashboard() {
       {/* ── Scrollable content area ── */}
       <div className="app-content-scroll">
 
-      {/* ═══════════ SQUARE NAV GRID ═══════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 20, margin: "30px 40px 0" }}>
+      {/* ═══════════ MODULE NAV CARDS ═══════════ */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, margin: "28px 40px 0" }}>
         {(([
           { tab: "compliance", icon: ShieldAlert, label: t("tabs.compliance"), hide: false },
           { tab: "payroll",    icon: Calculator,  label: t("tabs.payroll"),    hide: !isAdmin && !isCoordinator },
@@ -568,35 +568,41 @@ export default function Dashboard() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
-              aspectRatio: "1 / 1",
-              background: activeTab === tab ? "rgba(233,255,112,0.1)" : "#161920",
-              border: activeTab === tab ? "2px solid #E9FF70" : "2px solid rgba(255,255,255,0.07)",
-              borderRadius: 12,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14,
+              padding: "22px 16px",
+              background: activeTab === tab ? "rgba(233,255,112,0.12)" : "#1e293b",
+              border: activeTab === tab ? "2px solid #E9FF70" : "2px solid rgba(255,255,255,0.08)",
+              borderRadius: 14,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
               cursor: "pointer",
-              transition: "all 0.18s ease",
-              boxShadow: activeTab === tab ? "0 0 32px rgba(233,255,112,0.12), 0 8px 24px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.2)",
-              transform: activeTab === tab ? "translateY(-2px)" : "none",
+              transition: "all 0.2s ease",
+              boxShadow: activeTab === tab
+                ? "0 0 36px rgba(233,255,112,0.15), 0 8px 24px rgba(0,0,0,0.4)"
+                : "0 4px 20px rgba(0,0,0,0.35)",
+              transform: activeTab === tab ? "translateY(-3px)" : "none",
             }}
             onMouseEnter={(e) => {
               if (activeTab !== tab) {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(233,255,112,0.4)";
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-3px)";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 24px rgba(233,255,112,0.08), 0 8px 24px rgba(0,0,0,0.3)";
+                const el = e.currentTarget as HTMLButtonElement;
+                el.style.background = "#253048";
+                el.style.borderColor = "#E9FF70";
+                el.style.transform = "translateY(-3px)";
+                el.style.boxShadow = "0 0 28px rgba(233,255,112,0.12), 0 8px 24px rgba(0,0,0,0.4)";
               }
             }}
             onMouseLeave={(e) => {
               if (activeTab !== tab) {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.07)";
-                (e.currentTarget as HTMLButtonElement).style.transform = "none";
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.2)";
+                const el = e.currentTarget as HTMLButtonElement;
+                el.style.background = "#1e293b";
+                el.style.borderColor = "rgba(255,255,255,0.08)";
+                el.style.transform = "none";
+                el.style.boxShadow = "0 4px 20px rgba(0,0,0,0.35)";
               }
             }}
           >
-            <Icon size={34} color={activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.4)"} strokeWidth={1.5} />
+            <Icon size={46} color={activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.5)"} strokeWidth={1.5} />
             <span style={{
-              color: activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.55)",
-              fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.12em",
+              color: activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.6)",
+              fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.13em",
             }}>{label}</span>
           </button>
         )))}

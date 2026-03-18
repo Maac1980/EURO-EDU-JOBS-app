@@ -163,36 +163,56 @@ router.get("/eej/candidates", async (_req, res) => {
 });
 
 // POST /api/eej/candidates — create new worker in Airtable
+// Field names must match the JOB AGENCY table exactly (all-caps, confirmed via meta API)
 router.post("/eej/candidates", async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name) return res.status(400).json({ error: "Name is required." });
 
+    // Only include fields that actually exist in the Airtable JOB AGENCY table.
+    // Field names verified via meta API — all are UPPERCASE.
     const fields: Record<string, unknown> = { NAME: name };
-    if (body.role)             fields["Job Role"]           = body.role;
-    if (body.email)            fields["Email"]              = body.email;
-    if (body.phone)            fields["Phone"]              = body.phone;
-    if (body.location)         fields["Assigned Site"]      = body.location;
-    if (body.nationality)      fields["NATIONALITY"]        = body.nationality;
-    if (body.contractType)     fields["CONTRACT TYPE"]      = body.contractType;
-    if (body.contractEndDate)  fields["Contract End Date"]  = body.contractEndDate;
-    if (body.trcExpiry)        fields["TRC Expiry"]         = body.trcExpiry;
-    if (body.workPermitExpiry) fields["Work Permit Expiry"] = body.workPermitExpiry;
-    if (body.pipelineStage)    fields["PIPELINE STAGE"]     = body.pipelineStage;
-    if (body.iban)             fields["IBAN"]               = String(body.iban).toUpperCase();
-    if (body.pesel)            fields["PESEL"]              = body.pesel;
-    if (body.nip)              fields["NIP"]                = body.nip;
-    if (body.visaType)         fields["VISA TYPE"]          = body.visaType;
-    if (body.hourlyNettoRate)  fields["HOURLY NETTO RATE"]  = Number(body.hourlyNettoRate);
+
+    // singleLineText fields
+    if (body.role)      fields["JOB ROLE"]      = body.role;
+    if (body.pesel)     fields["PESEL"]          = body.pesel;
+    if (body.nip)       fields["NIP"]            = body.nip;
+    if (body.visaType)  fields["VISA TYPE"]      = body.visaType;
+    if (body.zusStatus) fields["ZUS STATUS"]     = body.zusStatus;
+
+    // email / phone fields
+    if (body.email)  fields["EMAIL"]  = body.email;
+    if (body.phone)  fields["PHONE"]  = body.phone;
+
+    // ASSIGNED SITE — prefers siteLocation (company name), falls back to location (city)
+    const assignedSite = body.siteLocation || body.location;
+    if (assignedSite) fields["ASSIGNED SITE"] = assignedSite;
+
+    // date fields (Airtable requires ISO 8601 date strings: YYYY-MM-DD)
+    if (body.trcExpiry)           fields["TRC"]                = body.trcExpiry;
+    if (body.workPermitExpiry)    fields["PASSPORT"]           = body.workPermitExpiry;
+    if (body.contractEndDate)     fields["CONTRACT END DATE"]  = body.contractEndDate;
+    if (body.badaniaLekExpiry)    fields["BADANIA LEKARSKIE"]  = body.badaniaLekExpiry;
+    if (body.oswiadczenieExpiry)  fields["OSWIADCZENIE EXPIRY"] = body.oswiadczenieExpiry;
+    if (body.udtCertExpiry)       fields["UDT CERT EXPIRY"]   = body.udtCertExpiry;
+    if (body.rodoConsentDate)     fields["RODO CONSENT"]       = body.rodoConsentDate;
+
+    // number fields
+    if (body.hourlyNettoRate != null && body.hourlyNettoRate !== "") {
+      fields["HOURLY NETTO RATE"] = Number(body.hourlyNettoRate);
+    }
+
+    console.log("[eej/candidates] POST — sending to Airtable:", JSON.stringify(fields));
 
     const record = await createRecord(fields);
     const worker = mapRecordToWorker(record);
     const candidate = workerToCandidate(worker);
     return res.status(201).json({ candidate });
   } catch (err) {
-    console.error("[eej/candidates] POST error:", err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to create candidate" });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[eej/candidates] POST error:", msg);
+    return res.status(500).json({ error: msg });
   }
 });
 
@@ -202,26 +222,39 @@ router.patch("/eej/candidates/:id", async (req, res) => {
     const { id } = req.params;
     const body = req.body as Record<string, unknown>;
     const fields: Record<string, unknown> = {};
-    if (body.pipelineStage)    fields["PIPELINE STAGE"]     = body.pipelineStage;
-    if (body.phone)            fields["Phone"]              = body.phone;
-    if (body.email)            fields["Email"]              = body.email;
-    if (body.siteLocation)     fields["Assigned Site"]      = body.siteLocation;
-    if (body.contractEndDate)  fields["Contract End Date"]  = body.contractEndDate;
-    if (body.trcExpiry)        fields["TRC Expiry"]         = body.trcExpiry;
-    if (body.workPermitExpiry) fields["Work Permit Expiry"] = body.workPermitExpiry;
-    if (body.iban)             fields["IBAN"]               = String(body.iban).toUpperCase();
-    if (body.hourlyNettoRate)  fields["HOURLY NETTO RATE"]  = Number(body.hourlyNettoRate);
+
+    // Use exact UPPERCASE Airtable field names (verified via meta API)
+    if (body.phone)               fields["PHONE"]               = body.phone;
+    if (body.email)               fields["EMAIL"]               = body.email;
+    if (body.siteLocation)        fields["ASSIGNED SITE"]       = body.siteLocation;
+    if (body.trcExpiry)           fields["TRC"]                 = body.trcExpiry;
+    if (body.workPermitExpiry)    fields["PASSPORT"]            = body.workPermitExpiry;
+    if (body.contractEndDate)     fields["CONTRACT END DATE"]   = body.contractEndDate;
+    if (body.badaniaLekExpiry)    fields["BADANIA LEKARSKIE"]   = body.badaniaLekExpiry;
+    if (body.oswiadczenieExpiry)  fields["OSWIADCZENIE EXPIRY"] = body.oswiadczenieExpiry;
+    if (body.udtCertExpiry)       fields["UDT CERT EXPIRY"]    = body.udtCertExpiry;
+    if (body.visaType)            fields["VISA TYPE"]           = body.visaType;
+    if (body.zusStatus)           fields["ZUS STATUS"]          = body.zusStatus;
+    if (body.pesel)               fields["PESEL"]               = body.pesel;
+    if (body.nip)                 fields["NIP"]                 = body.nip;
+    if (body.hourlyNettoRate != null && body.hourlyNettoRate !== "") {
+      fields["HOURLY NETTO RATE"] = Number(body.hourlyNettoRate);
+    }
 
     if (Object.keys(fields).length === 0) {
       return res.status(400).json({ error: "No updatable fields provided." });
     }
+
+    console.log(`[eej/candidates] PATCH ${id} — sending to Airtable:`, JSON.stringify(fields));
+
     const record = await updateRecord(id, fields);
     const worker = mapRecordToWorker(record);
     const candidate = workerToCandidate(worker);
     return res.json({ candidate });
   } catch (err) {
-    console.error("[eej/candidates] PATCH error:", err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to update candidate" });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[eej/candidates] PATCH error:", msg);
+    return res.status(500).json({ error: msg });
   }
 });
 

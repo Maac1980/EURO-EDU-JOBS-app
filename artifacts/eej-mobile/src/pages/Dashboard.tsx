@@ -75,10 +75,10 @@ export default function Dashboard() {
         <header className="dash-header" style={{ background: accentColor }}>
           <div className="dash-header-left">
             <div className="dash-logo-sm">EEJ</div>
-            <div>
-              <div className="dash-header-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="dash-header-text">
+              <div className="dash-header-title">
                 {user.shortName}
-                <span className="dash-tier-chip">{tierLabel}</span>
+                <span className="dash-tier-chip" style={{ marginLeft: 6 }}>{tierLabel}</span>
               </div>
               <div className="dash-header-sub">{user.designation}</div>
             </div>

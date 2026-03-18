@@ -170,12 +170,24 @@ export async function deleteSystemUser(recordId: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
 }
 
-// ── Startup: ensure table exists and seed initial users ────────────────────
+// ── Update a user's password hash in Airtable ──────────────────────────────
+
+async function updatePasswordHash(recordId: string, passwordHash: string): Promise<void> {
+  if (!BASE_ID || !AIRTABLE_API_KEY) return;
+  await fetch(`${BASE_URL}/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${recordId}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ fields: { Password_Hash: passwordHash } }),
+  });
+}
+
+// ── Startup: ensure table exists and upsert all seed users ─────────────────
 
 const INITIAL_USERS = [
-  { name: "Anna Brzozowska",  email: "ceo@euro-edu-jobs.eu",  role: "T1" as const, designation: "Executive Board & Finance",           shortName: "Executive" },
-  { name: "Marta Wiśniewska", email: "legal@euro-edu-jobs.eu", role: "T2" as const, designation: "Head of Legal & Client Relations",     shortName: "Legal & Compliance" },
-  { name: "Piotr Nowak",      email: "ops@euro-edu-jobs.eu",   role: "T3" as const, designation: "Workforce & Commercial Operations",    shortName: "Operations" },
+  { name: "Anna Brzozowska",  email: "anna.b@edu-jobs.eu",    role: "T1" as const, designation: "Executive Board & Finance",        shortName: "Executive" },
+  { name: "Anna Brzozowska",  email: "ceo@euro-edu-jobs.eu",  role: "T1" as const, designation: "Executive Board & Finance",        shortName: "Executive" },
+  { name: "Marta Wiśniewska", email: "legal@euro-edu-jobs.eu", role: "T2" as const, designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance" },
+  { name: "Piotr Nowak",      email: "ops@euro-edu-jobs.eu",   role: "T3" as const, designation: "Workforce & Commercial Operations", shortName: "Operations" },
 ];
 
 const INITIAL_PASSWORD = "EEJ2026!";
@@ -191,33 +203,28 @@ export async function ensureSystemUsersTable(): Promise<void> {
         return;
       }
       console.log("[auth] System_Users table created");
+    }
 
-      // Seed initial staff accounts
-      for (const u of INITIAL_USERS) {
-        try {
+    // Always upsert every seed user — create if missing, reset password hash if exists.
+    // This guarantees logins work in production regardless of prior state.
+    for (const u of INITIAL_USERS) {
+      try {
+        const existing = await findUserByEmail(u.email);
+        const freshHash = await hashPassword(INITIAL_PASSWORD);
+        if (existing) {
+          await updatePasswordHash(existing.id, freshHash);
+          console.log(`[auth] ✓ Password synced: ${u.email}`);
+        } else {
           await createSystemUser(u.name, u.email, INITIAL_PASSWORD, u.role, u.designation, u.shortName);
-          console.log(`[auth] Seeded user: ${u.email} (${u.role})`);
-        } catch (e) {
-          console.warn(`[auth] Failed to seed ${u.email}:`, (e as Error).message);
+          console.log(`[auth] ✓ Seeded user: ${u.email} (${u.role})`);
         }
-      }
-    } else {
-      // Table exists — check if it has any users; seed if empty
-      const existing = await listAllUsers();
-      if (existing.length === 0) {
-        console.log("[auth] System_Users is empty — seeding initial users…");
-        for (const u of INITIAL_USERS) {
-          try {
-            await createSystemUser(u.name, u.email, INITIAL_PASSWORD, u.role, u.designation, u.shortName);
-            console.log(`[auth] Seeded user: ${u.email}`);
-          } catch (e) {
-            console.warn(`[auth] Seed failed:`, (e as Error).message);
-          }
-        }
-      } else {
-        console.log(`[auth] System_Users ready — ${existing.length} user(s) found`);
+      } catch (e) {
+        console.warn(`[auth] Upsert failed for ${u.email}:`, (e as Error).message);
       }
     }
+
+    const all = await listAllUsers();
+    console.log(`[auth] System_Users ready — ${all.length} user(s) in table`);
   } catch (e) {
     console.warn("[auth] ensureSystemUsersTable error:", (e as Error).message);
   }

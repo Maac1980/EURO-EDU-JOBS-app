@@ -10,12 +10,6 @@ export default function OperationsHome() {
         </div>
       </div>
 
-      {/* Financial Firewall Notice */}
-      <div className="firewall-notice">
-        <span className="firewall-icon">🔒</span>
-        <span>Revenue, Payroll & ZUS data are restricted to Tier 1.</span>
-      </div>
-
       {/* Quick Actions */}
       <div className="section-label">Quick Actions</div>
       <div className="ops-actions-row">

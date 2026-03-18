@@ -83,11 +83,6 @@ export default function CandidateHome() {
         })}
       </div>
 
-      <div className="firewall-notice" style={{ marginTop: 20 }}>
-        <span className="firewall-icon">🔒</span>
-        <span>Global candidate directory is restricted. You can only view your own profile.</span>
-      </div>
-
       <div style={{ height: 100 }} />
     </div>
   );

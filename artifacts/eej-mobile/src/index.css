@@ -1297,69 +1297,65 @@
    PHASE 4 — PLATFORM MODULES GRID
 ═══════════════════════════════════════════ */
 
-.platform-modules-grid {
+/* 2-column grid — equivalent to grid-cols-2 gap-3 mt-4 w-full */
+.pm-grid {
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
   margin-bottom: 20px;
 }
 
-.platform-module-tile {
-  position: relative;
+/* Card — equivalent to bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start */
+.pm-card {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  border: 1px solid #F3F4F6;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 5px;
-  padding: 14px 12px 12px;
-  border-radius: 14px;
-  border: 1.5px solid transparent;
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  transition: transform 0.15s, box-shadow 0.15s;
-  min-height: 90px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: box-shadow 0.15s, transform 0.15s;
+  min-height: 100px;
 }
-.platform-module-tile:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.10);
-}
-.platform-module-tile:active {
-  transform: scale(0.97);
-}
+.pm-card:hover  { box-shadow: 0 4px 12px rgba(0,0,0,0.10); transform: translateY(-1px); }
+.pm-card:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
 
+/* Icon wrap */
 .pm-icon-wrap {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
   flex-shrink: 0;
 }
 
-.pm-label {
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+/* Title — equivalent to text-sm font-semibold text-gray-900 mt-2 */
+.pm-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin-top: 8px;
+  line-height: 1.3;
   width: 100%;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
-.pm-sublabel {
-  font-size: 9px;
-  font-weight: 500;
-  line-height: 1.2;
-  width: 100%;
-  overflow: hidden;
+/* Subtitle — equivalent to text-xs text-gray-500 truncate w-full */
+.pm-sub {
+  font-size: 12px;
+  color: #6B7280;
   white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.85;
+  width: 100%;
+  margin-top: 3px;
 }
 
 /* ─── KPI icon row ─── */

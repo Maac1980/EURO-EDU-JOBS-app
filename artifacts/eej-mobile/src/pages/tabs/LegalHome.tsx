@@ -1,4 +1,4 @@
-import { AlertTriangle, ShieldAlert, FileCheck2, Lock } from "lucide-react";
+import { AlertTriangle, ShieldAlert, FileCheck2 } from "lucide-react";
 import { COMPLIANCE_ALERTS } from "@/data/mockData";
 import PlatformModules from "@/components/PlatformModules";
 
@@ -13,12 +13,6 @@ export default function LegalHome() {
         <div className="alert-total-badge">
           {COMPLIANCE_ALERTS.visaExpiring.length + COMPLIANCE_ALERTS.missingPassports.length} Active
         </div>
-      </div>
-
-      {/* Financial Firewall Notice */}
-      <div className="firewall-notice">
-        <Lock size={14} color="#1E40AF" strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>Revenue, ZUS Ledger & Payroll are restricted to Tier 1 (Executive Board).</span>
       </div>
 
       {/* Visa / TRC Expiring */}

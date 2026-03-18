@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Upload, FileCheck, Paperclip, CheckCircle2, Search } from "lucide-react";
-import { MOCK_CANDIDATES } from "@/data/mockData";
+import { useCandidates } from "@/lib/candidateContext";
 import { useToast } from "@/lib/toast";
 
 const DOC_TYPES = [
@@ -23,11 +23,12 @@ interface UploadEntry {
 }
 
 export default function BulkUploadTab() {
-  const { showToast } = useToast();
+  const { showToast }  = useToast();
+  const { candidates } = useCandidates();
   const fileRef        = useRef<HTMLInputElement | null>(null);
-  const [candidate,   setCandidate]   = useState("");
-  const [docType,     setDocType]     = useState("");
-  const [uploadedLog, setUploadedLog] = useState<UploadEntry[]>([
+  const [candidate,    setCandidate]   = useState("");
+  const [docType,      setDocType]     = useState("");
+  const [uploadedLog,  setUploadedLog] = useState<UploadEntry[]>([
     { candidateName: "Daria Shevchenko",  docType: "TRC Residence Card", fileName: "trc_shevchenko_mar26.pdf",  uploadedAt: "Today, 09:14" },
     { candidateName: "Ahmed Al-Rashid",   docType: "Passport / ID Card", fileName: "passport_alrashid.jpg",     uploadedAt: "Today, 08:50" },
     { candidateName: "Oleksandr Bondar",  docType: "Work Permit (A1)",   fileName: "wp_bondar_2026.pdf",        uploadedAt: "Yesterday" },
@@ -39,7 +40,7 @@ export default function BulkUploadTab() {
     if (!candidate) { showToast("Select a candidate first", "error"); e.target.value = ""; return; }
     if (!docType)   { showToast("Select a document type first", "error"); e.target.value = ""; return; }
 
-    const name = MOCK_CANDIDATES.find((c) => c.id === candidate)?.name ?? candidate;
+    const name = candidates.find((c) => c.id === candidate)?.name ?? candidate;
     setUploadedLog((prev) => [
       { candidateName: name, docType, fileName: file.name, uploadedAt: "Just now" },
       ...prev,
@@ -61,7 +62,6 @@ export default function BulkUploadTab() {
         </div>
       </div>
 
-      {/* Upload form */}
       <div className="bulk-upload-card">
         <div className="bulk-upload-icon-row">
           <div className="bulk-upload-icon">
@@ -77,7 +77,7 @@ export default function BulkUploadTab() {
           <label className="add-cand-label">Candidate</label>
           <select className={sel} value={candidate} onChange={(e) => setCandidate(e.target.value)}>
             <option value="">— select candidate —</option>
-            {MOCK_CANDIDATES.map((c) => (
+            {candidates.map((c) => (
               <option key={c.id} value={c.id}>{c.name} · {c.role}</option>
             ))}
           </select>
@@ -108,7 +108,6 @@ export default function BulkUploadTab() {
         />
       </div>
 
-      {/* Recent uploads log */}
       <div className="section-label" style={{ marginTop: 20 }}>
         <FileCheck size={13} color="#9CA3AF" strokeWidth={2} />
         Recent Uploads

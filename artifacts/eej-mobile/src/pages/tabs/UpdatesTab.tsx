@@ -1,4 +1,5 @@
-import { FileCheck2, FileX, Bell, Plane, AlertTriangle, Clock } from "lucide-react";
+import { useState } from "react";
+import { FileCheck2, FileX, Bell, Plane, AlertTriangle, Clock, Search, X } from "lucide-react";
 
 const UPDATES = [
   {
@@ -87,8 +88,17 @@ const UPDATES = [
   },
 ];
 
+const UNREAD_COUNT = 3;
+
 export default function UpdatesTab() {
-  const unreadCount = 3;
+  const [query, setQuery] = useState("");
+
+  const filtered = UPDATES.filter(
+    (u) =>
+      u.title.toLowerCase().includes(query.toLowerCase()) ||
+      u.body.toLowerCase().includes(query.toLowerCase()) ||
+      u.tag.toLowerCase().includes(query.toLowerCase())
+  );
 
   return (
     <div className="tab-page">
@@ -97,35 +107,55 @@ export default function UpdatesTab() {
           <div className="tab-greeting-label">Tier 4 · Candidate</div>
           <div className="tab-greeting-name">My Updates</div>
         </div>
-        {unreadCount > 0 && (
-          <div className="alert-total-badge">{unreadCount} New</div>
+        {UNREAD_COUNT > 0 && (
+          <div className="alert-total-badge">{UNREAD_COUNT} New</div>
         )}
       </div>
 
-      <div className="updates-list">
-        {UPDATES.map((u, idx) => {
-          const Icon = u.icon;
-          const isNew = idx < unreadCount;
-          return (
-            <div key={u.id} className={"update-card" + (isNew ? " update-card--new" : "")}>
-              {isNew && <div className="update-new-dot" />}
-              <div className="update-icon-wrap" style={{ background: u.iconBg }}>
-                <Icon size={18} color={u.iconColor} strokeWidth={2} />
-              </div>
-              <div className="update-body">
-                <div className="update-header-row">
-                  <div className="update-title">{u.title}</div>
-                  <div className="update-time">{u.time}</div>
-                </div>
-                <div className="update-text">{u.body}</div>
-                <div className="update-tag" style={{ background: u.tagBg, color: u.tagColor, border: `1.5px solid ${u.tagColor}30` }}>
-                  {u.tag}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <div className="alert-search-wrap">
+        <Search size={14} color="#9CA3AF" strokeWidth={2} style={{ flexShrink: 0 }} />
+        <input
+          className="alert-search-input"
+          type="text"
+          placeholder="Search updates…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {query && (
+          <button className="alert-search-clear" onClick={() => setQuery("")}>
+            <X size={13} color="#9CA3AF" strokeWidth={2.5} />
+          </button>
+        )}
       </div>
+
+      {filtered.length === 0 ? (
+        <div className="alert-empty">No updates match your search.</div>
+      ) : (
+        <div className="updates-list">
+          {filtered.map((u, idx) => {
+            const Icon = u.icon;
+            const isNew = idx < UNREAD_COUNT && query === "";
+            return (
+              <div key={u.id} className={"update-card" + (isNew ? " update-card--new" : "")}>
+                {isNew && <div className="update-new-dot" />}
+                <div className="update-icon-wrap" style={{ background: u.iconBg }}>
+                  <Icon size={18} color={u.iconColor} strokeWidth={2} />
+                </div>
+                <div className="update-body">
+                  <div className="update-header-row">
+                    <div className="update-title">{u.title}</div>
+                    <div className="update-time">{u.time}</div>
+                  </div>
+                  <div className="update-text">{u.body}</div>
+                  <div className="update-tag" style={{ background: u.tagBg, color: u.tagColor, border: `1.5px solid ${u.tagColor}30` }}>
+                    {u.tag}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{ height: 100 }} />
     </div>

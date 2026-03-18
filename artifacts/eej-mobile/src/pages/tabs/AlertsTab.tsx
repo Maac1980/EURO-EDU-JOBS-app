@@ -1,8 +1,10 @@
-import { AlertTriangle, ShieldAlert, FileCheck2, Bell, Clock, CheckCircle2, DollarSign } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ShieldAlert, FileCheck2, Bell, Clock, CheckCircle2, DollarSign, Search, X, Stethoscope, HardHat } from "lucide-react";
 import { COMPLIANCE_ALERTS, MOCK_CANDIDATES } from "@/data/mockData";
 import type { Role } from "@/types";
 
 const TODAY = new Date();
+
 function daysUntil(dateStr?: string): number | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);
@@ -13,25 +15,53 @@ function daysUntil(dateStr?: string): number | null {
 interface Props { role: Role; }
 
 export default function AlertsTab({ role }: Props) {
-  if (role === "executive") return <ExecutiveAlerts />;
-  if (role === "legal")     return <LegalAlerts />;
+  if (role === "executive")  return <ExecutiveAlerts />;
+  if (role === "legal")      return <LegalAlerts />;
   if (role === "operations") return <OpsAlerts />;
   return null;
 }
 
+function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="alert-search-wrap">
+      <Search size={14} color="#9CA3AF" strokeWidth={2} style={{ flexShrink: 0 }} />
+      <input
+        className="alert-search-input"
+        type="text"
+        placeholder="Search alerts…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {value && (
+        <button className="alert-search-clear" onClick={() => onChange("")}>
+          <X size={13} color="#9CA3AF" strokeWidth={2.5} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ── T1 Executive Alerts ── */
 function ExecutiveAlerts() {
+  const [query, setQuery] = useState("");
+
   const financialAlerts = MOCK_CANDIDATES.filter(c =>
     c.zusStatus?.toLowerCase().includes("pending") || c.zusStatus?.toLowerCase().includes("incomplete")
   );
   const expiringDocs = MOCK_CANDIDATES.flatMap(c => {
-    const alerts: { name: string; doc: string; days: number }[] = [];
+    const items: { name: string; doc: string; days: number }[] = [];
     const d1 = daysUntil(c.trcExpiry);
     const d2 = daysUntil(c.workPermitExpiry);
-    if (d1 !== null && d1 < 60)  alerts.push({ name: c.name, doc: "TRC Residence Card", days: d1 });
-    if (d2 !== null && d2 < 60)  alerts.push({ name: c.name, doc: "Work Permit",         days: d2 });
-    return alerts;
+    if (d1 !== null && d1 < 60) items.push({ name: c.name, doc: "TRC Residence Card", days: d1 });
+    if (d2 !== null && d2 < 60) items.push({ name: c.name, doc: "Work Permit",         days: d2 });
+    return items;
   });
+
+  const q = query.toLowerCase();
+  const filteredVisa    = COMPLIANCE_ALERTS.visaExpiring.filter(a => !q || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q));
+  const filteredMissing = COMPLIANCE_ALERTS.missingPassports.filter(a => !q || a.name.toLowerCase().includes(q) || a.missing.toLowerCase().includes(q));
+  const filteredFin     = financialAlerts.filter(c => !q || c.name.toLowerCase().includes(q));
+  const filteredExpiry  = expiringDocs.filter(i => !q || i.name.toLowerCase().includes(q) || i.doc.toLowerCase().includes(q));
 
   const totalAlerts = COMPLIANCE_ALERTS.visaExpiring.length + COMPLIANCE_ALERTS.missingPassports.length + financialAlerts.length;
 
@@ -45,14 +75,15 @@ function ExecutiveAlerts() {
         <div className="alert-total-badge">{totalAlerts} Active</div>
       </div>
 
-      {/* Document Expiry Alerts */}
+      <SearchBar value={query} onChange={setQuery} />
+
       <div className="alert-section-header amber">
         <AlertTriangle size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
         <span>Visa / TRC Expiring</span>
-        <span className="alert-count amber-count">{COMPLIANCE_ALERTS.visaExpiring.length}</span>
+        <span className="alert-count amber-count">{filteredVisa.length}</span>
       </div>
       <div className="alert-list">
-        {COMPLIANCE_ALERTS.visaExpiring.map((a, i) => (
+        {filteredVisa.length === 0 ? <div className="alert-empty">No matches.</div> : filteredVisa.map((a, i) => (
           <div key={i} className="alert-card amber-card">
             <div className="alert-card-left">
               <div className="alert-card-name">{a.name}</div>
@@ -65,14 +96,13 @@ function ExecutiveAlerts() {
         ))}
       </div>
 
-      {/* Missing Documents */}
       <div className="alert-section-header red" style={{ marginTop: 20 }}>
         <ShieldAlert size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
         <span>Missing Passports / IDs</span>
-        <span className="alert-count red-count">{COMPLIANCE_ALERTS.missingPassports.length}</span>
+        <span className="alert-count red-count">{filteredMissing.length}</span>
       </div>
       <div className="alert-list">
-        {COMPLIANCE_ALERTS.missingPassports.map((a, i) => (
+        {filteredMissing.length === 0 ? <div className="alert-empty">No matches.</div> : filteredMissing.map((a, i) => (
           <div key={i} className="alert-card red-card">
             <div className="alert-card-left">
               <div className="alert-card-name">{a.name}</div>
@@ -83,21 +113,20 @@ function ExecutiveAlerts() {
         ))}
       </div>
 
-      {/* ZUS / Financial Alerts (T1 only) */}
       <div className="alert-section-header" style={{ marginTop: 20, background: "#EEF2FF", color: "#4338CA", borderColor: "#C7D2FE" }}>
         <DollarSign size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
         <span>ZUS Registration Incomplete</span>
-        <span className="alert-count" style={{ background: "#EEF2FF", color: "#4338CA", border: "1.5px solid #A5B4FC" }}>{financialAlerts.length}</span>
+        <span className="alert-count" style={{ background: "#EEF2FF", color: "#4338CA", border: "1.5px solid #A5B4FC" }}>{filteredFin.length}</span>
       </div>
       <div className="alert-list">
-        {financialAlerts.length === 0 ? (
+        {filteredFin.length === 0 ? (
           <div className="alert-card" style={{ background: "#ECFDF5", border: "1.5px solid #6EE7B7" }}>
             <div className="alert-card-left">
               <div className="alert-card-name" style={{ color: "#059669" }}>All ZUS registrations current</div>
             </div>
             <CheckCircle2 size={16} color="#059669" strokeWidth={2.5} />
           </div>
-        ) : financialAlerts.map((c, i) => (
+        ) : filteredFin.map((c, i) => (
           <div key={i} className="alert-card" style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE" }}>
             <div className="alert-card-left">
               <div className="alert-card-name">{c.name}</div>
@@ -108,16 +137,15 @@ function ExecutiveAlerts() {
         ))}
       </div>
 
-      {/* Expiry Timeline */}
-      {expiringDocs.length > 0 && (
+      {filteredExpiry.length > 0 && (
         <>
           <div className="alert-section-header" style={{ marginTop: 20, background: "#F9FAFB", color: "#6B7280", borderColor: "#E5E7EB" }}>
             <Clock size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
             <span>Document Expiry Timeline</span>
-            <span className="alert-count" style={{ background: "#F9FAFB", color: "#6B7280", border: "1.5px solid #E5E7EB" }}>{expiringDocs.length}</span>
+            <span className="alert-count" style={{ background: "#F9FAFB", color: "#6B7280", border: "1.5px solid #E5E7EB" }}>{filteredExpiry.length}</span>
           </div>
           <div className="alert-list">
-            {expiringDocs.map((item, i) => (
+            {filteredExpiry.sort((a, b) => a.days - b.days).map((item, i) => (
               <div key={i} className="alert-card" style={{ background: "#FAFAFA", border: "1.5px solid #E5E7EB" }}>
                 <div className="alert-card-left">
                   <div className="alert-card-name">{item.name}</div>
@@ -137,70 +165,162 @@ function ExecutiveAlerts() {
   );
 }
 
-/* ── T2 Legal Alerts — same data as LegalHome ── */
+/* ── T2 Legal Alerts — DIFFERENTIATED from LegalHome ── */
 function LegalAlerts() {
-  const total = COMPLIANCE_ALERTS.visaExpiring.length + COMPLIANCE_ALERTS.missingPassports.length;
+  const [query, setQuery] = useState("");
+
+  const q = query.toLowerCase();
+
+  const allIssues: { name: string; issue: string; days: number | null; severity: "critical" | "warning" | "pending" }[] = [];
+
+  COMPLIANCE_ALERTS.visaExpiring.forEach(a => {
+    allIssues.push({ name: a.name, issue: `${a.type} expiring`, days: a.daysLeft, severity: a.daysLeft <= 10 ? "critical" : "warning" });
+  });
+  COMPLIANCE_ALERTS.missingPassports.forEach(a => {
+    allIssues.push({ name: a.name, issue: a.missing, days: null, severity: "critical" });
+  });
+  COMPLIANCE_ALERTS.workPermits.filter(p => p.status === "pending").forEach(a => {
+    allIssues.push({ name: a.name, issue: "Work permit pending", days: null, severity: "pending" });
+  });
+
+  MOCK_CANDIDATES.forEach(c => {
+    const d1 = daysUntil(c.bhpExpiry);
+    const d2 = daysUntil(c.badaniaLekExpiry);
+    const d3 = daysUntil(c.oswiadczenieExpiry);
+    if (d1 !== null && d1 < 90) allIssues.push({ name: c.name, issue: "BHP Certificate expiring", days: d1, severity: d1 <= 30 ? "critical" : "warning" });
+    if (d2 !== null && d2 < 90) allIssues.push({ name: c.name, issue: "Medical Certificate expiring", days: d2, severity: d2 <= 30 ? "critical" : "warning" });
+    if (d3 !== null && d3 < 60) allIssues.push({ name: c.name, issue: "Oświadczenie expiring", days: d3, severity: d3 <= 14 ? "critical" : "warning" });
+  });
+
+  allIssues.sort((a, b) => {
+    if (a.severity === "critical" && b.severity !== "critical") return -1;
+    if (b.severity === "critical" && a.severity !== "critical") return 1;
+    if (a.days !== null && b.days !== null) return a.days - b.days;
+    if (a.days !== null) return -1;
+    if (b.days !== null) return 1;
+    return 0;
+  });
+
+  const filtered = allIssues.filter(i => !q || i.name.toLowerCase().includes(q) || i.issue.toLowerCase().includes(q));
+
+  const criticalCount = allIssues.filter(i => i.severity === "critical").length;
+  const warningCount  = allIssues.filter(i => i.severity === "warning").length;
+  const pendingCount  = allIssues.filter(i => i.severity === "pending").length;
+
+  const bhpExpiries = MOCK_CANDIDATES.map(c => ({ name: c.name, flag: c.flag, days: daysUntil(c.bhpExpiry) }))
+    .filter(x => x.days !== null && x.days < 120)
+    .sort((a, b) => (a.days ?? 999) - (b.days ?? 999));
+
+  const medExpiries = MOCK_CANDIDATES.map(c => ({ name: c.name, flag: c.flag, days: daysUntil(c.badaniaLekExpiry) }))
+    .filter(x => x.days !== null && x.days < 120)
+    .sort((a, b) => (a.days ?? 999) - (b.days ?? 999));
+
   return (
     <div className="tab-page">
       <div className="tab-greeting">
         <div>
-          <div className="tab-greeting-label">Tier 2 · Legal & Compliance</div>
-          <div className="tab-greeting-name">Alert Centre</div>
+          <div className="tab-greeting-label">Tier 2 · Legal</div>
+          <div className="tab-greeting-name">Priority Issue Queue</div>
         </div>
-        <div className="alert-total-badge">{total} Active</div>
+        <div className="alert-total-badge">{allIssues.length} Issues</div>
       </div>
 
-      <div className="alert-section-header amber">
+      <div className="legal-alert-stats-row">
+        <div className="legal-stat-chip red-chip">🔴 {criticalCount} Critical</div>
+        <div className="legal-stat-chip amber-chip">🟡 {warningCount} Warning</div>
+        <div className="legal-stat-chip blue-chip">🔵 {pendingCount} Pending</div>
+      </div>
+
+      <SearchBar value={query} onChange={setQuery} />
+
+      <div className="alert-section-header" style={{ background: "#FEF2F2", color: "#991B1B", borderColor: "#FECACA" }}>
         <AlertTriangle size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-        <span>Visa / TRC Expiring</span>
-        <span className="alert-count amber-count">{COMPLIANCE_ALERTS.visaExpiring.length}</span>
+        <span>All Issues — Priority Order</span>
+        <span className="alert-count" style={{ background: "#FEE2E2", color: "#DC2626", border: "1.5px solid #FCA5A5" }}>{filtered.length}</span>
       </div>
       <div className="alert-list">
-        {COMPLIANCE_ALERTS.visaExpiring.map((a, i) => (
-          <div key={i} className="alert-card amber-card">
+        {filtered.length === 0 ? <div className="alert-empty">No matches.</div> : filtered.map((item, i) => (
+          <div key={i} className={"alert-card " + (item.severity === "critical" ? "red-card" : item.severity === "warning" ? "amber-card" : "")}>
             <div className="alert-card-left">
-              <div className="alert-card-name">{a.name}</div>
-              <div className="alert-card-meta">{a.type}</div>
+              <div className="alert-card-name">{item.name}</div>
+              <div className="alert-card-meta">{item.issue}</div>
             </div>
-            <div className={`alert-days-badge ${a.daysLeft <= 10 ? "red-badge" : "amber-badge"}`}>
-              {a.daysLeft}d left
-            </div>
+            {item.days !== null ? (
+              <div className={`alert-days-badge ${item.days <= 10 ? "red-badge" : item.days <= 30 ? "amber-badge" : "blue-badge"}`}>
+                {item.days < 0 ? "EXPIRED" : `${item.days}d`}
+              </div>
+            ) : (
+              <div className={`alert-days-badge ${item.severity === "critical" ? "red-badge" : "blue-badge"}`}>
+                {item.severity === "critical" ? "Urgent" : "Pending"}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      <div className="alert-section-header red" style={{ marginTop: 20 }}>
-        <ShieldAlert size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-        <span>Missing Passports / IDs</span>
-        <span className="alert-count red-count">{COMPLIANCE_ALERTS.missingPassports.length}</span>
-      </div>
-      <div className="alert-list">
-        {COMPLIANCE_ALERTS.missingPassports.map((a, i) => (
-          <div key={i} className="alert-card red-card">
-            <div className="alert-card-left">
-              <div className="alert-card-name">{a.name}</div>
-              <div className="alert-card-meta">{a.missing}</div>
-            </div>
-            <div className="alert-action-btn">Chase →</div>
+      {!query && (
+        <>
+          <div className="alert-section-header" style={{ marginTop: 20, background: "#F0FDF4", color: "#166534", borderColor: "#BBF7D0" }}>
+            <HardHat size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+            <span>BHP Certificate Expiry Watch</span>
+            <span className="alert-count" style={{ background: "#DCFCE7", color: "#16A34A", border: "1.5px solid #86EFAC" }}>{bhpExpiries.length}</span>
           </div>
-        ))}
-      </div>
+          <div className="alert-list">
+            {bhpExpiries.map((item, i) => (
+              <div key={i} className="alert-card" style={{ background: "#F0FDF4", border: "1.5px solid #BBF7D0" }}>
+                <div className="alert-card-left">
+                  <div className="alert-card-name">{item.flag} {item.name}</div>
+                  <div className="alert-card-meta">BHP Certificate</div>
+                </div>
+                <div className={`alert-days-badge ${(item.days ?? 999) <= 30 ? "red-badge" : (item.days ?? 999) <= 60 ? "amber-badge" : "green-badge"}`}>
+                  {(item.days ?? 0) < 0 ? "EXPIRED" : `${item.days}d`}
+                </div>
+              </div>
+            ))}
+          </div>
 
-      <div className="alert-section-header green" style={{ marginTop: 20 }}>
-        <FileCheck2 size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-        <span>Work Permit Status</span>
-        <span className="alert-count green-count">{COMPLIANCE_ALERTS.workPermits.length}</span>
-      </div>
-      <div className="alert-list">
-        {COMPLIANCE_ALERTS.workPermits.map((a, i) => (
-          <div key={i} className="alert-card permit-card">
-            <div className="alert-card-name">{a.name}</div>
-            <div className={`permit-status-badge ${a.status === "approved" ? "green-badge" : "amber-badge"}`}>
-              {a.status === "approved" ? "✓ Approved" : "⏳ Pending"}
-            </div>
+          <div className="alert-section-header" style={{ marginTop: 20, background: "#EFF6FF", color: "#1E40AF", borderColor: "#BFDBFE" }}>
+            <Stethoscope size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+            <span>Medical Certificate Expiry Watch</span>
+            <span className="alert-count" style={{ background: "#DBEAFE", color: "#2563EB", border: "1.5px solid #93C5FD" }}>{medExpiries.length}</span>
           </div>
-        ))}
-      </div>
+          <div className="alert-list">
+            {medExpiries.map((item, i) => (
+              <div key={i} className="alert-card" style={{ background: "#EFF6FF", border: "1.5px solid #BFDBFE" }}>
+                <div className="alert-card-left">
+                  <div className="alert-card-name">{item.flag} {item.name}</div>
+                  <div className="alert-card-meta">Badania Lekarskie</div>
+                </div>
+                <div className={`alert-days-badge ${(item.days ?? 999) <= 30 ? "red-badge" : (item.days ?? 999) <= 60 ? "amber-badge" : "blue-badge"}`}>
+                  {(item.days ?? 0) < 0 ? "EXPIRED" : `${item.days}d`}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="alert-section-header green" style={{ marginTop: 20 }}>
+            <CheckCircle2 size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+            <span>Recently Resolved</span>
+            <span className="alert-count green-count">3</span>
+          </div>
+          <div className="alert-list">
+            {[
+              { name: "Andreea Moldovan",  action: "Work Permit approved", date: "15 Mar 2026" },
+              { name: "Nguyen Thi Lan",    action: "TRC Residence renewed", date: "08 Nov 2025" },
+              { name: "Lasha Beridze",     action: "Passport scan approved", date: "28 Jan 2026" },
+            ].map((r, i) => (
+              <div key={i} className="alert-card" style={{ background: "#F0FDF4", border: "1.5px solid #BBF7D0", opacity: 0.85 }}>
+                <div className="alert-card-left">
+                  <div className="alert-card-name">{r.name}</div>
+                  <div className="alert-card-meta">{r.action}</div>
+                </div>
+                <div className="alert-days-badge green-badge">✓ {r.date}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <div style={{ height: 100 }} />
     </div>
   );
@@ -208,7 +328,11 @@ function LegalAlerts() {
 
 /* ── T3 Operations Alerts ── */
 function OpsAlerts() {
+  const [query, setQuery] = useState("");
   const needsDocs = MOCK_CANDIDATES.filter(c => c.status === "missing" || c.status === "expiring");
+  const q = query.toLowerCase();
+  const filtered = needsDocs.filter(c => !q || c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q) || c.statusLabel.toLowerCase().includes(q));
+
   return (
     <div className="tab-page">
       <div className="tab-greeting">
@@ -219,13 +343,17 @@ function OpsAlerts() {
         <div className="alert-total-badge">{needsDocs.length} Pending</div>
       </div>
 
+      <SearchBar value={query} onChange={setQuery} />
+
       <div className="alert-section-header amber">
         <Bell size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
         <span>Candidates Needing Attention</span>
-        <span className="alert-count amber-count">{needsDocs.length}</span>
+        <span className="alert-count amber-count">{filtered.length}</span>
       </div>
       <div className="alert-list">
-        {needsDocs.map((c) => (
+        {filtered.length === 0
+          ? <div className="alert-empty">No matches.</div>
+          : filtered.map((c) => (
           <div key={c.id} className="alert-card amber-card">
             <div className="alert-card-left">
               <div className="alert-card-name">{c.flag} {c.name}</div>

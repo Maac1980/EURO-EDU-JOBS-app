@@ -59,10 +59,10 @@ export default function ProfileTab() {
       {/* Avatar card */}
       <div className="profile-tab-hero" style={{ background: tc.bg, borderColor: tc.border }}>
         <div className="profile-tab-avatar" style={{ background: tc.border + "30", color: tc.text, border: `2px solid ${tc.border}` }}>
-          {initials(user.shortName)}
+          {initials(user.name)}
         </div>
-        <div className="profile-tab-name" style={{ color: tc.text }}>{user.shortName}</div>
-        <div className="profile-tab-des" style={{ color: tc.text + "cc" }}>{user.designation}</div>
+        <div className="profile-tab-name" style={{ color: tc.text }}>{user.name}</div>
+        <div className="profile-tab-des" style={{ color: tc.text + "cc" }}>{user.email}</div>
         <div className="profile-tab-tier" style={{ background: tc.border + "22", border: `1.5px solid ${tc.border}`, color: tc.text }}>
           <Shield size={12} strokeWidth={2.5} />
           {tc.label}

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Search, SlidersHorizontal, MapPin, ChevronRight, UserPlus, Building2 } from "lucide-react";
-import { MOCK_CANDIDATES, OPS_PIPELINE, B2B_CONTRACTS, type DocStatus, type Candidate } from "@/data/mockData";
+import { OPS_PIPELINE, B2B_CONTRACTS, type DocStatus, type Candidate } from "@/data/mockData";
+import { useCandidates } from "@/lib/candidateContext";
 import CandidateDetail from "./CandidateDetail";
 import AddCandidateModal from "@/components/AddCandidateModal";
 import type { Role } from "@/types";
@@ -34,6 +35,7 @@ const STAGE_COLORS: Record<string, string> = {
 interface Props { role: Role; }
 
 export default function CandidatesList({ role }: Props) {
+  const { candidates } = useCandidates();
   const [query, setQuery]               = useState("");
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
   const [selected, setSelected]         = useState<Candidate | null>(null);
@@ -41,14 +43,15 @@ export default function CandidatesList({ role }: Props) {
   const [showRecruit, setShowRecruit]   = useState(false);
   const perms = ROLE_PERMISSIONS[role];
 
-  const filtered = useMemo(() => MOCK_CANDIDATES.filter((c) => {
+  const filtered = useMemo(() => candidates.filter((c) => {
     const matchesFilter = activeFilter === "all" || c.status === activeFilter;
     const matchesSearch =
       query === "" ||
       c.name.toLowerCase().includes(query.toLowerCase()) ||
-      c.role.toLowerCase().includes(query.toLowerCase());
+      c.role.toLowerCase().includes(query.toLowerCase()) ||
+      c.location.toLowerCase().includes(query.toLowerCase());
     return matchesFilter && matchesSearch;
-  }), [query, activeFilter]);
+  }), [candidates, query, activeFilter]);
 
   const canViewFullProfile = perms.seeGlobalCandidates && role !== "candidate";
   const canEdit            = role === "executive" || role === "legal" || role === "operations";
@@ -56,14 +59,13 @@ export default function CandidatesList({ role }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
 
-      {/* Sticky Search + Filters */}
       <div className="candidates-sticky">
         <div className="search-wrapper">
           <Search size={15} color="#9CA3AF" strokeWidth={2.5} style={{ flexShrink: 0 }} />
           <input
             className="search-input"
             type="search"
-            placeholder="Search name or role…"
+            placeholder="Search name, role or city…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -94,7 +96,6 @@ export default function CandidatesList({ role }: Props) {
         </div>
       </div>
 
-      {/* Recruitment Hub — visible to T1, T2, T3 */}
       <div className="candidates-list" style={{ flex: 1 }}>
 
         {perms.addCandidates && (
@@ -110,8 +111,6 @@ export default function CandidatesList({ role }: Props) {
 
             {showRecruit && (
               <div className="clist-recruit-body">
-
-                {/* Pipeline */}
                 <div className="clist-recruit-section-label">Pipeline</div>
                 <div className="pipeline-list" style={{ marginBottom: 12 }}>
                   {OPS_PIPELINE.map((stage) => (
@@ -129,7 +128,6 @@ export default function CandidatesList({ role }: Props) {
                   ))}
                 </div>
 
-                {/* B2B Contracts */}
                 <div className="clist-recruit-section-label">B2B Contracts</div>
                 <div className="contract-list">
                   {B2B_CONTRACTS.map((c, i) => (
@@ -152,7 +150,6 @@ export default function CandidatesList({ role }: Props) {
           </div>
         )}
 
-        {/* Candidate Cards */}
         {filtered.length === 0 ? (
           <div className="candidates-empty">
             <Search size={32} color="#D1D5DB" strokeWidth={1.5} />
@@ -160,8 +157,8 @@ export default function CandidatesList({ role }: Props) {
           </div>
         ) : (
           filtered.map((c) => {
-            const colors   = STATUS_COLORS[c.status];
-            const clickable = perms.approveDocs;
+            const colors     = STATUS_COLORS[c.status];
+            const clickable  = perms.approveDocs;
             const stageColor = c.pipelineStage ? (STAGE_COLORS[c.pipelineStage] ?? "#9CA3AF") : null;
             return (
               <div

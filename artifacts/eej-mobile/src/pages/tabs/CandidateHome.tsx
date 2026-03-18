@@ -4,33 +4,37 @@ import { MOCK_CANDIDATES } from "@/data/mockData";
 import type { DocReviewStatus } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
 
-const MY = MOCK_CANDIDATES[3];
+interface Props {
+  candidateId?: string;
+}
 
 const DOC_CFG: Record<DocReviewStatus, {
   bg: string; text: string; border: string; label: string;
   Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
 }> = {
-  "approved":     { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Approved",     Icon: FileCheck   },
-  "under-review": { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Under Review",  Icon: FileClock   },
-  "rejected":     { bg: "#FEF2F2", text: "#DC2626", border: "#FCA5A5", label: "Rejected",      Icon: FileX       },
+  "approved":     { bg: "#ECFDF5", text: "#059669", border: "#6EE7B7", label: "Approved",     Icon: FileCheck    },
+  "under-review": { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", label: "Under Review",  Icon: FileClock    },
+  "rejected":     { bg: "#FEF2F2", text: "#DC2626", border: "#FCA5A5", label: "Rejected",      Icon: FileX        },
   "missing":      { bg: "#FFF7ED", text: "#C2410C", border: "#FDBA74", label: "Missing",       Icon: FileQuestion },
 };
 
 const MY_UPLOAD_SLOTS = [
-  { id: "passport",    label: "Passport / ID Card",   hint: "Main identity document" },
-  { id: "trc",         label: "TRC Residence Card",   hint: "Temporary Residence Card" },
-  { id: "work-permit", label: "Work Permit",           hint: "Zezwolenie na pracę" },
-  { id: "bhp",         label: "BHP Certificate",       hint: "Health & safety training" },
-  { id: "badania",     label: "Badania Lekarskie",     hint: "Medical fitness certificate" },
-  { id: "oswiad",      label: "Oświadczenie",          hint: "Declaration / statement" },
-  { id: "photo",       label: "Personal Photo",        hint: "Passport-style photo (JPG)" },
-  { id: "other",       label: "Other Document",        hint: "Any additional supporting file" },
+  { id: "passport",    label: "Passport / ID Card",  hint: "Main identity document" },
+  { id: "trc",         label: "TRC Residence Card",  hint: "Temporary Residence Card" },
+  { id: "work-permit", label: "Work Permit",          hint: "Zezwolenie na pracę" },
+  { id: "bhp",         label: "BHP Certificate",      hint: "Health & safety training" },
+  { id: "badania",     label: "Badania Lekarskie",    hint: "Medical fitness certificate" },
+  { id: "oswiad",      label: "Oświadczenie",         hint: "Declaration / statement" },
+  { id: "photo",       label: "Personal Photo",       hint: "Passport-style photo (JPG)" },
+  { id: "other",       label: "Other Document",       hint: "Any additional supporting file" },
 ];
 
-export default function CandidateHome() {
+export default function CandidateHome({ candidateId }: Props) {
   const { showToast } = useToast();
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const MY = MOCK_CANDIDATES.find((c) => c.id === candidateId) ?? MOCK_CANDIDATES[3];
 
   function handleUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -51,7 +55,6 @@ export default function CandidateHome() {
         </div>
       </div>
 
-      {/* Profile Card */}
       <div className="my-profile-card">
         <div className="my-profile-avatar">{MY.flag}</div>
         <div className="my-profile-info">
@@ -59,10 +62,11 @@ export default function CandidateHome() {
           <div className="my-profile-role">{MY.role}</div>
           <div className="my-profile-location">📍 {MY.location}</div>
         </div>
-        <div className="my-profile-status green-badge">✓ Cleared</div>
+        <div className={"my-profile-status " + (MY.status === "cleared" ? "green-badge" : MY.status === "expiring" ? "amber-badge" : "red-badge")}>
+          {MY.status === "cleared" ? "✓ Cleared" : MY.statusLabel}
+        </div>
       </div>
 
-      {/* Contact */}
       <div className="section-label">Contact Details</div>
       <div className="profile-detail-card">
         <div className="profile-detail-row">
@@ -79,7 +83,6 @@ export default function CandidateHome() {
         </div>
       </div>
 
-      {/* My Documents Status */}
       <div className="section-label" style={{ marginTop: 20 }}>My Documents</div>
       <div className="my-docs-list">
         {MY.documents.map((doc) => {
@@ -93,16 +96,7 @@ export default function CandidateHome() {
                 <div className="my-doc-name">{doc.name}</div>
                 {doc.expiresAt && <div className="my-doc-expires">Expires: {doc.expiresAt}</div>}
               </div>
-              <span
-                className="candidate-badge"
-                style={{
-                  background: cfg.bg,
-                  color: cfg.text,
-                  border: `1.5px solid ${cfg.border}`,
-                  fontSize: 11,
-                  whiteSpace: "nowrap",
-                }}
-              >
+              <span className="candidate-badge" style={{ background: cfg.bg, color: cfg.text, border: `1.5px solid ${cfg.border}`, fontSize: 11, whiteSpace: "nowrap" }}>
                 {cfg.label}
               </span>
             </div>
@@ -110,7 +104,6 @@ export default function CandidateHome() {
         })}
       </div>
 
-      {/* Upload My Documents */}
       <div className="section-label" style={{ marginTop: 24 }}>
         Upload My Documents
         {uploadedCount > 0 && (

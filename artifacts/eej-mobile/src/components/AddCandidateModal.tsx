@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { X, Save } from "lucide-react";
 import { useToast } from "@/lib/toast";
+import { useCandidates } from "@/lib/candidateContext";
+import type { Candidate } from "@/data/mockData";
 
-const JOB_ROLES = ["TIG", "MIG", "MAG", "MMA", "ARC / Electrode", "FCAW", "FABRICATOR", "Teacher", "Nurse", "Engineer", "IT Specialist", "Logistics", "Other"];
-const NATIONALITIES = ["Polish", "Ukrainian", "Georgian", "Belarusian", "Russian", "Romanian", "Moldovan", "Azerbaijani", "Turkish", "Other"];
-const PIPELINE_STAGES = ["New Applications", "Docs Submitted", "Under Review", "Cleared to Deploy", "On Assignment"];
-const SITES = ["BuildPro Sp. z o.o.", "MediCare PL", "LogiTrans Wrocław", "Other"];
+const FLAG_MAP: Record<string, string> = {
+  Polish: "🇵🇱", Ukrainian: "🇺🇦", Georgian: "🇬🇪", Belarusian: "🇧🇾",
+  Romanian: "🇷🇴", Moldovan: "🇲🇩", Turkish: "🇹🇷", Russian: "🇷🇺",
+  Azerbaijani: "🇦🇿", Filipino: "🇵🇭", Indian: "🇮🇳", Vietnamese: "🇻🇳", Other: "🌐",
+};
+
+const JOB_ROLES     = ["TIG Welder", "MIG Welder", "MAG Welder", "MMA / ARC Welder", "Fabricator", "Teacher", "Nurse", "Healthcare Assistant", "Caregiver", "Engineer", "IT Specialist", "Logistics Coordinator", "Warehouse Operative", "Machine Operator", "Construction Worker", "Other"];
+const NATIONALITIES = ["Polish", "Ukrainian", "Georgian", "Belarusian", "Russian", "Romanian", "Moldovan", "Azerbaijani", "Turkish", "Filipino", "Indian", "Vietnamese", "Other"];
+const PIPELINE      = ["New Applications", "Docs Submitted", "Under Review", "Cleared to Deploy", "On Assignment"];
+const SITES         = ["BuildPro Sp. z o.o.", "MediCare PL", "LogiTrans Wrocław", "Other"];
+const LOCATIONS     = ["Warsaw, PL", "Kraków, PL", "Wrocław, PL", "Łódź, PL", "Gdańsk, PL", "Poznań, PL", "Katowice, PL", "Lublin, PL", "Szczecin, PL", "Other"];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -17,19 +26,42 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function AddCandidateModal({ onClose }: { onClose: () => void }) {
-  const { showToast } = useToast();
+  const { showToast }  = useToast();
+  const { addCandidate } = useCandidates();
+
   const [name,        setName]        = useState("");
   const [email,       setEmail]       = useState("");
   const [phone,       setPhone]       = useState("");
   const [nationality, setNationality] = useState("");
   const [role,        setRole]        = useState("");
   const [site,        setSite]        = useState("");
+  const [location,    setLocation]    = useState("");
   const [stage,       setStage]       = useState("New Applications");
 
   function handleSave() {
     if (!name.trim()) { showToast("Full name is required", "error"); return; }
     if (!role)        { showToast("Job role is required",  "error"); return; }
-    showToast(`Candidate "${name}" added to pipeline`, "success");
+
+    const flag = FLAG_MAP[nationality] ?? "🌐";
+    const newCandidate: Candidate = {
+      id:          `new_${Date.now()}`,
+      name:        name.trim(),
+      role,
+      location:    location || "Poland",
+      status:      "pending",
+      statusLabel: "New Application",
+      flag,
+      nationality: nationality || "Unknown",
+      phone:       phone || "",
+      email:       email || "",
+      siteLocation: site || undefined,
+      pipelineStage: stage,
+      documents:   [],
+      zusStatus:   "Not registered",
+    };
+
+    addCandidate(newCandidate);
+    showToast(`"${name}" added to pipeline`, "success");
     onClose();
   }
 
@@ -38,7 +70,7 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
 
   return (
     <div className="detail-overlay" onClick={onClose}>
-      <div className="detail-sheet" style={{ maxHeight: "90%" }} onClick={(e) => e.stopPropagation()}>
+      <div className="detail-sheet" style={{ maxHeight: "92%" }} onClick={(e) => e.stopPropagation()}>
         <div className="detail-handle" />
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0 14px" }}>
@@ -73,6 +105,12 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
               {JOB_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
+          <Field label="City / Location">
+            <select className={sel} value={location} onChange={e => setLocation(e.target.value)}>
+              <option value="">— select —</option>
+              {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </Field>
           <Field label="Assigned Client / Site">
             <select className={sel} value={site} onChange={e => setSite(e.target.value)}>
               <option value="">— select —</option>
@@ -81,7 +119,7 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
           </Field>
           <Field label="Pipeline Stage">
             <select className={sel} value={stage} onChange={e => setStage(e.target.value)}>
-              {PIPELINE_STAGES.map(p => <option key={p} value={p}>{p}</option>)}
+              {PIPELINE.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </Field>
         </div>

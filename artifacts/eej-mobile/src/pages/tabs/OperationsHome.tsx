@@ -1,22 +1,23 @@
 import { useState } from "react";
 import { UserPlus, Upload, CheckCircle, Clock, Users, Building2 } from "lucide-react";
-import { OPS_PIPELINE, B2B_CONTRACTS, MOCK_CANDIDATES } from "@/data/mockData";
+import { OPS_PIPELINE, B2B_CONTRACTS } from "@/data/mockData";
+import { useCandidates } from "@/lib/candidateContext";
 import CandidateDetail from "./CandidateDetail";
 import AddCandidateModal from "@/components/AddCandidateModal";
 import type { Candidate } from "@/data/mockData";
 
-const READY     = MOCK_CANDIDATES.filter((c) => c.status === "cleared").length;
-const NEEDS_DOC = MOCK_CANDIDATES.filter((c) => c.status === "missing" || c.status === "expiring").length;
-const TOTAL     = MOCK_CANDIDATES.length;
-
 export default function OperationsHome() {
-  const [selected, setSelected] = useState<Candidate | null>(null);
+  const { candidates } = useCandidates();
+  const [selected, setSelected]       = useState<Candidate | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  const ready    = candidates.filter((c) => c.status === "cleared").length;
+  const needsDoc = candidates.filter((c) => c.status === "missing" || c.status === "expiring").length;
+  const total    = candidates.length;
 
   return (
     <div className="tab-page" style={{ position: "relative" }}>
 
-      {/* Header */}
       <div className="tab-greeting">
         <div>
           <div className="tab-greeting-label">Tier 3 · Workforce & Commercial Ops</div>
@@ -24,28 +25,26 @@ export default function OperationsHome() {
         </div>
       </div>
 
-      {/* KPI strip */}
       <div className="ops-kpi-strip">
         <div className="ops-kpi-item">
           <CheckCircle size={16} color="#10B981" strokeWidth={2} />
-          <div className="ops-kpi-val" style={{ color: "#10B981" }}>{READY}</div>
+          <div className="ops-kpi-val" style={{ color: "#10B981" }}>{ready}</div>
           <div className="ops-kpi-label">Ready</div>
         </div>
         <div className="ops-kpi-divider" />
         <div className="ops-kpi-item">
           <Clock size={16} color="#F59E0B" strokeWidth={2} />
-          <div className="ops-kpi-val" style={{ color: "#F59E0B" }}>{NEEDS_DOC}</div>
+          <div className="ops-kpi-val" style={{ color: "#F59E0B" }}>{needsDoc}</div>
           <div className="ops-kpi-label">Needs Docs</div>
         </div>
         <div className="ops-kpi-divider" />
         <div className="ops-kpi-item">
           <Users size={16} color="#6366F1" strokeWidth={2} />
-          <div className="ops-kpi-val" style={{ color: "#6366F1" }}>{TOTAL}</div>
+          <div className="ops-kpi-val" style={{ color: "#6366F1" }}>{total}</div>
           <div className="ops-kpi-label">Total Pool</div>
         </div>
       </div>
 
-      {/* ── PRIMARY: Add New Candidate ── */}
       <button className="ops-add-btn" onClick={() => setShowAddModal(true)}>
         <div className="ops-add-icon">
           <UserPlus size={20} color="#1B2A4A" strokeWidth={2.5} />
@@ -57,17 +56,15 @@ export default function OperationsHome() {
         <div className="ops-add-arrow">+</div>
       </button>
 
-      {/* Secondary action */}
       <button className="ops-upload-btn">
         <Upload size={15} color="#6B7280" strokeWidth={2} />
         <span>Bulk Upload Documents</span>
       </button>
 
-      {/* ── PRIMARY SECTION: Candidate Pipeline ── */}
       <div className="section-label" style={{ marginTop: 22 }}>
         Candidate Pipeline
         <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#6366F1" }}>
-          {TOTAL} candidates
+          {total} candidates
         </span>
       </div>
       <div className="pipeline-list">
@@ -86,15 +83,14 @@ export default function OperationsHome() {
         ))}
       </div>
 
-      {/* Candidates ready for deployment — tap to view docs */}
       <div className="section-label" style={{ marginTop: 22 }}>
-        Deployment-Ready Candidates
+        All Candidates
         <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, color: "#10B981" }}>
           Tap to verify docs
         </span>
       </div>
       <div className="ops-candidate-list">
-        {MOCK_CANDIDATES.map((c) => {
+        {candidates.map((c) => {
           const isReady = c.status === "cleared";
           return (
             <button key={c.id} className="ops-candidate-row" onClick={() => setSelected(c)}>
@@ -114,7 +110,6 @@ export default function OperationsHome() {
         })}
       </div>
 
-      {/* B2B Contracts */}
       <div className="section-label" style={{ marginTop: 22 }}>
         <Building2 size={13} color="#9CA3AF" strokeWidth={2} />
         B2B Client Contracts
@@ -138,7 +133,6 @@ export default function OperationsHome() {
 
       <div style={{ height: 100 }} />
 
-      {/* Candidate Detail Sheet — T3 can now open full Worker Profile */}
       {selected && (
         <CandidateDetail
           candidate={selected}
@@ -149,11 +143,9 @@ export default function OperationsHome() {
         />
       )}
 
-      {/* Add Candidate Modal — real form */}
       {showAddModal && (
         <AddCandidateModal onClose={() => setShowAddModal(false)} />
       )}
     </div>
   );
 }
-

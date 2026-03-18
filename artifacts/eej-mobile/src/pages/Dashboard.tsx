@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { BottomNav } from "@/components/BottomNav";
 import { ToastContainer } from "@/components/Toast";
+import { CandidateProvider } from "@/lib/candidateContext";
 import type { ActiveTab, Role } from "@/types";
 import ExecutiveHome   from "./tabs/ExecutiveHome";
 import LegalHome       from "./tabs/LegalHome";
@@ -40,12 +41,12 @@ function getBadgeCounts(role: Role): Partial<Record<ActiveTab, number>> {
   return {};
 }
 
-function TabContent({ role, tab }: { role: Role; tab: ActiveTab }) {
+function TabContent({ role, tab, candidateId }: { role: Role; tab: ActiveTab; candidateId?: string }) {
   if (tab === "home") {
     if (role === "executive")  return <ExecutiveHome />;
     if (role === "legal")      return <LegalHome />;
     if (role === "operations") return <OperationsHome />;
-    if (role === "candidate")  return <CandidateHome />;
+    if (role === "candidate")  return <CandidateHome candidateId={candidateId} />;
   }
   if (tab === "candidates") {
     if (role === "candidate") return (
@@ -61,12 +62,8 @@ function TabContent({ role, tab }: { role: Role; tab: ActiveTab }) {
     if (role === "candidate") return <UpdatesTab />;
     return <AlertsTab role={role} />;
   }
-  if (tab === "mydocs") {
-    return <MyDocsTab />;
-  }
-  if (tab === "profile") {
-    return <ProfileTab />;
-  }
+  if (tab === "mydocs") return <MyDocsTab />;
+  if (tab === "profile") return <ProfileTab />;
   return null;
 }
 
@@ -81,43 +78,41 @@ export default function Dashboard() {
   const badgeCounts = getBadgeCounts(user.role);
 
   return (
-    <div className="eej-screen">
-      <div className="eej-container" style={{ position: "relative" }}>
+    <CandidateProvider>
+      <div className="eej-screen">
+        <div className="eej-container" style={{ position: "relative" }}>
 
-        {/* Toast Layer */}
-        <ToastContainer />
+          <ToastContainer />
 
-        {/* Top Header */}
-        <header className="dash-header" style={{ background: accentColor }}>
-          <div className="dash-header-left">
-            <div className="dash-logo-sm">EEJ</div>
-            <div className="dash-header-text">
-              <div className="dash-header-title">
-                {user.shortName}
-                <span className="dash-tier-chip" style={{ marginLeft: 6 }}>{tierLabel}</span>
+          <header className="dash-header" style={{ background: accentColor }}>
+            <div className="dash-header-left">
+              <div className="dash-logo-sm">EEJ</div>
+              <div className="dash-header-text">
+                <div className="dash-header-title">
+                  {user.shortName}
+                  <span className="dash-tier-chip" style={{ marginLeft: 6 }}>{tierLabel}</span>
+                </div>
+                <div className="dash-header-sub">{user.designation}</div>
               </div>
-              <div className="dash-header-sub">{user.designation}</div>
             </div>
+            <button className="dash-logout" onClick={logout} title="Logout">
+              <LogoutIcon />
+            </button>
+          </header>
+
+          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} />
           </div>
-          <button className="dash-logout" onClick={logout} title="Logout">
-            <LogoutIcon />
-          </button>
-        </header>
 
-        {/* Tab Content */}
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <TabContent role={user.role} tab={activeTab} />
+          <BottomNav
+            role={user.role}
+            active={activeTab}
+            onChange={setActiveTab}
+            badgeCounts={badgeCounts}
+          />
         </div>
-
-        {/* Bottom Navigation */}
-        <BottomNav
-          role={user.role}
-          active={activeTab}
-          onChange={setActiveTab}
-          badgeCounts={badgeCounts}
-        />
       </div>
-    </div>
+    </CandidateProvider>
   );
 }
 

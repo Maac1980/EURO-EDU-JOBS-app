@@ -6,6 +6,9 @@ export interface User {
   tier: Tier;
   designation: string;
   shortName: string;
+  name: string;
+  email: string;
+  candidateId?: string;
 }
 
 export type ActiveTab =
@@ -28,39 +31,39 @@ export interface Permission {
 
 export const ROLE_PERMISSIONS: Record<Role, Permission> = {
   executive: {
-    seeFinancials:      true,
-    seePayroll:         true,
+    seeFinancials:       true,
+    seePayroll:          true,
     seeGlobalCandidates: true,
-    seeBizContracts:    true,
-    addCandidates:      true,
-    approveDocs:        true,
-    seeOwnDocsOnly:     false,
+    seeBizContracts:     true,
+    addCandidates:       true,
+    approveDocs:         true,
+    seeOwnDocsOnly:      false,
   },
   legal: {
-    seeFinancials:      false,
-    seePayroll:         false,
+    seeFinancials:       false,
+    seePayroll:          false,
     seeGlobalCandidates: true,
-    seeBizContracts:    true,
-    addCandidates:      true,
-    approveDocs:        true,
-    seeOwnDocsOnly:     false,
+    seeBizContracts:     true,
+    addCandidates:       true,
+    approveDocs:         true,
+    seeOwnDocsOnly:      false,
   },
   operations: {
-    seeFinancials:      false,
-    seePayroll:         false,
+    seeFinancials:       false,
+    seePayroll:          false,
     seeGlobalCandidates: true,
-    seeBizContracts:    true,
-    addCandidates:      true,
-    approveDocs:        true,
-    seeOwnDocsOnly:     false,
+    seeBizContracts:     true,
+    addCandidates:       true,
+    approveDocs:         true,
+    seeOwnDocsOnly:      false,
   },
   candidate: {
-    seeFinancials:      false,
-    seePayroll:         false,
+    seeFinancials:       false,
+    seePayroll:          false,
     seeGlobalCandidates: false,
-    seeBizContracts:    false,
-    addCandidates:      false,
-    approveDocs:        false,
-    seeOwnDocsOnly:     true,
+    seeBizContracts:     false,
+    addCandidates:       false,
+    approveDocs:         false,
+    seeOwnDocsOnly:      true,
   },
 };

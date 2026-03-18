@@ -100,7 +100,7 @@ export default function Dashboard() {
             </button>
           </header>
 
-          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
             <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} />
           </div>
 

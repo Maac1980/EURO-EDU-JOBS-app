@@ -57,7 +57,7 @@ export default function CandidatesList({ role }: Props) {
   const canEdit            = role === "executive" || role === "legal" || role === "operations";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
 
       <div className="candidates-sticky">
         <div className="search-wrapper">

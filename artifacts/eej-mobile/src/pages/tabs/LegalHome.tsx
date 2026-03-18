@@ -3,9 +3,12 @@ import { AlertTriangle, ShieldAlert, FileCheck2, UserPlus } from "lucide-react";
 import { COMPLIANCE_ALERTS } from "@/data/mockData";
 import PlatformModules from "@/components/PlatformModules";
 import AddCandidateModal from "@/components/AddCandidateModal";
+import ModuleSheet from "@/components/ModuleSheet";
+import type { ModuleId } from "@/components/PlatformModules";
 
 export default function LegalHome() {
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [openModule, setOpenModule] = useState<ModuleId | null>(null);
 
   return (
     <div className="tab-page">
@@ -90,10 +93,12 @@ export default function LegalHome() {
       <div className="section-label" style={{ marginTop: 20 }}>Platform Modules</div>
       <PlatformModules
         modules={["timesheets", "pip-compliance", "b2b-contracts", "bhp-medical", "candidate-pipeline"]}
+        onOpen={setOpenModule}
       />
 
       <div style={{ height: 100 }} />
-      {showAdd && <AddCandidateModal onClose={() => setShowAdd(false)} />}
+      {showAdd    && <AddCandidateModal onClose={() => setShowAdd(false)} />}
+      {openModule && <ModuleSheet moduleId={openModule} onClose={() => setOpenModule(null)} />}
     </div>
   );
 }

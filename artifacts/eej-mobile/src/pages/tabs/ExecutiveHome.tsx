@@ -13,10 +13,13 @@ import { EXEC_STATS } from "@/data/mockData";
 import PlatformModules from "@/components/PlatformModules";
 import AddCandidateModal from "@/components/AddCandidateModal";
 import AddUserModal from "@/components/AddUserModal";
+import ModuleSheet from "@/components/ModuleSheet";
+import type { ModuleId } from "@/components/PlatformModules";
 
 export default function ExecutiveHome() {
-  const [showAdd,     setShowAdd]     = useState(false);
-  const [showAddUser, setShowAddUser] = useState(false);
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [showAddUser,  setShowAddUser]  = useState(false);
+  const [openModule,   setOpenModule]   = useState<ModuleId | null>(null);
 
   return (
     <div className="tab-page">
@@ -127,11 +130,13 @@ export default function ExecutiveHome() {
       </div>
       <PlatformModules
         modules={["zus-ledger", "timesheets", "pip-compliance", "b2b-contracts", "bhp-medical"]}
+        onOpen={setOpenModule}
       />
 
       <div style={{ height: 100 }} />
       {showAdd     && <AddCandidateModal onClose={() => setShowAdd(false)} />}
       {showAddUser && <AddUserModal      onClose={() => setShowAddUser(false)} />}
+      {openModule  && <ModuleSheet moduleId={openModule} onClose={() => setOpenModule(null)} />}
     </div>
   );
 }

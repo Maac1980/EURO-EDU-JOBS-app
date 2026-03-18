@@ -2953,3 +2953,343 @@ select.wp-edit-input {
 
 /* ── Blue badge (missing above) ── */
 .blue-badge { background: #EFF6FF; color: #2563EB; border: 1.5px solid #93C5FD; }
+
+/* ═══════════════════════════════════════════
+   LOGIN PAGE — APP-STYLE REDESIGN (lp-*)
+═══════════════════════════════════════════ */
+
+.lp-root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #1B2A4A;
+  max-width: 430px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Brand / Hero Top ── */
+.lp-brand {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 32px 48px;
+  position: relative;
+}
+
+/* decorative circle glow behind logo */
+.lp-brand::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, #FFD60018 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.lp-logo {
+  width: 80px;
+  height: 80px;
+  background: #FFD600;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px #FFD60030;
+}
+.lp-logo span {
+  font-size: 26px;
+  font-weight: 900;
+  color: #1B2A4A;
+  letter-spacing: -0.5px;
+  font-family: inherit;
+}
+
+.lp-name {
+  font-size: 26px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0 0 6px;
+  letter-spacing: -0.3px;
+  text-align: center;
+}
+
+.lp-tagline {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  margin: 0;
+}
+
+.lp-dots {
+  display: flex;
+  gap: 6px;
+  margin-top: 28px;
+}
+.lp-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+}
+.lp-dots span:nth-child(2) {
+  background: #FFD600;
+  width: 20px;
+  border-radius: 3px;
+}
+
+/* ── White card bottom ── */
+.lp-card {
+  flex: 1;
+  background: #FFFFFF;
+  border-radius: 28px 28px 0 0;
+  padding: 32px 28px 24px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lp-card-heading {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 4px;
+  letter-spacing: -0.3px;
+}
+.lp-card-sub {
+  font-size: 13px;
+  color: #9CA3AF;
+  margin: 0 0 28px;
+  font-weight: 500;
+}
+
+/* ── Fields ── */
+.lp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.lp-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #374151;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lp-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: #111827;
+  background: #F9FAFB;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-appearance: none;
+}
+.lp-input:focus {
+  border-color: #1B2A4A;
+  background: #fff;
+  box-shadow: 0 0 0 3px #1B2A4A12;
+}
+.lp-input--err {
+  border-color: #EF4444;
+  background: #FEF2F2;
+}
+.lp-input--err:focus {
+  border-color: #EF4444;
+  box-shadow: 0 0 0 3px #EF444415;
+}
+.lp-pw-wrap {
+  position: relative;
+}
+.lp-input--pw {
+  padding-right: 48px;
+}
+.lp-eye {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+
+/* ── Error ── */
+.lp-error {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: #FEF2F2;
+  border: 1.5px solid #FECACA;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #DC2626;
+  font-weight: 500;
+}
+.lp-error-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #EF4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── Sign In button ── */
+.lp-btn {
+  margin-top: 22px;
+  width: 100%;
+  padding: 16px;
+  background: #FFD600;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1B2A4A;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px #FFD60050;
+  transition: transform 0.1s, box-shadow 0.1s;
+  -webkit-appearance: none;
+  letter-spacing: 0.01em;
+}
+.lp-btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px #FFD60030;
+}
+.lp-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.lp-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid #1B2A4A30;
+  border-top-color: #1B2A4A;
+  border-radius: 50%;
+  animation: lp-spin 0.7s linear infinite;
+}
+@keyframes lp-spin { to { transform: rotate(360deg); } }
+
+/* ── Demo accounts ── */
+.lp-demo {
+  margin-top: 28px;
+  border-top: 1.5px solid #F3F4F6;
+  padding-top: 20px;
+}
+.lp-demo-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9CA3AF;
+  font-family: inherit;
+  padding: 4px 0;
+  transition: color 0.15s;
+}
+.lp-demo-toggle:hover { color: #1B2A4A; }
+
+.lp-demo-panel {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.lp-demo-note {
+  text-align: center;
+  font-size: 12px;
+  color: #9CA3AF;
+  margin: 0 0 4px;
+}
+.lp-demo-note strong { color: #1B2A4A; }
+.lp-demo-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lp-demo-group-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.lp-demo-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #F9FAFB;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+}
+.lp-demo-row:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+.lp-demo-badge {
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  padding: 3px 7px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+.lp-demo-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.lp-demo-name  { font-size: 13px; font-weight: 700; color: #111827; }
+.lp-demo-email { font-size: 11px; color: #9CA3AF; }
+.lp-demo-fill  { font-size: 12px; color: #9CA3AF; white-space: nowrap; font-weight: 600; }
+
+/* ── Footer ── */
+.lp-footer {
+  margin-top: 28px;
+  text-align: center;
+  font-size: 11px;
+  color: #D1D5DB;
+}

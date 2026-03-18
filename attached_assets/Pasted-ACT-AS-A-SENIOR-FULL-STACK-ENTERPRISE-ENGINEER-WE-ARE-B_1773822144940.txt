@@ -1,0 +1,24 @@
+ACT AS A SENIOR FULL-STACK ENTERPRISE ENGINEER. WE ARE BUILDING A PROFESSIONAL, MOBILE-FIRST RECRUITMENT & WORKFORCE MANAGEMENT APP FOR 'EEJ' (EURO EDU JOBS). I HAVE A STRICT MASTER SPECIFICATION THAT WE WILL EXECUTE IN PHASES. THIS IS PHASE 1: THE FOUNDATION & ROUTING.
+
+1. TECH STACK & UI RULES:
+   - Use React and Tailwind CSS.
+   - The entire app MUST be strictly mobile-first. Limit the maximum width of the main app container (max-w-md mx-auto) so it looks like a premium phone screen even on a desktop monitor.
+   - Brand Colors: EEJ Navy Blue and Bright Yellow. Use a very light neutral (gray-50) for the main app background, dark text for readability, and the EEJ brand colors for primary buttons and headers.
+
+2. DATABASE & ARCHITECTURE:
+   - DO NOT build a fake local database. We will connect this to my existing EEJ Airtable base via API.
+   - For now, set up a scalable folder structure (e.g., /components, /pages, /lib, /types).
+
+3. ROLE-BASED ACCESS & ROUTING (CRITICAL):
+   - The app has 4 strict roles: Owner, Manager, Office Staff (Recruiters), Worker (Candidate).
+   - Build a highly polished, professional Login Screen with the 'EEJ | Euro Edu Jobs' branding.
+   - For Phase 1 testing, instead of a real password, just put 4 premium-looking buttons on the login screen: [Login as Owner], [Login as Manager], [Login as Office], [Login as Worker].
+   - When a user clicks a role, save their session state and route them to their specific Role Dashboard (just render a blank page with a clean header saying "[Role] Dashboard" for now).
+
+4. THE NATIVE APP SHELL:
+   - Once logged in, every user must see a fixed Bottom Tab Navigation Bar.
+   - The tabs change based on the role:
+     - Owner/Manager/Office see: [Home] [Candidates] [Alerts] [Profile]
+     - Worker (Candidate) sees: [Home] [My Docs] [Timesheet] [Profile]
+
+STOP WHEN COMPLETE. Do not build the complex data cards or document logic yet. Focus ONLY on a perfect, premium mobile app shell, the login routing, and the bottom navigation bar.

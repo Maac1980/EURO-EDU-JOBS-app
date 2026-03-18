@@ -1,0 +1,432 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --font-sans: var(--app-font-sans);
+  --radius-lg: var(--radius);
+}
+
+/* ═══════════════════════════════════════════
+   EEJ BRAND THEME
+   Navy Blue: #1B2A4A
+   Bright Yellow: #FFD600
+   Background: #F9FAFB (gray-50)
+═══════════════════════════════════════════ */
+:root {
+  --background: 210 20% 98%;
+  --foreground: 220 25% 10%;
+  --border: 220 14% 90%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 25% 10%;
+  --muted: 220 14% 95%;
+  --muted-foreground: 220 10% 45%;
+  --primary: 220 46% 19%;
+  --primary-foreground: 0 0% 100%;
+
+  --app-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --radius: 0.75rem;
+
+  /* EEJ brand */
+  --navy: #1B2A4A;
+  --yellow: #FFD600;
+  --yellow-dark: #E6C000;
+}
+
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--app-font-sans);
+    background: #F9FAFB;
+    color: #111827;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   APP SHELL — phone frame on desktop
+═══════════════════════════════════════════ */
+
+.eej-screen {
+  min-height: 100vh;
+  background: #F0F2F5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0;
+}
+
+@media (min-width: 520px) {
+  .eej-screen {
+    padding: 24px 0;
+    align-items: center;
+  }
+}
+
+.eej-container {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
+}
+
+@media (min-width: 520px) {
+  .eej-container {
+    min-height: 760px;
+    max-height: 900px;
+    border-radius: 32px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   LOGIN PAGE
+═══════════════════════════════════════════ */
+
+.login-hero {
+  background: #1B2A4A;
+  padding: 48px 32px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.eej-logo-mark {
+  width: 72px;
+  height: 72px;
+  background: #FFD600;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(255,214,0,0.35);
+}
+
+.eej-logo-mark span {
+  font-weight: 900;
+  font-size: 22px;
+  color: #1B2A4A;
+  letter-spacing: -0.04em;
+  font-style: italic;
+}
+
+.login-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.login-subtitle {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 6px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.login-divider {
+  width: 40px;
+  height: 3px;
+  background: #FFD600;
+  border-radius: 2px;
+  margin-top: 20px;
+}
+
+.login-roles {
+  flex: 1;
+  padding: 28px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.login-role-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.role-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1.5px solid #E5E7EB;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+  width: 100%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.role-btn:hover {
+  border-color: #1B2A4A;
+  background: #F8F9FF;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(27,42,74,0.12);
+}
+
+.role-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.role-btn:nth-child(1) { border-left: 4px solid #FFD600; }
+.role-btn:nth-child(2) { border-left: 4px solid #1B2A4A; }
+.role-btn:nth-child(3) { border-left: 4px solid #2D6A9F; }
+.role-btn:nth-child(4) { border-left: 4px solid #1A6B4A; }
+
+.role-btn-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+}
+
+.role-btn-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.role-btn-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.role-btn-sub {
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.role-btn-arrow {
+  font-size: 20px;
+  color: #D1D5DB;
+  line-height: 1;
+}
+
+.login-footer {
+  text-align: center;
+  font-size: 11px;
+  color: #9CA3AF;
+  padding: 16px 24px 24px;
+  border-top: 1px solid #F3F4F6;
+}
+
+/* ═══════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════ */
+
+.dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 18px;
+  flex-shrink: 0;
+}
+
+.dash-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-logo-sm {
+  width: 40px;
+  height: 40px;
+  background: #FFD600;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 13px;
+  color: #1B2A4A;
+  letter-spacing: -0.04em;
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+.dash-header-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.dash-header-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 1px;
+}
+
+.dash-logout {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+  color: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.dash-logout:hover {
+  background: rgba(255,255,255,0.2);
+  color: #ffffff;
+}
+
+.dash-role-badge-row {
+  padding: 14px 20px 0;
+}
+
+.dash-role-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid;
+  background: transparent;
+}
+
+.dash-main {
+  flex: 1;
+  padding: 20px 20px 0;
+  overflow-y: auto;
+}
+
+.dash-content-card {
+  background: #F9FAFB;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 16px;
+  padding: 40px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-content-emoji {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.dash-content-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.dash-content-desc {
+  font-size: 14px;
+  color: #6B7280;
+  line-height: 1.6;
+  max-width: 260px;
+}
+
+.dash-coming-soon {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFF8CC;
+  border: 1.5px solid #FFD600;
+  border-radius: 20px;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92700A;
+}
+
+/* ═══════════════════════════════════════════
+   BOTTOM NAVIGATION
+═══════════════════════════════════════════ */
+
+.bottom-nav {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid #E5E7EB;
+  background: #ffffff;
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (min-width: 520px) {
+  .bottom-nav {
+    border-radius: 0 0 32px 32px;
+  }
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 6px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #9CA3AF;
+  transition: color 0.15s ease;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav-item.active {
+  color: #1B2A4A;
+}
+
+.bottom-nav-item span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bottom-nav-item.active span {
+  color: #1B2A4A;
+}
+
+.bottom-nav-item:hover:not(.active) {
+  color: #6B7280;
+}

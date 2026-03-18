@@ -2539,3 +2539,195 @@ select.wp-edit-input {
   line-height: 1.5;
   margin-top: 4px;
 }
+
+/* ── CandidatesList: Add Candidate button ── */
+.clist-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  background: #FFD600;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1B2A4A;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+/* ── CandidatesList: Pipeline stage pill ── */
+.candidate-stage-pill {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* ── CandidatesList: Recruitment Hub section ── */
+.clist-recruit-bar {
+  margin: 8px 16px 12px;
+  border: 1.5px solid #E0E7FF;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #FAFAFA;
+}
+.clist-recruit-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: #EEF2FF;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4338CA;
+  font-family: inherit;
+  text-align: left;
+}
+.clist-recruit-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: #6366F1;
+}
+.clist-recruit-body {
+  padding: 14px 14px 6px;
+}
+.clist-recruit-section-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #9CA3AF;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* ── BottomNav: notification badge ── */
+.nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: #EF4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* ── BulkUploadTab ── */
+.bulk-upload-card {
+  margin: 4px 16px 0;
+  padding: 16px;
+  background: #fff;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 14px;
+}
+.bulk-upload-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.bulk-upload-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #EEF2FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.bulk-upload-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+}
+.bulk-upload-sub {
+  font-size: 11px;
+  color: #9CA3AF;
+  margin-top: 2px;
+}
+.bulk-upload-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 13px;
+  background: #6366F1;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.bulk-upload-trigger:hover { opacity: 0.9; }
+
+/* ── BulkUploadTab: recent upload log ── */
+.bulk-log-list {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bulk-log-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 12px;
+}
+.bulk-log-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #ECFDF5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.bulk-log-info { flex: 1; }
+.bulk-log-candidate {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+.bulk-log-doc {
+  font-size: 11px;
+  color: #6B7280;
+  margin-top: 1px;
+}
+.bulk-log-file {
+  font-size: 10px;
+  color: #9CA3AF;
+  margin-top: 2px;
+  font-style: italic;
+}
+.bulk-log-time {
+  font-size: 10px;
+  color: #9CA3AF;
+  white-space: nowrap;
+  padding-top: 2px;
+}

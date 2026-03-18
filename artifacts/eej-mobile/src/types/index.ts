@@ -41,7 +41,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission> = {
     seePayroll:         false,
     seeGlobalCandidates: true,
     seeBizContracts:    true,
-    addCandidates:      false,
+    addCandidates:      true,
     approveDocs:        true,
     seeOwnDocsOnly:     false,
   },

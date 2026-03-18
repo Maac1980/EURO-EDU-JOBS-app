@@ -8,11 +8,13 @@ import LegalHome       from "./tabs/LegalHome";
 import OperationsHome  from "./tabs/OperationsHome";
 import CandidateHome   from "./tabs/CandidateHome";
 import CandidatesList  from "./tabs/CandidatesList";
+import BulkUploadTab   from "./tabs/BulkUploadTab";
 import ProfileTab      from "./tabs/ProfileTab";
 import AlertsTab       from "./tabs/AlertsTab";
 import MyDocsTab       from "./tabs/MyDocsTab";
 import UpdatesTab      from "./tabs/UpdatesTab";
 import PlaceholderTab  from "./tabs/PlaceholderTab";
+import { COMPLIANCE_ALERTS, MOCK_CANDIDATES } from "@/data/mockData";
 
 const ROLE_COLOR: Record<Role, string> = {
   executive:  "#1B2A4A",
@@ -27,6 +29,16 @@ const ROLE_TIER: Record<Role, string> = {
   operations: "T3",
   candidate:  "T4",
 };
+
+function getBadgeCounts(role: Role): Partial<Record<ActiveTab, number>> {
+  const alertCount = COMPLIANCE_ALERTS.visaExpiring.length;
+  const needsDocs  = MOCK_CANDIDATES.filter((c) => c.status === "missing" || c.status === "expiring").length;
+  if (role === "executive")  return { alerts: alertCount };
+  if (role === "legal")      return { alerts: alertCount };
+  if (role === "operations") return { home: needsDocs };
+  if (role === "candidate")  return { alerts: 3 };
+  return {};
+}
 
 function TabContent({ role, tab }: { role: Role; tab: ActiveTab }) {
   if (tab === "home") {
@@ -43,7 +55,7 @@ function TabContent({ role, tab }: { role: Role; tab: ActiveTab }) {
   }
   if (tab === "upload") {
     if (role === "candidate") return <MyDocsTab />;
-    return <PlaceholderTab emoji="📤" title="Bulk Upload" description="Drag and drop candidate documents to assign to profiles in batch." />;
+    return <BulkUploadTab />;
   }
   if (tab === "alerts") {
     if (role === "candidate") return <UpdatesTab />;
@@ -66,6 +78,7 @@ export default function Dashboard() {
 
   const accentColor = ROLE_COLOR[user.role];
   const tierLabel   = ROLE_TIER[user.role];
+  const badgeCounts = getBadgeCounts(user.role);
 
   return (
     <div className="eej-screen">
@@ -97,7 +110,12 @@ export default function Dashboard() {
         </div>
 
         {/* Bottom Navigation */}
-        <BottomNav role={user.role} active={activeTab} onChange={setActiveTab} />
+        <BottomNav
+          role={user.role}
+          active={activeTab}
+          onChange={setActiveTab}
+          badgeCounts={badgeCounts}
+        />
       </div>
     </div>
   );

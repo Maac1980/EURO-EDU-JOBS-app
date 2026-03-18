@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
-import { Search, MapPin, SlidersHorizontal, ChevronRight } from "lucide-react";
-import { MOCK_CANDIDATES, type DocStatus, type Candidate } from "@/data/mockData";
+import { Search, SlidersHorizontal, MapPin, ChevronRight, UserPlus, Building2 } from "lucide-react";
+import { MOCK_CANDIDATES, OPS_PIPELINE, B2B_CONTRACTS, type DocStatus, type Candidate } from "@/data/mockData";
 import CandidateDetail from "./CandidateDetail";
+import AddCandidateModal from "@/components/AddCandidateModal";
 import type { Role } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
 
@@ -22,12 +23,22 @@ const STATUS_COLORS: Record<DocStatus, { bg: string; text: string; border: strin
   pending:  { bg: "#EFF6FF", text: "#2563EB", border: "#93C5FD", dot: "#3B82F6" },
 };
 
+const STAGE_COLORS: Record<string, string> = {
+  "New Applications":  "#3B82F6",
+  "Docs Submitted":    "#F59E0B",
+  "Under Review":      "#8B5CF6",
+  "Cleared to Deploy": "#10B981",
+  "On Assignment":     "#1B2A4A",
+};
+
 interface Props { role: Role; }
 
 export default function CandidatesList({ role }: Props) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery]               = useState("");
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
-  const [selected, setSelected] = useState<Candidate | null>(null);
+  const [selected, setSelected]         = useState<Candidate | null>(null);
+  const [showAdd, setShowAdd]           = useState(false);
+  const [showRecruit, setShowRecruit]   = useState(false);
   const perms = ROLE_PERMISSIONS[role];
 
   const filtered = useMemo(() => MOCK_CANDIDATES.filter((c) => {
@@ -38,6 +49,9 @@ export default function CandidatesList({ role }: Props) {
       c.role.toLowerCase().includes(query.toLowerCase());
     return matchesFilter && matchesSearch;
   }), [query, activeFilter]);
+
+  const canViewFullProfile = perms.seeGlobalCandidates && role !== "candidate";
+  const canEdit            = role === "executive" || role === "legal" || role === "operations";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -71,14 +85,74 @@ export default function CandidatesList({ role }: Props) {
         </div>
         <div className="candidates-count-row">
           <span className="candidates-count">{filtered.length} candidate{filtered.length !== 1 ? "s" : ""}</span>
-          {perms.approveDocs && (
-            <span className="candidates-hint">Tap a card to review documents</span>
+          {perms.addCandidates && (
+            <button className="clist-add-btn" onClick={() => setShowAdd(true)}>
+              <UserPlus size={13} strokeWidth={2.5} />
+              Add Candidate
+            </button>
           )}
         </div>
       </div>
 
-      {/* List */}
-      <div className="candidates-list">
+      {/* Recruitment Hub — visible to T1, T2, T3 */}
+      <div className="candidates-list" style={{ flex: 1 }}>
+
+        {perms.addCandidates && (
+          <div className="clist-recruit-bar">
+            <button
+              className="clist-recruit-toggle"
+              onClick={() => setShowRecruit((v) => !v)}
+            >
+              <Building2 size={13} color="#6366F1" strokeWidth={2} />
+              <span>Recruitment Overview</span>
+              <span className="clist-recruit-chevron">{showRecruit ? "▲" : "▼"}</span>
+            </button>
+
+            {showRecruit && (
+              <div className="clist-recruit-body">
+
+                {/* Pipeline */}
+                <div className="clist-recruit-section-label">Pipeline</div>
+                <div className="pipeline-list" style={{ marginBottom: 12 }}>
+                  {OPS_PIPELINE.map((stage) => (
+                    <div key={stage.stage} className="pipeline-row">
+                      <div className="pipeline-dot" style={{ background: stage.color }} />
+                      <div className="pipeline-label">{stage.stage}</div>
+                      <div className="pipeline-bar-track">
+                        <div
+                          className="pipeline-bar-fill"
+                          style={{ width: `${Math.round((stage.count / 50) * 100)}%`, background: stage.color }}
+                        />
+                      </div>
+                      <div className="pipeline-count" style={{ color: stage.color }}>{stage.count}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* B2B Contracts */}
+                <div className="clist-recruit-section-label">B2B Contracts</div>
+                <div className="contract-list">
+                  {B2B_CONTRACTS.map((c, i) => (
+                    <div key={i} className="contract-card">
+                      <div className="contract-left">
+                        <div className="contract-client">{c.client}</div>
+                        <div className="contract-role">{c.role}</div>
+                      </div>
+                      <div className="contract-right">
+                        <div className="contract-headcount">{c.headcount} workers</div>
+                        <div className={`contract-status ${c.status === "active" ? "green-badge" : "amber-badge"}`}>
+                          {c.status === "active" ? "✓ Active" : "⏳ Pending"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Candidate Cards */}
         {filtered.length === 0 ? (
           <div className="candidates-empty">
             <Search size={32} color="#D1D5DB" strokeWidth={1.5} />
@@ -86,8 +160,9 @@ export default function CandidatesList({ role }: Props) {
           </div>
         ) : (
           filtered.map((c) => {
-            const colors = STATUS_COLORS[c.status];
+            const colors   = STATUS_COLORS[c.status];
             const clickable = perms.approveDocs;
+            const stageColor = c.pipelineStage ? (STAGE_COLORS[c.pipelineStage] ?? "#9CA3AF") : null;
             return (
               <div
                 key={c.id}
@@ -104,6 +179,14 @@ export default function CandidatesList({ role }: Props) {
                     <MapPin size={10} color="#9CA3AF" strokeWidth={2} style={{ flexShrink: 0 }} />
                     <span>{c.location}</span>
                   </div>
+                  {stageColor && c.pipelineStage && (
+                    <div
+                      className="candidate-stage-pill"
+                      style={{ background: stageColor + "18", color: stageColor, border: `1px solid ${stageColor}40` }}
+                    >
+                      {c.pipelineStage}
+                    </div>
+                  )}
                 </div>
                 <div className="candidate-status-col">
                   <span
@@ -132,10 +215,12 @@ export default function CandidatesList({ role }: Props) {
           candidate={selected}
           onClose={() => setSelected(null)}
           seeFinancials={perms.seeFinancials}
-          canViewFullProfile={perms.seeGlobalCandidates && (role === "executive" || role === "legal")}
-          canEdit={role === "executive" || role === "legal"}
+          canViewFullProfile={canViewFullProfile}
+          canEdit={canEdit}
         />
       )}
+
+      {showAdd && <AddCandidateModal onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

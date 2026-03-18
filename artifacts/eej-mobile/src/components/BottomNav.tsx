@@ -5,6 +5,7 @@ interface BottomNavProps {
   role: Role;
   active: ActiveTab;
   onChange: (tab: ActiveTab) => void;
+  badgeCounts?: Partial<Record<ActiveTab, number>>;
 }
 
 type TabDef = { id: ActiveTab; icon: (a: boolean) => ReactElement; label: string };
@@ -36,19 +37,26 @@ function getTabsForRole(role: Role): TabDef[] {
   return EXEC_LEGAL_TABS;
 }
 
-export function BottomNav({ role, active, onChange }: BottomNavProps) {
+export function BottomNav({ role, active, onChange, badgeCounts = {} }: BottomNavProps) {
   const tabs = getTabsForRole(role);
   return (
     <nav className="bottom-nav">
       {tabs.map(({ id, icon, label }) => {
         const isActive = active === id;
+        const count    = badgeCounts[id] ?? 0;
         return (
           <button
             key={id}
             className={`bottom-nav-item${isActive ? " active" : ""}`}
             onClick={() => onChange(id)}
+            style={{ position: "relative" }}
           >
-            {icon(isActive)}
+            <span style={{ position: "relative", display: "inline-flex" }}>
+              {icon(isActive)}
+              {count > 0 && (
+                <span className="nav-badge">{count > 9 ? "9+" : count}</span>
+              )}
+            </span>
             <span>{label}</span>
           </button>
         );

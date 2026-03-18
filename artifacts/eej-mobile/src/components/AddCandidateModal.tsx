@@ -1,0 +1,106 @@
+import { useState } from "react";
+import { X, Save } from "lucide-react";
+import { useToast } from "@/lib/toast";
+
+const JOB_ROLES = ["TIG", "MIG", "MAG", "MMA", "ARC / Electrode", "FCAW", "FABRICATOR", "Teacher", "Nurse", "Engineer", "IT Specialist", "Logistics", "Other"];
+const NATIONALITIES = ["Polish", "Ukrainian", "Georgian", "Belarusian", "Russian", "Romanian", "Moldovan", "Azerbaijani", "Turkish", "Other"];
+const PIPELINE_STAGES = ["New Applications", "Docs Submitted", "Under Review", "Cleared to Deploy", "On Assignment"];
+const SITES = ["BuildPro Sp. z o.o.", "MediCare PL", "LogiTrans Wrocław", "Other"];
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="add-cand-field">
+      <label className="add-cand-label">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+export default function AddCandidateModal({ onClose }: { onClose: () => void }) {
+  const { showToast } = useToast();
+  const [name,        setName]        = useState("");
+  const [email,       setEmail]       = useState("");
+  const [phone,       setPhone]       = useState("");
+  const [nationality, setNationality] = useState("");
+  const [role,        setRole]        = useState("");
+  const [site,        setSite]        = useState("");
+  const [stage,       setStage]       = useState("New Applications");
+
+  function handleSave() {
+    if (!name.trim()) { showToast("Full name is required", "error"); return; }
+    if (!role)        { showToast("Job role is required",  "error"); return; }
+    showToast(`Candidate "${name}" added to pipeline`, "success");
+    onClose();
+  }
+
+  const inp = "add-cand-input";
+  const sel = "add-cand-input add-cand-select";
+
+  return (
+    <div className="detail-overlay" onClick={onClose}>
+      <div className="detail-sheet" style={{ maxHeight: "90%" }} onClick={(e) => e.stopPropagation()}>
+        <div className="detail-handle" />
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 0 14px" }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#111827" }}>Add New Candidate</div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>Register to the workforce pipeline</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+            <X size={18} color="#9CA3AF" strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          <Field label="Full Name *">
+            <input className={inp} type="text"  placeholder="e.g. Mariusz Kowalski" value={name}  onChange={e => setName(e.target.value)} />
+          </Field>
+          <Field label="Email Address">
+            <input className={inp} type="email" placeholder="candidate@email.com"   value={email} onChange={e => setEmail(e.target.value)} />
+          </Field>
+          <Field label="Phone Number">
+            <input className={inp} type="tel"   placeholder="+48 600 000 000"       value={phone} onChange={e => setPhone(e.target.value)} />
+          </Field>
+          <Field label="Nationality">
+            <select className={sel} value={nationality} onChange={e => setNationality(e.target.value)}>
+              <option value="">— select —</option>
+              {NATIONALITIES.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </Field>
+          <Field label="Job Role *">
+            <select className={sel} value={role} onChange={e => setRole(e.target.value)}>
+              <option value="">— select —</option>
+              {JOB_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </Field>
+          <Field label="Assigned Client / Site">
+            <select className={sel} value={site} onChange={e => setSite(e.target.value)}>
+              <option value="">— select —</option>
+              {SITES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="Pipeline Stage">
+            <select className={sel} value={stage} onChange={e => setStage(e.target.value)}>
+              {PIPELINE_STAGES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, paddingTop: 16, borderTop: "1px solid #F3F4F6", marginTop: 8 }}>
+          <button
+            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "13px 0", background: "#FFD600", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, color: "#1B2A4A", cursor: "pointer", fontFamily: "inherit" }}
+            onClick={handleSave}
+          >
+            <Save size={15} strokeWidth={2.5} /> Save Candidate
+          </button>
+          <button
+            style={{ flex: 1, padding: "13px 0", background: "#F3F4F6", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, color: "#6B7280", cursor: "pointer", fontFamily: "inherit" }}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

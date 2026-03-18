@@ -22,6 +22,7 @@ interface Props {
   onClose: () => void;
   seeFinancials?: boolean;
   canViewFullProfile?: boolean;
+  canEdit?: boolean;
 }
 
 const DOC_CFG: Record<DocReviewStatus, {
@@ -34,7 +35,7 @@ const DOC_CFG: Record<DocReviewStatus, {
   "missing":      { bg: "#FFF7ED", text: "#C2410C", border: "#FDBA74", label: "Missing",       Icon: FileQuestion },
 };
 
-export default function CandidateDetail({ candidate, onClose, seeFinancials = false, canViewFullProfile = false }: Props) {
+export default function CandidateDetail({ candidate, onClose, seeFinancials = false, canViewFullProfile = false, canEdit = false }: Props) {
   const { showToast } = useToast();
   const [docStatuses, setDocStatuses] = useState<Record<string, DocReviewStatus>>(() =>
     Object.fromEntries(candidate.documents.map((d) => [d.id, d.status]))
@@ -164,6 +165,7 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
         <WorkerProfileSheet
           candidate={candidate}
           seeFinancials={seeFinancials}
+          canEdit={canEdit}
           onClose={() => setShowFullProfile(false)}
         />
       )}

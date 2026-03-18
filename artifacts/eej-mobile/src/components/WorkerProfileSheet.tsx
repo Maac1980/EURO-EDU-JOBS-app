@@ -14,19 +14,38 @@ import {
   Clock,
   TrendingUp,
   AlertTriangle,
-  CheckCircle,
   Building2,
   Hash,
+  Pencil,
+  Save,
+  XCircle,
+  CheckCircle2,
+  FileCheck,
+  FileClock,
+  FileX,
+  FileQuestion,
 } from "lucide-react";
 import type { Candidate } from "@/data/mockData";
+import { useToast } from "@/lib/toast";
 
 interface Props {
   candidate: Candidate;
   seeFinancials: boolean;
+  canEdit: boolean;
   onClose: () => void;
+  onSave?: (updated: Partial<Candidate>) => void;
 }
 
 type Tab = "identity" | "employment" | "documents" | "financials";
+
+const JOB_ROLES = [
+  "TIG", "MIG", "MAG", "MMA", "ARC / Electrode", "FCAW", "FABRICATOR",
+  "Teacher", "Nurse", "Engineer", "IT Specialist", "Logistics", "Other",
+];
+const CONTRACT_TYPES = ["Umowa o pracę", "Umowa zlecenie", "B2B", "Umowa o dzieło"];
+const VISA_TYPES = ["EU Citizen", "Temporary Residence", "Schengen Visa", "Refugee Status", "Work Visa", "Other"];
+const ZUS_STATUSES = ["Active — ZUS opłacony", "Pending registration", "Pending — docs incomplete", "Exempt", "Not applicable"];
+const PIPELINE_STAGES = ["New Applications", "Docs Submitted", "Under Review", "Cleared to Deploy", "On Assignment"];
 
 function fmt(dateStr?: string): string {
   if (!dateStr) return "—";
@@ -34,17 +53,14 @@ function fmt(dateStr?: string): string {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  } catch {
-    return dateStr;
-  }
+  } catch { return dateStr; }
 }
 
 function expiryStatus(dateStr?: string): "ok" | "warn" | "expired" | "missing" {
   if (!dateStr) return "missing";
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return "missing";
-  const now = new Date();
-  const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86_400_000);
+  const diffDays = Math.ceil((d.getTime() - Date.now()) / 86_400_000);
   if (diffDays < 0) return "expired";
   if (diffDays <= 60) return "warn";
   return "ok";
@@ -65,52 +81,153 @@ function ExpiryBadge({ dateStr }: { dateStr?: string }) {
   );
 }
 
-function InfoRow({ icon: Icon, label, value, mono }: {
-  icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
-  label: string;
-  value?: string | number;
-  mono?: boolean;
-}) {
-  const display = value !== undefined && value !== null && value !== "" ? String(value) : "—";
-  return (
-    <div className="wp-info-row">
-      <div className="wp-info-icon">
-        <Icon size={14} color="#6B7280" strokeWidth={1.8} />
-      </div>
-      <div className="wp-info-content">
-        <div className="wp-info-label">{label}</div>
-        <div className={"wp-info-value" + (mono ? " wp-mono" : "")}>{display}</div>
-      </div>
-    </div>
-  );
-}
-
-function DocExpiryRow({ label, dateStr }: { label: string; dateStr?: string }) {
-  return (
-    <div className="wp-doc-row">
-      <span className="wp-doc-label">{label}</span>
-      <ExpiryBadge dateStr={dateStr} />
-    </div>
-  );
-}
-
 function SectionHeader({ label }: { label: string }) {
   return <div className="wp-section-header">{label}</div>;
 }
 
-export default function WorkerProfileSheet({ candidate, seeFinancials, onClose }: Props) {
+function ReadRow({ label, value, mono }: { label: string; value?: string | number; mono?: boolean }) {
+  return (
+    <div className="wp-info-row">
+      <div className="wp-info-content">
+        <div className="wp-info-label">{label}</div>
+        <div className={"wp-info-value" + (mono ? " wp-mono" : "")}>{value !== undefined && value !== null && String(value) !== "" ? String(value) : "—"}</div>
+      </div>
+    </div>
+  );
+}
+
+function EditInput({ label, value, onChange, mono, type }: { label: string; value: string; onChange: (v: string) => void; mono?: boolean; type?: string }) {
+  return (
+    <div className="wp-edit-row">
+      <label className="wp-edit-label">{label}</label>
+      <input
+        type={type || "text"}
+        className={"wp-edit-input" + (mono ? " wp-mono" : "")}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function EditSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+  return (
+    <div className="wp-edit-row">
+      <label className="wp-edit-label">{label}</label>
+      <select className="wp-edit-input" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— select —</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function EditDate({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="wp-edit-row">
+      <label className="wp-edit-label">{label}</label>
+      <input type="date" className="wp-edit-input" value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, onClose, onSave }: Props) {
+  const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>("identity");
+  const [editing, setEditing] = useState(false);
 
-  const grossPay = (candidate.hourlyNettoRate ?? 0) * (candidate.totalHours ?? 0);
-  const finalPayout = grossPay - (candidate.advancePayment ?? 0);
-  const totalZUS = grossPay * 0.1126;
+  const [email, setEmail] = useState(candidate.email || "");
+  const [phone, setPhone] = useState(candidate.phone || "");
+  const [nationality, setNationality] = useState(candidate.nationality || "");
+  const [pesel, setPesel] = useState(candidate.pesel || "");
+  const [nip, setNip] = useState(candidate.nip || "");
+  const [iban, setIban] = useState(candidate.iban || "");
+  const [rodoDate, setRodoDate] = useState(candidate.rodoConsentDate || "");
 
-  const tabs: { key: Tab; label: string; Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }> }[] = [
-    { key: "identity",   label: "Identity",   Icon: User       },
-    { key: "employment", label: "Employment", Icon: Briefcase  },
-    { key: "documents",  label: "Documents",  Icon: FileText   },
-    ...(seeFinancials ? [{ key: "financials" as Tab, label: "Financials", Icon: DollarSign }] : []),
+  const [role, setRole] = useState(candidate.role || "");
+  const [siteLocation, setSiteLocation] = useState(candidate.siteLocation || "");
+  const [experience, setExperience] = useState(candidate.yearsOfExperience || "");
+  const [visaType, setVisaType] = useState(candidate.visaType || "");
+  const [contractType, setContractType] = useState(candidate.contractType || "");
+  const [contractEndDate, setContractEndDate] = useState(candidate.contractEndDate || "");
+  const [pipelineStage, setPipelineStage] = useState(candidate.pipelineStage || "");
+
+  const [trcExpiry, setTrcExpiry] = useState(candidate.trcExpiry || "");
+  const [workPermitExpiry, setWorkPermitExpiry] = useState(candidate.workPermitExpiry || "");
+  const [bhpExpiry, setBhpExpiry] = useState(candidate.bhpExpiry || "");
+  const [badaniaLekExpiry, setBadaniaLekExpiry] = useState(candidate.badaniaLekExpiry || "");
+  const [oswiadczenieExpiry, setOswiadczenieExpiry] = useState(candidate.oswiadczenieExpiry || "");
+  const [udtCertExpiry, setUdtCertExpiry] = useState(candidate.udtCertExpiry || "");
+
+  const [hourlyRate, setHourlyRate] = useState(candidate.hourlyNettoRate != null ? String(candidate.hourlyNettoRate) : "");
+  const [totalHours, setTotalHours] = useState(candidate.totalHours != null ? String(candidate.totalHours) : "");
+  const [advance, setAdvance] = useState(candidate.advancePayment != null ? String(candidate.advancePayment) : "");
+  const [zusStatus, setZusStatus] = useState(candidate.zusStatus || "");
+
+  const rateNum  = parseFloat(hourlyRate)  || 0;
+  const hoursNum = parseFloat(totalHours) || 0;
+  const advNum   = parseFloat(advance)    || 0;
+  const grossPay   = rateNum * hoursNum;
+  const finalPayout = grossPay - advNum;
+  const totalZUS    = grossPay * 0.1126;
+
+  function handleSave() {
+    const updated: Partial<Candidate> = {
+      email, phone, nationality, pesel, nip, iban, rodoConsentDate: rodoDate,
+      role, siteLocation, yearsOfExperience: experience, visaType,
+      contractType, contractEndDate, pipelineStage,
+      trcExpiry, workPermitExpiry, bhpExpiry, badaniaLekExpiry, oswiadczenieExpiry, udtCertExpiry,
+      hourlyNettoRate: rateNum || undefined,
+      totalHours: hoursNum || undefined,
+      advancePayment: advNum || undefined,
+      zusStatus,
+    };
+    onSave?.(updated);
+    setEditing(false);
+    showToast("Profile saved successfully", "success");
+  }
+
+  function cancelEdit() {
+    setEmail(candidate.email || "");
+    setPhone(candidate.phone || "");
+    setNationality(candidate.nationality || "");
+    setPesel(candidate.pesel || "");
+    setNip(candidate.nip || "");
+    setIban(candidate.iban || "");
+    setRodoDate(candidate.rodoConsentDate || "");
+    setRole(candidate.role || "");
+    setSiteLocation(candidate.siteLocation || "");
+    setExperience(candidate.yearsOfExperience || "");
+    setVisaType(candidate.visaType || "");
+    setContractType(candidate.contractType || "");
+    setContractEndDate(candidate.contractEndDate || "");
+    setPipelineStage(candidate.pipelineStage || "");
+    setTrcExpiry(candidate.trcExpiry || "");
+    setWorkPermitExpiry(candidate.workPermitExpiry || "");
+    setBhpExpiry(candidate.bhpExpiry || "");
+    setBadaniaLekExpiry(candidate.badaniaLekExpiry || "");
+    setOswiadczenieExpiry(candidate.oswiadczenieExpiry || "");
+    setUdtCertExpiry(candidate.udtCertExpiry || "");
+    setHourlyRate(candidate.hourlyNettoRate != null ? String(candidate.hourlyNettoRate) : "");
+    setTotalHours(candidate.totalHours != null ? String(candidate.totalHours) : "");
+    setAdvance(candidate.advancePayment != null ? String(candidate.advancePayment) : "");
+    setZusStatus(candidate.zusStatus || "");
+    setEditing(false);
+  }
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "identity",   label: "Identity"   },
+    { key: "employment", label: "Employment" },
+    { key: "documents",  label: "Documents"  },
+    ...(seeFinancials ? [{ key: "financials" as Tab, label: "Financials" }] : []),
   ];
+
+  const docStatusCfg: Record<string, { bg: string; color: string; border: string; label: string }> = {
+    "approved":     { bg: "#ECFDF5", color: "#059669", border: "#6EE7B7", label: "Approved"     },
+    "under-review": { bg: "#EFF6FF", color: "#2563EB", border: "#93C5FD", label: "Under Review" },
+    "rejected":     { bg: "#FEF2F2", color: "#DC2626", border: "#FCA5A5", label: "Rejected"     },
+    "missing":      { bg: "#FFF7ED", color: "#C2410C", border: "#FDBA74", label: "Missing"      },
+  };
 
   return (
     <div className="detail-overlay" onClick={onClose}>
@@ -118,122 +235,188 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, onClose }
 
         <div className="detail-handle" />
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="wp-header">
           <div className="wp-header-left">
             <div className="wp-avatar">
               {candidate.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
             </div>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div className="wp-header-name">{candidate.name}</div>
-              <div className="wp-header-role">{candidate.role}</div>
+              <div className="wp-header-role">{role || candidate.role}</div>
+              {/* Site / workplace tag */}
+              {(siteLocation || candidate.siteLocation) && (
+                <div className="wp-site-tag">
+                  <Building2 size={10} strokeWidth={2} style={{ flexShrink: 0 }} />
+                  {siteLocation || candidate.siteLocation}
+                </div>
+              )}
               <div className="wp-header-loc">
                 <MapPin size={10} color="#9CA3AF" strokeWidth={2} style={{ flexShrink: 0 }} />
                 {candidate.location}
-                {candidate.siteLocation && ` · ${candidate.siteLocation}`}
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
             <span className="wp-flag">{candidate.flag}</span>
+            {canEdit && !editing && (
+              <button className="wp-edit-btn" onClick={() => setEditing(true)} title="Edit profile">
+                <Pencil size={13} color="#1B2A4A" strokeWidth={2.5} />
+              </button>
+            )}
             <button className="detail-close" onClick={onClose}>
               <X size={14} color="#6B7280" strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
-        {/* Tab Bar */}
+        {/* Edit mode banner */}
+        {editing && (
+          <div className="wp-edit-banner">
+            <Pencil size={13} color="#D97706" strokeWidth={2} style={{ flexShrink: 0 }} />
+            <span>Editing profile — changes are saved locally</span>
+            <button className="wp-save-btn" onClick={handleSave}>
+              <Save size={13} strokeWidth={2.5} />
+              Save
+            </button>
+            <button className="wp-cancel-btn" onClick={cancelEdit}>
+              <XCircle size={13} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
+
+        {/* ── Tab Bar ── */}
         <div className="wp-tab-bar">
-          {tabs.map(({ key, label, Icon }) => (
+          {tabs.map(({ key, label }) => (
             <button
               key={key}
               className={"wp-tab" + (tab === key ? " wp-tab--active" : "")}
               onClick={() => setTab(key)}
             >
-              <Icon size={12} color={tab === key ? "#1B2A4A" : "#9CA3AF"} strokeWidth={2} />
               {label}
             </button>
           ))}
         </div>
 
-        {/* Tab Content */}
+        {/* ── Body ── */}
         <div className="wp-body">
 
-          {/* ── IDENTITY ── */}
+          {/* IDENTITY */}
           {tab === "identity" && (
             <div className="wp-section-group">
               <SectionHeader label="Contact" />
-              <InfoRow icon={Mail}  label="Email"       value={candidate.email}       />
-              <InfoRow icon={Phone} label="Phone"       value={candidate.phone}       />
-              <InfoRow icon={MapPin} label="Location"   value={candidate.location}    />
-              <InfoRow icon={User}  label="Nationality" value={candidate.nationality} />
+              {editing ? <>
+                <EditInput label="Email"       value={email}       onChange={setEmail}       type="email" />
+                <EditInput label="Phone"       value={phone}       onChange={setPhone}       type="tel"   />
+                <EditInput label="Nationality" value={nationality} onChange={setNationality}              />
+              </> : <>
+                <ReadRow label="Email"       value={email}       />
+                <ReadRow label="Phone"       value={phone}       />
+                <ReadRow label="Nationality" value={nationality} />
+              </>}
 
               <SectionHeader label="Legal Identity" />
-              <InfoRow icon={Hash}       label="PESEL"             value={candidate.pesel}           mono />
-              <InfoRow icon={Hash}       label="NIP"               value={candidate.nip}             mono />
-              <InfoRow icon={CreditCard} label="IBAN"              value={candidate.iban}            mono />
-              <InfoRow icon={Shield}     label="RODO Consent Date" value={fmt(candidate.rodoConsentDate)} />
+              {editing ? <>
+                <EditInput label="PESEL"             value={pesel}    onChange={setPesel}    mono />
+                <EditInput label="NIP"               value={nip}      onChange={setNip}      mono />
+                <EditInput label="IBAN"              value={iban}     onChange={setIban}     mono />
+                <EditDate  label="RODO Consent Date" value={rodoDate} onChange={setRodoDate}      />
+              </> : <>
+                <ReadRow label="PESEL"             value={pesel}                mono />
+                <ReadRow label="NIP"               value={nip}                  mono />
+                <ReadRow label="IBAN"              value={iban}                 mono />
+                <ReadRow label="RODO Consent Date" value={fmt(rodoDate)}             />
+              </>}
             </div>
           )}
 
-          {/* ── EMPLOYMENT ── */}
+          {/* EMPLOYMENT */}
           {tab === "employment" && (
             <div className="wp-section-group">
               <SectionHeader label="Assignment" />
-              <InfoRow icon={Building2} label="Assigned Client / Site" value={candidate.siteLocation}       />
-              <InfoRow icon={Briefcase} label="Job Role"               value={candidate.role}               />
-              <InfoRow icon={TrendingUp} label="Experience"            value={candidate.yearsOfExperience ? candidate.yearsOfExperience + " years" : undefined} />
-              <InfoRow icon={Shield}    label="Visa / Permit Type"     value={candidate.visaType}           />
+              {editing ? <>
+                <EditSelect label="Job Role"               value={role}         onChange={setRole}         options={JOB_ROLES}      />
+                <EditInput  label="Assigned Client / Site" value={siteLocation} onChange={setSiteLocation}                          />
+                <EditInput  label="Years of Experience"    value={experience}   onChange={setExperience}   type="number"            />
+                <EditSelect label="Visa / Permit Type"     value={visaType}     onChange={setVisaType}     options={VISA_TYPES}     />
+              </> : <>
+                <ReadRow label="Job Role"               value={role}         />
+                <ReadRow label="Assigned Client / Site" value={siteLocation} />
+                <ReadRow label="Years of Experience"    value={experience ? experience + " years" : undefined} />
+                <ReadRow label="Visa / Permit Type"     value={visaType}     />
+              </>}
 
               <SectionHeader label="Contract" />
-              <InfoRow icon={FileText}  label="Contract Type"     value={candidate.contractType}                    />
-              <InfoRow icon={Calendar}  label="Contract End Date" value={fmt(candidate.contractEndDate)}            />
-              <InfoRow icon={CheckCircle} label="Pipeline Stage"  value={candidate.pipelineStage}                  />
+              {editing ? <>
+                <EditSelect label="Contract Type"     value={contractType}    onChange={setContractType}    options={CONTRACT_TYPES}   />
+                <EditDate   label="Contract End Date" value={contractEndDate} onChange={setContractEndDate}                            />
+                <EditSelect label="Pipeline Stage"    value={pipelineStage}  onChange={setPipelineStage}   options={PIPELINE_STAGES}  />
+              </> : <>
+                <ReadRow label="Contract Type"     value={contractType}          />
+                <ReadRow label="Contract End Date" value={fmt(contractEndDate)}  />
+                <ReadRow label="Pipeline Stage"    value={pipelineStage}         />
+              </>}
             </div>
           )}
 
-          {/* ── DOCUMENTS ── */}
+          {/* DOCUMENTS */}
           {tab === "documents" && (
             <div className="wp-section-group">
               <SectionHeader label="Residence & Work Rights" />
-              <DocExpiryRow label="TRC Residence Card"  dateStr={candidate.trcExpiry}        />
-              <DocExpiryRow label="Work Permit"         dateStr={candidate.workPermitExpiry} />
+              {editing ? <>
+                <EditDate label="TRC Residence Card Expiry"  value={trcExpiry}        onChange={setTrcExpiry}        />
+                <EditDate label="Work Permit Expiry"         value={workPermitExpiry} onChange={setWorkPermitExpiry} />
+              </> : <>
+                <div className="wp-doc-row"><span className="wp-doc-label">TRC Residence Card</span><ExpiryBadge dateStr={trcExpiry} /></div>
+                <div className="wp-doc-row"><span className="wp-doc-label">Work Permit</span><ExpiryBadge dateStr={workPermitExpiry} /></div>
+              </>}
 
               <SectionHeader label="Health & Safety" />
-              <DocExpiryRow label="BHP Certificate"          dateStr={candidate.bhpExpiry}           />
-              <DocExpiryRow label="Badania Lekarskie"        dateStr={candidate.badaniaLekExpiry}    />
+              {editing ? <>
+                <EditDate label="BHP Certificate Expiry"   value={bhpExpiry}        onChange={setBhpExpiry}        />
+                <EditDate label="Badania Lekarskie Expiry" value={badaniaLekExpiry} onChange={setBadaniaLekExpiry} />
+              </> : <>
+                <div className="wp-doc-row"><span className="wp-doc-label">BHP Certificate</span><ExpiryBadge dateStr={bhpExpiry} /></div>
+                <div className="wp-doc-row"><span className="wp-doc-label">Badania Lekarskie</span><ExpiryBadge dateStr={badaniaLekExpiry} /></div>
+              </>}
 
               <SectionHeader label="Legal Declarations" />
-              <DocExpiryRow label="Oświadczenie"             dateStr={candidate.oswiadczenieExpiry}  />
-              <DocExpiryRow label="UDT Certificate"          dateStr={candidate.udtCertExpiry}       />
+              {editing ? <>
+                <EditDate label="Oświadczenie Expiry"  value={oswiadczenieExpiry} onChange={setOswiadczenieExpiry} />
+                <EditDate label="UDT Certificate Expiry" value={udtCertExpiry}   onChange={setUdtCertExpiry}      />
+              </> : <>
+                <div className="wp-doc-row"><span className="wp-doc-label">Oświadczenie</span><ExpiryBadge dateStr={oswiadczenieExpiry} /></div>
+                <div className="wp-doc-row"><span className="wp-doc-label">UDT Certificate</span><ExpiryBadge dateStr={udtCertExpiry} /></div>
+              </>}
 
               <SectionHeader label="Submitted Files" />
-              {candidate.documents.map((doc) => (
-                <div key={doc.id} className="wp-submitted-doc">
-                  <span className="wp-submitted-name">{doc.name}</span>
-                  <span
-                    className="candidate-badge"
-                    style={{
-                      fontSize: 10,
-                      background: doc.status === "approved" ? "#ECFDF5" : doc.status === "under-review" ? "#EFF6FF" : doc.status === "rejected" ? "#FEF2F2" : "#FFF7ED",
-                      color: doc.status === "approved" ? "#059669" : doc.status === "under-review" ? "#2563EB" : doc.status === "rejected" ? "#DC2626" : "#C2410C",
-                      border: `1.5px solid ${doc.status === "approved" ? "#6EE7B7" : doc.status === "under-review" ? "#93C5FD" : doc.status === "rejected" ? "#FCA5A5" : "#FDBA74"}`,
-                    }}
-                  >
-                    {doc.status === "approved" ? "Approved" : doc.status === "under-review" ? "Under Review" : doc.status === "rejected" ? "Rejected" : "Missing"}
-                  </span>
-                </div>
-              ))}
+              {candidate.documents.map((doc) => {
+                const cfg = docStatusCfg[doc.status] ?? docStatusCfg["missing"];
+                return (
+                  <div key={doc.id} className="wp-submitted-doc">
+                    <span className="wp-submitted-name">{doc.name}</span>
+                    <span className="candidate-badge" style={{ fontSize: 10, background: cfg.bg, color: cfg.color, border: `1.5px solid ${cfg.border}` }}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          {/* ── FINANCIALS (T1 only) ── */}
+          {/* FINANCIALS — T1 only */}
           {tab === "financials" && seeFinancials && (
             <div className="wp-section-group">
               <SectionHeader label="Pay Rate & Hours" />
-              <InfoRow icon={Clock}       label="Hourly Netto Rate"  value={candidate.hourlyNettoRate != null ? `zł ${candidate.hourlyNettoRate.toFixed(2)} / hr` : undefined} />
-              <InfoRow icon={Clock}       label="Total Hours Worked" value={candidate.totalHours != null ? `${candidate.totalHours} hrs` : undefined}                          />
-              <InfoRow icon={DollarSign}  label="Advance Payment"    value={candidate.advancePayment != null ? `zł ${candidate.advancePayment.toFixed(2)}` : undefined}        />
+              {editing ? <>
+                <EditInput label="Hourly Netto Rate (zł/hr)" value={hourlyRate}  onChange={setHourlyRate}  type="number" />
+                <EditInput label="Total Hours Worked"         value={totalHours} onChange={setTotalHours} type="number" />
+                <EditInput label="Advance Payment (zł)"       value={advance}    onChange={setAdvance}    type="number" />
+              </> : <>
+                <ReadRow label="Hourly Netto Rate"  value={rateNum  ? `zł ${rateNum.toFixed(2)} / hr`  : undefined} />
+                <ReadRow label="Total Hours Worked" value={hoursNum ? `${hoursNum} hrs`                 : undefined} />
+                <ReadRow label="Advance Payment"    value={advNum   ? `zł ${advNum.toFixed(2)}`         : undefined} />
+              </>}
 
               <SectionHeader label="Calculated Payout" />
               <div className="wp-calc-card">
@@ -243,7 +426,7 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, onClose }
                 </div>
                 <div className="wp-calc-row">
                   <span className="wp-calc-label">Less: Advance</span>
-                  <span className="wp-calc-value wp-calc-neg">− zł {(candidate.advancePayment ?? 0).toFixed(2)}</span>
+                  <span className="wp-calc-value wp-calc-neg">− zł {advNum.toFixed(2)}</span>
                 </div>
                 <div className="wp-calc-divider" />
                 <div className="wp-calc-row wp-calc-total">
@@ -258,15 +441,19 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, onClose }
                   <span className="wp-calc-label">ZUS Liability (11.26% of gross)</span>
                   <span className="wp-calc-value">zł {totalZUS.toFixed(2)}</span>
                 </div>
-                <div className="wp-calc-row" style={{ marginTop: 6 }}>
-                  <span className="wp-calc-label">ZUS Status</span>
-                  <span className="wp-zus-status">
-                    {candidate.zusStatus || "—"}
-                  </span>
-                </div>
+                {editing ? (
+                  <div style={{ marginTop: 8 }}>
+                    <EditSelect label="ZUS Status" value={zusStatus} onChange={setZusStatus} options={ZUS_STATUSES} />
+                  </div>
+                ) : (
+                  <div className="wp-calc-row" style={{ marginTop: 6 }}>
+                    <span className="wp-calc-label">ZUS Status</span>
+                    <span className="wp-zus-status">{zusStatus || "—"}</span>
+                  </div>
+                )}
               </div>
 
-              {(candidate.zusStatus?.toLowerCase().includes("pending") || !candidate.zusStatus) && (
+              {(zusStatus?.toLowerCase().includes("pending") || !zusStatus) && (
                 <div className="wp-warning-banner">
                   <AlertTriangle size={14} color="#D97706" strokeWidth={2} style={{ flexShrink: 0 }} />
                   <span>ZUS registration incomplete — contact the finance team before deployment.</span>
@@ -277,7 +464,20 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, onClose }
 
         </div>
 
-        <div style={{ height: 32 }} />
+        {/* Bottom save bar when editing */}
+        {editing && (
+          <div className="wp-bottom-bar">
+            <button className="wp-bottom-cancel" onClick={cancelEdit}>
+              <XCircle size={15} strokeWidth={2.5} />
+              Cancel
+            </button>
+            <button className="wp-bottom-save" onClick={handleSave}>
+              <CheckCircle2 size={15} strokeWidth={2.5} />
+              Save Profile
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );

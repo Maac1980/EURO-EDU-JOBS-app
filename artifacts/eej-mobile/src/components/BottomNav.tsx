@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { Role, ActiveTab } from "@/types";
 
 interface BottomNavProps {
@@ -6,7 +7,7 @@ interface BottomNavProps {
   onChange: (tab: ActiveTab) => void;
 }
 
-type TabDef = { id: ActiveTab; icon: (a: boolean) => JSX.Element; label: string };
+type TabDef = { id: ActiveTab; icon: (a: boolean) => ReactElement; label: string };
 
 const EXEC_LEGAL_TABS: TabDef[] = [
   { id: "home",       label: "Home",       icon: HomeIcon },

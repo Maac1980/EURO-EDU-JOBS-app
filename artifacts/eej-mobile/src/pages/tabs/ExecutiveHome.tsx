@@ -1,4 +1,13 @@
+import {
+  Users,
+  TrendingUp,
+  Clock,
+  Plane,
+  FileText,
+  ArrowUpRight,
+} from "lucide-react";
 import { EXEC_STATS } from "@/data/mockData";
+import PlatformModules from "@/components/PlatformModules";
 
 export default function ExecutiveHome() {
   return (
@@ -14,25 +23,31 @@ export default function ExecutiveHome() {
       {/* KPI Row */}
       <div className="kpi-row">
         <div className="kpi-card kpi-navy">
+          <div className="kpi-icon-row">
+            <Users size={16} color="rgba(255,255,255,0.5)" strokeWidth={2} />
+          </div>
           <div className="kpi-value">{EXEC_STATS.totalCandidates}</div>
           <div className="kpi-label">Total Candidates</div>
         </div>
         <div className="kpi-card kpi-yellow">
+          <div className="kpi-icon-row">
+            <TrendingUp size={16} color="rgba(27,42,74,0.5)" strokeWidth={2} />
+          </div>
           <div className="kpi-value" style={{ color: "#1B2A4A" }}>{EXEC_STATS.placementPct}%</div>
           <div className="kpi-label" style={{ color: "#1B2A4A" }}>Placement Rate</div>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="section-label">Operations</div>
+      {/* Ops Summary */}
+      <div className="section-label">Operations at a Glance</div>
       <div className="summary-grid">
-        <SummaryCard icon="🕐" value={EXEC_STATS.pendingReviews}    label="Pending Reviews"     accent="#F59E0B" bg="#FFFBEB" />
-        <SummaryCard icon="✈️" value={EXEC_STATS.activeDeployments} label="Active Deployments"  accent="#10B981" bg="#ECFDF5" />
-        <SummaryCard icon="📄" value={EXEC_STATS.b2bContracts}      label="B2B Contracts"       accent="#6366F1" bg="#EEF2FF" />
-        <SummaryCard icon="👥" value={EXEC_STATS.totalCandidates}   label="Workforce Pool"      accent="#1B2A4A" bg="#F0F4FF" />
+        <SummaryCard Icon={Clock}    value={EXEC_STATS.pendingReviews}    label="Pending Reviews"    accent="#F59E0B" bg="#FFFBEB" />
+        <SummaryCard Icon={Plane}    value={EXEC_STATS.activeDeployments} label="Active Deployments" accent="#10B981" bg="#ECFDF5" />
+        <SummaryCard Icon={FileText} value={EXEC_STATS.b2bContracts}      label="B2B Contracts"      accent="#6366F1" bg="#EEF2FF" />
+        <SummaryCard Icon={Users}    value={EXEC_STATS.totalCandidates}   label="Workforce Pool"     accent="#1B2A4A" bg="#F0F4FF" />
       </div>
 
-      {/* 🔒 FINANCIAL DATA — Tier 1 Only */}
+      {/* 🔒 FINANCIAL — Tier 1 Only */}
       <div className="section-label">
         Monthly Revenue
         <span className="access-badge access-t1">Tier 1 Only</span>
@@ -42,7 +57,10 @@ export default function ExecutiveHome() {
           <div className="revenue-amount">zł {EXEC_STATS.monthlyRevenue}</div>
           <div className="revenue-sub">March 2026 · Projected</div>
         </div>
-        <div className="revenue-badge"><span>▲ 12%</span></div>
+        <div className="revenue-badge">
+          <ArrowUpRight size={12} />
+          <span>12%</span>
+        </div>
       </div>
 
       <div className="section-label">
@@ -70,15 +88,27 @@ export default function ExecutiveHome() {
         <HealthBar label="Action Required" pct={17} cls="red-dot"   fillCls="red-fill"   />
       </div>
 
+      {/* ── PLATFORM MODULES — Tier 1 (ZUS included) ── */}
+      <div className="section-label">
+        Platform Modules
+        <span className="access-badge access-t1">Tier 1 Only</span>
+      </div>
+      <PlatformModules
+        modules={["zus-ledger", "timesheets", "pip-compliance", "b2b-contracts", "bhp-medical"]}
+      />
+
       <div style={{ height: 100 }} />
     </div>
   );
 }
 
-function SummaryCard({ icon, value, label, accent, bg }: { icon: string; value: number; label: string; accent: string; bg: string }) {
+function SummaryCard({ Icon, value, label, accent, bg }: {
+  Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>;
+  value: number; label: string; accent: string; bg: string;
+}) {
   return (
     <div className="summary-card" style={{ background: bg, borderColor: accent + "40" }}>
-      <div className="summary-card-icon">{icon}</div>
+      <Icon size={18} color={accent} strokeWidth={2} />
       <div className="summary-card-value" style={{ color: accent }}>{value}</div>
       <div className="summary-card-label">{label}</div>
     </div>

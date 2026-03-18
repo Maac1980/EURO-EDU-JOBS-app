@@ -1,4 +1,6 @@
+import { AlertTriangle, ShieldAlert, FileCheck2, Lock } from "lucide-react";
 import { COMPLIANCE_ALERTS } from "@/data/mockData";
+import PlatformModules from "@/components/PlatformModules";
 
 export default function LegalHome() {
   return (
@@ -15,13 +17,13 @@ export default function LegalHome() {
 
       {/* Financial Firewall Notice */}
       <div className="firewall-notice">
-        <span className="firewall-icon">🔒</span>
-        <span>Revenue, Payroll & ZUS data are restricted to Tier 1.</span>
+        <Lock size={14} color="#1E40AF" strokeWidth={2.5} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>Revenue, ZUS Ledger & Payroll are restricted to Tier 1 (Executive Board).</span>
       </div>
 
       {/* Visa / TRC Expiring */}
       <div className="alert-section-header amber">
-        <span className="alert-section-icon">🕐</span>
+        <AlertTriangle size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
         <span>Visa / TRC Expiring</span>
         <span className="alert-count amber-count">{COMPLIANCE_ALERTS.visaExpiring.length}</span>
       </div>
@@ -41,7 +43,7 @@ export default function LegalHome() {
 
       {/* Missing Passports */}
       <div className="alert-section-header red" style={{ marginTop: 20 }}>
-        <span className="alert-section-icon">🚨</span>
+        <ShieldAlert size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
         <span>Missing Passports / IDs</span>
         <span className="alert-count red-count">{COMPLIANCE_ALERTS.missingPassports.length}</span>
       </div>
@@ -59,7 +61,7 @@ export default function LegalHome() {
 
       {/* Work Permit Status */}
       <div className="alert-section-header green" style={{ marginTop: 20 }}>
-        <span className="alert-section-icon">📋</span>
+        <FileCheck2 size={14} strokeWidth={2.5} style={{ flexShrink: 0 }} />
         <span>Work Permit Status</span>
         <span className="alert-count green-count">{COMPLIANCE_ALERTS.workPermits.length}</span>
       </div>
@@ -73,6 +75,12 @@ export default function LegalHome() {
           </div>
         ))}
       </div>
+
+      {/* ── PLATFORM MODULES — Tier 2 (NO ZUS & Ledger) ── */}
+      <div className="section-label" style={{ marginTop: 20 }}>Platform Modules</div>
+      <PlatformModules
+        modules={["timesheets", "pip-compliance", "b2b-contracts", "bhp-medical", "candidate-pipeline"]}
+      />
 
       <div style={{ height: 100 }} />
     </div>

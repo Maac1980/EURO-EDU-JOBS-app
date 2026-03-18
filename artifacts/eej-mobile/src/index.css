@@ -3344,12 +3344,11 @@ select.wp-edit-input {
 
 /* ── Main card ── */
 .lp2-card {
-  flex: 1;
-  margin: 24px 20px;
+  margin: 16px 20px 0;
   background: #ffffff;
   border: 4px solid #FFD600;
-  border-radius: 4px;
-  padding: 28px 24px 24px;
+  border-radius: 24px;
+  padding: 24px 22px 22px;
   display: flex;
   flex-direction: column;
 }
@@ -3362,11 +3361,11 @@ select.wp-edit-input {
   margin-bottom: 0;
 }
 .lp2-brand-icon {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   background: #1B2A4A;
   border: 3px solid #FFD600;
-  border-radius: 4px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3426,9 +3425,9 @@ select.wp-edit-input {
 }
 .lp2-input {
   width: 100%;
-  padding: 14px 14px;
+  padding: 13px 14px;
   border: 3px solid #1B2A4A;
-  border-radius: 3px;
+  border-radius: 12px;
   font-size: 15px;
   font-family: inherit;
   color: #1B2A4A;
@@ -3467,10 +3466,10 @@ select.wp-edit-input {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 12px 14px;
+  padding: 11px 14px;
   background: #fff;
   border: 3px solid #DC2626;
-  border-radius: 3px;
+  border-radius: 12px;
   font-size: 13px;
   color: #DC2626;
   font-weight: 600;
@@ -3486,10 +3485,10 @@ select.wp-edit-input {
 /* ── Sign In button ── */
 .lp2-btn {
   width: 100%;
-  padding: 16px;
+  padding: 15px;
   background: #FFD600;
   border: 3px solid #1B2A4A;
-  border-radius: 3px;
+  border-radius: 14px;
   font-size: 15px;
   font-weight: 900;
   color: #1B2A4A;
@@ -3533,7 +3532,7 @@ select.wp-edit-input {
   gap: 6px;
   background: none;
   border: 2px solid #1B2A4A;
-  border-radius: 3px;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 900;
@@ -3551,7 +3550,7 @@ select.wp-edit-input {
 .lp2-demo-panel {
   margin-top: 14px;
   border: 3px solid #1B2A4A;
-  border-radius: 3px;
+  border-radius: 16px;
   overflow: hidden;
 }
 .lp2-demo-note {
@@ -3600,7 +3599,7 @@ select.wp-edit-input {
   color: #FFD600;
   background: #1B2A4A;
   padding: 3px 7px;
-  border-radius: 2px;
+  border-radius: 6px;
   flex-shrink: 0;
   letter-spacing: 0.05em;
 }
@@ -3620,7 +3619,7 @@ select.wp-edit-input {
   border: 2px solid #FFD600;
   background: #FFD600;
   padding: 3px 8px;
-  border-radius: 2px;
+  border-radius: 8px;
 }
 
 /* ── Footer ── */

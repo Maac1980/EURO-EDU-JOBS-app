@@ -3,14 +3,18 @@
   "services": {
     "api-server": {
       "build": {
-        "builder": "DOCKERFILE",
-        "dockerfilePath": "Dockerfile.api"
+        "buildCommand": "pnpm --filter @workspace/api-server build"
+      },
+      "deploy": {
+        "startCommand": "cd artifacts/api-server && pnpm start"
       }
     },
     "apatris-dashboard": {
       "build": {
-        "builder": "DOCKERFILE",
-        "dockerfilePath": "Dockerfile.dashboard"
+        "buildCommand": "pnpm --filter @workspace/apatris-dashboard build"
+      },
+      "deploy": {
+        "startCommand": "cd artifacts/apatris-dashboard && npx serve -s dist -p $PORT"
       }
     }
   }

@@ -1,1 +1,1 @@
-{"build": {"builder": "NIXPACKS"}, "deploy": {"startCommand": "npm start"}}
+{ "build": { "builder": "DOCKERFILE", "dockerfilePath": "artifacts/api-server/Dockerfile" } }

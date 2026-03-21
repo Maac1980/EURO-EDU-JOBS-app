@@ -1,4 +1,2 @@
 packages:
-  - 'artifacts/*'
-  - '!artifacts/eej-mobile'
-  - '!artifacts/mockup-sandbox'
+  - '**'

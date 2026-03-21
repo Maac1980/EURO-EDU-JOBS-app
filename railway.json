@@ -1,13 +1,13 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "services": {
-    "@workspace/api-server": {
+    "api-server": {
       "build": {
         "builder": "DOCKERFILE",
         "dockerfilePath": "Dockerfile.api"
       }
     },
-    "@workspace/apatris-dashboard": {
+    "apatris-dashboard": {
       "build": {
         "builder": "DOCKERFILE",
         "dockerfilePath": "Dockerfile.dashboard"

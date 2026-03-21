@@ -4,4 +4,4 @@ WORKDIR /app
 COPY . .
 RUN pnpm install --no-frozen-lockfile
 RUN pnpm run build
-CMD ["pnpm", "run", "start"]
+CMD ["node", "dist/index.cjs"]

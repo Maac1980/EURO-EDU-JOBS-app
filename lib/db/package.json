@@ -12,13 +12,13 @@
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
   },
   "dependencies": {
-    "drizzle-orm": "catalog:",
+    "drizzle-orm": "latest",
     "drizzle-zod": "^0.8.3",
     "pg": "^8.20.0",
-    "zod": "catalog:"
+    "zod": "latest"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
+    "@types/node": "latest",
     "@types/pg": "^8.18.0",
     "drizzle-kit": "^0.31.9"
   }

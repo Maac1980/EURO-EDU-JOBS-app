@@ -3,7 +3,7 @@ RUN npm install -g pnpm
 WORKDIR /app
 COPY . .
 RUN pnpm install --no-frozen-lockfile
+RUN pnpm --filter @workspace/api-server build
 WORKDIR /app/artifacts/api-server
-RUN pnpm run build
 EXPOSE 8080
 CMD ["pnpm", "start"]

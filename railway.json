@@ -3,18 +3,10 @@
   "services": {
     "api-server": {
       "build": {
-        "buildCommand": "pnpm --filter @workspace/api-server build"
+        "buildCommand": "pnpm install && pnpm --filter @workspace/api-server build"
       },
       "deploy": {
         "startCommand": "node artifacts/api-server/dist/index.js"
-      }
-    },
-    "apatris-dashboard": {
-      "build": {
-        "buildCommand": "pnpm --filter @workspace/apatris-dashboard build"
-      },
-      "deploy": {
-        "startCommand": "npx serve -s artifacts/apatris-dashboard/dist -p $PORT"
       }
     }
   }

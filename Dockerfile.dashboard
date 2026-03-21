@@ -2,6 +2,7 @@ FROM node:20-slim AS builder
 RUN corepack enable
 WORKDIR /app
 COPY . .
+# We disable the "frozen-lockfile" check to let pnpm fix the map on the fly
 RUN pnpm install --no-frozen-lockfile
 RUN pnpm --filter apatris-dashboard build
 

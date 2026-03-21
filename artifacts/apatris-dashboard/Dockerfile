@@ -1,22 +1,15 @@
-# Stage 1: Build
-FROM node:22-alpine AS builder
-RUN npm install -g pnpm
+FROM node:20-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+COPY . /app
 WORKDIR /app
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter apatris-dashboard build
 
-# Copy entire workspace to resolve cross-package links
-COPY . .
-
-# Install dependencies and build the dashboard + its dependency chain
-RUN pnpm install --no-frozen-lockfile
-RUN pnpm --filter @workspace/apatris-dashboard... build
-
-# Stage 2: Production Runtime (Nginx)
-FROM nginx:stable-alpine
-# Copy the built assets from the builder stage
-COPY --from=builder /app/artifacts/apatris-dashboard/dist /usr/share/nginx/html
-
-# Technical Fix: Enable React Router support (prevents 404 on refresh)
-RUN sed -i '10i \    location / { try_files $uri $uri/ /index.html; }' /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:20-slim
+RUN npm install -g serve
+WORKDIR /app
+COPY --from=base /app/artifacts/apatris-dashboard/dist ./dist
+EXPOSE 3000
+CMD ["serve", "-s", "dist", "-l", "3000"]

@@ -1,17 +1,1 @@
-{
-  "$schema": "https://railway.app/railway.schema.json",
-  "services": {
-    "api-server": {
-      "build": {
-        "builder": "DOCKERFILE",
-        "dockerfilePath": "Dockerfile.api"
-      }
-    },
-    "apatris-dashboard": {
-      "build": {
-        "builder": "DOCKERFILE",
-        "dockerfilePath": "Dockerfile.dashboard"
-      }
-    }
-  }
-}
+{"services": {"@workspace/api-server": {"build": {"builder": "DOCKERFILE", "dockerfilePath": "Dockerfile.api"}}, "@workspace/apatris-dashboard": {"build": {"builder": "DOCKERFILE", "dockerfilePath": "Dockerfile.dashboard"}}}}

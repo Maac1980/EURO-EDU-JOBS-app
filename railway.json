@@ -6,7 +6,7 @@
         "buildCommand": "pnpm --filter @workspace/api-server build"
       },
       "deploy": {
-        "startCommand": "cd artifacts/api-server && pnpm start"
+        "startCommand": "node artifacts/api-server/dist/index.js"
       }
     },
     "apatris-dashboard": {
@@ -14,7 +14,7 @@
         "buildCommand": "pnpm --filter @workspace/apatris-dashboard build"
       },
       "deploy": {
-        "startCommand": "cd artifacts/apatris-dashboard && npx serve -s dist -p $PORT"
+        "startCommand": "npx serve -s artifacts/apatris-dashboard/dist -p $PORT"
       }
     }
   }

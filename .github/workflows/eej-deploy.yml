@@ -1,0 +1,47 @@
+name: Auto-Deploy EEJ Mobile
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'eej-mobile-HIDDEN/**'
+      - 'packages/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build EEJ Mobile
+        run: pnpm --filter eej-mobile-HIDDEN build
+
+      - name: Update Live Docs Folder
+        run: |
+          mkdir -p docs
+          rm -rf docs/*
+          cp -r eej-mobile-HIDDEN/dist/* docs/
+          touch docs/.nojekyll
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add docs/
+          git commit -m "deploy: automated EEJ live site update" || echo "No changes to commit"
+          git push

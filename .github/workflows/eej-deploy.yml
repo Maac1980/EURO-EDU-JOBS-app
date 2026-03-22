@@ -8,6 +8,9 @@ on:
       - 'eej-mobile-HIDDEN/**'
       - 'packages/**'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
 
@@ -24,7 +27,7 @@ jobs:
           node-version: 20
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v3
         with:
           version: 8
 
@@ -34,11 +37,26 @@ jobs:
       - name: Build EEJ Mobile
         run: pnpm --filter eej-mobile-HIDDEN build
 
-      - name: Update Live Docs Folder
+      - name: Smart Copy to Docs
         run: |
           mkdir -p docs
           rm -rf docs/*
-          cp -r eej-mobile-HIDDEN/dist/* docs/
+          
+          # The Smart Radar: Find where the framework put the finished files
+          if [ -d "eej-mobile-HIDDEN/dist" ]; then
+            cp -r eej-mobile-HIDDEN/dist/* docs/
+          elif [ -d "eej-mobile-HIDDEN/build" ]; then
+            cp -r eej-mobile-HIDDEN/build/* docs/
+          elif [ -d "eej-mobile-HIDDEN/web-build" ]; then
+            cp -r eej-mobile-HIDDEN/web-build/* docs/
+          elif [ -d "eej-mobile-HIDDEN/out" ]; then
+            cp -r eej-mobile-HIDDEN/out/* docs/
+          else
+            echo "🚨 ERROR: Could not find build output folder! Here is what is inside:"
+            ls -la eej-mobile-HIDDEN
+            exit 1
+          fi
+          
           touch docs/.nojekyll
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"

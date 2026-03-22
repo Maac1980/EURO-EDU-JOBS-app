@@ -42,7 +42,6 @@ jobs:
           mkdir -p docs
           rm -rf docs/*
           
-          # The Smart Radar: Find where the framework put the finished files
           if [ -d "eej-mobile-HIDDEN/dist" ]; then
             cp -r eej-mobile-HIDDEN/dist/* docs/
           elif [ -d "eej-mobile-HIDDEN/build" ]; then

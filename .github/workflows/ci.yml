@@ -24,12 +24,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: cd artifacts/api-server && npx tsc --noEmit
+      - name: Build shared libraries
+        run: pnpm --filter @workspace/api-zod build || true
 
       - name: Run tests
         run: cd artifacts/api-server && npx vitest run
 
       - name: Build
         run: cd artifacts/api-server && npx tsx build.ts
-

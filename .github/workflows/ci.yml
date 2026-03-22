@@ -32,3 +32,4 @@ jobs:
 
       - name: Build
         run: cd artifacts/api-server && npx tsx build.ts
+

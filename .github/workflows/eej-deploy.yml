@@ -1,34 +1,46 @@
+
 name: Auto-Deploy EEJ Mobile
+
 on:
   push:
-    branches: [ master ]
-    paths: [ 'eej-mobile-HIDDEN/**', 'packages/**' ]
+    branches:
+      - master  # This wakes up the engine for EVERY push to master
+
 permissions:
   contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - uses: pnpm/action-setup@v3
-        with: { version: 8 }
-      - run: pnpm install --no-frozen-lockfile
-      - name: Build and Locate Output
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build EEJ Mobile
+        run: pnpm --filter eej-mobile-HIDDEN build
+
+      - name: Smart Copy to Docs
         run: |
-          pnpm --filter eej-mobile-HIDDEN build
           mkdir -p docs
-          # Scan for common mobile build outputs (dist, build, web-build)
-          SEARCH_PATH=$(find eej-mobile-HIDDEN -type d -name "dist" -o -name "build" -o -name "web-build" | head -n 1)
-          if [ -n "$SEARCH_PATH" ]; then
-            cp -r $SEARCH_PATH/* docs/
-          else
-            echo "Build folder not found!" && exit 1
-          fi
+          rm -rf docs/*
+          # Find the build folder wherever it is hiding
+          TARGET=$(find . -type d \( -name "dist" -o -name "build" -o -name "web-build" \) -not -path "*/node_modules/*" | head -n 1)
+          if [ -z "$TARGET" ]; then echo "Build folder not found" && exit 1; fi
+          cp -r $TARGET/* docs/
           touch docs/.nojekyll
-      - name: Deploy
-        run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add docs/

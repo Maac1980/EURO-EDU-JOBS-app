@@ -13,9 +13,9 @@ import notificationsRouter from "./notifications.js";
 import workerNotesRouter from "./worker-notes.js";
 import eejMobileRouter from "./eej-mobile.js";
 import eejAuthRouter from "./eej-auth.js";
+import aiRouter from "./ai.js";
 
 const router: IRouter = Router();
-
 router.use(eejAuthRouter);
 router.use(authRouter);
 router.use(adminRouter);
@@ -30,5 +30,6 @@ router.use(workerNotesRouter);
 router.use(healthRouter);
 router.use(workersRouter);
 router.use(eejMobileRouter);
+router.use(aiRouter);
 
 export default router;

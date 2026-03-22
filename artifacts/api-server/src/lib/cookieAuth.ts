@@ -23,11 +23,12 @@ export function clearAuthCookie(res: Response) {
   res.clearCookie(COOKIE_NAME, { path: '/' })
 }
 
-export function cookieAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+export function cookieAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
   const token = req.cookies?.[COOKIE_NAME] ?? extractBearerToken(req)
 
   if (!token) {
-    return res.status(401).json({ error: 'Authentication required' })
+    res.status(401).json({ error: 'Authentication required' })
+    return
   }
 
   try {
@@ -37,7 +38,7 @@ export function cookieAuthMiddleware(req: Request, res: Response, next: NextFunc
   } catch (err) {
     logger.warn({ err }, 'Invalid token attempt')
     clearAuthCookie(res)
-    return res.status(401).json({ error: 'Session expired, please log in again' })
+    res.status(401).json({ error: 'Session expired, please log in again' })
   }
 }
 

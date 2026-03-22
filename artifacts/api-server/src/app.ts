@@ -1,12 +1,10 @@
+
 import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import router from "./routes";
+import router from "./routes/index.js";
 import { helmetMiddleware, globalRateLimit, apiRateLimit } from "./middlewares/security.js";
 import { requestLogger } from "./lib/logger.js";
-import { initSentry, sentryErrorHandler } from "./lib/sentry.js";
-
-initSentry();
 
 const app: Express = express();
 
@@ -21,6 +19,5 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use("/api", apiRateLimit, router);
-app.use(sentryErrorHandler());
 
 export default app;

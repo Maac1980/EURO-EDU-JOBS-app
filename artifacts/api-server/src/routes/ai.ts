@@ -1,15 +1,12 @@
-import { Router } from 'express'
+import { Router, Request, Response } from 'express'
 import { scoreWorkerRisk, scoreAllWorkers } from '../lib/complianceAI.js'
 import { logger } from '../lib/logger.js'
 
 const router = Router()
 
-// Score a single worker's compliance risk
-router.get('/ai/risk/:workerId', async (req, res) => {
+router.get('/ai/risk/:workerId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workerId } = req.params
-
-    // Get worker data from request or mock for now
     const worker = {
       id: workerId,
       name: req.query.name as string ?? 'Unknown Worker',
@@ -23,7 +20,6 @@ router.get('/ai/risk/:workerId', async (req, res) => {
       liftingCertExpiry: req.query.liftingCertExpiry as string,
       nationalIdExpiry: req.query.nationalIdExpiry as string,
     }
-
     const result = await scoreWorkerRisk(worker)
     res.json(result)
   } catch (err) {
@@ -32,19 +28,17 @@ router.get('/ai/risk/:workerId', async (req, res) => {
   }
 })
 
-// Score all workers at once
-router.post('/ai/risk/batch', async (req, res) => {
+router.post('/ai/risk/batch', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workers } = req.body
-
     if (!Array.isArray(workers) || workers.length === 0) {
-      return res.status(400).json({ error: 'workers array is required' })
+      res.status(400).json({ error: 'workers array is required' })
+      return
     }
-
     if (workers.length > 100) {
-      return res.status(400).json({ error: 'Maximum 100 workers per batch' })
+      res.status(400).json({ error: 'Maximum 100 workers per batch' })
+      return
     }
-
     const result = await scoreAllWorkers(workers)
     res.json(result)
   } catch (err) {
@@ -53,20 +47,17 @@ router.post('/ai/risk/batch', async (req, res) => {
   }
 })
 
-// Get risk summary for dashboard
-router.post('/ai/risk/summary', async (req, res) => {
+router.post('/ai/risk/summary', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workers } = req.body
-
     if (!Array.isArray(workers)) {
-      return res.status(400).json({ error: 'workers array is required' })
+      res.status(400).json({ error: 'workers array is required' })
+      return
     }
-
     const result = await scoreAllWorkers(workers)
-
     res.json({
       summary: result.summary,
-      topRisks: result.workers.slice(0, 10), // Top 10 highest risk workers
+      topRisks: result.workers.slice(0, 10),
       analysedAt: new Date().toISOString(),
     })
   } catch (err) {

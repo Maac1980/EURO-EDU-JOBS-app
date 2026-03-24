@@ -6,7 +6,7 @@ import path from "path";
 const port = Number(process.env.PORT ?? 3000);
 
 export default defineConfig({
-  base: "/",
+  base: "/eej-mobile/",
   plugins: [
     react(),
     tailwindcss(),

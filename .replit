@@ -5,9 +5,9 @@ id = "artifacts/api-server"
 
 [[artifacts]]
 id = "artifacts/eej-mobile"
-type = "static"
-publicDir = "artifacts/eej-mobile/dist/public"
-path = "/eej-mobile"
+
+[[artifacts]]
+id = "artifacts/mockup-sandbox"
 
 [deployment]
 router = "application"

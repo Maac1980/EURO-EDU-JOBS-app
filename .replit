@@ -4,7 +4,10 @@ modules = ["nodejs-24", "python-3.11"]
 id = "artifacts/api-server"
 
 [[artifacts]]
-id = "artifacts/mockup-sandbox"
+id = "artifacts/eej-mobile"
+type = "static"
+publicDir = "artifacts/eej-mobile/dist/public"
+path = "/eej-mobile"
 
 [deployment]
 router = "application"

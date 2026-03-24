@@ -1,0 +1,8 @@
+{
+  "name": "@workspace/eej-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'pre-built'"
+  }
+}

@@ -3,7 +3,7 @@ import type { User, Role } from "@/types";
 
 const SESSION_KEY = "eej_session_v2";
 const TOKEN_KEY   = "eej_token_v2";
-const API_BASE    = "/api";
+const API_BASE    = "/api";// keep as is
 
 interface AuthContextValue {
   user: User | null;

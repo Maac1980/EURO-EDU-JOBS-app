@@ -11,8 +11,7 @@ export interface User {
   candidateId?: string;
 }
 
-export type ActiveTab =
-  | "home"
+export type ActiveTab = "calculator" | "home"
   | "candidates"
   | "alerts"
   | "upload"

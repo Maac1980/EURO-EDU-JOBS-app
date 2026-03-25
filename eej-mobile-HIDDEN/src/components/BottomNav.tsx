@@ -13,6 +13,7 @@ type TabDef = { id: ActiveTab; icon: (a: boolean) => ReactElement; label: string
 const EXEC_LEGAL_TABS: TabDef[] = [
   { id: "home",       label: "Home",       icon: HomeIcon },
   { id: "candidates", label: "Candidates", icon: CandidatesIcon },
+  { id: "calculator", label: "Calc",       icon: CalcIcon },
   { id: "alerts",     label: "Alerts",     icon: AlertsIcon },
   { id: "profile",    label: "Profile",    icon: ProfileIcon },
 ];
@@ -20,6 +21,7 @@ const EXEC_LEGAL_TABS: TabDef[] = [
 const OPS_TABS: TabDef[] = [
   { id: "home",       label: "Home",     icon: HomeIcon },
   { id: "candidates", label: "Pipeline", icon: PipelineIcon },
+  { id: "calculator", label: "Calc",     icon: CalcIcon },
   { id: "upload",     label: "Upload",   icon: UploadIcon },
   { id: "profile",    label: "Profile",  icon: ProfileIcon },
 ];
@@ -85,4 +87,8 @@ function UploadIcon(active: boolean) {
 }
 function PipelineIcon(active: boolean) {
   return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#FFD600" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
+}
+
+function CalcIcon(active: boolean) {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#FFD600" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16.01" y2="14"/><line x1="12" y1="14" x2="12.01" y2="14"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="16" y1="18" x2="16.01" y2="18"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="8" y1="18" x2="8.01" y2="18"/></svg>;
 }

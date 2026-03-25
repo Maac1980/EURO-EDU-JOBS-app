@@ -1,3 +1,4 @@
+import { KnowledgeCenter } from "@/components/KnowledgeCenter";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { BottomNav } from "@/components/BottomNav";
@@ -42,6 +43,7 @@ function getBadgeCounts(role: Role): Partial<Record<ActiveTab, number>> {
 }
 
 function TabContent({ role, tab, candidateId }: { role: Role; tab: ActiveTab; candidateId?: string }) {
+  if (tab === "calculator") return <KnowledgeCenter />;
   if (tab === "home") {
     if (role === "executive")  return <ExecutiveHome />;
     if (role === "legal")      return <LegalHome />;

@@ -517,7 +517,7 @@ export default function Dashboard() {
             <span style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif", fontWeight: 900, fontSize: 15, letterSpacing: "-0.05em" }}>EEJ</span>
           </div>
           <div>
-            <div style={{ color: "#ffffff", fontWeight: 900, fontSize: 16, letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1 }}>
+            <div style={{ color: "#ffffff", fontWeight: 900, fontSize: 16, letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1, fontFamily: "Montserrat, sans-serif" }}>
               EURO EDU JOBS
             </div>
             <div style={{ color: "#E9FF70", fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.7, marginTop: 4, fontFamily: "monospace" }}>
@@ -572,8 +572,8 @@ export default function Dashboard() {
             onClick={() => setActiveTab(tab as typeof activeTab)}
             style={{
               padding: "22px 16px",
-              background: isActive ? color : "#1e293b",
-              border: `2px solid ${isActive ? color : "rgba(255,255,255,0.08)"}`,
+              background: isActive ? color : color + "22",
+              border: `2px solid ${isActive ? color : color + "66"}`,
               borderRadius: 14,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
               cursor: "pointer",
@@ -600,10 +600,10 @@ export default function Dashboard() {
               }
             }}
           >
-            <Icon size={46} color={isActive ? "#ffffff" : color} strokeWidth={1.5} />
+            <Icon size={46} color={isActive ? "#ffffff" : color} strokeWidth={1.8} />
             <span style={{
-              color: isActive ? "#ffffff" : "rgba(255,255,255,0.7)",
-              fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.13em",
+              color: isActive ? "#ffffff" : "rgba(255,255,255,0.9)",
+              fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.13em", fontFamily: "Montserrat, sans-serif",
             }}>{label}</span>
           </button>
         );}))}
@@ -1020,8 +1020,8 @@ export default function Dashboard() {
                 <tr>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.trcExpiry")}</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.workPermit")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white hidden xl:table-cell">{t("table.trcExpiry")}</th>
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white hidden xl:table-cell">{t("table.workPermit")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.badaniaLek")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.oswiadczenie")}</th>
@@ -1080,10 +1080,10 @@ export default function Dashboard() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-white font-mono text-sm">
-                        {worker.trcExpiry ? format(parseISO(worker.trcExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}
+                        <span className="hidden xl:inline">{worker.trcExpiry ? format(parseISO(worker.trcExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}</span>
                       </td>
                       <td className="px-6 py-4 text-white font-mono text-sm">
-                        {worker.workPermitExpiry ? format(parseISO(worker.workPermitExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}
+                        <span className="hidden xl:inline">{worker.workPermitExpiry ? format(parseISO(worker.workPermitExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}</span>
                       </td>
                       <td className="px-6 py-4 font-mono text-sm">
                         {(() => {

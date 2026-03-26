@@ -12,14 +12,14 @@ function calculate(hours: number, rate: number, contract: ContractType, applyPit
   const employeeZus = pension + disability + sickness;
 
   // Health insurance - different rate per contract
-  const healthBase = gross - employeeZus;
-  const healthRate = contract === "zlecenie" ? 0.0799 : 0.0777;
-  const health = Math.round(healthBase * healthRate * 100) / 100;
+  const healthRate = contract === "zlecenie" ? 0.079866 : 0.077661;
+  const health = Math.round(gross * healthRate * 100) / 100;
 
   // Tax base
   let taxBase: number;
   if (contract === "zlecenie") {
-    taxBase = Math.round(gross * 0.7099); // 70.99% of gross
+    const kup = Math.round((gross - employeeZus) * 0.20 * 100) / 100;
+    taxBase = Math.round(gross - employeeZus - kup);
   } else {
     taxBase = Math.round(gross - employeeZus - 250); // gross - ZUS - KUP
   }

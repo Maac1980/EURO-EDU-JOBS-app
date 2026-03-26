@@ -1123,7 +1123,7 @@ export default function Dashboard() {
                       <td className="px-6 py-4 text-sm">
                         {(worker as any).yearsOfExperience ? (
                           <span className="px-2 py-1 rounded text-xs font-bold font-mono" style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}>
-                            {(worker as any).yearsOfExperience} {t("table.yrs")}
+                            {(worker as any).yearsOfExperience}
                           </span>
                         ) : <span className="text-gray-500">—</span>}
                       </td>

@@ -698,6 +698,7 @@ export function PayrollRunPage() {
                     { label: t("payroll.col.estPit"), clr: "#f87171" },
                     { label: t("payroll.col.netAfterTax"), clr: "#4ade80" },
                     { label: t("payroll.col.eejCost"), clr: "#fb923c" },
+                    { label: "Total Employer Cost", clr: "#e879f9" },
                     { label: t("payroll.col.advance"), clr: "#f97316" },
                   ].map((c: any) => (
                     <th key={c.label} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap"
@@ -837,6 +838,10 @@ export function PayrollRunPage() {
                         {/* EEJ (Employer) Cost */}
                         <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
                           {gross > 0 ? `+ ${(gross * EMPLOYER_ZUS_RATE).toFixed(2)}` : "—"}
+                        </td>
+                        {/* Total Employer Cost */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-black" style={{ color: "#e879f9" }}>
+                          {gross > 0 ? (gross + gross * EMPLOYER_ZUS_RATE).toFixed(2) : "—"}
                         </td>
                         {/* Advances */}
                         <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: advance > 0 ? "#f97316" : "rgba(255,255,255,0.3)" }}>

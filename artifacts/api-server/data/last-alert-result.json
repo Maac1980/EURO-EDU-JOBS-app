@@ -1,8 +1,8 @@
 {
   "scanned": 11,
   "docsFound": 10,
-  "redCount": 6,
-  "yellowCount": 4,
+  "redCount": 7,
+  "yellowCount": 3,
   "greenCount": 0,
   "emailSent": false,
   "emailTo": "anna.b@edu-jobs.eu",
@@ -12,72 +12,72 @@
       "name": "Fatima El Amine",
       "doc": "TRC Residence Card",
       "expiry": "2026-03-05",
-      "days": -20,
+      "days": -21,
       "zone": "red"
     },
     {
       "name": "Piotr Kowalski",
       "doc": "TRC Residence Card",
       "expiry": "2026-03-20",
-      "days": -5,
+      "days": -6,
       "zone": "red"
     },
     {
       "name": "Piotr Kowalski",
       "doc": "Work Permit",
       "expiry": "2026-03-27",
-      "days": 2,
+      "days": 1,
       "zone": "red"
     },
     {
       "name": "Xander conceicao",
       "doc": "TRC Residence Card",
       "expiry": "2026-04-02",
-      "days": 8,
+      "days": 7,
       "zone": "red"
     },
     {
       "name": "Piotr Kowalski",
       "doc": "BHP Certificate",
       "expiry": "2026-04-06",
-      "days": 12,
+      "days": 11,
       "zone": "red"
     },
     {
       "name": "Fatima El Amine",
       "doc": "Work Permit",
       "expiry": "2026-04-09",
-      "days": 15,
+      "days": 14,
       "zone": "red"
     },
     {
       "name": "Dmytro Kovalenko",
       "doc": "TRC Residence Card",
       "expiry": "2026-04-24",
-      "days": 30,
-      "zone": "yellow"
+      "days": 29,
+      "zone": "red"
     },
     {
       "name": "Xander conceicao",
       "doc": "Work Permit",
       "expiry": "2026-04-29",
-      "days": 35,
+      "days": 34,
       "zone": "yellow"
     },
     {
       "name": "Dmytro Kovalenko",
       "doc": "BHP Certificate",
       "expiry": "2026-05-02",
-      "days": 38,
+      "days": 37,
       "zone": "yellow"
     },
     {
       "name": "Dmytro Kovalenko",
       "doc": "Work Permit",
       "expiry": "2026-05-09",
-      "days": 45,
+      "days": 44,
       "zone": "yellow"
     }
   ],
-  "ranAt": "2026-03-25T20:36:29.407Z"
+  "ranAt": "2026-03-26T08:00:26.976Z"
 }

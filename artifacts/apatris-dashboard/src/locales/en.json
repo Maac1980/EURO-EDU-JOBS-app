@@ -422,7 +422,7 @@
       "estPit": "Est. PIT",
       "netAfterTax": "Net After Tax",
       "finalNet": "Final Net",
-      "apatrisCost": "Apatris Cost"
+      "eejCost": "EEJ Cost"
     },
     "savedChanges": "Changes saved",
     "monthClosed": "Month closed & committed to ledger",
@@ -449,7 +449,7 @@
     "bankCsv": "Bank CSV",
     "workerZus": "Full ZUS + PIT (13.71%)",
     "allSites": "All",
-    "apatrisCost": "Apatris Cost (incl. Employer ZUS)",
+    "eejCost": "EEJ Cost (incl. Employer ZUS)",
     "platnikExport": "Płatnik CSV",
     "setAllHours": "Set all hours",
     "gridZusTitle": "PAYROLL GRID — ZUS BREAKDOWN",

@@ -257,7 +257,7 @@ export function PayrollRunPage() {
     return s + (gross > 0 ? calcDeductions(gross).socialZus : 0);
   }, 0) : 0;
   const totalNetto = rows.reduce((s, r) => s + calcNetto(r, withZus), 0);
-  const totalApatrisCost = totalGross * (1 + EMPLOYER_ZUS_RATE);
+  const totalEejCost = totalGross * (1 + EMPLOYER_ZUS_RATE);
 
   const handleBankExport = async () => {
     setBankExporting(true);
@@ -587,7 +587,7 @@ export function PayrollRunPage() {
           { label: t("payroll.totalGross"), value: `${totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: DollarSign, color: "#34d399" },
           { label: t("payroll.totalDeductions"), value: `${(totalAdvances + totalPenalties).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Calculator, color: "#f97316" },
           { label: t("payroll.totalNetto"), value: `${totalNetto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Building2, color: "#4ade80", highlight: true },
-          { label: t("payroll.apatrisCost"), value: `${totalApatrisCost.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: AlertTriangle, color: "#fb923c", highlight2: true },
+          { label: t("payroll.eejCost"), value: `${totalEejCost.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: AlertTriangle, color: "#fb923c", highlight2: true },
         ].map((c: any) => (
           <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? "rgba(74,222,128,0.06)" : c.highlight2 ? "rgba(251,146,60,0.06)" : "rgba(255,255,255,0.02)", borderColor: c.highlight ? "rgba(74,222,128,0.25)" : c.highlight2 ? "rgba(251,146,60,0.25)" : "rgba(255,255,255,0.06)" }}>
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}18`, border: `1px solid ${c.color}40` }}>
@@ -697,7 +697,7 @@ export function PayrollRunPage() {
                     { label: t("payroll.col.healthIns"), clr: "#fb923c" },
                     { label: t("payroll.col.estPit"), clr: "#f87171" },
                     { label: t("payroll.col.netAfterTax"), clr: "#4ade80" },
-                    { label: t("payroll.col.apatrisCost"), clr: "#fb923c" },
+                    { label: t("payroll.col.eejCost"), clr: "#fb923c" },
                     { label: t("payroll.col.advance"), clr: "#f97316" },
                   ].map((c: any) => (
                     <th key={c.label} className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-left whitespace-nowrap"
@@ -834,7 +834,7 @@ export function PayrollRunPage() {
                         <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: netAfterTax >= 0 ? "#4ade80" : "#ef4444" }}>
                           {gross > 0 ? netAfterTax.toFixed(2) : "—"}
                         </td>
-                        {/* Apatris (Employer) Cost */}
+                        {/* EEJ (Employer) Cost */}
                         <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>
                           {gross > 0 ? `+ ${(gross * EMPLOYER_ZUS_RATE).toFixed(2)}` : "—"}
                         </td>

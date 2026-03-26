@@ -422,7 +422,7 @@
       "estPit": "PIT szac.",
       "netAfterTax": "Netto po PIT",
       "finalNet": "Wypłata netto",
-      "apatrisCost": "Koszt Apatris"
+      "eejCost": "Koszt EEJ"
     },
     "savedChanges": "Zmiany zapisane",
     "monthClosed": "Miesiąc zamknięty i zatwierdzony do ksiąg",
@@ -449,7 +449,7 @@
     "bankCsv": "CSV Bankowy",
     "workerZus": "Pełny ZUS + PIT (13,71%)",
     "allSites": "Wszystkie",
-    "apatrisCost": "Koszt Apatris (ZUS pracodawcy)",
+    "eejCost": "Koszt EEJ (ZUS pracodawcy)",
     "platnikExport": "CSV Płatnik",
     "setAllHours": "Ustaw godziny dla wszystkich",
     "gridZusTitle": "SIATKA PŁAC — ROZKŁAD ZUS",

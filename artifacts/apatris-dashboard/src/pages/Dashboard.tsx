@@ -201,7 +201,7 @@ export default function Dashboard() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<"compliance" | "payroll" | "deployment" | "alerts" | "settings">("compliance");
+  const [activeTab, setActiveTab] = useState<"compliance" | "payroll" | "deployment" | "alerts" | "calculator" | "settings">("compliance");
   const [search, setSearch] = useState("");
   const [specialization, setSpecialization] = useState("");
   const [status, setStatus] = useState("");
@@ -556,41 +556,42 @@ export default function Dashboard() {
       <div className="app-content-scroll">
 
       {/* ═══════════ MODULE NAV CARDS ═══════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, margin: "28px 40px 0" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, margin: "28px 40px 0" }}>
         {(([
-          { tab: "compliance", icon: ShieldAlert, label: t("tabs.compliance"), hide: false },
-          { tab: "payroll",    icon: Calculator,  label: t("tabs.payroll"),    hide: !isAdmin && !isCoordinator },
-          { tab: "deployment", icon: MapPin,       label: t("tabs.deployment"), hide: false },
-          { tab: "alerts",     icon: AlertOctagon, label: t("tabs.alerts"),    hide: false },
-          { tab: "settings",   icon: Settings,     label: t("tabs.settings"),  hide: !isAdmin },
-        ] as { tab: "compliance"|"payroll"|"deployment"|"alerts"|"settings"; icon: React.ElementType; label: string; hide: boolean }[]).filter((c) => !c.hide).map(({ tab, icon: Icon, label }) => (
+          { tab: "compliance", icon: ShieldAlert, label: t("tabs.compliance"), hide: false,                        color: "#ef4444", glow: "rgba(239,68,68,0.3)" },
+          { tab: "payroll",    icon: Calculator,  label: t("tabs.payroll"),    hide: !isAdmin && !isCoordinator,   color: "#22c55e", glow: "rgba(34,197,94,0.3)" },
+          { tab: "deployment", icon: MapPin,       label: t("tabs.deployment"), hide: false,                        color: "#3b82f6", glow: "rgba(59,130,246,0.3)" },
+          { tab: "alerts",     icon: AlertOctagon, label: t("tabs.alerts"),    hide: false,                        color: "#f59e0b", glow: "rgba(245,158,11,0.3)" },
+          { tab: "calculator", icon: Zap,          label: "Calculator",         hide: !isAdmin && !isCoordinator,   color: "#a855f7", glow: "rgba(168,85,247,0.3)" },
+          { tab: "settings",   icon: Settings,     label: t("tabs.settings"),  hide: !isAdmin,                     color: "#64748b", glow: "rgba(100,116,139,0.3)" },
+        ] as { tab: "compliance"|"payroll"|"deployment"|"alerts"|"calculator"|"settings"; icon: React.ElementType; label: string; hide: boolean; color: string; glow: string }[]).filter((c) => !c.hide).map(({ tab, icon: Icon, label, color, glow }) => {
+          const isActive = activeTab === tab;
+          return (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab as typeof activeTab)}
             style={{
               padding: "22px 16px",
-              background: activeTab === tab ? "rgba(233,255,112,0.12)" : "#1e293b",
-              border: activeTab === tab ? "2px solid #E9FF70" : "2px solid rgba(255,255,255,0.08)",
+              background: isActive ? color : "#1e293b",
+              border: `2px solid ${isActive ? color : "rgba(255,255,255,0.08)"}`,
               borderRadius: 14,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
               cursor: "pointer",
               transition: "all 0.2s ease",
-              boxShadow: activeTab === tab
-                ? "0 0 36px rgba(233,255,112,0.15), 0 8px 24px rgba(0,0,0,0.4)"
-                : "0 4px 20px rgba(0,0,0,0.35)",
-              transform: activeTab === tab ? "translateY(-3px)" : "none",
+              boxShadow: isActive ? `0 0 36px ${glow}, 0 8px 24px rgba(0,0,0,0.4)` : "0 4px 20px rgba(0,0,0,0.35)",
+              transform: isActive ? "translateY(-3px)" : "none",
             }}
             onMouseEnter={(e) => {
-              if (activeTab !== tab) {
+              if (!isActive) {
                 const el = e.currentTarget as HTMLButtonElement;
-                el.style.background = "#253048";
-                el.style.borderColor = "#E9FF70";
+                el.style.background = color + "22";
+                el.style.borderColor = color;
                 el.style.transform = "translateY(-3px)";
-                el.style.boxShadow = "0 0 28px rgba(233,255,112,0.12), 0 8px 24px rgba(0,0,0,0.4)";
+                el.style.boxShadow = `0 0 28px ${glow}, 0 8px 24px rgba(0,0,0,0.4)`;
               }
             }}
             onMouseLeave={(e) => {
-              if (activeTab !== tab) {
+              if (!isActive) {
                 const el = e.currentTarget as HTMLButtonElement;
                 el.style.background = "#1e293b";
                 el.style.borderColor = "rgba(255,255,255,0.08)";
@@ -599,13 +600,13 @@ export default function Dashboard() {
               }
             }}
           >
-            <Icon size={46} color={activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.5)"} strokeWidth={1.5} />
+            <Icon size={46} color={isActive ? "#ffffff" : color} strokeWidth={1.5} />
             <span style={{
-              color: activeTab === tab ? "#E9FF70" : "rgba(255,255,255,0.6)",
+              color: isActive ? "#ffffff" : "rgba(255,255,255,0.7)",
               fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.13em",
             }}>{label}</span>
           </button>
-        )))}
+        );}))}
       </div>
 
       {/* ═══════════ ACTION BUTTONS ROW ═══════════ */}
@@ -660,7 +661,7 @@ export default function Dashboard() {
         {/* ── Tab Bar — hidden via CSS; bottom bar handles mobile ── */}
         <div className="eej-tab-bar overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit min-w-max">
-          {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)
+          {(["compliance", "payroll", "deployment", "alerts", "calculator", "settings"] as const)
             .filter((tab) => {
               if (tab === "settings") return isAdmin;
               if (tab === "payroll") return isAdmin || isCoordinator;
@@ -1818,7 +1819,7 @@ export default function Dashboard() {
           BOTTOM APP BAR — mobile (≤768px) only
       ═══════════════════════════════════════════ */}
       <nav className="eej-bottom-bar">
-        {(["compliance", "payroll", "deployment", "alerts", "settings"] as const)
+        {(["compliance", "payroll", "deployment", "alerts", "calculator", "settings"] as const)
           .filter((tab) => {
             if (tab === "settings") return isAdmin;
             if (tab === "payroll") return isAdmin || isCoordinator;

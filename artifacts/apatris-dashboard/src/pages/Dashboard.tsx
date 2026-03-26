@@ -1022,7 +1022,6 @@ export default function Dashboard() {
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
                   
                   
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.badaniaLek")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.oswiadczenie")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.exp")}</th>
@@ -1078,12 +1077,6 @@ export default function Dashboard() {
                         <span className="px-2 py-1 rounded bg-white/10 border border-white/20 text-xs font-bold text-white">
                           {worker.specialization || '—'}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-white font-mono text-sm">
-                        <span className="hidden xl:inline">{worker.trcExpiry ? format(parseISO(worker.trcExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}</span>
-                      </td>
-                      <td className="px-6 py-4 text-white font-mono text-sm">
-                        <span className="hidden xl:inline">{worker.workPermitExpiry ? format(parseISO(worker.workPermitExpiry), 'MMM d, yyyy') : <span className="text-gray-500">—</span>}</span>
                       </td>
                       <td className="px-6 py-4 font-mono text-sm">
                         {(() => {

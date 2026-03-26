@@ -1020,8 +1020,8 @@ export default function Dashboard() {
                 <tr>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white hidden xl:table-cell">{t("table.trcExpiry")}</th>
-                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white hidden xl:table-cell">{t("table.workPermit")}</th>
+                  
+                  
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.bhp")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.badaniaLek")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.oswiadczenie")}</th>
@@ -1122,17 +1122,17 @@ export default function Dashboard() {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {(worker as any).yearsOfExperience ? (
-                          <span className="px-2 py-1 rounded text-xs font-bold font-mono" style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}>
+                          <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontFamily: "Inter, sans-serif" }}>
                             {(worker as any).yearsOfExperience}
                           </span>
-                        ) : <span className="text-gray-500">—</span>}
+                        ) : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {(worker as any).highestQualification ? (
-                          <span className="px-2 py-1 rounded text-xs font-bold font-mono" style={{ background: "rgba(233,255,112,0.07)", border: "1px solid rgba(233,255,112,0.18)", color: "rgba(233,255,112,0.85)" }}>
+                          <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontFamily: "Inter, sans-serif" }}>
                             {(worker as any).highestQualification}
                           </span>
-                        ) : <span className="text-gray-500">—</span>}
+                        ) : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                       </td>
                       <td className="px-2 py-2">
                         {(() => {

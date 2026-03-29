@@ -28,6 +28,7 @@ import WorkPermitTab   from "./tabs/WorkPermitTab";
 import GPSTrackingTab  from "./tabs/GPSTrackingTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { useI18n } from "@/lib/i18n";
 
 const ROLE_COLOR: Record<Role, string> = {
   executive:  "#1B2A4A",
@@ -105,6 +106,7 @@ export default function Dashboard() {
 function DashboardInner() {
   const { user, logout } = useAuth();
   const { candidates } = useCandidates();
+  const { language, setLanguage } = useI18n();
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
 
   if (!user) return null;
@@ -130,9 +132,28 @@ function DashboardInner() {
               <div className="dash-header-sub">{user.designation}</div>
             </div>
           </div>
-          <button className="dash-logout" onClick={logout} title="Logout">
-            <LogoutIcon />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              onClick={() => setLanguage(language === "en" ? "pl" : "en")}
+              title="Toggle language"
+              style={{
+                background: "rgba(255,255,255,0.15)",
+                border: "1px solid rgba(255,255,255,0.3)",
+                borderRadius: 6,
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "4px 8px",
+                cursor: "pointer",
+                letterSpacing: 0.5,
+              }}
+            >
+              {language === "en" ? "PL" : "EN"}
+            </button>
+            <button className="dash-logout" onClick={logout} title="Logout">
+              <LogoutIcon />
+            </button>
+          </div>
         </header>
 
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>

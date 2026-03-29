@@ -40,7 +40,13 @@ export default function MyDocsTab() {
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const MY = candidates.find(c => c.id === user?.candidateId) ?? candidates[0];
+  // If candidateId is provided, look up that specific candidate.
+  // If candidateId is provided but not found, show error (don't fall back to wrong profile).
+  // Only fall back to candidates[0] if no candidateId was provided (demo mode).
+  const candidateId = user?.candidateId;
+  const MY = candidateId
+    ? candidates.find(c => c.id === candidateId)
+    : candidates[0];
 
   function handleUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -54,6 +60,14 @@ export default function MyDocsTab() {
     return (
       <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
         <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading documents...</div>
+      </div>
+    );
+  }
+
+  if (candidateId && !MY) {
+    return (
+      <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+        <div style={{ color: "#9CA3AF", fontSize: 14 }}>Profile not found. Your candidate ID does not match any record.</div>
       </div>
     );
   }

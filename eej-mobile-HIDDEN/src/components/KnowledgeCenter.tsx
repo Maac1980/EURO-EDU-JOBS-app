@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 
-type ContractType = "zlecenie" | "praca";
+export type ContractType = "zlecenie" | "praca";
 
-function calculate(hours: number, rate: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
+export function calculate(hours: number, rate: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
   const gross = Math.round(hours * rate * 100) / 100;
 
   // Employee ZUS

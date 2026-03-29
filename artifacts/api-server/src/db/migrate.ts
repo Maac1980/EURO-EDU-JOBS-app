@@ -439,5 +439,93 @@ export async function seedInitialData(): Promise<void> {
     }
   }
 
+  // ── Seed sample workers if < 5 exist ──────────────────────────────────────
+  const workerCount = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM workers`);
+  const wCnt = (workerCount.rows[0] as { cnt: number }).cnt;
+  if (wCnt < 5) {
+    await db.execute(sql`
+      INSERT INTO workers (name, email, phone, job_role, nationality, experience, qualification, assigned_site, hourly_netto_rate, contract_type, contract_end_date, trc_expiry, work_permit_expiry, bhp_status, pesel, visa_type, pipeline_stage)
+      VALUES
+        ('Mariusz Kowalski', 'mariusz.k@example.com', '+48501000001', 'Welder', 'Polish', '8 years', 'ISO 9606', 'Wroclaw-Site-A', 35.00, 'umowa_o_prace', '2027-06-30', NULL, NULL, 'valid', '90010112345', NULL, 'Active'),
+        ('Daria Shevchenko', 'daria.s@example.com', '+48501000002', 'Healthcare Assistant', 'Ukrainian', '3 years', 'Nursing Diploma', 'Warsaw-MediCare', 32.00, 'umowa_zlecenie', '2026-09-15', '2026-08-01', '2026-07-15', 'valid', NULL, 'type_a', 'Active'),
+        ('Ahmed Al-Rashid', 'ahmed.r@example.com', '+48501000003', 'Construction Worker', 'Egyptian', '5 years', 'BHP Certificate', 'Wroclaw-Site-B', 28.50, 'umowa_zlecenie', '2026-05-31', '2026-04-20', '2026-04-15', 'expired', NULL, 'seasonal', 'Active'),
+        ('Natalia Petrenko', 'natalia.p@example.com', '+48501000004', 'HR Coordinator', 'Ukrainian', '4 years', 'BA Human Resources', 'Warsaw-HQ', 40.00, 'umowa_o_prace', '2027-12-31', '2027-03-01', '2027-03-01', 'valid', NULL, 'type_a', 'Active'),
+        ('Oleksandr Bondar', 'oleksandr.b@example.com', '+48501000005', 'Electrician', 'Ukrainian', '6 years', 'SEP Certificate', 'Poznan-LogiTrans', 33.00, 'umowa_zlecenie', '2026-07-31', '2026-06-10', '2026-06-10', 'valid', NULL, 'oswiadczenie', 'Active'),
+        ('Andreea Moldovan', 'andreea.m@example.com', '+48501000006', 'Warehouse Operative', 'Romanian', '2 years', 'Forklift License', 'Poznan-LogiTrans', 26.00, 'umowa_zlecenie', '2026-12-31', NULL, NULL, 'valid', NULL, NULL, 'Placed'),
+        ('Giorgi Kvaratskhelia', 'giorgi.k@example.com', '+48501000007', 'Welder', 'Georgian', '7 years', 'ISO 9606 TIG/MIG', 'Wroclaw-Site-A', 38.00, 'umowa_o_prace', '2027-03-31', '2026-12-15', '2026-12-15', 'valid', NULL, 'type_a', 'Active'),
+        ('Elena Raducanu', 'elena.r@example.com', '+48501000008', 'Quality Inspector', 'Romanian', '4 years', 'ISO 9001 Auditor', 'Wroclaw-Site-B', 36.00, 'umowa_o_prace', '2027-06-30', NULL, NULL, 'valid', '92050567890', NULL, 'Active'),
+        ('Rajesh Nair', 'rajesh.n@example.com', '+48501000009', 'IT Support', 'Indian', '5 years', 'CompTIA A+', 'Warsaw-HQ', 42.00, 'umowa_zlecenie', '2026-08-31', '2026-05-01', '2026-05-01', 'pending', NULL, 'type_b', 'Screening'),
+        ('Nguyen Thi Lan', 'nguyen.l@example.com', '+48501000010', 'Cook', 'Vietnamese', '3 years', 'Culinary Certificate', 'Warsaw-Restaurant', 27.00, 'umowa_zlecenie', '2026-11-30', '2027-01-15', '2027-01-15', 'valid', NULL, 'type_a', 'Active')
+      ON CONFLICT DO NOTHING
+    `);
+    console.log("[db] Seeded 10 sample workers");
+  }
+
+  // ── Seed sample job postings ─────────────────────────────────────────────
+  const jobCount = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM job_postings`);
+  const jCnt = (jobCount.rows[0] as { cnt: number }).cnt;
+  if (jCnt === 0) {
+    await db.execute(sql`
+      INSERT INTO job_postings (title, description, requirements, location, salary_min, salary_max, currency, contract_type, is_published)
+      VALUES
+        ('Construction Worker', 'General construction duties including bricklaying, concrete work, and site maintenance. Experience with Polish building codes preferred.', 'BHP certificate, min 1 year experience, physical fitness', 'Wroclaw', 28, 35, 'PLN', 'umowa_zlecenie', true),
+        ('Healthcare Assistant', 'Providing patient care support in a private clinic. Duties include patient intake, basic medical procedures, and documentation.', 'Medical training certificate, Polish B1 level, valid work permit', 'Warsaw', 32, 40, 'PLN', 'umowa_o_prace', true),
+        ('Warehouse Operative', 'Order picking, packing, and inventory management in a modern logistics center. Forklift operation required.', 'Forklift license (UDT), BHP certificate, ability to lift 20kg', 'Poznan', 25, 30, 'PLN', 'umowa_zlecenie', true)
+    `);
+    console.log("[db] Seeded 3 sample job postings");
+  }
+
+  // ── Seed sample invoices ─────────────────────────────────────────────────
+  const invCount = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM invoices`);
+  const iCnt = (invCount.rows[0] as { cnt: number }).cnt;
+  if (iCnt === 0) {
+    // We need client IDs — seed clients first if needed
+    const clientCount = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM clients`);
+    const cCnt = (clientCount.rows[0] as { cnt: number }).cnt;
+    if (cCnt === 0) {
+      await db.execute(sql`
+        INSERT INTO clients (name, contact_person, email, phone, nip, billing_rate)
+        VALUES
+          ('BuildPro Sp. z o.o.', 'Jan Majewski', 'jan@buildpro.pl', '+48221000001', '5271234567', 45.00),
+          ('MediCare Polska', 'Agnieszka Kowalczyk', 'a.kowalczyk@medicare.pl', '+48221000002', '5271234568', 55.00),
+          ('LogiTrans S.A.', 'Tomasz Wisniak', 't.wisniak@logitrans.pl', '+48221000003', '5271234569', 35.00)
+      `);
+      console.log("[db] Seeded 3 sample clients");
+    }
+    // Get client IDs
+    const buildpro = await db.execute(sql`SELECT id FROM clients WHERE name = 'BuildPro Sp. z o.o.' LIMIT 1`);
+    const medicare = await db.execute(sql`SELECT id FROM clients WHERE name = 'MediCare Polska' LIMIT 1`);
+    const logitrans = await db.execute(sql`SELECT id FROM clients WHERE name = 'LogiTrans S.A.' LIMIT 1`);
+    if (buildpro.rows.length > 0 && medicare.rows.length > 0 && logitrans.rows.length > 0) {
+      const bId = (buildpro.rows[0] as { id: string }).id;
+      const mId = (medicare.rows[0] as { id: string }).id;
+      const lId = (logitrans.rows[0] as { id: string }).id;
+      await db.execute(sql`
+        INSERT INTO invoices (invoice_number, client_id, month_year, items, subtotal, vat_rate, vat_amount, total, status, due_date, paid_at)
+        VALUES
+          ('EEJ-202603-0001', ${bId}, '2026-03', '[]'::jsonb, 36585.37, 0.23, 8414.63, 45000.00, 'paid', '2026-03-31', '2026-03-25'),
+          ('EEJ-202603-0002', ${mId}, '2026-03', '[]'::jsonb, 22764.23, 0.23, 5235.77, 28000.00, 'sent', '2026-04-15', NULL),
+          ('EEJ-202603-0003', ${lId}, '2026-03', '[]'::jsonb, 12195.12, 0.23, 2804.88, 15000.00, 'draft', '2026-04-30', NULL)
+      `);
+      console.log("[db] Seeded 3 sample invoices");
+    }
+  }
+
+  // ── Seed regulatory updates ──────────────────────────────────────────────
+  const regCount = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM regulatory_updates`);
+  const rCnt = (regCount.rows[0] as { cnt: number }).cnt;
+  if (rCnt === 0) {
+    await db.execute(sql`
+      INSERT INTO regulatory_updates (source, title, summary, category, severity, fine_amount, action_required, workers_affected, cost_impact, deadline_change)
+      VALUES
+        ('Dziennik Ustaw', 'New Work Permit Processing Requirements', 'The Ministry of Family and Social Policy has introduced updated documentation requirements for Type A work permits effective April 2026. All applications must now include employer ZUS compliance certificates.', 'work_permits', 'warning', NULL, '["Update permit application templates", "Obtain ZUS compliance certificates for all active employers", "Notify affected workers of potential processing delays"]'::jsonb, 15, 'increase PLN 200/application', 'new deadline 2026-04-15'),
+        ('ZUS Portal', 'ZUS Contribution Rate Increase for 2026 Q2', 'Social insurance (ZUS) contribution rates for accident insurance have been revised upward by 0.2 percentage points for construction sector employers, effective 2026-04-01.', 'zus', 'critical', 'PLN 5,000-30,000 per violation', '["Recalculate payroll for all construction workers", "Update billing rates for construction clients", "File amended ZUS DRA declarations"]'::jsonb, 25, 'increase PLN 45/worker/month', NULL),
+        ('MOS Portal', 'MOS Foreigners Portal Scheduled Maintenance', 'The MOS (Modulo Obslugi Spraw) portal for foreigner affairs will undergo planned maintenance from March 30 to April 2, 2026. All residence permit and work permit applications must be submitted before or after this window.', 'immigration', 'info', NULL, '["Submit pending applications before March 30", "Reschedule any planned submissions", "Inform affected workers"]'::jsonb, 8, NULL, 'portal offline 2026-03-30 to 2026-04-02'),
+        ('PIP (Labour Inspectorate)', 'Increased Fines for BHP Non-Compliance', 'The National Labour Inspectorate (PIP) has announced enhanced enforcement of BHP (occupational health and safety) requirements. Fines for missing or expired BHP certificates have been doubled effective immediately.', 'labor_code', 'critical', 'PLN 10,000-50,000 per worker', '["Audit all worker BHP certificate expiry dates", "Schedule immediate BHP training for expired certificates", "Update compliance dashboard alerts"]'::jsonb, 12, 'risk PLN 120,000 total exposure', NULL),
+        ('Urzad ds. Cudzoziemcow', '7-Day Reporting Rule Enforcement Update', 'Immigration authorities have reiterated strict enforcement of the 7-day reporting obligation for employers hiring foreign workers. Employers must report commencement of work within 7 days of the work permit start date or face administrative penalties.', 'immigration', 'warning', 'PLN 2,000-10,000 per violation', '["Review all recent hires for 7-day compliance", "Set up automated reminders for new work permit activations", "Train coordinators on reporting procedures"]'::jsonb, 20, 'risk PLN 40,000 if non-compliant', 'strict enforcement from 2026-04-01')
+    `);
+    console.log("[db] Seeded 5 regulatory updates");
+  }
+
   console.log("[db] Seeding complete");
 }

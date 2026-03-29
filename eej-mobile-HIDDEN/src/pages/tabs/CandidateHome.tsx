@@ -39,12 +39,25 @@ export default function CandidateHome({ candidateId }: Props) {
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const MY: Candidate | undefined = candidates.find((c) => c.id === candidateId) ?? candidates[0];
+  // If candidateId is provided, look up that specific candidate.
+  // If candidateId is provided but not found, show error (don't fall back to wrong profile).
+  // Only fall back to candidates[0] if no candidateId was provided (demo mode).
+  const MY: Candidate | undefined = candidateId
+    ? candidates.find((c) => c.id === candidateId)
+    : candidates[0];
 
   if (loading) {
     return (
       <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
         <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading profile...</div>
+      </div>
+    );
+  }
+
+  if (candidateId && !MY) {
+    return (
+      <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+        <div style={{ color: "#9CA3AF", fontSize: 14 }}>Profile not found. Your candidate ID does not match any record.</div>
       </div>
     );
   }

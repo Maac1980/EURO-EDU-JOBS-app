@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { Role, ActiveTab } from "@/types";
+import { useI18n } from "@/lib/i18n";
 
 interface BottomNavProps {
   role: Role;
@@ -8,29 +9,29 @@ interface BottomNavProps {
   badgeCounts?: Partial<Record<ActiveTab, number>>;
 }
 
-type TabDef = { id: ActiveTab; icon: (a: boolean) => ReactElement; label: string };
+type TabDef = { id: ActiveTab; icon: (a: boolean) => ReactElement; i18nKey: string };
 
 const EXEC_LEGAL_TABS: TabDef[] = [
-  { id: "home",       label: "Home",       icon: HomeIcon },
-  { id: "candidates", label: "Candidates", icon: CandidatesIcon },
-  { id: "jobs",       label: "Jobs",       icon: JobsIcon },
-  { id: "alerts",     label: "Alerts",     icon: AlertsIcon },
-  { id: "more",       label: "More",       icon: MoreIcon },
+  { id: "home",       i18nKey: "nav.home",       icon: HomeIcon },
+  { id: "candidates", i18nKey: "nav.candidates", icon: CandidatesIcon },
+  { id: "jobs",       i18nKey: "nav.jobs",       icon: JobsIcon },
+  { id: "alerts",     i18nKey: "nav.alerts",     icon: AlertsIcon },
+  { id: "more",       i18nKey: "nav.more",       icon: MoreIcon },
 ];
 
 const OPS_TABS: TabDef[] = [
-  { id: "home",       label: "Home",     icon: HomeIcon },
-  { id: "candidates", label: "Pipeline", icon: PipelineIcon },
-  { id: "jobs",       label: "Jobs",     icon: JobsIcon },
-  { id: "alerts",     label: "Alerts",   icon: AlertsIcon },
-  { id: "more",       label: "More",     icon: MoreIcon },
+  { id: "home",       i18nKey: "nav.home",     icon: HomeIcon },
+  { id: "candidates", i18nKey: "nav.pipeline", icon: PipelineIcon },
+  { id: "jobs",       i18nKey: "nav.jobs",     icon: JobsIcon },
+  { id: "alerts",     i18nKey: "nav.alerts",   icon: AlertsIcon },
+  { id: "more",       i18nKey: "nav.more",     icon: MoreIcon },
 ];
 
 const CANDIDATE_TABS: TabDef[] = [
-  { id: "home",   label: "Home",    icon: HomeIcon },
-  { id: "mydocs", label: "My Docs", icon: DocsIcon },
-  { id: "alerts", label: "Updates", icon: AlertsIcon },
-  { id: "more",   label: "More",    icon: MoreIcon },
+  { id: "home",   i18nKey: "nav.home",    icon: HomeIcon },
+  { id: "mydocs", i18nKey: "nav.mydocs",  icon: DocsIcon },
+  { id: "alerts", i18nKey: "nav.updates", icon: AlertsIcon },
+  { id: "more",   i18nKey: "nav.more",    icon: MoreIcon },
 ];
 
 // Tabs that should highlight the "More" button
@@ -47,13 +48,14 @@ function getTabsForRole(role: Role): TabDef[] {
 
 export function BottomNav({ role, active, onChange, badgeCounts = {} }: BottomNavProps) {
   const tabs = getTabsForRole(role);
+  const { t } = useI18n();
 
   // If current tab is a child of "More", highlight "More" as active
   const effectiveActive = MORE_CHILDREN.includes(active) ? "more" : active;
 
   return (
     <nav className="bottom-nav">
-      {tabs.map(({ id, icon, label }) => {
+      {tabs.map(({ id, icon, i18nKey }) => {
         const isActive = effectiveActive === id;
         const count    = badgeCounts[id] ?? 0;
         return (
@@ -69,7 +71,7 @@ export function BottomNav({ role, active, onChange, badgeCounts = {} }: BottomNa
                 <span className="nav-badge">{count > 9 ? "9+" : count}</span>
               )}
             </span>
-            <span>{label}</span>
+            <span>{t(i18nKey)}</span>
           </button>
         );
       })}

@@ -183,7 +183,7 @@ export default function RegulatoryTab() {
             </div>
 
             <div style={{ fontSize: 13, color: "#374151", marginTop: 8, lineHeight: 1.5 }}>
-              {expanded ? u.summary : (u.summary?.slice(0, 120) + (u.summary?.length > 120 ? "..." : ""))}
+              {expanded ? (u.summary ?? "") : ((u.summary ?? "").slice(0, 120) + ((u.summary ?? "").length > 120 ? "..." : ""))}
             </div>
 
             {expanded && (

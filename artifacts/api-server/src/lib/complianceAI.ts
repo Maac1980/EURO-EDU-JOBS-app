@@ -1,7 +1,7 @@
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 import { logger } from './logger.js'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? '' })
 
 export type RiskLevel = 'RED' | 'AMBER' | 'GREEN'
 
@@ -81,32 +81,32 @@ export async function scoreWorkerRisk(worker: any): Promise<WorkerRiskScore> {
   const baseScore = Math.min(100, redCount * 30 + amberCount * 15)
   const baseRisk: RiskLevel = redCount > 0 ? 'RED' : amberCount > 0 ? 'AMBER' : 'GREEN'
 
-  // Use AI for deeper analysis if OpenAI key is available
-  if (process.env.OPENAI_API_KEY) {
+  // Use AI for deeper analysis if Anthropic key is available
+  if (process.env.ANTHROPIC_API_KEY) {
     try {
-      const prompt = `You are a Polish labor compliance expert. Analyse this worker's compliance status and provide a risk assessment.
+      const userMessage = `Analyse this worker's compliance status and provide a risk assessment.
 
 Worker: ${worker.name ?? 'Unknown'}
 Role: ${worker.specialization ?? 'Not specified'}
 Expiring/Missing Documents: ${JSON.stringify(expiringDocuments, null, 2)}
-Red flags: ${redCount}, Amber warnings: ${amberCount}
+Red flags: ${redCount}, Amber warnings: ${amberCount}`
 
-Respond in JSON with this exact structure:
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        temperature: 0.2,
+        system: `You are a Polish labor compliance expert. Respond in JSON format with this exact structure:
 {
   "score": <number 0-100>,
   "riskLevel": "<RED|AMBER|GREEN>",
   "reasons": ["<reason1>", "<reason2>"],
   "recommendations": ["<action1>", "<action2>"]
-}`
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.2,
+}`,
+        messages: [{ role: 'user', content: userMessage }],
       })
 
-      const aiResult = JSON.parse(response.choices[0].message.content ?? '{}')
+      const content = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
+      const aiResult = JSON.parse(content)
 
       return {
         workerId: worker.id ?? worker.airtableId ?? 'unknown',
@@ -119,7 +119,7 @@ Respond in JSON with this exact structure:
         analysedAt: new Date().toISOString(),
       }
     } catch (err) {
-      logger.warn({ err }, 'OpenAI analysis failed, falling back to basic scoring')
+      logger.warn({ err }, 'Anthropic analysis failed, falling back to basic scoring')
     }
   }
 

@@ -66,6 +66,23 @@ router.post("/eej/auth/login", async (req, res) => {
   }
 });
 
+// Token refresh — issue a new token if current one is still valid
+router.post("/eej/auth/refresh", async (req, res) => {
+  const caller = verifyEejToken(req.headers.authorization);
+  if (!caller) return res.status(401).json({ error: "Invalid or expired token" });
+
+  try {
+    const [user] = await db.select().from(schema.systemUsers).where(sql`LOWER(${schema.systemUsers.email}) = ${caller.email.toLowerCase()}`);
+    if (!user) return res.status(401).json({ error: "User not found" });
+
+    const { appRole, tier, shortName } = roleToMobile(user.role);
+    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name, role: appRole, tier, designation: user.designation, shortName }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    return res.json({ token });
+  } catch {
+    return res.status(500).json({ error: "Refresh failed" });
+  }
+});
+
 router.get("/eej/auth/users", async (req, res) => {
   const caller = verifyEejToken(req.headers.authorization);
   if (!caller || caller.tier !== 1) return res.status(403).json({ error: "Executive access required." });

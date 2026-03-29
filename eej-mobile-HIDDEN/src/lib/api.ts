@@ -41,20 +41,18 @@ function forceLogout() {
   window.location.reload();
 }
 
-/** Handle 401 responses: try refresh, retry once, or force logout */
+/** Handle 401 responses: try refresh, retry once — don't force logout for API data calls */
 async function handleUnauthorized<T>(method: () => Promise<Response>): Promise<T> {
   const res = await method();
   if (res.status === 401) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      // Retry with new token
       const retryRes = await method();
       if (retryRes.ok) return retryRes.json() as Promise<T>;
-      if (retryRes.status === 401) { forceLogout(); throw new Error("Session expired"); }
       throw new Error(`API ${retryRes.status}`);
     }
-    forceLogout();
-    throw new Error("Session expired");
+    // Don't force logout — just throw so the UI can handle it gracefully
+    throw new Error("Unauthorized");
   }
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<T>;

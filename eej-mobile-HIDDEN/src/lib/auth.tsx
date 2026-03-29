@@ -130,17 +130,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Periodically check token freshness (every 5 minutes)
+  // Periodically refresh token (every 30 minutes) — silent, no forced logout
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(async () => {
       const success = await refreshToken();
-      if (!success && user) {
-        // Token refresh failed, force logout
-        console.warn("[auth] Token refresh failed, logging out");
-        logout();
+      if (!success) {
+        console.warn("[auth] Token refresh failed — will retry next interval");
       }
-    }, 5 * 60 * 1000);
+    }, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, [token]);
 

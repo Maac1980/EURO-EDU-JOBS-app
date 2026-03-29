@@ -13,6 +13,11 @@ import notificationsRouter from "./notifications.js";
 import workerNotesRouter from "./worker-notes.js";
 import eejMobileRouter from "./eej-mobile.js";
 import eejAuthRouter from "./eej-auth.js";
+import jobsRouter from "./jobs.js";
+import interviewsRouter from "./interviews.js";
+import invoicesRouter from "./invoices.js";
+import contractsRouter from "./contracts.js";
+import gdprRouter from "./gdpr.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +35,10 @@ router.use(workerNotesRouter);
 router.use(healthRouter);
 router.use(workersRouter);
 router.use(eejMobileRouter);
+router.use(jobsRouter);
+router.use(interviewsRouter);
+router.use(invoicesRouter);
+router.use(contractsRouter);
+router.use(gdprRouter);
 
 export default router;

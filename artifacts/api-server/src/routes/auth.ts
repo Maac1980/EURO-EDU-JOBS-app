@@ -1,8 +1,8 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { scrypt, timingSafeEqual } from "crypto";
+import { db, schema } from "../db/index.js";
+import { eq, sql } from "drizzle-orm";
 import { JWT_SECRET, authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
 import { verify2FAToken, user2FAEnabled } from "./twofa.js";
 import { appendAuditEntry } from "./audit.js";
@@ -10,54 +10,49 @@ import { sendLoginNotification } from "../lib/alerter.js";
 
 const router = Router();
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const USERS_FILE = join(__dirname, "../../data/users.json");
-const PROFILE_FILE = join(__dirname, "../../data/admin-profile.json");
-
-interface StoredUser {
-  id: string;
-  email: string;
-  name: string;
-  role: "admin" | "coordinator" | "manager";
-  site: string | null;
-  password: string | null;
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const parts = stored.split(":");
+  if (parts.length !== 2) return false;
+  const [salt, storedHash] = parts;
+  return new Promise((resolve) => {
+    scrypt(password, salt, 64, (err, key) => {
+      if (err) { resolve(false); return; }
+      try {
+        resolve(timingSafeEqual(Buffer.from(storedHash, "hex"), key));
+      } catch {
+        resolve(false);
+      }
+    });
+  });
 }
 
-function readUsers(): StoredUser[] {
-  try {
-    if (existsSync(USERS_FILE)) {
-      return JSON.parse(readFileSync(USERS_FILE, "utf-8")).users as StoredUser[];
-    }
-  } catch {}
-  return [];
-}
-
-function writeUsers(users: StoredUser[]): void {
-  const dataDir = join(__dirname, "../../data");
-  mkdirSync(dataDir, { recursive: true });
-  writeFileSync(USERS_FILE, JSON.stringify({ users }, null, 2));
+async function hashPassword(password: string): Promise<string> {
+  const { randomBytes } = await import("crypto");
+  const salt = randomBytes(16).toString("hex");
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, 64, (err, key) => {
+      if (err) reject(err);
+      else resolve(`${salt}:${key.toString("hex")}`);
+    });
+  });
 }
 
 function getAdminEmail(): string {
-  if (process.env.EEJ_ADMIN_EMAIL) return process.env.EEJ_ADMIN_EMAIL.trim().toLowerCase();
-  try {
-    if (existsSync(PROFILE_FILE)) {
-      const profile = JSON.parse(readFileSync(PROFILE_FILE, "utf-8"));
-      if (profile?.email) return profile.email.trim().toLowerCase();
-    }
-  } catch {}
-  return "anna.b@edu-jobs.eu";
+  return (process.env.EEJ_ADMIN_EMAIL ?? "anna.b@edu-jobs.eu").trim().toLowerCase();
 }
 
-router.post("/auth/login", (req, res) => {
+router.post("/auth/login", async (req, res) => {
   const { email, password } = req.body as { email?: string; password?: string };
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
   const emailLower = email.trim().toLowerCase();
-  const users = readUsers();
-  const found = users.find((u) => u.email.toLowerCase() === emailLower);
+
+  // Look up user in DB
+  const [found] = await db.select().from(schema.users).where(
+    sql`LOWER(${schema.users.email}) = ${emailLower}`
+  );
 
   if (!found) {
     console.warn(`[auth] Login rejected: unknown email "${emailLower}"`);
@@ -77,10 +72,10 @@ router.post("/auth/login", (req, res) => {
     }
     passwordOk = password === adminPassword;
   } else {
-    if (!found.password) {
+    if (!found.passwordHash) {
       return res.status(503).json({ error: "Account not configured. Contact Administrator." });
     }
-    passwordOk = password === found.password;
+    passwordOk = await verifyPassword(password, found.passwordHash);
   }
 
   if (!passwordOk) {
@@ -88,13 +83,13 @@ router.post("/auth/login", (req, res) => {
     return res.status(401).json({ error: "Incorrect password." });
   }
 
-  // ── TOTP 2FA (non-admin, if enabled) ─────────────────────────────────────
-  if (found.role !== "admin" && user2FAEnabled(found.id)) {
+  // TOTP 2FA (non-admin, if enabled)
+  if (found.role !== "admin" && await user2FAEnabled(found.id)) {
     const totpToken = (req.body as any).totpToken as string | undefined;
     if (!totpToken) {
       return res.status(202).json({ requires2FA: true, message: "Please enter your authenticator code." });
     }
-    if (!verify2FAToken(found.id, totpToken)) {
+    if (!(await verify2FAToken(found.id, totpToken))) {
       return res.status(401).json({ error: "Invalid authenticator code." });
     }
   }
@@ -103,13 +98,12 @@ router.post("/auth/login", (req, res) => {
     id: found.id,
     email: found.email,
     name: found.name,
-    role: found.role,
-    site: found.site,
+    role: found.role as AuthUser["role"],
+    site: found.site ?? null,
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
 
-  // Audit successful login
   appendAuditEntry({
     workerId: found.id,
     actor: found.email,
@@ -118,15 +112,14 @@ router.post("/auth/login", (req, res) => {
     action: "ADMIN_LOGIN",
   });
 
-  console.log(`[auth] ✓ Login: ${found.email} (${found.role}${found.site ? " @ " + found.site : ""})`);
+  console.log(`[auth] Login: ${found.email} (${found.role}${found.site ? " @ " + found.site : ""})`);
 
-  // ── Fire login notification (email + WhatsApp/SMS) ─────────────────────
   const clientIp =
     (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
     req.socket.remoteAddress ??
     "unknown";
   sendLoginNotification(
-    { name: found.name, email: found.email, role: found.role, site: found.site },
+    { name: found.name, email: found.email, role: found.role as string, site: found.site ?? null },
     clientIp
   ).catch((e) => console.warn("[auth] Login notification failed:", e instanceof Error ? e.message : e));
 
@@ -147,16 +140,15 @@ router.post("/auth/verify", (req, res) => {
   }
 });
 
-router.get("/auth/whoami", (_req, res) => {
-  const users = readUsers();
+router.get("/auth/whoami", async (_req, res) => {
+  const users = await db.select().from(schema.users);
   return res.json({
     allowedEmail: getAdminEmail(),
     userCount: users.length,
   });
 });
 
-// POST /api/auth/change-password — any authenticated user changes their own password
-router.post("/auth/change-password", authenticateToken, (req, res) => {
+router.post("/auth/change-password", authenticateToken, async (req, res) => {
   const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: "currentPassword and newPassword are required." });
@@ -164,23 +156,21 @@ router.post("/auth/change-password", authenticateToken, (req, res) => {
   if (newPassword.length < 8) {
     return res.status(400).json({ error: "New password must be at least 8 characters." });
   }
-  const userReq = (req as any).user as AuthUser;
+  const userReq = req.user!;
 
   if (userReq.role === "admin") {
-    return res.status(400).json({ error: "Admin password is managed via the EEJ_ADMIN_PASSWORD secret. Update it in your deployment settings." });
+    return res.status(400).json({ error: "Admin password is managed via the EEJ_ADMIN_PASSWORD secret." });
   }
 
-  const users = readUsers();
-  const idx = users.findIndex((u) => u.id === userReq.id);
-  if (idx === -1) return res.status(404).json({ error: "User not found." });
+  const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userReq.id));
+  if (!user) return res.status(404).json({ error: "User not found." });
 
-  const user = users[idx];
-  if (!user.password || user.password !== currentPassword) {
+  if (!user.passwordHash || !(await verifyPassword(currentPassword, user.passwordHash))) {
     return res.status(401).json({ error: "Current password is incorrect." });
   }
 
-  users[idx].password = newPassword;
-  writeUsers(users);
+  const newHash = await hashPassword(newPassword);
+  await db.update(schema.users).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(schema.users.id, userReq.id));
   console.log(`[auth] Password changed: ${user.email}`);
   return res.json({ success: true });
 });

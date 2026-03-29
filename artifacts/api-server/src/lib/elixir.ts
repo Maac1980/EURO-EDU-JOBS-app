@@ -1,4 +1,8 @@
-import { PayrollRecord } from '../routes/payroll.js'
+export interface PayrollRecord {
+  workerName: string;
+  monthYear: string;
+  finalNettoPayout: number;
+}
 
 // ELIXIR 186 format — standard Polish bank transfer file
 // Used by PKO BP, Pekao, mBank, ING, Santander Poland

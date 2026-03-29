@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Pages
 import Login from "@/pages/Login";
@@ -42,13 +43,21 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/apply" component={Apply} />
-      <Route path="/portal" component={WorkerPortal} />
-      <Route path="/">
-        {() => <ProtectedRoute component={Dashboard} />}
+      <Route path="/login">
+        {() => <ErrorBoundary><Login /></ErrorBoundary>}
       </Route>
-      <Route component={NotFound} />
+      <Route path="/apply">
+        {() => <ErrorBoundary><Apply /></ErrorBoundary>}
+      </Route>
+      <Route path="/portal">
+        {() => <ErrorBoundary><WorkerPortal /></ErrorBoundary>}
+      </Route>
+      <Route path="/">
+        {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}
+      </Route>
+      <Route>
+        {() => <ErrorBoundary><NotFound /></ErrorBoundary>}
+      </Route>
     </Switch>
   );
 }

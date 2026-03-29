@@ -1,28 +1,9 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { db, schema } from "../db/index.js";
+import { desc, eq, sql } from "drizzle-orm";
+import { JWT_SECRET, authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
 
 const router = Router();
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const AUDIT_FILE = join(__dirname, "../../data/audit.json");
-const JWT_SECRET = process.env.JWT_SECRET ?? "eej-jwt-fallback-secret-2024";
-
-function requireAdmin(req: any, res: any): boolean {
-  const authHeader = req.headers.authorization as string | undefined;
-  if (!authHeader?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
-    return false;
-  }
-  try {
-    jwt.verify(authHeader.slice(7), JWT_SECRET);
-    return true;
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-    return false;
-  }
-}
 
 export interface AuditEntry {
   timestamp: string;
@@ -36,37 +17,32 @@ export interface AuditEntry {
 }
 
 export function appendAuditEntry(entry: Omit<AuditEntry, "timestamp">) {
-  try {
-    mkdirSync(join(__dirname, "../../data"), { recursive: true });
-    const existing: AuditEntry[] = existsSync(AUDIT_FILE)
-      ? JSON.parse(readFileSync(AUDIT_FILE, "utf-8"))
-      : [];
-    existing.push({ ...entry, timestamp: new Date().toISOString() });
-    writeFileSync(AUDIT_FILE, JSON.stringify(existing.slice(-2000), null, 2));
-  } catch (e) {
-    console.error("[audit] write error:", e);
-  }
+  // Fire and forget - don't block the caller
+  db.insert(schema.auditEntries).values({
+    workerId: entry.workerId,
+    workerName: entry.workerName ?? null,
+    actor: entry.actor,
+    field: entry.field,
+    oldValue: entry.oldValue ? JSON.parse(JSON.stringify(entry.oldValue)) : null,
+    newValue: entry.newValue ? JSON.parse(JSON.stringify(entry.newValue)) : null,
+    action: entry.action ?? null,
+  }).catch(e => console.error("[audit] write error:", e));
 }
 
-// GET /api/audit  (admin only)
-router.get("/audit", (req, res) => {
-  if (!requireAdmin(req, res)) return;
+router.get("/audit", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const entries: AuditEntry[] = existsSync(AUDIT_FILE)
-      ? JSON.parse(readFileSync(AUDIT_FILE, "utf-8"))
-      : [];
-    // Return newest first
-    return res.json({ entries: entries.slice().reverse(), total: entries.length });
+    const entries = await db.select().from(schema.auditEntries)
+      .orderBy(desc(schema.auditEntries.timestamp))
+      .limit(2000);
+    return res.json({ entries, total: entries.length });
   } catch {
     return res.status(500).json({ error: "Failed to read audit log." });
   }
 });
 
-// DELETE /api/audit  (admin only — clears the log)
-router.delete("/audit", (req, res) => {
-  if (!requireAdmin(req, res)) return;
+router.delete("/audit", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    writeFileSync(AUDIT_FILE, "[]");
+    await db.delete(schema.auditEntries);
     return res.json({ ok: true });
   } catch {
     return res.status(500).json({ error: "Failed to clear audit log." });

@@ -1,6 +1,8 @@
-import app from "./app";
+import { createServer } from "http";
+import app from "./app.js";
 import { startAlerter } from "./lib/alerter.js";
-import { ensureSystemUsersTable } from "./lib/airtable-users.js";
+import { runMigrations, seedInitialData } from "./db/migrate.js";
+import { initWebSocket } from "./lib/websocket.js";
 
 const rawPort = process.env["PORT"];
 
@@ -16,10 +18,21 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
-  startAlerter();
-  ensureSystemUsersTable().catch((e) =>
-    console.warn("[startup] ensureSystemUsersTable failed:", e instanceof Error ? e.message : e)
-  );
+async function start() {
+  // Initialize database
+  await runMigrations();
+  await seedInitialData();
+
+  const server = createServer(app);
+  initWebSocket(server);
+
+  server.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+    startAlerter();
+  });
+}
+
+start().catch((e) => {
+  console.error("Failed to start server:", e);
+  process.exit(1);
 });

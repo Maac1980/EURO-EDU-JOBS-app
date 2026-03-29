@@ -1,33 +1,29 @@
 import { Router } from "express";
+import { db, schema } from "../db/index.js";
+import { eq, desc } from "drizzle-orm";
 import { authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
-import { getNotifications, clearNotifications } from "../lib/notificationLog.js";
 
 const router = Router();
 
-// GET /notifications — admin: returns full history; coordinator+: returns their own sends
 router.get("/notifications", authenticateToken, async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10), 500);
     const workerFilter = req.query.workerId as string | undefined;
-    let entries = getNotifications(500);
-    if (workerFilter) {
-      entries = entries.filter((e) => e.workerId === workerFilter);
-    }
+    let query = db.select().from(schema.notifications).orderBy(desc(schema.notifications.sentAt)).limit(500);
+    let entries = await query;
+    if (workerFilter) entries = entries.filter(e => e.workerId === workerFilter);
     res.json({ notifications: entries.slice(0, limit), total: entries.length });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 
-// DELETE /notifications — admin only: wipe all notification history
 router.delete("/notifications", authenticateToken, requireAdmin, async (_req, res) => {
   try {
-    clearNotifications();
+    await db.delete(schema.notifications);
     res.json({ success: true, message: "Notification history cleared." });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 

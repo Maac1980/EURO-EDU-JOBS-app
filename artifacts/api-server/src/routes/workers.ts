@@ -1,12 +1,11 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import OpenAI from "openai";
-import { fetchAllRecords, fetchRecord, updateRecord, uploadAttachmentToRecord, createRecord, deleteRecord, ensureEejSchema, getTableSchema } from "../lib/airtable.js";
+import { db, schema } from "../db/index.js";
+import { eq, sql, ilike, and } from "drizzle-orm";
 import { appendAuditEntry } from "./audit.js";
-import { mapRecordToWorker, filterWorkers, type Worker } from "../lib/compliance.js";
-import { MOCK_WORKERS, getMockWorker, isMockMode } from "../lib/mockData.js";
+import { toWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
-import { appendNotification } from "../lib/notificationLog.js";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -39,72 +38,41 @@ type ScannedData = ScannedPassport | ScannedContract | ScannedCV;
 async function scanDocument(fileBuffer: Buffer, mimeType: string, docType: "passport" | "contract"): Promise<ScannedData | null> {
   const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   if (!imageTypes.includes(mimeType)) return null;
-
   try {
     const base64 = fileBuffer.toString("base64");
     const dataUrl = `data:${mimeType};base64,${base64}`;
-
     if (docType === "passport") {
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         max_completion_tokens: 512,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: { url: dataUrl, detail: "high" },
-              },
-              {
-                type: "text",
-                text: `Extract data from this passport. Return ONLY valid JSON with these fields (use null for any field not found):
-{
-  "name": "full name exactly as on passport (surname + given names)",
-  "dateOfBirth": "YYYY-MM-DD or null",
-  "passportExpiry": "YYYY-MM-DD or null",
-  "passportNumber": "passport number or null",
-  "nationality": "nationality or null"
-}`,
-              },
-            ],
-          },
-        ],
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            { type: "text", text: `Extract data from this passport. Return ONLY valid JSON with these fields (use null for any field not found):\n{"name":"full name exactly as on passport","dateOfBirth":"YYYY-MM-DD or null","passportExpiry":"YYYY-MM-DD or null","passportNumber":"passport number or null","nationality":"nationality or null"}` },
+          ],
+        }],
       });
       const text = response.choices[0]?.message?.content ?? "";
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return null;
-      const parsed = JSON.parse(jsonMatch[0]);
-      return { type: "passport", ...parsed };
+      return { type: "passport", ...JSON.parse(jsonMatch[0]) };
     } else {
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         max_completion_tokens: 256,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: { url: dataUrl, detail: "high" },
-              },
-              {
-                type: "text",
-                text: `Extract data from this employment contract. Return ONLY valid JSON:
-{
-  "contractEndDate": "YYYY-MM-DD or null (contract end / expiry date)",
-  "workerName": "full name of the worker/employee or null"
-}`,
-              },
-            ],
-          },
-        ],
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            { type: "text", text: `Extract data from this employment contract. Return ONLY valid JSON:\n{"contractEndDate":"YYYY-MM-DD or null","workerName":"full name or null"}` },
+          ],
+        }],
       });
       const text = response.choices[0]?.message?.content ?? "";
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return null;
-      const parsed = JSON.parse(jsonMatch[0]);
-      return { type: "contract", ...parsed };
+      return { type: "contract", ...JSON.parse(jsonMatch[0]) };
     }
   } catch (e) {
     console.error("[scanDocument] AI error:", e);
@@ -115,30 +83,19 @@ async function scanDocument(fileBuffer: Buffer, mimeType: string, docType: "pass
 async function scanCV(fileBuffer: Buffer, mimeType: string): Promise<ScannedCV | null> {
   const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   if (!imageTypes.includes(mimeType)) return null;
-
   try {
     const base64 = fileBuffer.toString("base64");
     const dataUrl = `data:${mimeType};base64,${base64}`;
-
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       max_completion_tokens: 300,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-            {
-              type: "text",
-              text: `Analyze this CV/Resume document. Return ONLY valid JSON with these fields (use null if not found):
-{
-  "yearsOfExperience": "a string like '5' or '10+' or '3-5' extracted from patterns near words like 'years', 'experience', 'exp', or numeric patterns. null if not found",
-  "highestQualification": "the highest academic degree or qualification found, e.g. 'Bachelor', 'Master', 'Diploma', 'PhD', 'MBA', 'BEng', 'MSc'. null if not found"
-}`,
-            },
-          ],
-        },
-      ],
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+          { type: "text", text: `Analyze this CV/Resume. Return ONLY valid JSON:\n{"yearsOfExperience":"string or null","highestQualification":"string or null"}` },
+        ],
+      }],
     });
     const text = response.choices[0]?.message?.content ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -152,59 +109,44 @@ async function scanCV(fileBuffer: Buffer, mimeType: string): Promise<ScannedCV |
 }
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-
 const router: IRouter = Router();
 
-const applyUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-
-// POST /apply — Public candidate application form
-router.post("/apply", applyUpload.single("cv"), async (req, res) => {
+// POST /apply — Public candidate application
+router.post("/apply", upload.single("cv"), async (req, res) => {
   try {
     const { name, email, phone } = req.body as Record<string, string>;
     if (!name?.trim() || !email?.trim()) {
-      res.status(400).json({ error: "Name and Email are required." });
-      return;
+      return res.status(400).json({ error: "Name and Email are required." });
     }
 
-    const airtableFields: Record<string, unknown> = {
-      "Name": name.trim(),
-      "Email": email.trim(),
+    const fields: any = {
+      name: name.trim(),
+      email: email.trim(),
     };
-    if (phone?.trim()) airtableFields["Phone"] = phone.trim();
+    if (phone?.trim()) fields.phone = phone.trim();
 
-    // Scan the CV if uploaded (image only)
     if (req.file) {
       try {
         const cvScan = await scanCV(req.file.buffer, req.file.mimetype);
         if (cvScan) {
-          if (cvScan.yearsOfExperience) airtableFields["Experience"] = cvScan.yearsOfExperience;
-          if (cvScan.highestQualification) airtableFields["Qualification"] = cvScan.highestQualification;
+          if (cvScan.yearsOfExperience) fields.experience = cvScan.yearsOfExperience;
+          if (cvScan.highestQualification) fields.qualification = cvScan.highestQualification;
         }
       } catch (scanErr) {
         console.warn("[apply] CV scan failed (non-fatal):", scanErr);
       }
     }
 
-    const newRecord = await createRecord(airtableFields);
-
-    // Upload the file as attachment if provided
-    if (req.file) {
-      try {
-        await uploadAttachmentToRecord(newRecord.id, "Passport", req.file.buffer, req.file.originalname, req.file.mimetype);
-      } catch (attachErr) {
-        console.warn("[apply] Attachment upload failed (non-fatal):", attachErr);
-      }
-    }
-
-    res.json({ success: true, id: newRecord.id });
+    const [newWorker] = await db.insert(schema.workers).values(fields).returning();
+    return res.json({ success: true, id: newWorker.id });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[apply] Error:", message);
-    res.status(500).json({ error: message });
+    return res.status(500).json({ error: message });
   }
 });
 
-// POST /workers/bulk-import — CSV bulk create (array of worker objects)
+// POST /workers/bulk-import
 router.post("/workers/bulk-import", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const rows = req.body.workers as Record<string, unknown>[];
@@ -217,30 +159,30 @@ router.post("/workers/bulk-import", authenticateToken, requireCoordinatorOrAdmin
       const name = typeof row.name === "string" ? row.name.trim() : "";
       if (!name) { results.push({ name: "(blank)", success: false, error: "Name is required" }); continue; }
 
-      const fields: Record<string, unknown> = { NAME: name };
-      if (row.specialization)    fields["Job Role"]             = row.specialization;
-      if (row.email)             fields["Email"]                = row.email;
-      if (row.phone)             fields["Phone"]                = row.phone;
-      if (row.siteLocation)      fields["Assigned Site"]        = row.siteLocation;
-      if (row.hourlyNettoRate)   fields["HOURLY NETTO RATE"]    = Number(row.hourlyNettoRate) || 0;
-      if (row.trcExpiry)         fields["TRC Expiry"]           = row.trcExpiry;
-      if (row.workPermitExpiry)  fields["Work Permit Expiry"]   = row.workPermitExpiry;
-      if (row.contractEndDate)   fields["Contract End Date"]    = row.contractEndDate;
-      if (row.bhpStatus)         fields["BHP Status"]           = row.bhpStatus;
-      if (row.yearsOfExperience) fields["Experience"]           = row.yearsOfExperience;
-      if (row.highestQualification) fields["Qualification"]     = row.highestQualification;
-      if (row.nationality)       fields["NATIONALITY"]          = row.nationality;
-      if (row.contractType)      fields["CONTRACT TYPE"]        = row.contractType;
-      if (row.iban)              fields["IBAN"]                 = String(row.iban).toUpperCase();
-      if (row.pesel)             fields["PESEL"]                = row.pesel;
-      if (row.nip)               fields["NIP"]                  = row.nip;
-      if (row.visaType)          fields["VISA TYPE"]            = row.visaType;
-      if (row.badaniaLekExpiry)  fields["BADANIA LEKARSKIE"]    = row.badaniaLekExpiry;
-      if (row.pipelineStage)     fields["PIPELINE STAGE"]       = row.pipelineStage;
+      const fields: any = { name };
+      if (row.specialization) fields.jobRole = row.specialization;
+      if (row.email) fields.email = row.email;
+      if (row.phone) fields.phone = row.phone;
+      if (row.siteLocation) fields.assignedSite = row.siteLocation;
+      if (row.hourlyNettoRate) fields.hourlyNettoRate = Number(row.hourlyNettoRate) || 0;
+      if (row.trcExpiry) fields.trcExpiry = row.trcExpiry;
+      if (row.workPermitExpiry) fields.workPermitExpiry = row.workPermitExpiry;
+      if (row.contractEndDate) fields.contractEndDate = row.contractEndDate;
+      if (row.bhpStatus) fields.bhpStatus = row.bhpStatus;
+      if (row.yearsOfExperience) fields.experience = row.yearsOfExperience;
+      if (row.highestQualification) fields.qualification = row.highestQualification;
+      if (row.nationality) fields.nationality = row.nationality;
+      if (row.contractType) fields.contractType = row.contractType;
+      if (row.iban) fields.iban = String(row.iban).toUpperCase();
+      if (row.pesel) fields.pesel = row.pesel;
+      if (row.nip) fields.nip = row.nip;
+      if (row.visaType) fields.visaType = row.visaType;
+      if (row.badaniaLekExpiry) fields.badaniaLekExpiry = row.badaniaLekExpiry;
+      if (row.pipelineStage) fields.pipelineStage = row.pipelineStage;
 
       try {
-        const rec = await createRecord(fields);
-        appendAuditEntry({ workerId: rec.id, actor: "admin", field: "ALL", newValue: fields, action: "create" });
+        const [rec] = await db.insert(schema.workers).values(fields).returning();
+        appendAuditEntry({ workerId: rec.id, actor: req.user?.email ?? "admin", field: "ALL", newValue: fields, action: "create" });
         results.push({ name, success: true });
       } catch (e) {
         results.push({ name, success: false, error: e instanceof Error ? e.message : "Unknown error" });
@@ -248,38 +190,36 @@ router.post("/workers/bulk-import", authenticateToken, requireCoordinatorOrAdmin
     }
 
     const succeeded = results.filter((r) => r.success).length;
-    const failed    = results.filter((r) => !r.success).length;
+    const failed = results.filter((r) => !r.success).length;
     return res.status(200).json({ succeeded, failed, results });
   } catch (err) {
-    console.error("[bulk-import] error:", err);
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to bulk import." });
   }
 });
 
-// POST /workers — manually create a new worker record
+// POST /workers — create a new worker
 router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name) return res.status(400).json({ error: "Worker name is required." });
 
-    const airtableFields: Record<string, unknown> = { NAME: name };
-    if (body.specialization) airtableFields["Job Role"] = body.specialization;
-    if (body.email) airtableFields["Email"] = body.email;
-    if (body.phone) airtableFields["Phone"] = body.phone;
-    if (body.siteLocation) airtableFields["Assigned Site"] = body.siteLocation;
-    if (body.hourlyNettoRate) airtableFields["HOURLY NETTO RATE"] = Number(body.hourlyNettoRate);
-    if (body.trcExpiry) airtableFields["TRC Expiry"] = body.trcExpiry;
-    if (body.workPermitExpiry) airtableFields["Work Permit Expiry"] = body.workPermitExpiry;
-    if (body.contractEndDate) airtableFields["Contract End Date"] = body.contractEndDate;
-    if (body.iban) airtableFields["IBAN"] = String(body.iban).toUpperCase();
+    const fields: any = { name };
+    if (body.specialization) fields.jobRole = body.specialization;
+    if (body.email) fields.email = body.email;
+    if (body.phone) fields.phone = body.phone;
+    if (body.siteLocation) fields.assignedSite = body.siteLocation;
+    if (body.hourlyNettoRate) fields.hourlyNettoRate = Number(body.hourlyNettoRate);
+    if (body.trcExpiry) fields.trcExpiry = body.trcExpiry;
+    if (body.workPermitExpiry) fields.workPermitExpiry = body.workPermitExpiry;
+    if (body.contractEndDate) fields.contractEndDate = body.contractEndDate;
+    if (body.iban) fields.iban = String(body.iban).toUpperCase();
 
-    const newRecord = await createRecord(airtableFields);
-    const worker = mapRecordToWorker(newRecord);
-    appendAuditEntry({ workerId: newRecord.id, actor: "admin", field: "ALL", newValue: airtableFields, action: "create" });
+    const [newRecord] = await db.insert(schema.workers).values(fields).returning();
+    const worker = toWorker(newRecord);
+    appendAuditEntry({ workerId: newRecord.id, actor: req.user?.email ?? "admin", field: "ALL", newValue: fields, action: "create" });
     return res.status(201).json({ worker });
   } catch (err) {
-    console.error("[workers] create error:", err);
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to create worker." });
   }
 });
@@ -288,59 +228,44 @@ router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req
 router.get("/workers", authenticateToken, async (req, res) => {
   try {
     const { search, specialization, status } = req.query as Record<string, string>;
-    let allWorkers: Worker[];
-    if (isMockMode()) {
-      allWorkers = MOCK_WORKERS;
-    } else {
-      const records = await fetchAllRecords();
-      allWorkers = records.map(mapRecordToWorker).filter(
-        (w) => w.name && w.name !== "Unknown" && w.name.trim() !== ""
-      );
-    }
+    const rows = await db.select().from(schema.workers).orderBy(schema.workers.name);
+    let allWorkers = rows.filter(w => w.name && w.name.trim() !== "").map(r => toWorker(r));
+
     let filtered = filterWorkers(allWorkers, search, specialization, status);
-    // Managers are scoped to their assigned site
+
+    // Managers scoped to their assigned site
     if (req.user?.role === "manager" && req.user.site) {
       const managerSite = req.user.site.toLowerCase();
-      filtered = filtered.filter(
-        (w) => (w as any).siteLocation?.toLowerCase() === managerSite
-      );
+      filtered = filtered.filter(w => w.assignedSite?.toLowerCase() === managerSite);
     }
     res.json({ workers: filtered, total: filtered.length });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 
 // GET /workers/stats
 router.get("/workers/stats", async (_req, res) => {
   try {
-    const workers: Worker[] = isMockMode()
-      ? MOCK_WORKERS
-      : (await fetchAllRecords()).map(mapRecordToWorker);
-
-    const stats = {
+    const rows = await db.select().from(schema.workers);
+    const workers = rows.map(r => toWorker(r));
+    res.json({
       total: workers.length,
-      critical: workers.filter((w) => w.complianceStatus === "critical").length,
-      warning: workers.filter((w) => w.complianceStatus === "warning").length,
-      compliant: workers.filter((w) => w.complianceStatus === "compliant").length,
-      nonCompliant: workers.filter((w) => w.complianceStatus === "non-compliant").length,
-    };
-
-    res.json(stats);
+      critical: workers.filter(w => w.complianceStatus === "critical").length,
+      warning: workers.filter(w => w.complianceStatus === "warning").length,
+      compliant: workers.filter(w => w.complianceStatus === "compliant").length,
+      nonCompliant: workers.filter(w => w.complianceStatus === "non-compliant").length,
+    });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 
 // GET /workers/report
 router.get("/workers/report", async (_req, res) => {
   try {
-    const workers: Worker[] = isMockMode()
-      ? MOCK_WORKERS
-      : (await fetchAllRecords()).map(mapRecordToWorker);
-
+    const rows = await db.select().from(schema.workers);
+    const workers = rows.map(r => toWorker(r));
     const now = new Date();
     const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -354,66 +279,39 @@ router.get("/workers/report", async (_req, res) => {
       status: string;
     }
 
-    function checkDoc(
-      worker: Worker,
-      docType: string,
-      expiry: string | null
-    ): ExpiringDocument | null {
+    function checkDoc(worker: Worker, docType: string, expiry: string | null): ExpiringDocument | null {
       if (!expiry) return null;
       const expiryDate = new Date(expiry);
-      const days = Math.ceil(
-        (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const days = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       return {
         workerId: worker.id,
         workerName: worker.name,
-        specialization: worker.specialization,
+        specialization: worker.jobRole ?? "",
         documentType: docType,
         expiryDate: expiry,
         daysUntilExpiry: days,
-        status:
-          days < 0
-            ? "expired"
-            : days < 30
-              ? "critical"
-              : days < 60
-                ? "warning"
-                : "safe",
+        status: days < 0 ? "expired" : days < 30 ? "critical" : days < 60 ? "warning" : "safe",
       };
     }
 
     const allExpiring: ExpiringDocument[] = [];
-
-    for (const worker of workers) {
+    for (const w of workers) {
       const docs = [
-        checkDoc(worker, "TRC", worker.trcExpiry),
-        checkDoc(worker, "Work Permit", worker.workPermitExpiry),
-        checkDoc(worker, "Contract", worker.contractEndDate),
+        checkDoc(w, "TRC", w.trcExpiry),
+        checkDoc(w, "Work Permit", w.workPermitExpiry),
+        checkDoc(w, "Contract", w.contractEndDate),
       ];
-
       for (const doc of docs) {
-        if (doc && doc.daysUntilExpiry < 60) {
-          allExpiring.push(doc);
-        }
+        if (doc && doc.daysUntilExpiry < 60) allExpiring.push(doc);
       }
     }
 
-    const expiringThisWeek = allExpiring.filter((d) => {
+    const expiringThisWeek = allExpiring.filter(d => {
       const expiryDate = new Date(d.expiryDate);
       return expiryDate >= now && expiryDate <= oneWeekFromNow;
     });
-
-    const critical = allExpiring.filter(
-      (d) => d.status === "critical" || d.status === "expired"
-    );
-    const warning = allExpiring.filter((d) => d.status === "warning");
-
-    const summary =
-      `As of ${now.toLocaleDateString()}, there are ${workers.length} workers on record. ` +
-      `${critical.length} documents are critically expiring within 30 days (or already expired). ` +
-      `${warning.length} documents are expiring within 30-60 days. ` +
-      `${expiringThisWeek.length} documents expire within the next 7 days. ` +
-      `Immediate action is required for ${critical.length} document(s).`;
+    const critical = allExpiring.filter(d => d.status === "critical" || d.status === "expired");
+    const warning = allExpiring.filter(d => d.status === "warning");
 
     res.json({
       generatedAt: now.toISOString(),
@@ -421,53 +319,169 @@ router.get("/workers/report", async (_req, res) => {
       expiringThisWeek,
       critical,
       warning,
-      summary,
+      summary: `As of ${now.toLocaleDateString()}, ${workers.length} workers. ${critical.length} critical, ${warning.length} warning, ${expiringThisWeek.length} expiring this week.`,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 
-// POST /workers/bulk-create — AI Smart Bulk Upload: scan docs, create new worker row
+// GET /workers/:id
+router.get("/workers/:id", async (req, res) => {
+  try {
+    const [row] = await db.select().from(schema.workers).where(eq(schema.workers.id, String(req.params.id)));
+    if (!row) return res.status(404).json({ error: "Worker not found" });
+    return res.json(toWorker(row));
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  }
+});
+
+// PATCH /workers/:id
+router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+    const updates: any = { updatedAt: new Date() };
+
+    // Map field names to DB columns
+    const fieldMap: Record<string, string> = {
+      trcExpiry: "trcExpiry", workPermitExpiry: "workPermitExpiry", bhpStatus: "bhpStatus",
+      contractEndDate: "contractEndDate", email: "email", phone: "phone",
+      specialization: "jobRole", yearsOfExperience: "experience", highestQualification: "qualification",
+      siteLocation: "assignedSite", badaniaLekExpiry: "badaniaLekExpiry", oswiadczenieExpiry: "oswiadczenieExpiry",
+      iso9606Process: "iso9606Process", iso9606Material: "iso9606Material",
+      iso9606Thickness: "iso9606Thickness", iso9606Position: "iso9606Position",
+      pesel: "pesel", nip: "nip", zusStatus: "zusStatus", udtCertExpiry: "udtCertExpiry",
+      visaType: "visaType", rodoConsentDate: "rodoConsentDate", iban: "iban",
+      contractType: "contractType", nationality: "nationality", pipelineStage: "pipelineStage",
+    };
+
+    for (const [key, dbCol] of Object.entries(fieldMap)) {
+      if (body[key] !== undefined) updates[dbCol] = body[key] || null;
+    }
+
+    // Numeric fields
+    for (const numField of ["hourlyNettoRate", "advancePayment", "totalHours", "penalties"]) {
+      if (body[numField] !== undefined) {
+        const val = Number(body[numField]);
+        if (!isNaN(val) && val >= 0) updates[numField] = numField === "totalHours" ? Math.round(val * 10) / 10 : val;
+      }
+    }
+
+    const [updated] = await db.update(schema.workers).set(updates).where(eq(schema.workers.id, String(req.params.id))).returning();
+    if (!updated) return res.status(404).json({ error: "Worker not found" });
+
+    appendAuditEntry({
+      workerId: String(req.params.id),
+      actor: req.user?.email ?? "admin",
+      field: Object.keys(updates).filter(k => k !== "updatedAt").join(", "),
+      newValue: updates,
+      action: "update",
+    });
+    return res.json(toWorker(updated));
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  }
+});
+
+// DELETE /workers/:id
+router.delete("/workers/:id", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [deleted] = await db.delete(schema.workers).where(eq(schema.workers.id, String(req.params.id))).returning();
+    if (!deleted) return res.status(404).json({ error: "Worker not found" });
+    appendAuditEntry({ workerId: String(req.params.id), actor: req.user?.email ?? "admin", field: "ALL", action: "delete" });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  }
+});
+
+// POST /workers/:id/upload — Upload document (passport/contract/cv)
+router.post("/workers/:id/upload", authenticateToken, upload.single("file"), async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const docType = req.body?.docType as string ?? "passport";
+
+    // Verify worker exists
+    const [worker] = await db.select().from(schema.workers).where(eq(schema.workers.id, id));
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
+
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    // Store file metadata in DB (actual file storage handled by S3 layer later)
+    const storageKey = `workers/${id}/${docType}/${Date.now()}_${req.file.originalname}`;
+    const [attachment] = await db.insert(schema.fileAttachments).values({
+      workerId: id,
+      fieldName: docType,
+      filename: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      storageKey,
+    }).returning();
+
+    // AI scan if applicable
+    let scanned: ScannedData | null = null;
+    if (docType === "passport" || docType === "contract") {
+      scanned = await scanDocument(req.file.buffer, req.file.mimetype, docType);
+      if (scanned) {
+        const autoUpdates: any = {};
+        if (scanned.type === "passport") {
+          if (scanned.passportExpiry) autoUpdates.workPermitExpiry = scanned.passportExpiry;
+          if (scanned.nationality) autoUpdates.nationality = scanned.nationality;
+        } else if (scanned.type === "contract") {
+          if (scanned.contractEndDate) autoUpdates.contractEndDate = scanned.contractEndDate;
+        }
+        if (Object.keys(autoUpdates).length > 0) {
+          await db.update(schema.workers).set({ ...autoUpdates, updatedAt: new Date() }).where(eq(schema.workers.id, id));
+        }
+      }
+    } else if (docType === "cv") {
+      const cvData = await scanCV(req.file.buffer, req.file.mimetype);
+      if (cvData) {
+        const autoUpdates: any = {};
+        if (cvData.yearsOfExperience) autoUpdates.experience = cvData.yearsOfExperience;
+        if (cvData.highestQualification) autoUpdates.qualification = cvData.highestQualification;
+        if (Object.keys(autoUpdates).length > 0) {
+          await db.update(schema.workers).set({ ...autoUpdates, updatedAt: new Date() }).where(eq(schema.workers.id, id));
+        }
+        scanned = cvData;
+      }
+    }
+
+    return res.json({ attachment, scanned });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
+  }
+});
+
+// POST /workers/bulk-create — AI Smart Bulk Upload
 const bulkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 async function scanBulkDocument(
-  fileBuffer: Buffer,
-  mimeType: string,
-  category: "passport" | "bhp" | "certificate" | "contract" | "cv"
+  fileBuffer: Buffer, mimeType: string, category: string
 ): Promise<Record<string, string | null>> {
   const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   if (!imageTypes.includes(mimeType)) return {};
-
   const prompts: Record<string, string> = {
-    passport: `Extract from this passport image. Return ONLY valid JSON:
-{"name":"full name or null","dateOfBirth":"YYYY-MM-DD or null","passportExpiry":"YYYY-MM-DD or null","nationality":"nationality or null"}`,
-    bhp: `Extract from this BHP/safety certificate. Return ONLY valid JSON:
-{"name":"worker full name or null","bhpExpiry":"YYYY-MM-DD or null"}`,
-    certificate: `Extract from this TRC/welding certificate. Return ONLY valid JSON:
-{"name":"worker full name or null","trcExpiry":"YYYY-MM-DD or null","specialization":"Scan for welding process keywords: TIG, MIG, MAG, MMA, FCAW, ARC, FABRICATOR, electrode. Return the matched keyword exactly as written (e.g. 'TIG' or 'MIG' or 'MAG' or 'FABRICATOR') or null if none found"}`,
-    contract: `Extract from this employment contract. Return ONLY valid JSON:
-{"name":"worker full name or null","contractEndDate":"YYYY-MM-DD or null"}`,
-    cv: `Analyze this CV/Resume document. Return ONLY valid JSON:
-{"name":"candidate full name or null","yearsOfExperience":"a string like '5' or '10+' extracted from patterns near words like years/experience/exp, or null","highestQualification":"highest academic degree found e.g. Bachelor, Master, Diploma, PhD, MBA, BEng, MSc, or null"}`,
+    passport: `Extract from this passport image. Return ONLY valid JSON:\n{"name":"full name or null","dateOfBirth":"YYYY-MM-DD or null","passportExpiry":"YYYY-MM-DD or null","nationality":"nationality or null"}`,
+    bhp: `Extract from this BHP/safety certificate. Return ONLY valid JSON:\n{"name":"worker full name or null","bhpExpiry":"YYYY-MM-DD or null"}`,
+    certificate: `Extract from this TRC/welding certificate. Return ONLY valid JSON:\n{"name":"worker full name or null","trcExpiry":"YYYY-MM-DD or null","specialization":"welding process keyword or null"}`,
+    contract: `Extract from this employment contract. Return ONLY valid JSON:\n{"name":"worker full name or null","contractEndDate":"YYYY-MM-DD or null"}`,
+    cv: `Analyze this CV/Resume. Return ONLY valid JSON:\n{"name":"candidate full name or null","yearsOfExperience":"string or null","highestQualification":"string or null"}`,
   };
-
   try {
     const base64 = fileBuffer.toString("base64");
     const dataUrl = `data:${mimeType};base64,${base64}`;
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       max_completion_tokens: 300,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-            { type: "text", text: prompts[category] },
-          ],
-        },
-      ],
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+          { type: "text", text: prompts[category] ?? prompts.cv },
+        ],
+      }],
     });
     const text = response.choices[0]?.message?.content ?? "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -488,419 +502,52 @@ router.post("/workers/bulk-create", bulkUpload.fields([
 ]), async (req, res) => {
   try {
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
-
-    // Scan all uploaded files in parallel
     const scans = await Promise.all([
-      files?.passport?.[0]
-        ? scanBulkDocument(files.passport[0].buffer, files.passport[0].mimetype, "passport")
-        : Promise.resolve({}),
-      files?.bhp?.[0]
-        ? scanBulkDocument(files.bhp[0].buffer, files.bhp[0].mimetype, "bhp")
-        : Promise.resolve({}),
-      files?.certificate?.[0]
-        ? scanBulkDocument(files.certificate[0].buffer, files.certificate[0].mimetype, "certificate")
-        : Promise.resolve({}),
-      files?.contract?.[0]
-        ? scanBulkDocument(files.contract[0].buffer, files.contract[0].mimetype, "contract")
-        : Promise.resolve({}),
-      files?.cv?.[0]
-        ? scanBulkDocument(files.cv[0].buffer, files.cv[0].mimetype, "cv")
-        : Promise.resolve({}),
+      files?.passport?.[0] ? scanBulkDocument(files.passport[0].buffer, files.passport[0].mimetype, "passport") : Promise.resolve({}),
+      files?.bhp?.[0] ? scanBulkDocument(files.bhp[0].buffer, files.bhp[0].mimetype, "bhp") : Promise.resolve({}),
+      files?.certificate?.[0] ? scanBulkDocument(files.certificate[0].buffer, files.certificate[0].mimetype, "certificate") : Promise.resolve({}),
+      files?.contract?.[0] ? scanBulkDocument(files.contract[0].buffer, files.contract[0].mimetype, "contract") : Promise.resolve({}),
+      files?.cv?.[0] ? scanBulkDocument(files.cv[0].buffer, files.cv[0].mimetype, "cv") : Promise.resolve({}),
     ]);
+    const [passportData, bhpData, certData, contractData, cvData] = scans;
+    const merged: Record<string, string | null> = { ...cvData, ...bhpData, ...contractData, ...certData, ...passportData };
 
-    const [passportData, bhpData, certData, contractData, cvData] = scans as Record<string, string>[];
+    const fields: any = {};
+    if (merged.name) fields.name = merged.name;
+    if ((passportData as any).nationality) fields.nationality = (passportData as any).nationality;
+    if ((passportData as any).passportExpiry) fields.workPermitExpiry = (passportData as any).passportExpiry;
+    if ((certData as any).trcExpiry) fields.trcExpiry = (certData as any).trcExpiry;
+    if ((bhpData as any).bhpExpiry) fields.bhpStatus = (bhpData as any).bhpExpiry;
+    if ((contractData as any).contractEndDate) fields.contractEndDate = (contractData as any).contractEndDate;
 
-    // Merge: later keys win, but name priority: passport > certificate > contract > bhp > cv
-    const merged = { ...cvData, ...bhpData, ...contractData, ...certData, ...passportData } as Record<string, string>;
-
-    // Build Airtable fields
-    const airtableFields: Record<string, unknown> = {};
-    const extractedSummary: Record<string, string> = {};
-
-    const name = merged.name;
-    if (name) {
-      airtableFields["Name"] = name;
-      extractedSummary.name = name;
-    }
-    if (passportData.dateOfBirth) {
-      airtableFields["Date of Birth"] = passportData.dateOfBirth;
-    }
-    if (passportData.nationality) {
-      airtableFields["Nationality"] = passportData.nationality;
-    }
-    if (passportData.passportExpiry) {
-      airtableFields["Passport Expiry"] = passportData.passportExpiry;
-    }
-    if (certData.trcExpiry) {
-      airtableFields["TRC Expiry"] = certData.trcExpiry;
-      extractedSummary.trcExpiry = certData.trcExpiry;
-    }
-    if (bhpData.bhpExpiry) {
-      airtableFields["BHP EXPIRY"] = bhpData.bhpExpiry;
-      extractedSummary.bhpExpiry = bhpData.bhpExpiry;
-    }
-    if (contractData.contractEndDate) {
-      airtableFields["Contract End Date"] = contractData.contractEndDate;
-      extractedSummary.contractEndDate = contractData.contractEndDate;
-    }
-
-    // Specialization: manual profession from form takes priority, then AI-extracted from certificate
     const manualProfession = typeof req.body?.profession === "string" ? req.body.profession.trim() : "";
-    const aiSpecialization = typeof certData.specialization === "string" ? certData.specialization.trim() : "";
-    const finalSpecialization = manualProfession || aiSpecialization;
-    if (finalSpecialization) {
-      airtableFields["Job Role"] = finalSpecialization;
-      extractedSummary.specialization = finalSpecialization;
-    }
+    const aiSpec = typeof (certData as any).specialization === "string" ? (certData as any).specialization.trim() : "";
+    if (manualProfession || aiSpec) fields.jobRole = manualProfession || aiSpec;
+    if ((cvData as any).yearsOfExperience) fields.experience = (cvData as any).yearsOfExperience;
+    if ((cvData as any).highestQualification) fields.qualification = (cvData as any).highestQualification;
 
-    // CV Screening: Experience & Qualification
-    const yearsOfExp = typeof cvData.yearsOfExperience === "string" ? cvData.yearsOfExperience.trim() : "";
-    const highestQual = typeof cvData.highestQualification === "string" ? cvData.highestQualification.trim() : "";
-    if (yearsOfExp) {
-      airtableFields["Experience"] = yearsOfExp;
-      extractedSummary.yearsOfExperience = yearsOfExp;
-    }
-    if (highestQual) {
-      airtableFields["Qualification"] = highestQual;
-      extractedSummary.highestQualification = highestQual;
-    }
+    if (!fields.name) fields.name = "New Worker";
 
-    // Create the new Airtable record
-    const newRecord = await createRecord(airtableFields);
-    const recordId = newRecord.id;
+    const [newRecord] = await db.insert(schema.workers).values(fields).returning();
 
-    // Upload all attachments in parallel
-    const uploadTasks: Promise<void>[] = [];
-    const attachmentMap: Record<string, string> = {
-      passport: "Passport",
-      bhp: "BHP Certificate",
-      certificate: "Certificate",
-      contract: "Contract",
-      cv: "Passport",
-    };
-
-    for (const [category, fieldName] of Object.entries(attachmentMap)) {
+    // Store file attachments
+    for (const [category, fieldName] of Object.entries({ passport: "passport", bhp: "bhp", certificate: "certificate", contract: "contract", cv: "cv" })) {
       const file = files?.[category]?.[0];
       if (file) {
-        uploadTasks.push(
-          uploadAttachmentToRecord(recordId, fieldName, file.buffer, file.originalname, file.mimetype)
-            .catch((e) => console.warn(`[bulk-create] Attachment upload failed for ${fieldName}:`, e))
-        );
+        await db.insert(schema.fileAttachments).values({
+          workerId: newRecord.id,
+          fieldName,
+          filename: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          storageKey: `workers/${newRecord.id}/${fieldName}/${Date.now()}_${file.originalname}`,
+        }).catch(e => console.warn(`[bulk-create] Attachment save failed for ${fieldName}:`, e));
       }
     }
 
-    await Promise.all(uploadTasks);
-
-    const finalRecord = await fetchRecord(recordId);
-    res.json({ worker: mapRecordToWorker(finalRecord), extracted: extractedSummary });
+    res.json({ worker: toWorker(newRecord), extracted: merged });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[bulk-create] Error:", message);
-    res.status(500).json({ error: message });
-  }
-});
-
-// GET /workers/:id
-router.get("/workers/:id", async (req, res) => {
-  try {
-    if (isMockMode()) {
-      const worker = getMockWorker(req.params.id);
-      if (!worker) { res.status(404).json({ error: "Worker not found" }); return; }
-      res.json(worker);
-      return;
-    }
-    const record = await fetchRecord(req.params.id);
-    res.json(mapRecordToWorker(record));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    if (message.includes("404") || message.includes("NOT_FOUND")) {
-      res.status(404).json({ error: "Worker not found" });
-    } else {
-      res.status(500).json({ error: message });
-    }
-  }
-});
-
-// PATCH /workers/:id
-router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
-  try {
-    const body = req.body as Record<string, unknown>;
-
-    // Map our schema field names to Airtable field names
-    const airtableFields: Record<string, unknown> = {};
-
-    if (body.trcExpiry !== undefined) airtableFields["TRC Expiry"] = body.trcExpiry;
-    if (body.workPermitExpiry !== undefined)
-      airtableFields["Work Permit Expiry"] = body.workPermitExpiry;
-    if (body.bhpStatus !== undefined) airtableFields["BHP Status"] = body.bhpStatus;
-    if (body.contractEndDate !== undefined)
-      airtableFields["Contract End Date"] = body.contractEndDate;
-    if (body.email !== undefined) airtableFields["Email"] = body.email;
-    if (body.phone !== undefined) airtableFields["Phone"] = body.phone;
-    if (body.specialization !== undefined) airtableFields["Job Role"] = body.specialization;
-    if (body.yearsOfExperience !== undefined) airtableFields["Experience"] = body.yearsOfExperience;
-    if (body.highestQualification !== undefined) airtableFields["Qualification"] = body.highestQualification;
-    if (body.siteLocation !== undefined) airtableFields["Assigned Site"] = body.siteLocation;
-
-    if (body.hourlyNettoRate !== undefined) {
-      const rate = Number(body.hourlyNettoRate);
-      if (!isNaN(rate) && rate >= 0) airtableFields["HOURLY NETTO RATE"] = rate;
-    }
-
-    if (body.advancePayment !== undefined) {
-      const adv = Number(body.advancePayment);
-      if (!isNaN(adv) && adv >= 0) airtableFields["ADVANCE PAYMENT"] = adv;
-    }
-
-    if (body.totalHours !== undefined) {
-      const hrs = Number(body.totalHours);
-      if (!isNaN(hrs) && hrs >= 0) airtableFields["TOTAL HOURS"] = Math.round(hrs * 10) / 10;
-    }
-    if (body.penalties !== undefined) {
-      const pen = Number(body.penalties);
-      if (!isNaN(pen) && pen >= 0) airtableFields["PENALTIES"] = Math.round(pen * 100) / 100;
-    }
-
-    // ── Polish legal compliance fields ──────────────────────────────────────
-    if (body.badaniaLekExpiry !== undefined) airtableFields["BADANIA LEKARSKIE"] = body.badaniaLekExpiry || null;
-    if (body.oswiadczenieExpiry !== undefined) airtableFields["OSWIADCZENIE EXPIRY"] = body.oswiadczenieExpiry || null;
-    if (body.iso9606Process !== undefined) airtableFields["ISO9606 PROCESS"] = body.iso9606Process;
-    if (body.iso9606Material !== undefined) airtableFields["ISO9606 MATERIAL"] = body.iso9606Material;
-    if (body.iso9606Thickness !== undefined) airtableFields["ISO9606 THICKNESS"] = body.iso9606Thickness;
-    if (body.iso9606Position !== undefined) airtableFields["ISO9606 POSITION"] = body.iso9606Position;
-    if (body.pesel !== undefined) airtableFields["PESEL"] = body.pesel;
-    if (body.nip !== undefined) airtableFields["NIP"] = body.nip;
-    if (body.zusStatus !== undefined) airtableFields["ZUS STATUS"] = body.zusStatus;
-    if (body.udtCertExpiry !== undefined) airtableFields["UDT CERT EXPIRY"] = body.udtCertExpiry || null;
-    if (body.visaType !== undefined) airtableFields["VISA TYPE"] = body.visaType;
-    if (body.rodoConsentDate !== undefined) airtableFields["RODO CONSENT"] = body.rodoConsentDate || null;
-
-    // ── New fields ──────────────────────────────────────────────────────────
-    if (body.iban !== undefined) airtableFields["IBAN"] = body.iban;
-    if (body.contractType !== undefined) airtableFields["CONTRACT TYPE"] = body.contractType;
-    if (body.nationality !== undefined) airtableFields["NATIONALITY"] = body.nationality;
-    if (body.pipelineStage !== undefined) airtableFields["PIPELINE STAGE"] = body.pipelineStage;
-
-    const updated = await updateRecord(req.params.id as string, airtableFields);
-    const changedFields = Object.keys(airtableFields).join(", ");
-    if (changedFields) {
-      appendAuditEntry({
-        workerId: req.params.id as string,
-        actor: "admin",
-        field: changedFields,
-        newValue: airtableFields,
-        action: "update",
-      });
-    }
-    res.json(mapRecordToWorker(updated));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
-  }
-});
-
-// POST /workers/:id/gdpr-erase — wipe all PII fields, keep record shell for audit
-router.post("/workers/:id/gdpr-erase", authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const id = String(req.params.id);
-    if (!id) return res.status(400).json({ error: "Worker ID required." });
-    const wipeFields: Record<string, unknown> = {
-      "First Name": "GDPR_ERASED",
-      "Last Name": "GDPR_ERASED",
-      "Email": null,
-      "Phone": null,
-      "PESEL": null,
-      "NIP": null,
-      "IBAN": null,
-      "RODO CONSENT": null,
-    };
-    if (!isMockMode()) {
-      await updateRecord(id, wipeFields);
-    }
-    appendAuditEntry({
-      workerId: id,
-      actor: "admin",
-      field: "GDPR_ERASURE",
-      newValue: { erasedAt: new Date().toISOString(), requestedBy: (req as any).user?.email ?? "admin" },
-      action: "gdpr-erase",
-    });
-    return res.json({ success: true, message: "PII wiped. Audit entry recorded." });
-  } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "GDPR erase failed." });
-  }
-});
-
-// DELETE /workers/:id
-router.delete("/workers/:id", authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const id = String(req.params.id);
-    if (!id) return res.status(400).json({ error: "Worker ID required." });
-    await deleteRecord(id);
-    appendAuditEntry({ workerId: id, actor: "admin", field: "ALL", newValue: null, action: "delete" });
-    return res.json({ success: true });
-  } catch (err) {
-    console.error("[workers] delete error:", err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to delete worker." });
-  }
-});
-
-// POST /workers/:id/upload
-router.post("/workers/:id/upload", upload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ error: "No file provided" });
-      return;
-    }
-
-    const { docType } = req.body as { docType?: string };
-    const validDocTypes = ["passport", "contract", "trc", "bhp"];
-    if (!docType || !validDocTypes.includes(docType)) {
-      res.status(400).json({ error: "docType must be 'passport', 'contract', 'trc', or 'bhp'" });
-      return;
-    }
-
-    const airtableFieldMap: Record<string, string> = {
-      passport: "Passport",
-      contract: "Contract",
-      trc: "Certificate",
-      bhp: "BHP Certificate",
-    };
-    const fieldName = airtableFieldMap[docType];
-    let autoFilledFields: Record<string, string> = {};
-
-    // 1. Scan + upload in parallel
-    const [, scannedRaw] = await Promise.all([
-      uploadAttachmentToRecord(req.params.id as string, fieldName, req.file.buffer, req.file.originalname, req.file.mimetype),
-      (docType === "passport" || docType === "contract")
-        ? scanDocument(req.file.buffer, req.file.mimetype, docType)
-            .then((s) => s ? { _legacy: true, data: s } : null)
-        : scanBulkDocument(req.file.buffer, req.file.mimetype, docType === "trc" ? "certificate" : "bhp")
-            .then((s) => ({ _legacy: false, data: s })),
-    ]);
-
-    // 2. Build Airtable update fields from scan result
-    const airtableUpdates: Record<string, unknown> = {};
-
-    if (scannedRaw) {
-      if ((scannedRaw as any)._legacy) {
-        const scanned = (scannedRaw as any).data;
-        if (scanned.type === "passport") {
-          if (scanned.name) { airtableUpdates["Name"] = scanned.name; autoFilledFields["name"] = scanned.name; }
-          if (scanned.dateOfBirth) { airtableUpdates["Date of Birth"] = scanned.dateOfBirth; autoFilledFields["dateOfBirth"] = scanned.dateOfBirth; }
-          if (scanned.passportExpiry) { airtableUpdates["Passport Expiry"] = scanned.passportExpiry; autoFilledFields["passportExpiry"] = scanned.passportExpiry; }
-          if (scanned.passportNumber) { airtableUpdates["Passport Number"] = scanned.passportNumber; autoFilledFields["passportNumber"] = scanned.passportNumber; }
-          if (scanned.nationality) { airtableUpdates["Nationality"] = scanned.nationality; autoFilledFields["nationality"] = scanned.nationality; }
-        } else if (scanned.type === "contract") {
-          if (scanned.contractEndDate) { airtableUpdates["Contract End Date"] = scanned.contractEndDate; autoFilledFields["contractEndDate"] = scanned.contractEndDate; }
-          if (scanned.workerName) { airtableUpdates["Name"] = scanned.workerName; autoFilledFields["name"] = scanned.workerName; }
-        }
-      } else {
-        const s = (scannedRaw as any).data as Record<string, string | null>;
-        if (docType === "trc") {
-          if (s.trcExpiry) { airtableUpdates["TRC Expiry"] = s.trcExpiry; autoFilledFields["trcExpiry"] = s.trcExpiry; }
-          if (s.specialization) { airtableUpdates["Job Role"] = s.specialization; autoFilledFields["specialization"] = s.specialization; }
-          if (s.name) { autoFilledFields["name"] = s.name; }
-        } else if (docType === "bhp") {
-          if (s.bhpExpiry) { airtableUpdates["BHP EXPIRY"] = s.bhpExpiry; autoFilledFields["bhpExpiry"] = s.bhpExpiry; }
-          if (s.name) { autoFilledFields["name"] = s.name; }
-        }
-      }
-    }
-
-    if (Object.keys(airtableUpdates).length > 0) {
-      try {
-        await updateRecord(req.params.id as string, airtableUpdates);
-      } catch (updateErr) {
-        console.warn("[upload] Auto-fill partial failure:", updateErr instanceof Error ? updateErr.message : updateErr);
-      }
-    }
-
-    // 3. Return updated worker + what was auto-filled
-    const record = await fetchRecord(req.params.id as string);
-    res.json({ worker: mapRecordToWorker(record), autoFilled: autoFilledFields, scanned: Object.keys(autoFilledFields).length > 0 });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
-  }
-});
-
-// POST /workers/notify-site — bulk notify all workers at a given site
-router.post("/workers/notify-site", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
-  try {
-    const { site, message, channel } = req.body as { site?: string; message?: string; channel?: string };
-    if (!site || !message) return res.status(400).json({ error: "site and message are required" });
-    const actor = req.user?.email ?? req.user?.id ?? "operator";
-    const allRecords = await fetchAllRecords();
-    const targets = allRecords.map(mapRecordToWorker).filter((w) =>
-      (w as any).siteLocation === site
-    );
-    const ch = channel ?? "email";
-    let sent = 0;
-    for (const w of targets) {
-      appendNotification(w.id, w.name, ch, message, actor);
-      sent++;
-    }
-    return res.json({ success: true, sent, site, channel: ch });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return res.status(500).json({ error: message });
-  }
-});
-
-// POST /workers/:id/notify
-router.post("/workers/:id/notify", authenticateToken, async (req, res) => {
-  try {
-    const record = await fetchRecord(req.params.id as string);
-    const worker = mapRecordToWorker(record);
-    const body = req.body as { message?: string; channel?: string };
-    const channel = body.channel ?? "email";
-    const message = body.message ?? "";
-    const actor = req.user?.email ?? req.user?.id ?? "operator";
-
-    console.log(
-      `[Notify] Worker: ${worker.name} | Channel: ${channel} | Actor: ${actor} | Message: ${message}`
-    );
-
-    appendNotification(req.params.id as string, worker.name, channel, message, actor);
-
-    res.json({
-      success: true,
-      message: `Notification queued for ${worker.name} via ${channel}.`,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
-  }
-});
-
-// POST /admin/ensure-schema — creates missing EEJ Airtable fields
-router.post("/admin/ensure-schema", authenticateToken, requireAdmin, async (_req, res) => {
-  try {
-    const result = await ensureEejSchema();
-    res.json({
-      success: true,
-      ...result,
-      message: `Schema sync complete. Created: ${result.created.length}, Already existed: ${result.existing.length}, Errors: ${result.errors.length}`,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
-  }
-});
-
-// GET /admin/schema — inspect current Airtable table schema
-router.get("/admin/schema", authenticateToken, requireAdmin, async (_req, res) => {
-  try {
-    const schema = await getTableSchema();
-    res.json({
-      tableName: schema.name,
-      tableId: schema.id,
-      fieldCount: schema.fields.length,
-      fields: schema.fields.map((f) => ({ name: f.name, type: f.type })),
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: message });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 

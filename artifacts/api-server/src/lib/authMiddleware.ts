@@ -1,7 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-export const JWT_SECRET = process.env.JWT_SECRET ?? "eej-jwt-fallback-secret-2024";
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET environment variable is required. Set it in your deployment secrets.");
+  process.exit(1);
+}
+
+export const JWT_SECRET: string = process.env.JWT_SECRET;
 
 export type UserRole = "admin" | "coordinator" | "manager";
 
@@ -47,4 +52,16 @@ export function requireCoordinatorOrAdmin(req: Request, res: Response, next: Nex
   if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
   if (req.user.role === "manager") { res.status(403).json({ error: "Coordinator or Admin access required." }); return; }
   next();
+}
+
+// RBAC middleware - check if user has required role
+export function requireRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
+    if (!roles.includes(req.user.role)) {
+      res.status(403).json({ error: `Access requires one of: ${roles.join(", ")}` });
+      return;
+    }
+    next();
+  };
 }

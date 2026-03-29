@@ -1,9 +1,5 @@
-import fs from "fs";
-import path from "path";
-import { randomUUID } from "crypto";
-
-const LOG_PATH = path.resolve("data/notifications.json");
-const MAX_ENTRIES = 500;
+import { db, schema } from "../db/index.js";
+import { desc } from "drizzle-orm";
 
 export interface NotificationEntry {
   id: string;
@@ -15,46 +11,22 @@ export interface NotificationEntry {
   sentAt: string;
 }
 
-function readLog(): NotificationEntry[] {
-  try {
-    if (!fs.existsSync(LOG_PATH)) return [];
-    return JSON.parse(fs.readFileSync(LOG_PATH, "utf-8"));
-  } catch {
-    return [];
-  }
-}
-
-function writeLog(entries: NotificationEntry[]): void {
-  fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
-  fs.writeFileSync(LOG_PATH, JSON.stringify(entries, null, 2));
-}
-
 export function appendNotification(
-  workerId: string,
-  workerName: string,
-  channel: string,
-  message: string,
-  actor: string
-): NotificationEntry {
-  const entry: NotificationEntry = {
-    id: randomUUID(),
-    workerId,
-    workerName,
-    channel,
-    message,
-    actor,
-    sentAt: new Date().toISOString(),
-  };
-  const existing = readLog();
-  const updated = [entry, ...existing].slice(0, MAX_ENTRIES);
-  writeLog(updated);
-  return entry;
+  workerId: string, workerName: string, channel: string, message: string, actor: string
+): void {
+  db.insert(schema.notifications).values({ workerId, workerName, channel, message, actor })
+    .catch(e => console.error("[notification] write error:", e));
 }
 
-export function getNotifications(limit = 100): NotificationEntry[] {
-  return readLog().slice(0, limit);
+export async function getNotifications(limit = 100): Promise<NotificationEntry[]> {
+  const rows = await db.select().from(schema.notifications).orderBy(desc(schema.notifications.sentAt)).limit(limit);
+  return rows.map(r => ({
+    id: r.id, workerId: r.workerId ?? "", workerName: r.workerName ?? "",
+    channel: r.channel, message: r.message, actor: r.actor,
+    sentAt: r.sentAt?.toISOString() ?? new Date().toISOString(),
+  }));
 }
 
-export function clearNotifications(): void {
-  writeLog([]);
+export async function clearNotifications(): Promise<void> {
+  await db.delete(schema.notifications);
 }

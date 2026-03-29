@@ -1,0 +1,115 @@
+import { Router } from "express";
+import PDFDocument from "pdfkit";
+import { db, schema } from "../db/index.js";
+import { eq } from "drizzle-orm";
+import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+
+const router = Router();
+
+// GET /api/contracts/generate/:workerId — generate contract PDF
+router.get("/contracts/generate/:workerId", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  try {
+    const [worker] = await db.select().from(schema.workers).where(eq(schema.workers.id, String(req.params.workerId)));
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
+
+    const contractType = (req.query.type as string) || worker.contractType || "umowa_zlecenie";
+    const startDate = (req.query.startDate as string) || new Date().toISOString().slice(0, 10);
+    const endDate = (req.query.endDate as string) || worker.contractEndDate || "";
+
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
+    const filename = `Umowa_${worker.name.replace(/\s+/g, "_")}_${startDate}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    doc.pipe(res);
+
+    const isUmowaPrace = contractType === "umowa_o_prace";
+    const title = isUmowaPrace ? "UMOWA O PRACE" : "UMOWA ZLECENIE";
+    const titleEn = isUmowaPrace ? "EMPLOYMENT CONTRACT" : "SERVICE CONTRACT (CIVIL LAW)";
+
+    // Header
+    doc.font("Helvetica-Bold").fontSize(18).text(title, { align: "center" });
+    doc.font("Helvetica").fontSize(10).text(titleEn, { align: "center" });
+    doc.moveDown();
+    doc.font("Helvetica").fontSize(10);
+    doc.text(`Data zawarcia / Date: ${startDate}`);
+    doc.text(`Miejsce / Place: Warszawa`);
+    doc.moveDown();
+
+    // Parties
+    doc.font("Helvetica-Bold").fontSize(11).text("1. STRONY UMOWY / PARTIES");
+    doc.moveDown(0.5);
+    doc.font("Helvetica").fontSize(10);
+    doc.text("Zleceniodawca / Employer:");
+    doc.text("EURO EDU JOBS Sp. z o.o.");
+    doc.text("edu-jobs.eu");
+    doc.moveDown(0.5);
+    doc.text("Zleceniobiorca / Employee:");
+    doc.text(`Imie i Nazwisko / Name: ${worker.name}`);
+    if (worker.pesel) doc.text(`PESEL: ${worker.pesel}`);
+    if (worker.nip) doc.text(`NIP: ${worker.nip}`);
+    if (worker.nationality) doc.text(`Obywatelstwo / Nationality: ${worker.nationality}`);
+    if (worker.email) doc.text(`Email: ${worker.email}`);
+    if (worker.phone) doc.text(`Telefon / Phone: ${worker.phone}`);
+    if (worker.iban) doc.text(`IBAN: ${worker.iban}`);
+    doc.moveDown();
+
+    // Terms
+    doc.font("Helvetica-Bold").fontSize(11).text("2. PRZEDMIOT UMOWY / SUBJECT");
+    doc.moveDown(0.5);
+    doc.font("Helvetica").fontSize(10);
+    doc.text(`Stanowisko / Position: ${worker.jobRole || "Worker"}`);
+    doc.text(`Lokalizacja / Location: ${worker.assignedSite || "Poland"}`);
+    doc.text(`Data rozpoczecia / Start: ${startDate}`);
+    if (endDate) doc.text(`Data zakonczenia / End: ${endDate}`);
+    doc.moveDown();
+
+    // Compensation
+    doc.font("Helvetica-Bold").fontSize(11).text("3. WYNAGRODZENIE / COMPENSATION");
+    doc.moveDown(0.5);
+    doc.font("Helvetica").fontSize(10);
+    if (worker.hourlyNettoRate) {
+      doc.text(`Stawka godzinowa netto / Hourly rate (net): ${worker.hourlyNettoRate.toFixed(2)} PLN`);
+    }
+    doc.text(`Typ umowy / Contract type: ${contractType.replace(/_/g, " ")}`);
+    if (worker.iban) doc.text(`Wyplata na konto / Payment to: ${worker.iban}`);
+    doc.moveDown();
+
+    // ZUS
+    if (!isUmowaPrace) {
+      doc.font("Helvetica-Bold").fontSize(11).text("4. UBEZPIECZENIA SPOLECZNE / SOCIAL INSURANCE");
+      doc.moveDown(0.5);
+      doc.font("Helvetica").fontSize(10);
+      doc.text(`ZUS Status: ${worker.zusStatus || "Do ustalenia / To be determined"}`);
+      doc.text("Skladki ZUS (emerytalne 9.76% + rentowe 1.50%) = 11.26% podstawy");
+      doc.moveDown();
+    }
+
+    // GDPR
+    doc.font("Helvetica-Bold").fontSize(11).text("5. RODO / GDPR");
+    doc.moveDown(0.5);
+    doc.font("Helvetica").fontSize(9);
+    doc.text("Zleceniobiorca wyraza zgode na przetwarzanie danych osobowych zgodnie z RODO (Rozporzadzenie UE 2016/679) w celu realizacji niniejszej umowy.");
+    doc.text("The Employee consents to the processing of personal data in accordance with GDPR (EU Regulation 2016/679) for the purpose of this contract.");
+    if (worker.rodoConsentDate) doc.text(`Data zgody RODO / GDPR Consent: ${worker.rodoConsentDate}`);
+    doc.moveDown(2);
+
+    // Signatures
+    doc.font("Helvetica").fontSize(10);
+    doc.text("_______________________________          _______________________________", { align: "center" });
+    doc.text("Zleceniodawca / Employer                    Zleceniobiorca / Employee", { align: "center" });
+
+    // Footer
+    doc.moveDown(2);
+    doc.font("Helvetica").fontSize(8).fillColor("#888");
+    doc.text("Wygenerowano automatycznie przez system EURO EDU JOBS / Auto-generated by EEJ System", { align: "center" });
+    doc.text(`Data generowania: ${new Date().toLocaleDateString("pl-PL")}`, { align: "center" });
+
+    doc.end();
+    return;
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "Failed to generate contract" });
+    return;
+  }
+});
+
+export default router;

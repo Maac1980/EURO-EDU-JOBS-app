@@ -296,8 +296,27 @@ export async function runMigrations(): Promise<void> {
       severity TEXT DEFAULT 'info',
       fine_amount TEXT,
       ai_analysis TEXT,
+      workers_affected INTEGER,
+      cost_impact TEXT,
+      deadline_change TEXT,
+      action_required JSONB,
+      source_urls JSONB,
       read_by_admin BOOLEAN DEFAULT FALSE,
+      email_sent BOOLEAN DEFAULT FALSE,
       fetched_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS immigration_searches (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id TEXT,
+      question TEXT NOT NULL,
+      language TEXT DEFAULT 'en',
+      perplexity_response TEXT,
+      ai_answer TEXT,
+      source_urls JSONB,
+      confidence TEXT,
+      action_items JSONB,
+      searched_at TIMESTAMP DEFAULT NOW() NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS agencies (
@@ -353,6 +372,10 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_invoices_client ON invoices(client_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
     CREATE INDEX IF NOT EXISTS idx_gdpr_requests_worker ON gdpr_requests(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_immigration_searches_user ON immigration_searches(user_id);
+    CREATE INDEX IF NOT EXISTS idx_immigration_searches_date ON immigration_searches(searched_at);
+    CREATE INDEX IF NOT EXISTS idx_regulatory_category ON regulatory_updates(category);
+    CREATE INDEX IF NOT EXISTS idx_regulatory_severity ON regulatory_updates(severity);
   `);
 
   console.log("[db] Tables created successfully");

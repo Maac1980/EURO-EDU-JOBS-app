@@ -300,7 +300,14 @@ export const regulatoryUpdates = pgTable("regulatory_updates", {
   severity: text("severity").default("info"), // info, warning, critical
   fineAmount: text("fine_amount"),
   aiAnalysis: text("ai_analysis"),
+  // Impact assessment
+  workersAffected: integer("workers_affected"),
+  costImpact: text("cost_impact"), // "increase PLN 50/worker/month"
+  deadlineChange: text("deadline_change"), // "new deadline 2026-04-01"
+  actionRequired: jsonb("action_required"), // ["step1", "step2"]
+  sourceUrls: jsonb("source_urls"), // [{url, title}]
   readByAdmin: boolean("read_by_admin").default(false),
+  emailSent: boolean("email_sent").default(false),
   fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
 });
 
@@ -332,6 +339,20 @@ export const gpsCheckins = pgTable("gps_checkins", {
   siteId: text("site_id"),
   checkType: text("check_type").default("check_in"), // check_in, check_out
   timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// ── Immigration Search History ────────────────────────────────────────────────
+export const immigrationSearches = pgTable("immigration_searches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id"), // who asked
+  question: text("question").notNull(),
+  language: text("language").default("en"), // "en" or "pl"
+  perplexityResponse: text("perplexity_response"), // raw search result
+  aiAnswer: text("ai_answer"), // Claude plain-language answer
+  sourceUrls: jsonb("source_urls"), // [{url, title, date}]
+  confidence: text("confidence"), // "high", "medium", "low"
+  actionItems: jsonb("action_items"), // ["step1", "step2"]
+  searchedAt: timestamp("searched_at").defaultNow().notNull(),
 });
 
 // ── GDPR Requests (NEW - for compliance) ─────────────────────────────────────

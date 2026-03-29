@@ -1,16 +1,11 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import OpenAI from "openai";
+import { analyzeImage } from "../lib/ai.js";
 import { db, schema } from "../db/index.js";
 import { eq, sql, ilike, and } from "drizzle-orm";
 import { appendAuditEntry } from "./audit.js";
 import { toWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
-
-const openai = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? "placeholder",
-});
 
 interface ScannedPassport {
   type: "passport";
@@ -40,40 +35,15 @@ async function scanDocument(fileBuffer: Buffer, mimeType: string, docType: "pass
   if (!imageTypes.includes(mimeType)) return null;
   try {
     const base64 = fileBuffer.toString("base64");
-    const dataUrl = `data:${mimeType};base64,${base64}`;
-    if (docType === "passport") {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_completion_tokens: 512,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-            { type: "text", text: `Extract data from this passport. Return ONLY valid JSON with these fields (use null for any field not found):\n{"name":"full name exactly as on passport","dateOfBirth":"YYYY-MM-DD or null","passportExpiry":"YYYY-MM-DD or null","passportNumber":"passport number or null","nationality":"nationality or null"}` },
-          ],
-        }],
-      });
-      const text = response.choices[0]?.message?.content ?? "";
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return null;
-      return { type: "passport", ...JSON.parse(jsonMatch[0]) };
-    } else {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_completion_tokens: 256,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-            { type: "text", text: `Extract data from this employment contract. Return ONLY valid JSON:\n{"contractEndDate":"YYYY-MM-DD or null","workerName":"full name or null"}` },
-          ],
-        }],
-      });
-      const text = response.choices[0]?.message?.content ?? "";
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return null;
-      return { type: "contract", ...JSON.parse(jsonMatch[0]) };
-    }
+    const prompt = docType === "passport"
+      ? `Extract data from this passport. Return ONLY valid JSON:\n{"name":"full name","dateOfBirth":"YYYY-MM-DD or null","passportExpiry":"YYYY-MM-DD or null","passportNumber":"number or null","nationality":"nationality or null"}`
+      : `Extract data from this employment contract. Return ONLY valid JSON:\n{"contractEndDate":"YYYY-MM-DD or null","workerName":"full name or null"}`;
+    const result = await analyzeImage(base64, mimeType, prompt);
+    if (!result) return null;
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+    return docType === "passport" ? { type: "passport", ...parsed } : { type: "contract", ...parsed };
   } catch (e) {
     console.error("[scanDocument] AI error:", e);
     return null;
@@ -85,20 +55,9 @@ async function scanCV(fileBuffer: Buffer, mimeType: string): Promise<ScannedCV |
   if (!imageTypes.includes(mimeType)) return null;
   try {
     const base64 = fileBuffer.toString("base64");
-    const dataUrl = `data:${mimeType};base64,${base64}`;
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 300,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-          { type: "text", text: `Analyze this CV/Resume. Return ONLY valid JSON:\n{"yearsOfExperience":"string or null","highestQualification":"string or null"}` },
-        ],
-      }],
-    });
-    const text = response.choices[0]?.message?.content ?? "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const result = await analyzeImage(base64, mimeType, `Analyze this CV/Resume. Return ONLY valid JSON:\n{"yearsOfExperience":"string or null","highestQualification":"string or null"}`);
+    if (!result) return null;
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     const parsed = JSON.parse(jsonMatch[0]);
     return { type: "cv", yearsOfExperience: parsed.yearsOfExperience ?? null, highestQualification: parsed.highestQualification ?? null };
@@ -471,20 +430,9 @@ async function scanBulkDocument(
   };
   try {
     const base64 = fileBuffer.toString("base64");
-    const dataUrl = `data:${mimeType};base64,${base64}`;
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 300,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-          { type: "text", text: prompts[category] ?? prompts.cv },
-        ],
-      }],
-    });
-    const text = response.choices[0]?.message?.content ?? "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const result = await analyzeImage(base64, mimeType, prompts[category] ?? prompts.cv);
+    if (!result) return {};
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return {};
     return JSON.parse(jsonMatch[0]) as Record<string, string | null>;
   } catch (e) {

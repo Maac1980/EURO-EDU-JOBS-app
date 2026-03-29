@@ -268,7 +268,74 @@ export async function runMigrations(): Promise<void> {
       notes TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS work_permit_applications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      permit_type TEXT NOT NULL,
+      status TEXT DEFAULT 'preparing',
+      application_number TEXT,
+      portal TEXT DEFAULT 'mos',
+      documents JSONB,
+      government_fee REAL,
+      reporting_deadline DATE,
+      submitted_at TIMESTAMP,
+      decision_date DATE,
+      expiry_date DATE,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS regulatory_updates (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      source TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      full_text TEXT,
+      category TEXT,
+      severity TEXT DEFAULT 'info',
+      fine_amount TEXT,
+      ai_analysis TEXT,
+      read_by_admin BOOLEAN DEFAULT FALSE,
+      fetched_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS agencies (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      phone TEXT,
+      contact_person TEXT,
+      nip TEXT,
+      plan TEXT DEFAULT 'starter',
+      worker_limit INTEGER DEFAULT 25,
+      billing_status TEXT DEFAULT 'trialing',
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      trial_ends_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gps_checkins (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      accuracy REAL,
+      site_id TEXT,
+      check_type TEXT DEFAULT 'check_in',
+      timestamp TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+
     -- Indexes
+    CREATE INDEX IF NOT EXISTS idx_work_permit_worker ON work_permit_applications(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_work_permit_status ON work_permit_applications(status);
+    CREATE INDEX IF NOT EXISTS idx_regulatory_fetched ON regulatory_updates(fetched_at);
+    CREATE INDEX IF NOT EXISTS idx_agencies_email ON agencies(email);
+    CREATE INDEX IF NOT EXISTS idx_agencies_stripe ON agencies(stripe_customer_id);
+    CREATE INDEX IF NOT EXISTS idx_gps_checkins_worker ON gps_checkins(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_gps_checkins_timestamp ON gps_checkins(timestamp);
     CREATE INDEX IF NOT EXISTS idx_workers_email ON workers(email);
     CREATE INDEX IF NOT EXISTS idx_workers_pipeline ON workers(pipeline_stage);
     CREATE INDEX IF NOT EXISTS idx_workers_assigned_site ON workers(assigned_site);

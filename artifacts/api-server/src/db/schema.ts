@@ -270,6 +270,70 @@ export const invoices = pgTable("invoices", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ── Work Permit Applications (NEW - permit tracker) ──────────────────────────
+export const workPermitApplications = pgTable("work_permit_applications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "cascade" }),
+  permitType: text("permit_type").notNull(), // type_a, type_b, type_c, seasonal, oswiadczenie
+  status: text("status").default("preparing"), // preparing, submitted, under_review, approved, rejected, expired
+  applicationNumber: text("application_number"),
+  portal: text("portal").default("mos"), // mos, praca.gov.pl
+  documents: jsonb("documents"), // checklist array
+  governmentFee: real("government_fee"),
+  reportingDeadline: date("reporting_deadline"),
+  submittedAt: timestamp("submitted_at"),
+  decisionDate: date("decision_date"),
+  expiryDate: date("expiry_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ── Regulatory Updates (NEW - compliance intelligence) ────────────────────────
+export const regulatoryUpdates = pgTable("regulatory_updates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  source: text("source").notNull(),
+  title: text("title").notNull(),
+  summary: text("summary"),
+  fullText: text("full_text"),
+  category: text("category"), // work_permits, zus, tax, labor_code, immigration
+  severity: text("severity").default("info"), // info, warning, critical
+  fineAmount: text("fine_amount"),
+  aiAnalysis: text("ai_analysis"),
+  readByAdmin: boolean("read_by_admin").default(false),
+  fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+});
+
+// ── Agencies (NEW - multi-tenant billing) ─────────────────────────────────────
+export const agencies = pgTable("agencies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  phone: text("phone"),
+  contactPerson: text("contact_person"),
+  nip: text("nip"),
+  plan: text("plan").default("starter"),
+  workerLimit: integer("worker_limit").default(25),
+  billingStatus: text("billing_status").default("trialing"), // trialing, active, past_due, cancelled
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ── GPS Check-ins (NEW - worker location tracking) ────────────────────────────
+export const gpsCheckins = pgTable("gps_checkins", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  accuracy: real("accuracy"),
+  siteId: text("site_id"),
+  checkType: text("check_type").default("check_in"), // check_in, check_out
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
 // ── GDPR Requests (NEW - for compliance) ─────────────────────────────────────
 export const gdprRequests = pgTable("gdpr_requests", {
   id: uuid("id").primaryKey().defaultRandom(),

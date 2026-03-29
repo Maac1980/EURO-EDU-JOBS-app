@@ -1,6 +1,7 @@
 import { createServer } from "http";
 import app from "./app.js";
 import { startAlerter } from "./lib/alerter.js";
+import { startRegulatoryMonitor } from "./routes/regulatory.js";
 import { runMigrations, seedInitialData } from "./db/migrate.js";
 import { initWebSocket } from "./lib/websocket.js";
 
@@ -29,6 +30,7 @@ async function start() {
   server.listen(port, () => {
     console.log(`Server listening on port ${port}`);
     startAlerter();
+    startRegulatoryMonitor();
   });
 }
 

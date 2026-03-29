@@ -18,6 +18,11 @@ import interviewsRouter from "./interviews.js";
 import invoicesRouter from "./invoices.js";
 import contractsRouter from "./contracts.js";
 import gdprRouter from "./gdpr.js";
+import billingRouter from "./billing.js";
+import gpsRouter from "./gps.js";
+import agencyRouter from "./agency.js";
+import regulatoryRouter from "./regulatory.js";
+import permitsRouter from "./permits.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +45,10 @@ router.use(interviewsRouter);
 router.use(invoicesRouter);
 router.use(contractsRouter);
 router.use(gdprRouter);
+router.use(billingRouter);
+router.use(gpsRouter);
+router.use(agencyRouter);
+router.use(regulatoryRouter);
+router.use(permitsRouter);
 
 export default router;

@@ -36,12 +36,37 @@ export async function sendEmail(opts: {
     return;
   }
 
+  // Brevo SMTP (priority 2)
+  const brevoUser = process.env.BREVO_SMTP_USER;
+  const brevoPass = process.env.BREVO_SMTP_PASS;
+  if (brevoUser && brevoPass) {
+    const transporter = nodemailer.createTransport({
+      host: "smtp-relay.brevo.com",
+      port: 587,
+      secure: false,
+      auth: { user: brevoUser, pass: brevoPass },
+    });
+    await transporter.sendMail({
+      from: opts.from,
+      to: Array.isArray(opts.to) ? opts.to.join(", ") : opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      attachments: opts.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType,
+      })),
+    });
+    return;
+  }
+
+  // Generic SMTP fallback (priority 3)
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
   const smtpHost = process.env.SMTP_HOST ?? "smtp.gmail.com";
   const smtpPort = Number(process.env.SMTP_PORT ?? "587");
   if (!smtpUser || !smtpPass) {
-    throw new Error("No email transport configured. Add RESEND_API_KEY or SMTP_USER/SMTP_PASS.");
+    throw new Error("No email transport configured. Add RESEND_API_KEY, BREVO_SMTP_USER/PASS, or SMTP_USER/PASS.");
   }
   const transporter = nodemailer.createTransport({
     host: smtpHost, port: smtpPort,

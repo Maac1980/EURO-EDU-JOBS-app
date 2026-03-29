@@ -3,6 +3,6 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "echo 'pre-built'"
+    "build": "cd ../../eej-mobile-HIDDEN && npx vite build && cp -r dist/public ../../artifacts/eej-mobile/dist/public"
   }
 }

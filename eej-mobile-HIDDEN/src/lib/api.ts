@@ -1,7 +1,9 @@
 const API_BASE = "/api";
+const TOKEN_KEY = "eej_token_v2";
+const SESSION_KEY = "eej_session_v2";
 
 function getToken(): string | null {
-  return localStorage.getItem("eej_token_v2");
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 function authHeaders(): Record<string, string> {
@@ -11,30 +13,77 @@ function authHeaders(): Record<string, string> {
     : { "Content-Type": "application/json" };
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+/** Attempt to refresh the JWT token. Returns true on success. */
+async function tryRefreshToken(): Promise<boolean> {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    const res = await fetch(`${API_BASE}/eej/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as { token?: string };
+    if (data.token) {
+      localStorage.setItem(TOKEN_KEY, data.token);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/** Clear auth state and redirect to login */
+function forceLogout() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(SESSION_KEY);
+  window.location.reload();
+}
+
+/** Handle 401 responses: try refresh, retry once, or force logout */
+async function handleUnauthorized<T>(method: () => Promise<Response>): Promise<T> {
+  const res = await method();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      // Retry with new token
+      const retryRes = await method();
+      if (retryRes.ok) return retryRes.json() as Promise<T>;
+      if (retryRes.status === 401) { forceLogout(); throw new Error("Session expired"); }
+      throw new Error(`API ${retryRes.status}`);
+    }
+    forceLogout();
+    throw new Error("Session expired");
+  }
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+async function get<T>(path: string): Promise<T> {
+  return handleUnauthorized<T>(() =>
+    fetch(`${API_BASE}${path}`, { headers: authHeaders() })
+  );
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json() as Promise<T>;
+  return handleUnauthorized<T>(() =>
+    fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  );
 }
 
 async function patch<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "PATCH",
-    headers: authHeaders(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json() as Promise<T>;
+  return handleUnauthorized<T>(() =>
+    fetch(`${API_BASE}${path}`, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    })
+  );
 }
 
 // Jobs
@@ -127,4 +176,9 @@ export async function fetchGpsConfig() {
 // Workers
 export async function fetchWorkers() {
   return get<{ workers: any[] }>("/workers").then((d) => d.workers ?? []);
+}
+
+// Admin Stats
+export async function fetchAdminStats() {
+  return get<any>("/admin/stats");
 }

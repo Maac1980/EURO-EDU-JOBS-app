@@ -106,6 +106,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function refreshToken(): Promise<boolean> {
+    const currentToken = localStorage.getItem(TOKEN_KEY);
+    if (!currentToken) return false;
+    try {
+      const res = await fetch(`${API_BASE}/eej/auth/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${currentToken}`,
+        },
+      });
+      if (!res.ok) return false;
+      const data = await res.json() as { token?: string };
+      if (data.token) {
+        setToken(data.token);
+        localStorage.setItem(TOKEN_KEY, data.token);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  // Periodically check token freshness (every 5 minutes)
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(async () => {
+      const success = await refreshToken();
+      if (!success && user) {
+        // Token refresh failed, force logout
+        console.warn("[auth] Token refresh failed, logging out");
+        logout();
+      }
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [token]);
+
   function logout() {
     setUser(null);
     setToken(null);

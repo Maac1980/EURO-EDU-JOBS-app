@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Scale, AlertTriangle, Info, Shield, RefreshCw, ExternalLink, CheckCircle } from "lucide-react";
 import { fetchRegulatoryUpdates, triggerRegulatoryScan, markUpdateRead } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 
 interface RegulatoryUpdate {
   id: string;
@@ -30,6 +31,7 @@ const CATEGORIES = [
 ];
 
 export default function RegulatoryTab() {
+  const { showToast } = useToast();
   const [updates, setUpdates] = useState<RegulatoryUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -52,8 +54,11 @@ export default function RegulatoryTab() {
     setScanning(true);
     try {
       await triggerRegulatoryScan();
+      showToast("Regulatory scan complete", "success");
       loadUpdates();
-    } catch {}
+    } catch {
+      showToast("Scan failed", "error");
+    }
     setScanning(false);
   }
 
@@ -61,7 +66,10 @@ export default function RegulatoryTab() {
     try {
       await markUpdateRead(id);
       setUpdates((prev) => prev.map((u) => (u.id === id ? { ...u, readByAdmin: true } : u)));
-    } catch {}
+      showToast("Marked as read", "info");
+    } catch {
+      showToast("Failed to mark as read", "error");
+    }
   }
 
   const criticalCount = updates.filter((u) => u.severity === "critical").length;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FileText, Download, User, Calendar } from "lucide-react";
 import { fetchWorkers } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 
 interface Worker {
   id: string;
@@ -12,6 +13,7 @@ interface Worker {
 }
 
 export default function ContractsTab() {
+  const { showToast } = useToast();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
@@ -37,9 +39,12 @@ export default function ContractsTab() {
         a.download = `contract-${workerId}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
+        showToast("Contract PDF generated", "success");
+      } else {
+        showToast("Failed to generate PDF", "error");
       }
     } catch {
-      // silently fail
+      showToast("Failed to generate PDF", "error");
     }
     setGenerating(null);
   }

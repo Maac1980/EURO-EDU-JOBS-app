@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Mail, Phone, Globe2, FileCheck, FileClock, FileX, FileQuestion, Upload, Paperclip, CheckCircle2 } from "lucide-react";
-import { MOCK_CANDIDATES } from "@/data/mockData";
-import type { DocReviewStatus } from "@/data/mockData";
+import { useCandidates } from "@/lib/candidateContext";
+import type { DocReviewStatus, Candidate } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
 
 interface Props {
@@ -35,10 +35,27 @@ const MY_UPLOAD_SLOTS = [
 
 export default function CandidateHome({ candidateId }: Props) {
   const { showToast } = useToast();
+  const { candidates, loading } = useCandidates();
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const MY = MOCK_CANDIDATES.find((c) => c.id === candidateId) ?? MOCK_CANDIDATES[3];
+  const MY: Candidate | undefined = candidates.find((c) => c.id === candidateId) ?? candidates[0];
+
+  if (loading) {
+    return (
+      <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+        <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading profile...</div>
+      </div>
+    );
+  }
+
+  if (!MY) {
+    return (
+      <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+        <div style={{ color: "#9CA3AF", fontSize: 14 }}>No candidate profile found.</div>
+      </div>
+    );
+  }
 
   function handleUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

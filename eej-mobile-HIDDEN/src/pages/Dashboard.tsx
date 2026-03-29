@@ -26,7 +26,8 @@ import RegulatoryTab   from "./tabs/RegulatoryTab";
 import ImmigrationSearchTab from "./tabs/ImmigrationSearchTab";
 import WorkPermitTab   from "./tabs/WorkPermitTab";
 import GPSTrackingTab  from "./tabs/GPSTrackingTab";
-import { COMPLIANCE_ALERTS, MOCK_CANDIDATES } from "@/data/mockData";
+import { useCandidates } from "@/lib/candidateContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const ROLE_COLOR: Record<Role, string> = {
   executive:  "#1B2A4A",
@@ -42,13 +43,15 @@ const ROLE_TIER: Record<Role, string> = {
   candidate:  "T4",
 };
 
-function getBadgeCounts(role: Role): Partial<Record<ActiveTab, number>> {
-  const alertCount = COMPLIANCE_ALERTS.visaExpiring.length;
-  const needsDocs  = MOCK_CANDIDATES.filter((c) => c.status === "missing" || c.status === "expiring").length;
-  if (role === "executive")  return { alerts: alertCount };
-  if (role === "legal")      return { alerts: alertCount };
-  if (role === "operations") return { home: needsDocs };
-  if (role === "candidate")  return { alerts: 3 };
+function getBadgeCounts(role: Role, candidates: { status: string; visaDaysLeft?: number }[]): Partial<Record<ActiveTab, number>> {
+  const alertCount = candidates.filter(c =>
+    c.status === "expiring" || (c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60)
+  ).length;
+  const needsDocs = candidates.filter((c) => c.status === "missing" || c.status === "expiring").length;
+  if (role === "executive")  return { alerts: alertCount || 0 };
+  if (role === "legal")      return { alerts: alertCount || 0 };
+  if (role === "operations") return { home: needsDocs || 0 };
+  if (role === "candidate")  return { alerts: 0 };
   return {};
 }
 
@@ -90,51 +93,62 @@ function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: A
 }
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return (
+    <CandidateProvider>
+      <DashboardInner />
+    </CandidateProvider>
+  );
+}
+
+function DashboardInner() {
   const { user, logout } = useAuth();
+  const { candidates } = useCandidates();
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
 
   if (!user) return null;
 
   const accentColor = ROLE_COLOR[user.role];
   const tierLabel   = ROLE_TIER[user.role];
-  const badgeCounts = getBadgeCounts(user.role);
+  const badgeCounts = getBadgeCounts(user.role, candidates);
 
   return (
-    <CandidateProvider>
-      <div className="eej-screen">
-        <div className="eej-container" style={{ position: "relative" }}>
+    <div className="eej-screen">
+      <div className="eej-container" style={{ position: "relative" }}>
 
-          <ToastContainer />
+        <ToastContainer />
 
-          <header className="dash-header" style={{ background: accentColor }}>
-            <div className="dash-header-left">
-              <div className="dash-logo-sm">EEJ</div>
-              <div className="dash-header-text">
-                <div className="dash-header-title">
-                  {user.shortName}
-                  <span className="dash-tier-chip" style={{ marginLeft: 6 }}>{tierLabel}</span>
-                </div>
-                <div className="dash-header-sub">{user.designation}</div>
+        <header className="dash-header" style={{ background: accentColor }}>
+          <div className="dash-header-left">
+            <div className="dash-logo-sm">EEJ</div>
+            <div className="dash-header-text">
+              <div className="dash-header-title">
+                {user.shortName}
+                <span className="dash-tier-chip" style={{ marginLeft: 6 }}>{tierLabel}</span>
               </div>
+              <div className="dash-header-sub">{user.designation}</div>
             </div>
-            <button className="dash-logout" onClick={logout} title="Logout">
-              <LogoutIcon />
-            </button>
-          </header>
-
-          <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} onNavigate={setActiveTab} />
           </div>
+          <button className="dash-logout" onClick={logout} title="Logout">
+            <LogoutIcon />
+          </button>
+        </header>
 
-          <BottomNav
-            role={user.role}
-            active={activeTab}
-            onChange={setActiveTab}
-            badgeCounts={badgeCounts}
-          />
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <ErrorBoundary>
+            <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} onNavigate={setActiveTab} />
+          </ErrorBoundary>
         </div>
+
+        <BottomNav
+          role={user.role}
+          active={activeTab}
+          onChange={setActiveTab}
+          badgeCounts={badgeCounts}
+        />
       </div>
-    </CandidateProvider>
+    </div>
   );
 }
 

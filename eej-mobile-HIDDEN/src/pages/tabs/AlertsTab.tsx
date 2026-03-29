@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { AlertTriangle, ShieldAlert, FileCheck2, Bell, Clock, CheckCircle2, DollarSign, Search, X, Stethoscope, HardHat } from "lucide-react";
-import { COMPLIANCE_ALERTS, MOCK_CANDIDATES } from "@/data/mockData";
+import { COMPLIANCE_ALERTS } from "@/data/mockData";
+import { useCandidates } from "@/lib/candidateContext";
+import type { Candidate } from "@/data/mockData";
 import type { Role } from "@/types";
 
 const TODAY = new Date();
@@ -15,9 +17,11 @@ function daysUntil(dateStr?: string): number | null {
 interface Props { role: Role; }
 
 export default function AlertsTab({ role }: Props) {
-  if (role === "executive")  return <ExecutiveAlerts />;
-  if (role === "legal")      return <LegalAlerts />;
-  if (role === "operations") return <OpsAlerts />;
+  const { candidates } = useCandidates();
+  const data = candidates.length > 0 ? candidates : [] as Candidate[];
+  if (role === "executive")  return <ExecutiveAlerts candidates={data} />;
+  if (role === "legal")      return <LegalAlerts candidates={data} />;
+  if (role === "operations") return <OpsAlerts candidates={data} />;
   return null;
 }
 
@@ -42,13 +46,13 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 /* ── T1 Executive Alerts ── */
-function ExecutiveAlerts() {
+function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
   const [query, setQuery] = useState("");
 
-  const financialAlerts = MOCK_CANDIDATES.filter(c =>
+  const financialAlerts = candidates.filter(c =>
     c.zusStatus?.toLowerCase().includes("pending") || c.zusStatus?.toLowerCase().includes("incomplete")
   );
-  const expiringDocs = MOCK_CANDIDATES.flatMap(c => {
+  const expiringDocs = candidates.flatMap(c => {
     const items: { name: string; doc: string; days: number }[] = [];
     const d1 = daysUntil(c.trcExpiry);
     const d2 = daysUntil(c.workPermitExpiry);
@@ -57,13 +61,25 @@ function ExecutiveAlerts() {
     return items;
   });
 
+  // Compute alerts from live candidate data
+  const visaExpiring = candidates.length > 0
+    ? candidates
+        .filter(c => c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60)
+        .map(c => ({ name: c.name, daysLeft: c.visaDaysLeft!, type: c.visaType ?? "Visa" }))
+    : COMPLIANCE_ALERTS.visaExpiring;
+  const missingPassports = candidates.length > 0
+    ? candidates
+        .filter(c => c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected")))
+        .map(c => ({ name: c.name, missing: "Passport / ID" }))
+    : COMPLIANCE_ALERTS.missingPassports;
+
   const q = query.toLowerCase();
-  const filteredVisa    = COMPLIANCE_ALERTS.visaExpiring.filter(a => !q || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q));
-  const filteredMissing = COMPLIANCE_ALERTS.missingPassports.filter(a => !q || a.name.toLowerCase().includes(q) || a.missing.toLowerCase().includes(q));
+  const filteredVisa    = visaExpiring.filter(a => !q || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q));
+  const filteredMissing = missingPassports.filter(a => !q || a.name.toLowerCase().includes(q) || a.missing.toLowerCase().includes(q));
   const filteredFin     = financialAlerts.filter(c => !q || c.name.toLowerCase().includes(q));
   const filteredExpiry  = expiringDocs.filter(i => !q || i.name.toLowerCase().includes(q) || i.doc.toLowerCase().includes(q));
 
-  const totalAlerts = COMPLIANCE_ALERTS.visaExpiring.length + COMPLIANCE_ALERTS.missingPassports.length + financialAlerts.length;
+  const totalAlerts = visaExpiring.length + missingPassports.length + financialAlerts.length;
 
   return (
     <div className="tab-page">
@@ -166,24 +182,40 @@ function ExecutiveAlerts() {
 }
 
 /* ── T2 Legal Alerts — DIFFERENTIATED from LegalHome ── */
-function LegalAlerts() {
+function LegalAlerts({ candidates }: { candidates: Candidate[] }) {
   const [query, setQuery] = useState("");
 
   const q = query.toLowerCase();
 
   const allIssues: { name: string; issue: string; days: number | null; severity: "critical" | "warning" | "pending" }[] = [];
 
-  COMPLIANCE_ALERTS.visaExpiring.forEach(a => {
-    allIssues.push({ name: a.name, issue: `${a.type} expiring`, days: a.daysLeft, severity: a.daysLeft <= 10 ? "critical" : "warning" });
-  });
-  COMPLIANCE_ALERTS.missingPassports.forEach(a => {
-    allIssues.push({ name: a.name, issue: a.missing, days: null, severity: "critical" });
-  });
-  COMPLIANCE_ALERTS.workPermits.filter(p => p.status === "pending").forEach(a => {
-    allIssues.push({ name: a.name, issue: "Work permit pending", days: null, severity: "pending" });
-  });
+  // Derive visa/passport/permit alerts from live candidates when available
+  if (candidates.length > 0) {
+    candidates.forEach(c => {
+      if (c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60) {
+        allIssues.push({ name: c.name, issue: `${c.visaType ?? "Visa"} expiring`, days: c.visaDaysLeft, severity: c.visaDaysLeft <= 10 ? "critical" : "warning" });
+      }
+      if (c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected"))) {
+        allIssues.push({ name: c.name, issue: "Passport / ID missing", days: null, severity: "critical" });
+      }
+      const wp = c.documents.find(d => d.name.toLowerCase().includes("work permit"));
+      if (wp && wp.status !== "approved") {
+        allIssues.push({ name: c.name, issue: "Work permit pending", days: null, severity: "pending" });
+      }
+    });
+  } else {
+    COMPLIANCE_ALERTS.visaExpiring.forEach(a => {
+      allIssues.push({ name: a.name, issue: `${a.type} expiring`, days: a.daysLeft, severity: a.daysLeft <= 10 ? "critical" : "warning" });
+    });
+    COMPLIANCE_ALERTS.missingPassports.forEach(a => {
+      allIssues.push({ name: a.name, issue: a.missing, days: null, severity: "critical" });
+    });
+    COMPLIANCE_ALERTS.workPermits.filter(p => p.status === "pending").forEach(a => {
+      allIssues.push({ name: a.name, issue: "Work permit pending", days: null, severity: "pending" });
+    });
+  }
 
-  MOCK_CANDIDATES.forEach(c => {
+  candidates.forEach(c => {
     const d1 = daysUntil(c.bhpExpiry);
     const d2 = daysUntil(c.badaniaLekExpiry);
     const d3 = daysUntil(c.oswiadczenieExpiry);
@@ -207,11 +239,11 @@ function LegalAlerts() {
   const warningCount  = allIssues.filter(i => i.severity === "warning").length;
   const pendingCount  = allIssues.filter(i => i.severity === "pending").length;
 
-  const bhpExpiries = MOCK_CANDIDATES.map(c => ({ name: c.name, flag: c.flag, days: daysUntil(c.bhpExpiry) }))
+  const bhpExpiries = candidates.map(c => ({ name: c.name, flag: c.flag, days: daysUntil(c.bhpExpiry) }))
     .filter(x => x.days !== null && x.days < 120)
     .sort((a, b) => (a.days ?? 999) - (b.days ?? 999));
 
-  const medExpiries = MOCK_CANDIDATES.map(c => ({ name: c.name, flag: c.flag, days: daysUntil(c.badaniaLekExpiry) }))
+  const medExpiries = candidates.map(c => ({ name: c.name, flag: c.flag, days: daysUntil(c.badaniaLekExpiry) }))
     .filter(x => x.days !== null && x.days < 120)
     .sort((a, b) => (a.days ?? 999) - (b.days ?? 999));
 
@@ -327,9 +359,9 @@ function LegalAlerts() {
 }
 
 /* ── T3 Operations Alerts ── */
-function OpsAlerts() {
+function OpsAlerts({ candidates }: { candidates: Candidate[] }) {
   const [query, setQuery] = useState("");
-  const needsDocs = MOCK_CANDIDATES.filter(c => c.status === "missing" || c.status === "expiring");
+  const needsDocs = candidates.filter(c => c.status === "missing" || c.status === "expiring");
   const q = query.toLowerCase();
   const filtered = needsDocs.filter(c => !q || c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q) || c.statusLabel.toLowerCase().includes(q));
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Receipt, Download, CheckCircle, Clock, Send } from "lucide-react";
 import { fetchInvoices, updateInvoiceStatus } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 
 interface Invoice {
   id: string;
@@ -16,6 +17,7 @@ interface Invoice {
 }
 
 export default function InvoicesTab() {
+  const { showToast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "draft" | "sent" | "paid">("all");
@@ -41,14 +43,20 @@ export default function InvoicesTab() {
     try {
       await updateInvoiceStatus(id, "paid");
       setInvoices((prev) => prev.map((i) => (i.id === id ? { ...i, status: "paid" } : i)));
-    } catch {}
+      showToast("Invoice marked as paid", "success");
+    } catch {
+      showToast("Failed to update invoice", "error");
+    }
   }
 
   async function markSent(id: string) {
     try {
       await updateInvoiceStatus(id, "sent");
       setInvoices((prev) => prev.map((i) => (i.id === id ? { ...i, status: "sent" } : i)));
-    } catch {}
+      showToast("Invoice sent", "success");
+    } catch {
+      showToast("Failed to send invoice", "error");
+    }
   }
 
   return (

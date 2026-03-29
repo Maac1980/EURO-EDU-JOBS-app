@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Search, Globe, BookOpen, ExternalLink, ChevronDown, Loader2 } from "lucide-react";
 import { searchImmigration, fetchPopularQuestions } from "@/lib/api";
-import { useEffect } from "react";
+import { useToast } from "@/lib/toast";
 
 interface SearchResult {
   answer: string;
@@ -11,6 +11,7 @@ interface SearchResult {
 }
 
 export default function ImmigrationSearchTab() {
+  const { showToast } = useToast();
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,7 @@ export default function ImmigrationSearchTab() {
       setResult(res);
       setHistory((prev) => [{ query: searchQuery, answer: res.answer.slice(0, 100) }, ...prev.slice(0, 9)]);
     } catch {
+      showToast("Search failed. Please try again.", "error");
       setResult({ answer: "Search is currently unavailable. Please try again later.", sources: [], confidence: 0, actionItems: [] });
     }
     setLoading(false);

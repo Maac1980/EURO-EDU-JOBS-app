@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Users, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
 import { fetchApplications, updateApplicationStage } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 
 const STAGES = ["New", "Screening", "Interview", "Offer", "Placed", "Active", "Released", "Blacklisted"];
 
@@ -25,6 +26,7 @@ interface Application {
 }
 
 export default function ATSPipelineTab() {
+  const { showToast } = useToast();
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeStage, setActiveStage] = useState(0);
@@ -49,8 +51,9 @@ export default function ATSPipelineTab() {
     try {
       await updateApplicationStage(appId, newStage);
       setApps((prev) => prev.map((a) => (a.id === appId ? { ...a, stage: newStage } : a)));
+      showToast(`Moved to ${newStage}`, "success");
     } catch {
-      // silently fail
+      showToast("Failed to move stage", "error");
     }
   }
 

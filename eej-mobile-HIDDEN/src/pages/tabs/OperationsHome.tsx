@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { UserPlus, Upload, CheckCircle, Clock, Users, Building2 } from "lucide-react";
 import { OPS_PIPELINE, B2B_CONTRACTS } from "@/data/mockData";
 import { useCandidates } from "@/lib/candidateContext";
+import { fetchApplications } from "@/lib/api";
 import CandidateDetail from "./CandidateDetail";
 import AddCandidateModal from "@/components/AddCandidateModal";
 import type { Candidate } from "@/data/mockData";
@@ -10,6 +11,33 @@ export default function OperationsHome() {
   const { candidates } = useCandidates();
   const [selected, setSelected]       = useState<Candidate | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [pipeline, setPipeline] = useState(OPS_PIPELINE);
+
+  useEffect(() => {
+    fetchApplications()
+      .then((apps) => {
+        if (apps.length === 0) return; // keep mock fallback
+        const stageCounts: Record<string, number> = {};
+        apps.forEach((a: any) => {
+          const stage = a.stage ?? "New";
+          stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+        });
+        const STAGE_COLORS: Record<string, string> = {
+          "New Applications": "#3B82F6", "New": "#3B82F6",
+          "Docs Submitted": "#F59E0B", "Screening": "#F59E0B",
+          "Under Review": "#8B5CF6", "Interview": "#8B5CF6",
+          "Cleared to Deploy": "#10B981", "Offer": "#10B981",
+          "On Assignment": "#1B2A4A", "Placed": "#1B2A4A",
+        };
+        const computed = Object.entries(stageCounts).map(([stage, count]) => ({
+          stage,
+          count,
+          color: STAGE_COLORS[stage] ?? "#6B7280",
+        }));
+        if (computed.length > 0) setPipeline(computed);
+      })
+      .catch(() => {/* keep mock fallback */});
+  }, []);
 
   const ready    = candidates.filter((c) => c.status === "cleared").length;
   const needsDoc = candidates.filter((c) => c.status === "missing" || c.status === "expiring").length;
@@ -68,7 +96,7 @@ export default function OperationsHome() {
         </span>
       </div>
       <div className="pipeline-list">
-        {OPS_PIPELINE.map((stage) => (
+        {pipeline.map((stage) => (
           <div key={stage.stage} className="pipeline-row">
             <div className="pipeline-dot" style={{ background: stage.color }} />
             <div className="pipeline-label">{stage.stage}</div>

@@ -22,7 +22,7 @@ import AddUserModal from "@/components/AddUserModal";
 import ModuleSheet from "@/components/ModuleSheet";
 import type { ModuleId } from "@/components/PlatformModules";
 import type { ActiveTab } from "@/types";
-import { fetchRegulatorySummary, searchImmigration } from "@/lib/api";
+import { fetchRegulatorySummary, searchImmigration, fetchAdminStats } from "@/lib/api";
 
 interface Props {
   onNavigate?: (tab: ActiveTab) => void;
@@ -32,6 +32,10 @@ export default function ExecutiveHome({ onNavigate }: Props) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showAddUser,  setShowAddUser]  = useState(false);
   const [openModule,   setOpenModule]   = useState<ModuleId | null>(null);
+
+  // Live stats state (falls back to EXEC_STATS defaults)
+  const [stats, setStats] = useState(EXEC_STATS);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   // Regulatory Intelligence widget state
   const [regSummary, setRegSummary] = useState<any>(null);
@@ -43,6 +47,21 @@ export default function ExecutiveHome({ onNavigate }: Props) {
   const [searchResult, setSearchResult] = useState<string | null>(null);
 
   useEffect(() => {
+    fetchAdminStats()
+      .then((data) => {
+        setStats({
+          totalCandidates: data.totalCandidates ?? EXEC_STATS.totalCandidates,
+          placementPct: data.placementPct ?? EXEC_STATS.placementPct,
+          pendingReviews: data.pendingReviews ?? EXEC_STATS.pendingReviews,
+          activeDeployments: data.activeDeployments ?? EXEC_STATS.activeDeployments,
+          monthlyRevenue: data.monthlyRevenue ?? EXEC_STATS.monthlyRevenue,
+          zusLiability: data.zusLiability ?? EXEC_STATS.zusLiability,
+          b2bContracts: data.b2bContracts ?? EXEC_STATS.b2bContracts,
+        });
+      })
+      .catch(() => {/* keep defaults */})
+      .finally(() => setStatsLoading(false));
+
     fetchRegulatorySummary()
       .then(setRegSummary)
       .catch(() => setRegSummary(null))
@@ -271,14 +290,14 @@ export default function ExecutiveHome({ onNavigate }: Props) {
           <div className="kpi-icon-row">
             <Users size={16} color="rgba(255,255,255,0.5)" strokeWidth={2} />
           </div>
-          <div className="kpi-value">{EXEC_STATS.totalCandidates}</div>
+          <div className="kpi-value">{stats.totalCandidates}</div>
           <div className="kpi-label">Total Candidates</div>
         </div>
         <div className="kpi-card kpi-yellow">
           <div className="kpi-icon-row">
             <TrendingUp size={16} color="rgba(27,42,74,0.5)" strokeWidth={2} />
           </div>
-          <div className="kpi-value" style={{ color: "#1B2A4A" }}>{EXEC_STATS.placementPct}%</div>
+          <div className="kpi-value" style={{ color: "#1B2A4A" }}>{stats.placementPct}%</div>
           <div className="kpi-label" style={{ color: "#1B2A4A" }}>Placement Rate</div>
         </div>
       </div>
@@ -286,10 +305,10 @@ export default function ExecutiveHome({ onNavigate }: Props) {
       {/* Ops Summary */}
       <div className="section-label">Operations at a Glance</div>
       <div className="summary-grid">
-        <SummaryCard Icon={Clock}    value={EXEC_STATS.pendingReviews}    label="Pending Reviews"    accent="#F59E0B" bg="#FFFBEB" />
-        <SummaryCard Icon={Plane}    value={EXEC_STATS.activeDeployments} label="Active Deployments" accent="#10B981" bg="#ECFDF5" />
-        <SummaryCard Icon={FileText} value={EXEC_STATS.b2bContracts}      label="B2B Contracts"      accent="#6366F1" bg="#EEF2FF" />
-        <SummaryCard Icon={Users}    value={EXEC_STATS.totalCandidates}   label="Workforce Pool"     accent="#1B2A4A" bg="#F0F4FF" />
+        <SummaryCard Icon={Clock}    value={stats.pendingReviews}    label="Pending Reviews"    accent="#F59E0B" bg="#FFFBEB" />
+        <SummaryCard Icon={Plane}    value={stats.activeDeployments} label="Active Deployments" accent="#10B981" bg="#ECFDF5" />
+        <SummaryCard Icon={FileText} value={stats.b2bContracts}      label="B2B Contracts"      accent="#6366F1" bg="#EEF2FF" />
+        <SummaryCard Icon={Users}    value={stats.totalCandidates}   label="Workforce Pool"     accent="#1B2A4A" bg="#F0F4FF" />
       </div>
 
       {/* FINANCIAL — Tier 1 Only */}
@@ -299,7 +318,7 @@ export default function ExecutiveHome({ onNavigate }: Props) {
       </div>
       <div className="revenue-card">
         <div className="revenue-left">
-          <div className="revenue-amount">zl {EXEC_STATS.monthlyRevenue}</div>
+          <div className="revenue-amount">zl {stats.monthlyRevenue}</div>
           <div className="revenue-sub">March 2026 · Projected</div>
         </div>
         <div className="revenue-badge">
@@ -315,7 +334,7 @@ export default function ExecutiveHome({ onNavigate }: Props) {
       <div className="zus-row">
         <div className="zus-card">
           <div className="zus-label">ZUS Liability</div>
-          <div className="zus-value">zl {EXEC_STATS.zusLiability}</div>
+          <div className="zus-value">zl {stats.zusLiability}</div>
           <div className="zus-sub">Mar 2026 · 47 workers</div>
         </div>
         <div className="zus-card zus-card-alt">

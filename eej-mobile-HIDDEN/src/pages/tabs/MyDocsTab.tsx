@@ -3,11 +3,10 @@ import {
   FileCheck, FileClock, FileX, FileQuestion,
   Upload, Paperclip, CheckCircle2, ShieldCheck,
 } from "lucide-react";
-import { MOCK_CANDIDATES } from "@/data/mockData";
+import { useCandidates } from "@/lib/candidateContext";
+import { useAuth } from "@/lib/auth";
 import type { DocReviewStatus } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
-
-const MY = MOCK_CANDIDATES[3];
 
 const DOC_CFG: Record<string, {
   bg: string; text: string; border: string; label: string;
@@ -36,8 +35,12 @@ const UPLOAD_SLOTS = [
 
 export default function MyDocsTab() {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const { candidates, loading } = useCandidates();
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const MY = candidates.find(c => c.id === user?.candidateId) ?? candidates[0];
 
   function handleUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -45,6 +48,22 @@ export default function MyDocsTab() {
     setUploadedFiles(prev => ({ ...prev, [slotId]: file.name }));
     showToast(`Uploaded: ${file.name}`, "success");
     e.target.value = "";
+  }
+
+  if (loading) {
+    return (
+      <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+        <div style={{ color: "#9CA3AF", fontSize: 14 }}>Loading documents...</div>
+      </div>
+    );
+  }
+
+  if (!MY) {
+    return (
+      <div className="tab-page" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200 }}>
+        <div style={{ color: "#9CA3AF", fontSize: 14 }}>No candidate data found.</div>
+      </div>
+    );
   }
 
   const counts = MY.documents.reduce(

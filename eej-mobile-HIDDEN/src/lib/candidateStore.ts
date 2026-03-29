@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { MOCK_CANDIDATES, type Candidate } from "@/data/mockData";
+import type { Candidate } from "@/data/mockData";
 import { apiFetchCandidates, apiCreateCandidate } from "./apiClient";
 
 type StoreResult = {
@@ -20,15 +20,11 @@ export function useCandidateStore(): StoreResult {
     setError(null);
     try {
       const live = await apiFetchCandidates();
-      if (live.length > 0) {
-        setCandidates(live);
-      } else {
-        setCandidates(MOCK_CANDIDATES);
-      }
+      setCandidates(live);
     } catch (err) {
-      console.warn("[candidateStore] API unavailable, using mock data:", err);
-      setCandidates(MOCK_CANDIDATES);
-      setError("Could not connect to server. Showing cached data.");
+      console.warn("[candidateStore] API unavailable:", err);
+      setCandidates([]);
+      setError("Could not connect to server.");
     } finally {
       setLoading(false);
     }

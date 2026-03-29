@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Briefcase, MapPin, Clock, Users, ChevronRight } from "lucide-react";
 import { fetchJobs } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 
 interface Job {
   id: string;
@@ -15,6 +16,7 @@ interface Job {
 }
 
 export default function JobBoardTab() {
+  const { showToast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
@@ -22,7 +24,10 @@ export default function JobBoardTab() {
   useEffect(() => {
     fetchJobs()
       .then(setJobs)
-      .catch(() => setJobs([]))
+      .catch(() => {
+        setJobs([]);
+        showToast("Failed to load jobs", "error");
+      })
       .finally(() => setLoading(false));
   }, []);
 

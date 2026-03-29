@@ -53,7 +53,8 @@ export function KnowledgeCenter() {
   const r = useMemo(() => calculate(hours, rate, contract, applyPit2, includeSickness), [hours, rate, contract, applyPit2, includeSickness]);
 
   return (
-    <div className="p-4 bg-slate-950 min-h-screen text-slate-200 pb-24">
+    <div className="tab-page" style={{ background: "#0f172a", padding: 0 }}>
+    <div className="p-4 text-slate-200 pb-24">
       <div className="max-w-2xl mx-auto space-y-4">
         <h1 className="text-xl font-bold text-white">ZUS Calculator</h1>
 
@@ -132,6 +133,7 @@ export function KnowledgeCenter() {
           <div className="flex justify-between mt-1"><span>Contract Type</span><span className="text-white">{contract === "zlecenie" ? "Umowa Zlecenie" : "Umowa o Pracę"}</span></div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

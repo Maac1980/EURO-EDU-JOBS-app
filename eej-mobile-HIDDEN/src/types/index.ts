@@ -16,7 +16,17 @@ export type ActiveTab = "calculator" | "home"
   | "alerts"
   | "upload"
   | "mydocs"
-  | "profile";
+  | "profile"
+  | "more"
+  | "jobs"
+  | "ats"
+  | "interviews"
+  | "contracts"
+  | "invoices"
+  | "regulatory"
+  | "immigration"
+  | "permits"
+  | "gps";
 
 export interface Permission {
   seeFinancials: boolean;

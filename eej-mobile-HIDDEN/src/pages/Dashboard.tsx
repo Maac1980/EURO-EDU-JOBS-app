@@ -16,6 +16,16 @@ import AlertsTab       from "./tabs/AlertsTab";
 import MyDocsTab       from "./tabs/MyDocsTab";
 import UpdatesTab      from "./tabs/UpdatesTab";
 import PlaceholderTab  from "./tabs/PlaceholderTab";
+import MoreTab         from "./tabs/MoreTab";
+import JobBoardTab     from "./tabs/JobBoardTab";
+import ATSPipelineTab  from "./tabs/ATSPipelineTab";
+import InterviewsTab   from "./tabs/InterviewsTab";
+import ContractsTab    from "./tabs/ContractsTab";
+import InvoicesTab     from "./tabs/InvoicesTab";
+import RegulatoryTab   from "./tabs/RegulatoryTab";
+import ImmigrationSearchTab from "./tabs/ImmigrationSearchTab";
+import WorkPermitTab   from "./tabs/WorkPermitTab";
+import GPSTrackingTab  from "./tabs/GPSTrackingTab";
 import { COMPLIANCE_ALERTS, MOCK_CANDIDATES } from "@/data/mockData";
 
 const ROLE_COLOR: Record<Role, string> = {
@@ -42,10 +52,10 @@ function getBadgeCounts(role: Role): Partial<Record<ActiveTab, number>> {
   return {};
 }
 
-function TabContent({ role, tab, candidateId }: { role: Role; tab: ActiveTab; candidateId?: string }) {
+function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: ActiveTab; candidateId?: string; onNavigate: (t: ActiveTab) => void }) {
   if (tab === "calculator") return <KnowledgeCenter />;
   if (tab === "home") {
-    if (role === "executive")  return <ExecutiveHome />;
+    if (role === "executive")  return <ExecutiveHome onNavigate={onNavigate} />;
     if (role === "legal")      return <LegalHome />;
     if (role === "operations") return <OperationsHome />;
     if (role === "candidate")  return <CandidateHome candidateId={candidateId} />;
@@ -64,8 +74,18 @@ function TabContent({ role, tab, candidateId }: { role: Role; tab: ActiveTab; ca
     if (role === "candidate") return <UpdatesTab />;
     return <AlertsTab role={role} />;
   }
-  if (tab === "mydocs") return <MyDocsTab />;
-  if (tab === "profile") return <ProfileTab />;
+  if (tab === "mydocs")       return <MyDocsTab />;
+  if (tab === "profile")      return <ProfileTab />;
+  if (tab === "more")         return <MoreTab onNavigate={onNavigate} />;
+  if (tab === "jobs")         return <JobBoardTab />;
+  if (tab === "ats")          return <ATSPipelineTab />;
+  if (tab === "interviews")   return <InterviewsTab />;
+  if (tab === "contracts")    return <ContractsTab />;
+  if (tab === "invoices")     return <InvoicesTab />;
+  if (tab === "regulatory")   return <RegulatoryTab />;
+  if (tab === "immigration")  return <ImmigrationSearchTab />;
+  if (tab === "permits")      return <WorkPermitTab />;
+  if (tab === "gps")          return <GPSTrackingTab />;
   return null;
 }
 
@@ -103,7 +123,7 @@ export default function Dashboard() {
           </header>
 
           <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} />
+            <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} onNavigate={setActiveTab} />
           </div>
 
           <BottomNav

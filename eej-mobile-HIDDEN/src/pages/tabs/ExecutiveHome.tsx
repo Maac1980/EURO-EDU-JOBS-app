@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Users,
   TrendingUp,
@@ -8,6 +8,12 @@ import {
   ArrowUpRight,
   UserPlus,
   ShieldCheck,
+  Scale,
+  AlertTriangle,
+  Info,
+  Search,
+  ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { EXEC_STATS } from "@/data/mockData";
 import PlatformModules from "@/components/PlatformModules";
@@ -15,11 +21,46 @@ import AddCandidateModal from "@/components/AddCandidateModal";
 import AddUserModal from "@/components/AddUserModal";
 import ModuleSheet from "@/components/ModuleSheet";
 import type { ModuleId } from "@/components/PlatformModules";
+import type { ActiveTab } from "@/types";
+import { fetchRegulatorySummary, searchImmigration } from "@/lib/api";
 
-export default function ExecutiveHome() {
+interface Props {
+  onNavigate?: (tab: ActiveTab) => void;
+}
+
+export default function ExecutiveHome({ onNavigate }: Props) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showAddUser,  setShowAddUser]  = useState(false);
   const [openModule,   setOpenModule]   = useState<ModuleId | null>(null);
+
+  // Regulatory Intelligence widget state
+  const [regSummary, setRegSummary] = useState<any>(null);
+  const [regLoading, setRegLoading] = useState(true);
+
+  // Immigration search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchRegulatorySummary()
+      .then(setRegSummary)
+      .catch(() => setRegSummary(null))
+      .finally(() => setRegLoading(false));
+  }, []);
+
+  async function handleImmigrationSearch() {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setSearchResult(null);
+    try {
+      const res = await searchImmigration(searchQuery);
+      setSearchResult(res.answer);
+    } catch {
+      setSearchResult("Search unavailable. Try again later.");
+    }
+    setSearching(false);
+  }
 
   return (
     <div className="tab-page">
@@ -29,6 +70,175 @@ export default function ExecutiveHome() {
           <div className="tab-greeting-name">Executive Overview</div>
         </div>
         <div className="tab-greeting-date">{formatDate()}</div>
+      </div>
+
+      {/* ── Immigration Search Bar ── */}
+      <div style={{
+        background: "linear-gradient(135deg, #1B2A4A 0%, #2D4270 100%)",
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 12,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <Search size={16} color="#FFD600" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#FFD600" }}>Immigration Search</span>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginLeft: "auto" }}>AI-powered</span>
+        </div>
+        <div style={{ position: "relative" }}>
+          <input
+            type="text"
+            placeholder="Ask about Polish immigration law..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleImmigrationSearch()}
+            style={{
+              width: "100%",
+              padding: "10px 70px 10px 12px",
+              borderRadius: 10,
+              border: "none",
+              fontSize: 13,
+              outline: "none",
+              background: "rgba(255,255,255,0.95)",
+              color: "#111827",
+            }}
+          />
+          <button
+            onClick={handleImmigrationSearch}
+            disabled={searching || !searchQuery.trim()}
+            style={{
+              position: "absolute",
+              right: 4,
+              top: 4,
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: "none",
+              background: "#FFD600",
+              color: "#1B2A4A",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              opacity: searching || !searchQuery.trim() ? 0.5 : 1,
+            }}
+          >
+            {searching ? "..." : "Ask"}
+          </button>
+        </div>
+        {searching && (
+          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+            <Loader2 size={12} className="animate-spin" /> Searching databases...
+          </div>
+        )}
+        {searchResult && !searching && (
+          <div style={{
+            marginTop: 8,
+            padding: 10,
+            background: "rgba(255,255,255,0.1)",
+            borderRadius: 8,
+            fontSize: 12,
+            color: "#fff",
+            lineHeight: 1.5,
+            maxHeight: 120,
+            overflowY: "auto",
+          }}>
+            {searchResult.slice(0, 300)}{searchResult.length > 300 ? "..." : ""}
+            <button
+              onClick={() => onNavigate?.("immigration")}
+              style={{ display: "block", marginTop: 6, fontSize: 11, color: "#FFD600", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+            >
+              View full results →
+            </button>
+          </div>
+        )}
+        {!searchResult && !searching && (
+          <button
+            onClick={() => onNavigate?.("immigration")}
+            style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, fontSize: 11, color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}
+          >
+            Open full search engine <ChevronRight size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Regulatory Intelligence Widget ── */}
+      <div style={{
+        background: "#fff",
+        border: "1.5px solid #E5E7EB",
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Scale size={16} color="#DC2626" />
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>Regulatory Intelligence</span>
+          </div>
+          <button
+            onClick={() => onNavigate?.("regulatory")}
+            style={{ fontSize: 11, color: "#3B82F6", background: "none", border: "none", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 2 }}
+          >
+            View All <ChevronRight size={12} />
+          </button>
+        </div>
+
+        {regLoading ? (
+          <div style={{ textAlign: "center", padding: 12, color: "#9CA3AF", fontSize: 13 }}>Loading updates...</div>
+        ) : regSummary ? (
+          <>
+            {/* Severity counts */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1, background: "#FEF2F2", borderRadius: 8, padding: "6px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#DC2626" }}>{regSummary.criticalCount ?? 0}</div>
+                <div style={{ fontSize: 10, color: "#DC2626" }}>Critical</div>
+              </div>
+              <div style={{ flex: 1, background: "#FFFBEB", borderRadius: 8, padding: "6px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#D97706" }}>{regSummary.warningCount ?? 0}</div>
+                <div style={{ fontSize: 10, color: "#D97706" }}>Warning</div>
+              </div>
+              <div style={{ flex: 1, background: "#ECFDF5", borderRadius: 8, padding: "6px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#059669" }}>{regSummary.workersAffected ?? 0}</div>
+                <div style={{ fontSize: 10, color: "#059669" }}>Affected</div>
+              </div>
+            </div>
+
+            {/* Latest updates */}
+            {(regSummary.latest ?? []).slice(0, 3).map((u: any, i: number) => (
+              <div key={i} style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "flex-start",
+                padding: "8px 0",
+                borderTop: i > 0 ? "1px solid #F3F4F6" : "none",
+              }}>
+                {u.severity === "critical" ? (
+                  <AlertTriangle size={14} color="#DC2626" style={{ flexShrink: 0, marginTop: 2 }} />
+                ) : u.severity === "warning" ? (
+                  <AlertTriangle size={14} color="#D97706" style={{ flexShrink: 0, marginTop: 2 }} />
+                ) : (
+                  <Info size={14} color="#3B82F6" style={{ flexShrink: 0, marginTop: 2 }} />
+                )}
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", lineHeight: 1.3 }}>{u.title}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2, lineHeight: 1.3 }}>
+                    {u.summary?.slice(0, 80)}{(u.summary?.length ?? 0) > 80 ? "..." : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {(!regSummary.latest || regSummary.latest.length === 0) && (
+              <div style={{ textAlign: "center", padding: 8, color: "#9CA3AF", fontSize: 12 }}>
+                No recent updates. Run a scan to check.
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: 12, color: "#9CA3AF", fontSize: 12 }}>
+            Unable to load regulatory data.
+            <button onClick={() => onNavigate?.("regulatory")} style={{ color: "#3B82F6", background: "none", border: "none", cursor: "pointer", fontWeight: 600, marginLeft: 4 }}>
+              Open module →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions Row */}
@@ -82,14 +292,14 @@ export default function ExecutiveHome() {
         <SummaryCard Icon={Users}    value={EXEC_STATS.totalCandidates}   label="Workforce Pool"     accent="#1B2A4A" bg="#F0F4FF" />
       </div>
 
-      {/* 🔒 FINANCIAL — Tier 1 Only */}
+      {/* FINANCIAL — Tier 1 Only */}
       <div className="section-label">
         Monthly Revenue
         <span className="access-badge access-t1">Tier 1 Only</span>
       </div>
       <div className="revenue-card">
         <div className="revenue-left">
-          <div className="revenue-amount">zł {EXEC_STATS.monthlyRevenue}</div>
+          <div className="revenue-amount">zl {EXEC_STATS.monthlyRevenue}</div>
           <div className="revenue-sub">March 2026 · Projected</div>
         </div>
         <div className="revenue-badge">
@@ -105,7 +315,7 @@ export default function ExecutiveHome() {
       <div className="zus-row">
         <div className="zus-card">
           <div className="zus-label">ZUS Liability</div>
-          <div className="zus-value">zł {EXEC_STATS.zusLiability}</div>
+          <div className="zus-value">zl {EXEC_STATS.zusLiability}</div>
           <div className="zus-sub">Mar 2026 · 47 workers</div>
         </div>
         <div className="zus-card zus-card-alt">
@@ -123,7 +333,7 @@ export default function ExecutiveHome() {
         <HealthBar label="Action Required" pct={17} cls="red-dot"   fillCls="red-fill"   />
       </div>
 
-      {/* ── PLATFORM MODULES — Tier 1 (ZUS included) ── */}
+      {/* PLATFORM MODULES — Tier 1 (ZUS included) */}
       <div className="section-label">
         Platform Modules
         <span className="access-badge access-t1">Tier 1 Only</span>

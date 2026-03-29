@@ -1,8 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile.dashboard"
-contextRelativeTarget = "/"
-
-[deploy]
-startCommand = "serve -s dist -l 3000"
-healthcheckPath = "/"

@@ -1,1 +1,0 @@
-{ "build": { "builder": "DOCKERFILE", "dockerfilePath": "artifacts/api-server/Dockerfile" } }

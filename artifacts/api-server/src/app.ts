@@ -27,15 +27,23 @@ app.use("/api", limiter);
 // API routes
 app.use("/api", router);
 
-// Serve eej-mobile static files if available
-const eejMobileDist = "/home/runner/workspace/eej-mobile-HIDDEN/dist/public";
+// Serve eej-mobile static files — check multiple possible locations
+const eejMobilePaths = [
+  path.join(process.cwd(), "eej-mobile-HIDDEN/dist/public"),
+  "/home/runner/workspace/eej-mobile-HIDDEN/dist/public",
+  path.join(process.cwd(), "artifacts/eej-mobile/dist/public"),
+  "/home/runner/workspace/artifacts/eej-mobile/dist/public",
+];
+const eejMobileDist = eejMobilePaths.find((p) => fs.existsSync(p));
 
-if (fs.existsSync(eejMobileDist)) {
+if (eejMobileDist) {
   console.log("[static] serving eej-mobile from:", eejMobileDist);
   app.use("/eej-mobile", express.static(eejMobileDist));
   app.get("/eej-mobile/*splat", (_req, res) => {
     res.sendFile(path.join(eejMobileDist, "index.html"));
   });
+} else {
+  console.warn("[static] eej-mobile dist NOT FOUND in any path:", eejMobilePaths);
 }
 
 export default app;

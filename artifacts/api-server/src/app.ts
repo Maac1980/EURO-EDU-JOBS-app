@@ -46,4 +46,12 @@ if (eejMobileDist) {
   console.warn("[static] eej-mobile dist NOT FOUND in any path:", eejMobilePaths);
 }
 
+// Serve public apply form at /apply
+if (eejMobileDist) {
+  const applyPage = path.join(eejMobileDist, "apply.html");
+  if (fs.existsSync(applyPage)) {
+    app.get("/apply", (_req, res) => res.sendFile(applyPage));
+  }
+}
+
 export default app;

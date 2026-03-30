@@ -70,23 +70,33 @@ async function scanCV(fileBuffer: Buffer, mimeType: string): Promise<ScannedCV |
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const router: IRouter = Router();
 
-// POST /apply — Public candidate application
-router.post("/apply", upload.single("cv"), async (req, res) => {
+// POST /apply — Public candidate application (website integration)
+router.post("/apply", upload.fields([
+  { name: "cv", maxCount: 1 },
+  { name: "documents", maxCount: 5 },
+]), async (req, res) => {
   try {
-    const { name, email, phone } = req.body as Record<string, string>;
+    const { name, email, phone, nationality, jobType, jobId } = req.body as Record<string, string>;
     if (!name?.trim() || !email?.trim()) {
       return res.status(400).json({ error: "Name and Email are required." });
     }
 
+    // Build worker fields
     const fields: any = {
       name: name.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
+      pipelineStage: "New",
     };
     if (phone?.trim()) fields.phone = phone.trim();
+    if (nationality?.trim()) fields.nationality = nationality.trim();
+    if (jobType?.trim()) fields.jobRole = jobType.trim();
 
-    if (req.file) {
+    // AI scan CV if provided
+    const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+    const cvFile = files?.cv?.[0];
+    if (cvFile) {
       try {
-        const cvScan = await scanCV(req.file.buffer, req.file.mimetype);
+        const cvScan = await scanCV(cvFile.buffer, cvFile.mimetype);
         if (cvScan) {
           if (cvScan.yearsOfExperience) fields.experience = cvScan.yearsOfExperience;
           if (cvScan.highestQualification) fields.qualification = cvScan.highestQualification;
@@ -96,8 +106,162 @@ router.post("/apply", upload.single("cv"), async (req, res) => {
       }
     }
 
+    // Insert worker
     const [newWorker] = await db.insert(schema.workers).values(fields).returning();
-    return res.json({ success: true, id: newWorker.id });
+
+    // Upload CV to R2 storage
+    if (cvFile) {
+      try {
+        const { uploadFile, isStorageConfigured } = await import("../lib/storage.js");
+        if (isStorageConfigured()) {
+          const key = `applications/${newWorker.id}/cv-${Date.now()}-${cvFile.originalname}`;
+          await uploadFile(key, cvFile.buffer, cvFile.mimetype);
+          await db.insert(schema.fileAttachments).values({
+            workerId: newWorker.id,
+            fieldName: "cv",
+            filename: cvFile.originalname,
+            mimeType: cvFile.mimetype,
+            size: cvFile.size,
+            storageKey: key,
+          });
+        }
+      } catch (uploadErr) {
+        console.warn("[apply] CV upload to R2 failed (non-fatal):", uploadErr);
+      }
+    }
+
+    // Upload additional documents to R2
+    const docFiles = files?.documents ?? [];
+    for (const doc of docFiles) {
+      try {
+        const { uploadFile, isStorageConfigured } = await import("../lib/storage.js");
+        if (isStorageConfigured()) {
+          const key = `applications/${newWorker.id}/doc-${Date.now()}-${doc.originalname}`;
+          await uploadFile(key, doc.buffer, doc.mimetype);
+          await db.insert(schema.fileAttachments).values({
+            workerId: newWorker.id,
+            fieldName: "other",
+            filename: doc.originalname,
+            mimeType: doc.mimetype,
+            size: doc.size,
+            storageKey: key,
+          });
+        }
+      } catch (uploadErr) {
+        console.warn("[apply] Document upload to R2 failed (non-fatal):", uploadErr);
+      }
+    }
+
+    // Create job application if jobId provided
+    if (jobId) {
+      try {
+        await db.insert(schema.jobApplications).values({
+          jobId,
+          workerId: newWorker.id,
+          stage: "New",
+          matchScore: 0,
+          matchReasons: [],
+        });
+      } catch (appErr) {
+        console.warn("[apply] Job application creation failed (non-fatal):", appErr);
+      }
+    }
+
+    // Log notification for dashboard bell
+    const { appendNotification } = await import("../lib/notificationLog.js");
+    appendNotification(
+      newWorker.id,
+      name.trim(),
+      "application",
+      `New application from ${name.trim()} (${email.trim()}) — ${jobType ?? "General"} role`,
+      "website"
+    );
+
+    // Send confirmation email to candidate
+    try {
+      const { sendEmail } = await import("../lib/alerter.js");
+      const fromAddr = process.env.SMTP_FROM ?? process.env.BREVO_SMTP_USER ?? "noreply@euro-edu-jobs.eu";
+      await sendEmail({
+        from: fromAddr,
+        to: email.trim(),
+        subject: "Application Received — Euro Edu Jobs",
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <div style="background:#1B2A4A;padding:24px;text-align:center">
+              <h1 style="color:#FFD600;margin:0;font-size:24px">Euro Edu Jobs</h1>
+            </div>
+            <div style="padding:24px;background:#ffffff">
+              <h2 style="color:#1B2A4A">Thank you, ${name.trim()}!</h2>
+              <p>We have received your application${jobType ? ` for the <strong>${jobType}</strong> position` : ""}.</p>
+              <p>Our team will review your profile and documents. You will hear from us within 3-5 business days.</p>
+              <p style="color:#6B7280;font-size:13px">If you have any questions, reply to this email or contact us at <a href="mailto:anna.b@edu-jobs.eu">anna.b@edu-jobs.eu</a></p>
+            </div>
+            <div style="background:#F3F4F6;padding:16px;text-align:center;font-size:12px;color:#9CA3AF">
+              Euro Edu Jobs Sp. z o.o. — Workforce Solutions
+            </div>
+          </div>
+        `,
+      });
+    } catch (emailErr) {
+      console.warn("[apply] Candidate confirmation email failed:", emailErr);
+    }
+
+    // Send notification email to admin
+    try {
+      const { sendEmail } = await import("../lib/alerter.js");
+      const fromAddr = process.env.SMTP_FROM ?? process.env.BREVO_SMTP_USER ?? "noreply@euro-edu-jobs.eu";
+      const adminEmail = process.env.ALERT_EMAIL_TO ?? "anna.b@edu-jobs.eu";
+      await sendEmail({
+        from: fromAddr,
+        to: adminEmail,
+        subject: `New Application: ${name.trim()} — ${jobType ?? "General"}`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <div style="background:#1B2A4A;padding:24px">
+              <h1 style="color:#FFD600;margin:0;font-size:20px">New Application Received</h1>
+            </div>
+            <div style="padding:24px;background:#ffffff">
+              <table style="width:100%;font-size:14px;border-collapse:collapse">
+                <tr><td style="padding:8px 0;color:#6B7280;width:120px">Name:</td><td style="padding:8px 0;font-weight:bold">${name.trim()}</td></tr>
+                <tr><td style="padding:8px 0;color:#6B7280">Email:</td><td style="padding:8px 0">${email.trim()}</td></tr>
+                ${phone ? `<tr><td style="padding:8px 0;color:#6B7280">Phone:</td><td style="padding:8px 0">${phone.trim()}</td></tr>` : ""}
+                ${nationality ? `<tr><td style="padding:8px 0;color:#6B7280">Nationality:</td><td style="padding:8px 0">${nationality.trim()}</td></tr>` : ""}
+                ${jobType ? `<tr><td style="padding:8px 0;color:#6B7280">Position:</td><td style="padding:8px 0">${jobType.trim()}</td></tr>` : ""}
+                <tr><td style="padding:8px 0;color:#6B7280">CV Attached:</td><td style="padding:8px 0">${cvFile ? "Yes" : "No"}</td></tr>
+                <tr><td style="padding:8px 0;color:#6B7280">Documents:</td><td style="padding:8px 0">${docFiles.length} file(s)</td></tr>
+              </table>
+              <p style="margin-top:16px"><a href="${process.env.APP_URL ?? "https://euro-edu-jobs.com"}/eej-mobile/" style="background:#1B2A4A;color:#FFD600;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">View in Dashboard</a></p>
+            </div>
+          </div>
+        `,
+      });
+    } catch (emailErr) {
+      console.warn("[apply] Admin notification email failed:", emailErr);
+    }
+
+    // Push to Airtable webhook (backup)
+    const webhookUrl = process.env.AIRTABLE_WEBHOOK_URL;
+    if (webhookUrl) {
+      try {
+        await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim(),
+            phone: phone?.trim() ?? "",
+            nationality: nationality?.trim() ?? "",
+            jobType: jobType?.trim() ?? "",
+            workerId: newWorker.id,
+            appliedAt: new Date().toISOString(),
+          }),
+        });
+      } catch (webhookErr) {
+        console.warn("[apply] Airtable webhook failed (non-fatal):", webhookErr);
+      }
+    }
+
+    return res.json({ success: true, id: newWorker.id, message: "Application submitted successfully" });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[apply] Error:", message);

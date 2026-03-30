@@ -21,7 +21,7 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
     const kup = Math.round((gross - employeeZus) * 0.20 * 100) / 100;
     taxBase = Math.round(gross - employeeZus - kup);
   } else {
-    taxBase = Math.round(gross - employeeZus - 250); // gross - ZUS - KUP
+    taxBase = Math.round(gross - employeeZus - 250);
   }
 
   // PIT
@@ -30,6 +30,9 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
 
   // Net
   const net = Math.round((gross - employeeZus - health - pit) * 100) / 100;
+
+  // Net per hour
+  const netPerHour = hours > 0 ? Math.round((net / hours) * 100) / 100 : 0;
 
   // Employer ZUS
   const empPension = Math.round(gross * 0.0976 * 100) / 100;
@@ -40,7 +43,23 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   const employerZus = empPension + empDisability + empAccident + empFP + empFGSP;
   const totalCost = Math.round((gross + employerZus) * 100) / 100;
 
-  return { gross, employeeZus, health, pit, net, employerZus, totalCost, taxBase };
+  return { gross, employeeZus, health, pit, net, netPerHour, employerZus, totalCost, taxBase };
+}
+
+// Reverse calculator: given desired net, find gross rate per hour
+export function reverseCalculate(hours: number, desiredNet: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
+  // Binary search for the gross rate that produces the desired net
+  let lo = 0, hi = desiredNet * 3;
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    const result = calculate(hours, mid, contract, applyPit2, includeSickness);
+    const netPerHour = hours > 0 ? result.net / hours : 0;
+    if (netPerHour < desiredNet) lo = mid;
+    else hi = mid;
+    if (Math.abs(netPerHour - desiredNet) < 0.005) break;
+  }
+  const grossRate = Math.round(((lo + hi) / 2) * 100) / 100;
+  return calculate(hours, grossRate, contract, applyPit2, includeSickness);
 }
 
 export function KnowledgeCenter() {
@@ -49,8 +68,17 @@ export function KnowledgeCenter() {
   const [contract, setContract] = useState<ContractType>("zlecenie");
   const [applyPit2, setApplyPit2] = useState(true);
   const [includeSickness, setIncludeSickness] = useState(false);
+  const [mode, setMode] = useState<"gross" | "net">("gross");
+  const [desiredNetRate, setDesiredNetRate] = useState(25.00);
 
-  const r = useMemo(() => calculate(hours, rate, contract, applyPit2, includeSickness), [hours, rate, contract, applyPit2, includeSickness]);
+  const r = useMemo(() =>
+    mode === "gross"
+      ? calculate(hours, rate, contract, applyPit2, includeSickness)
+      : reverseCalculate(hours, desiredNetRate, contract, applyPit2, includeSickness),
+    [hours, rate, desiredNetRate, contract, applyPit2, includeSickness, mode]
+  );
+
+  const grossRate = mode === "net" && hours > 0 ? Math.round((r.gross / hours) * 100) / 100 : rate;
 
   return (
     <div className="tab-page" style={{ background: "#0f172a", padding: 0 }}>
@@ -64,7 +92,17 @@ export function KnowledgeCenter() {
             Umowa Zlecenie
           </button>
           <button onClick={() => setContract("praca")} className={`flex-1 py-2 text-sm font-bold transition-colors ${contract === "praca" ? "bg-green-600 text-white" : "bg-slate-900 text-slate-400"}`}>
-            Umowa o Pracę
+            Umowa o Prace
+          </button>
+        </div>
+
+        {/* Mode Toggle: Gross→Net or Net→Gross */}
+        <div className="flex rounded-lg overflow-hidden border border-slate-700">
+          <button onClick={() => setMode("gross")} className={`flex-1 py-2 text-xs font-bold transition-colors ${mode === "gross" ? "bg-blue-500 text-white" : "bg-slate-900 text-slate-400"}`}>
+            Gross → Net
+          </button>
+          <button onClick={() => setMode("net")} className={`flex-1 py-2 text-xs font-bold transition-colors ${mode === "net" ? "bg-green-500 text-white" : "bg-slate-900 text-slate-400"}`}>
+            Net → Gross (Reverse)
           </button>
         </div>
 
@@ -76,10 +114,29 @@ export function KnowledgeCenter() {
             </div>
             <input type="range" min={1} max={300} value={hours} onChange={e => setHours(Number(e.target.value))} className="w-full accent-blue-500" />
           </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Hourly Rate (PLN)</label>
-            <input type="number" step="0.10" value={rate} onChange={e => setRate(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none" />
-          </div>
+
+          {mode === "gross" ? (
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Gross Hourly Rate (PLN)</label>
+              <input type="number" step="0.10" value={rate} onChange={e => setRate(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm outline-none" />
+              {/* Net per hour display */}
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-slate-500">Net per hour:</span>
+                <span className="text-sm font-black text-green-400">{r.netPerHour.toFixed(2)} PLN/h</span>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Desired Net Hourly Rate (PLN)</label>
+              <input type="number" step="0.10" value={desiredNetRate} onChange={e => setDesiredNetRate(Number(e.target.value))} className="w-full bg-slate-950 border border-green-700 rounded-lg px-3 py-2 text-green-300 text-sm outline-none" />
+              {/* Gross per hour needed */}
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-slate-500">Gross rate needed:</span>
+                <span className="text-sm font-black text-blue-400">{grossRate.toFixed(2)} PLN/h</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-4 pt-2 border-t border-slate-800">
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
               <input type="checkbox" checked={applyPit2} onChange={e => setApplyPit2(e.target.checked)} className="accent-blue-500" />
@@ -92,10 +149,25 @@ export function KnowledgeCenter() {
           </div>
         </div>
 
+        {/* Per-hour summary card */}
+        <div className="bg-gradient-to-r from-blue-900/50 to-green-900/50 border border-slate-700 rounded-xl p-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-xs text-slate-400 uppercase">Gross / Hour</p>
+              <p className="text-lg font-black text-blue-400">{grossRate.toFixed(2)} PLN</p>
+            </div>
+            <div className="text-2xl text-slate-600">→</div>
+            <div className="text-right">
+              <p className="text-xs text-slate-400 uppercase">Net / Hour</p>
+              <p className="text-lg font-black text-green-400">{r.netPerHour.toFixed(2)} PLN</p>
+            </div>
+          </div>
+        </div>
+
         {/* Results */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
-            <p className="text-xs text-slate-400 uppercase mb-1">Gross</p>
+            <p className="text-xs text-slate-400 uppercase mb-1">Gross Monthly</p>
             <p className="text-xl font-black text-blue-400">{r.gross.toFixed(2)}</p>
             <p className="text-xs text-slate-500">PLN</p>
           </div>
@@ -130,7 +202,9 @@ export function KnowledgeCenter() {
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-sm text-slate-400">
           <div className="flex justify-between"><span>Tax Base (Podstawa)</span><span className="text-white">{r.taxBase.toFixed(2)} PLN</span></div>
           <div className="flex justify-between mt-1"><span>Employer ZUS</span><span className="text-white">{r.employerZus.toFixed(2)} PLN</span></div>
-          <div className="flex justify-between mt-1"><span>Contract Type</span><span className="text-white">{contract === "zlecenie" ? "Umowa Zlecenie" : "Umowa o Pracę"}</span></div>
+          <div className="flex justify-between mt-1"><span>Net per Hour</span><span className="text-green-400 font-bold">{r.netPerHour.toFixed(2)} PLN/h</span></div>
+          <div className="flex justify-between mt-1"><span>Contract Type</span><span className="text-white">{contract === "zlecenie" ? "Umowa Zlecenie" : "Umowa o Prace"}</span></div>
+          <div className="flex justify-between mt-1"><span>Mode</span><span className="text-white">{mode === "gross" ? "Gross → Net" : "Net → Gross (Reverse)"}</span></div>
         </div>
       </div>
     </div>

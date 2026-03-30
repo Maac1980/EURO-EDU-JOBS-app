@@ -27,6 +27,12 @@ import ImmigrationSearchTab from "./tabs/ImmigrationSearchTab";
 import WorkPermitTab   from "./tabs/WorkPermitTab";
 import GPSTrackingTab  from "./tabs/GPSTrackingTab";
 import ApplicationsTab from "./tabs/ApplicationsTab";
+import TRCServiceTab   from "./tabs/TRCServiceTab";
+import WorkerCalendarTab from "./tabs/WorkerCalendarTab";
+import ShiftScheduleTab from "./tabs/ShiftScheduleTab";
+import PayTransparencyTab from "./tabs/PayTransparencyTab";
+import SkillsAssessmentTab from "./tabs/SkillsAssessmentTab";
+import SalaryBenchmarkTab from "./tabs/SalaryBenchmarkTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { fetchNotifications } from "@/lib/api";
@@ -93,6 +99,12 @@ function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: A
   if (tab === "permits")      return <WorkPermitTab />;
   if (tab === "gps")          return <GPSTrackingTab />;
   if (tab === "applications") return <ApplicationsTab />;
+  if (tab === "trc") return <TRCServiceTab />;
+  if (tab === "availability") return <WorkerCalendarTab />;
+  if (tab === "shifts") return <ShiftScheduleTab />;
+  if (tab === "paytransparency") return <PayTransparencyTab />;
+  if (tab === "skills") return <SkillsAssessmentTab />;
+  if (tab === "benchmark") return <SalaryBenchmarkTab />;
   return null;
 }
 

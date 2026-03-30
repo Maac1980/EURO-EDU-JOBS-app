@@ -37,7 +37,8 @@ const CANDIDATE_TABS: TabDef[] = [
 // Tabs that should highlight the "More" button
 const MORE_CHILDREN: ActiveTab[] = [
   "calculator", "profile", "ats", "interviews", "contracts",
-  "invoices", "regulatory", "immigration", "permits", "gps", "applications",
+  "invoices", "regulatory", "immigration", "permits", "gps", "applications", "trc",
+  "availability", "shifts", "paytransparency", "skills", "benchmark",
 ];
 
 function getTabsForRole(role: Role): TabDef[] {

@@ -27,7 +27,13 @@ export type ActiveTab = "calculator" | "home"
   | "immigration"
   | "permits"
   | "gps"
-  | "applications";
+  | "applications"
+  | "trc"
+  | "availability"
+  | "shifts"
+  | "paytransparency"
+  | "skills"
+  | "benchmark";
 
 export interface Permission {
   seeFinancials: boolean;

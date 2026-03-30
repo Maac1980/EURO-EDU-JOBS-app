@@ -23,6 +23,7 @@ import gpsRouter from "./gps.js";
 import agencyRouter from "./agency.js";
 import regulatoryRouter from "./regulatory.js";
 import permitsRouter from "./permits.js";
+import trcServiceRouter from "./trc-service.js";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(gpsRouter);
 router.use(agencyRouter);
 router.use(regulatoryRouter);
 router.use(permitsRouter);
+router.use(trcServiceRouter);
 
 export default router;

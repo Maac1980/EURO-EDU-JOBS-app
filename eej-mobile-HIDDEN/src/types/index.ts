@@ -33,7 +33,13 @@ export type ActiveTab = "calculator" | "home"
   | "shifts"
   | "paytransparency"
   | "skills"
-  | "benchmark";
+  | "benchmark"
+  | "payroll"
+  | "clients"
+  | "pricing"
+  | "aiaudit"
+  | "gdpr"
+  | "agency";
 
 export interface Permission {
   seeFinancials: boolean;

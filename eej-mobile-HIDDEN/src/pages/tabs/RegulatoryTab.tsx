@@ -121,20 +121,19 @@ export default function RegulatoryTab() {
         </div>
       </div>
 
-      {/* Category filter */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+      {/* Category filter — wrapping layout for mobile */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
             onClick={() => setCategory(c.id)}
             style={{
-              flexShrink: 0,
-              padding: "5px 12px",
+              padding: "5px 10px",
               borderRadius: 20,
               border: category === c.id ? "2px solid #1B2A4A" : "1.5px solid #E5E7EB",
               background: category === c.id ? "#1B2A4A" : "#fff",
               color: category === c.id ? "#FFD600" : "#6B7280",
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 600,
               cursor: "pointer",
             }}

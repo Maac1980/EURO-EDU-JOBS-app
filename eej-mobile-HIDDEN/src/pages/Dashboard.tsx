@@ -33,6 +33,12 @@ import ShiftScheduleTab from "./tabs/ShiftScheduleTab";
 import PayTransparencyTab from "./tabs/PayTransparencyTab";
 import SkillsAssessmentTab from "./tabs/SkillsAssessmentTab";
 import SalaryBenchmarkTab from "./tabs/SalaryBenchmarkTab";
+import PayrollTab from "./tabs/PayrollTab";
+import ClientsTab from "./tabs/ClientsTab";
+import PricingTab from "./tabs/PricingTab";
+import AiAuditTab from "./tabs/AiAuditTab";
+import GDPRTab from "./tabs/GDPRTab";
+import AgencySettingsTab from "./tabs/AgencySettingsTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { fetchNotifications } from "@/lib/api";
@@ -105,6 +111,12 @@ function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: A
   if (tab === "paytransparency") return <PayTransparencyTab />;
   if (tab === "skills") return <SkillsAssessmentTab />;
   if (tab === "benchmark") return <SalaryBenchmarkTab />;
+  if (tab === "payroll") return <PayrollTab />;
+  if (tab === "clients") return <ClientsTab />;
+  if (tab === "pricing") return <PricingTab />;
+  if (tab === "aiaudit") return <AiAuditTab />;
+  if (tab === "gdpr") return <GDPRTab />;
+  if (tab === "agency") return <AgencySettingsTab />;
   return null;
 }
 

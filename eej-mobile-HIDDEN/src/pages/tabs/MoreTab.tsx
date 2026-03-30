@@ -3,6 +3,7 @@ import {
   Scale, Search, FileCheck, MapPin, Calculator,
   User, Settings, UserPlus,
   CalendarDays, Clock, BarChart3, Award, TrendingUp,
+  Building2, CreditCard, Shield, Lock,
 } from "lucide-react";
 import type { ActiveTab } from "@/types";
 
@@ -28,6 +29,12 @@ const MODULES: { id: ActiveTab; label: string; sub: string; Icon: any; color: st
   { id: "paytransparency",label: "Pay Report",             sub: "Transparency compliance",    Icon: BarChart3,  color: "#10B981", bg: "#ECFDF5" },
   { id: "skills",      label: "Skills",                   sub: "Worker assessments",         Icon: Award,      color: "#8B5CF6", bg: "#F5F3FF" },
   { id: "benchmark",   label: "Salary Benchmark",         sub: "Market rate comparison",     Icon: TrendingUp, color: "#DC2626", bg: "#FEF2F2" },
+  { id: "payroll",     label: "Payroll Ledger",           sub: "Monthly ZUS & PIT",          Icon: Calculator, color: "#F59E0B", bg: "#FFFBEB" },
+  { id: "clients",     label: "Clients",                  sub: "Manage client companies",    Icon: Building2,  color: "#6366F1", bg: "#EEF2FF" },
+  { id: "pricing",     label: "Pricing & Plans",          sub: "Subscription management",    Icon: CreditCard, color: "#10B981", bg: "#ECFDF5" },
+  { id: "aiaudit",     label: "AI Audit Trail",           sub: "EU AI Act compliance",       Icon: Shield,     color: "#DC2626", bg: "#FEF2F2" },
+  { id: "gdpr",        label: "GDPR",                     sub: "Data protection & consent",  Icon: Lock,       color: "#7C3AED", bg: "#F5F3FF" },
+  { id: "agency",      label: "Agency Settings",          sub: "Profile & billing",          Icon: Settings,   color: "#6B7280", bg: "#F3F4F6" },
   { id: "profile",     label: "Profile & Settings",     sub: "Account & permissions",      Icon: User,       color: "#1B2A4A", bg: "#F0F4FF" },
 ];
 

@@ -39,6 +39,7 @@ const MORE_CHILDREN: ActiveTab[] = [
   "calculator", "profile", "ats", "interviews", "contracts",
   "invoices", "regulatory", "immigration", "permits", "gps", "applications", "trc",
   "availability", "shifts", "paytransparency", "skills", "benchmark",
+  "payroll", "clients", "pricing", "aiaudit", "gdpr", "agency",
 ];
 
 function getTabsForRole(role: Role): TabDef[] {

@@ -72,20 +72,12 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#F9FAFB;c
       <div class="apply-card">
         <h2>Position</h2>
         <div class="field">
-          <label>Job Type *</label>
-          <select name="jobType" required>
-            <option value="">Select position...</option>
-            <option>Construction Worker</option>
-            <option>Welder</option>
-            <option>Warehouse Operative</option>
-            <option>Healthcare Assistant</option>
-            <option>Factory Worker</option>
-            <option>Driver</option>
-            <option>Cleaner</option>
-            <option>Cook / Kitchen Staff</option>
-            <option>Agricultural Worker</option>
-            <option>Other</option>
+          <label>Position *</label>
+          <select name="jobType" id="job-select" required>
+            <option value="">Loading available positions...</option>
           </select>
+          <input type="hidden" name="jobId" id="job-id-input">
+          <div class="hint">Select from currently open positions</div>
         </div>
       </div>
 
@@ -135,6 +127,38 @@ function showFileNames(input, targetId) {
   const names = Array.from(input.files).map(f => f.name).join(', ');
   document.getElementById(targetId).textContent = names ? '✓ ' + names : '';
 }
+
+// Fetch available jobs from API
+(async function loadJobs() {
+  const select = document.getElementById('job-select');
+  const jobIdInput = document.getElementById('job-id-input');
+  try {
+    const res = await fetch('/api/jobs');
+    const data = await res.json();
+    const jobs = (data.jobs || []).filter(j => j.status === 'published' || j.isPublished);
+    select.innerHTML = '<option value="">Select position...</option>';
+    if (jobs.length > 0) {
+      jobs.forEach(j => {
+        const opt = document.createElement('option');
+        opt.value = j.title;
+        opt.dataset.jobId = j.id;
+        opt.textContent = j.title + (j.location ? ' — ' + j.location : '') + (j.salaryMin ? ' (' + j.salaryMin + '-' + j.salaryMax + ' PLN/h)' : '');
+        select.appendChild(opt);
+      });
+    }
+    // Always add "Other" option
+    const other = document.createElement('option');
+    other.value = 'Other';
+    other.textContent = 'Other / General Application';
+    select.appendChild(other);
+  } catch {
+    select.innerHTML = '<option value="">Select position...</option><option>Construction Worker</option><option>Welder</option><option>Warehouse Operative</option><option>Healthcare Assistant</option><option>Other</option>';
+  }
+  select.addEventListener('change', function() {
+    const selected = this.options[this.selectedIndex];
+    jobIdInput.value = selected?.dataset?.jobId || '';
+  });
+})();
 
 document.getElementById('apply-form').addEventListener('submit', async function(e) {
   e.preventDefault();

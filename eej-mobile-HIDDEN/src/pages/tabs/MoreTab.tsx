@@ -1,7 +1,7 @@
 import {
   Briefcase, Columns3, Calendar, FileText, Receipt,
   Scale, Search, FileCheck, MapPin, Calculator,
-  User, Settings,
+  User, Settings, UserPlus,
 } from "lucide-react";
 import type { ActiveTab } from "@/types";
 
@@ -10,6 +10,7 @@ interface Props {
 }
 
 const MODULES: { id: ActiveTab; label: string; sub: string; Icon: any; color: string; bg: string }[] = [
+  { id: "applications",label: "Applications",           sub: "New candidate applications", Icon: UserPlus,   color: "#059669", bg: "#ECFDF5" },
   { id: "jobs",        label: "Job Board",              sub: "Browse & post jobs",         Icon: Briefcase,  color: "#3B82F6", bg: "#EFF6FF" },
   { id: "ats",         label: "ATS Pipeline",           sub: "Kanban recruitment",         Icon: Columns3,   color: "#8B5CF6", bg: "#F5F3FF" },
   { id: "interviews",  label: "Interviews",             sub: "Schedule & track",           Icon: Calendar,   color: "#0EA5E9", bg: "#F0F9FF" },

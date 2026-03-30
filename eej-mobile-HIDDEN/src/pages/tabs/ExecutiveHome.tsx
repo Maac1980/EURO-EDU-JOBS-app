@@ -22,7 +22,7 @@ import AddUserModal from "@/components/AddUserModal";
 import ModuleSheet from "@/components/ModuleSheet";
 import type { ModuleId } from "@/components/PlatformModules";
 import type { ActiveTab } from "@/types";
-import { fetchRegulatorySummary, searchImmigration, fetchAdminStats } from "@/lib/api";
+import { fetchRegulatorySummary, searchImmigration, fetchAdminStats, fetchNotifications, fetchWorkers } from "@/lib/api";
 
 interface Props {
   onNavigate?: (tab: ActiveTab) => void;
@@ -45,6 +45,24 @@ export default function ExecutiveHome({ onNavigate }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<string | null>(null);
+
+  // New applications state
+  const [newApps, setNewApps] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchWorkers()
+      .then((workers) => setNewApps(workers.filter((w: any) => w.pipelineStage === "New" || (!w.pipelineStage && w.createdAt))))
+      .catch(() => setNewApps([]));
+    fetchNotifications()
+      .then(setNotifications)
+      .catch(() => setNotifications([]));
+  }, []);
+
+  const todayApps = newApps.filter((w: any) => {
+    if (!w.createdAt) return false;
+    return new Date(w.createdAt).toDateString() === new Date().toDateString();
+  });
 
   useEffect(() => {
     fetchAdminStats()
@@ -90,6 +108,37 @@ export default function ExecutiveHome({ onNavigate }: Props) {
         </div>
         <div className="tab-greeting-date">{formatDate()}</div>
       </div>
+
+      {/* ── New Applications Today ── */}
+      {(todayApps.length > 0 || newApps.length > 0) && (
+        <div style={{ background: "#fff", border: "1.5px solid #E5E7EB", borderRadius: 14, padding: 14, marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <UserPlus size={16} color="#059669" />
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>New Applications</span>
+              {todayApps.length > 0 && (
+                <span style={{ background: "#ECFDF5", color: "#059669", padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                  {todayApps.length} today
+                </span>
+              )}
+            </div>
+            <button onClick={() => onNavigate?.("applications")} style={{ fontSize: 11, color: "#3B82F6", background: "none", border: "none", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 2 }}>
+              View All ({newApps.length}) <ChevronRight size={12} />
+            </button>
+          </div>
+          {newApps.slice(0, 3).map((w: any, i: number) => (
+            <div key={w.id ?? i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: i > 0 ? "1px solid #F3F4F6" : "none" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{w.name}</div>
+                <div style={{ fontSize: 11, color: "#6B7280" }}>{w.jobRole ?? "General"} {w.nationality ? `· ${w.nationality}` : ""}</div>
+              </div>
+              <div style={{ fontSize: 11, color: "#9CA3AF" }}>
+                {w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Immigration Search Bar ── */}
       <div style={{

@@ -1,5 +1,5 @@
 import { KnowledgeCenter } from "@/components/KnowledgeCenter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { BottomNav } from "@/components/BottomNav";
 import { ToastContainer } from "@/components/Toast";
@@ -26,8 +26,10 @@ import RegulatoryTab   from "./tabs/RegulatoryTab";
 import ImmigrationSearchTab from "./tabs/ImmigrationSearchTab";
 import WorkPermitTab   from "./tabs/WorkPermitTab";
 import GPSTrackingTab  from "./tabs/GPSTrackingTab";
+import ApplicationsTab from "./tabs/ApplicationsTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { fetchNotifications } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 const ROLE_COLOR: Record<Role, string> = {
@@ -90,6 +92,7 @@ function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: A
   if (tab === "immigration")  return <ImmigrationSearchTab />;
   if (tab === "permits")      return <WorkPermitTab />;
   if (tab === "gps")          return <GPSTrackingTab />;
+  if (tab === "applications") return <ApplicationsTab />;
   return null;
 }
 
@@ -108,6 +111,18 @@ function DashboardInner() {
   const { candidates } = useCandidates();
   const { language, setLanguage } = useI18n();
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
+  const [notifCount, setNotifCount] = useState(0);
+
+  useEffect(() => {
+    fetchNotifications()
+      .then((n) => setNotifCount(n.length))
+      .catch(() => {});
+    // Poll every 60 seconds for new notifications
+    const interval = setInterval(() => {
+      fetchNotifications().then((n) => setNotifCount(n.length)).catch(() => {});
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (!user) return null;
 
@@ -149,6 +164,33 @@ function DashboardInner() {
               }}
             >
               {language === "en" ? "PL" : "EN"}
+            </button>
+            <button
+              onClick={() => setActiveTab("applications")}
+              title="Notifications"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#fff",
+                cursor: "pointer",
+                position: "relative",
+                padding: 4,
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+              {notifCount > 0 && (
+                <span style={{
+                  position: "absolute", top: -2, right: -4,
+                  background: "#EF4444", color: "#fff",
+                  fontSize: 9, fontWeight: 800,
+                  minWidth: 16, height: 16,
+                  borderRadius: 8, display: "flex",
+                  alignItems: "center", justifyContent: "center",
+                  padding: "0 3px",
+                }}>
+                  {notifCount > 99 ? "99+" : notifCount}
+                </span>
+              )}
             </button>
             <button className="dash-logout" onClick={logout} title="Logout">
               <LogoutIcon />

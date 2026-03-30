@@ -180,3 +180,13 @@ export async function fetchWorkers() {
 export async function fetchAdminStats() {
   return get<any>("/admin/stats");
 }
+
+// Notifications
+export async function fetchNotifications() {
+  return get<{ notifications: any[] }>("/notifications").then((d) => d.notifications ?? []);
+}
+
+// Recent applications (workers with pipelineStage "New")
+export async function fetchRecentApplications() {
+  return get<{ workers: any[] }>("/workers?status=new&limit=20").then((d) => d.workers ?? []);
+}

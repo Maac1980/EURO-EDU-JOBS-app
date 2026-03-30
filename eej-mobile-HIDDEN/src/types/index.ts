@@ -26,7 +26,8 @@ export type ActiveTab = "calculator" | "home"
   | "regulatory"
   | "immigration"
   | "permits"
-  | "gps";
+  | "gps"
+  | "applications";
 
 export interface Permission {
   seeFinancials: boolean;

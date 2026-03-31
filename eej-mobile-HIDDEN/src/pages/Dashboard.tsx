@@ -70,6 +70,7 @@ function getBadgeCounts(role: Role, candidates: { status: string; visaDaysLeft?:
   return {};
 }
 
+// Tab routing — all 24 modules. Build: 2026-03-31
 function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: ActiveTab; candidateId?: string; onNavigate: (t: ActiveTab) => void }) {
   if (tab === "calculator") return <KnowledgeCenter />;
   if (tab === "home") {

@@ -73,7 +73,7 @@ function getBadgeCounts(role: Role, candidates: { status: string; visaDaysLeft?:
 
 // Tab routing — all 24 modules. Build: 2026-03-31
 function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: ActiveTab; candidateId?: string; onNavigate: (t: ActiveTab) => void }) {
-  if (tab === "calculator") return <KnowledgeCenter />;
+  if (tab === "calculator") return <NetPerHourTab />;
   if (tab === "home") {
     if (role === "executive")  return <ExecutiveHome onNavigate={onNavigate} />;
     if (role === "legal")      return <LegalHome />;

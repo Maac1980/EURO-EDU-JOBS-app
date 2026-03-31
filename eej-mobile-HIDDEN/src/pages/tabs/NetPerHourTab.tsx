@@ -24,14 +24,14 @@ function calcFromGross(grossPerHour: number, hours: number, pit2: boolean) {
   return { gross, pension, disability, zus, healthBase, health, kup, taxBase, grossTax, pit, net, netPerHour, employerZus, totalCost };
 }
 
-// Reverse: desired net/h → find gross/h via binary search
+// Reverse: desired net/h → find gross/h via binary search (high precision)
 function calcFromNet(desiredNetPerHour: number, hours: number, pit2: boolean) {
-  let lo = 0, hi = desiredNetPerHour * 3;
-  for (let i = 0; i < 100; i++) {
+  let lo = 0, hi = desiredNetPerHour * 4;
+  for (let i = 0; i < 200; i++) {
     const mid = (lo + hi) / 2;
     const r = calcFromGross(mid, hours, pit2);
     if (r.netPerHour < desiredNetPerHour) lo = mid; else hi = mid;
-    if (Math.abs(r.netPerHour - desiredNetPerHour) < 0.005) break;
+    if (Math.abs(r.netPerHour - desiredNetPerHour) < 0.001) break;
   }
   const grossRate = Math.round(((lo + hi) / 2) * 100) / 100;
   return { grossRate, ...calcFromGross(grossRate, hours, pit2) };

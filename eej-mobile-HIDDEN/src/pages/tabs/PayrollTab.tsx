@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Calculator, Download, Lock } from "lucide-react";
-import { calculate } from "@/components/KnowledgeCenter";
+import { calculate, reverseCalculate } from "@/components/KnowledgeCenter";
 import { useToast } from "@/lib/toast";
 
 function authHeaders(): Record<string, string> {
@@ -61,10 +61,25 @@ export default function PayrollTab() {
             <div><span style={{ color: "#9CA3AF" }}>ZUS: </span><span style={{ color: "#DC2626" }}>-{c.employeeZus.toFixed(2)}</span></div>
             <div><span style={{ color: "#9CA3AF" }}>PIT: </span><span style={{ color: "#D97706" }}>-{c.pit.toFixed(2)}</span></div>
             <div><span style={{ color: "#9CA3AF" }}>Net: </span><span style={{ fontWeight: 700, color: "#059669" }}>{c.net.toFixed(2)}</span></div>
+            <div><span style={{ color: "#9CA3AF" }}>Net/h: </span><span style={{ fontWeight: 700, color: "#10B981" }}>{c.netPerHour.toFixed(2)} PLN</span></div>
+            <div><span style={{ color: "#9CA3AF" }}>Health: </span><span style={{ color: "#DC2626" }}>-{c.health.toFixed(2)}</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <span style={{ color: "#9CA3AF" }}>Want net/h: </span>
+              <input type="number" step="0.5" placeholder="—" style={{ width: 48, padding: "2px 3px", border: "1px solid #10B981", borderRadius: 4, fontSize: 10, color: "#10B981", background: "#F0FDF4" }}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const el = e.target.nextElementSibling as HTMLElement | null;
+                  if (val > 0 && c.hours > 0 && el) {
+                    const rv = reverseCalculate(c.hours, val, "zlecenie", true, false);
+                    el.textContent = `→ ${(rv.gross / c.hours).toFixed(2)}/h`;
+                  } else if (el) { el.textContent = ""; }
+                }} />
+              <span style={{ fontSize: 10, color: "#3B82F6", fontWeight: 600 }}></span>
+            </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11 }}>
             <div><span style={{ color: "#9CA3AF" }}>Advance: </span><input type="number" value={c.advance} onChange={(e) => setEdits({...edits, [w.id]: {...edits[w.id], advance: Number(e.target.value)}})} style={{ width: 60, padding: "2px 4px", border: "1px solid #E5E7EB", borderRadius: 4, fontSize: 11 }} /></div>
-            <div><span style={{ color: "#9CA3AF" }}>Final: </span><span style={{ fontWeight: 800, color: "#059669" }}>{c.final.toFixed(2)} PLN</span></div>
+            <div><span style={{ color: "#9CA3AF" }}>Take-Home: </span><span style={{ fontWeight: 800, color: "#059669" }}>{c.final.toFixed(2)} PLN</span></div>
           </div>
         </div>
       ); })}

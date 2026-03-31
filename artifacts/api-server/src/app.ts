@@ -54,4 +54,15 @@ if (eejMobileDist) {
   }
 }
 
+// Also serve from root / so the app loads without /eej-mobile prefix
+if (eejMobileDist) {
+  app.use("/", express.static(eejMobileDist));
+  app.get("*", (_req, res) => {
+    // SPA fallback — serve index.html for all non-API, non-static routes
+    if (!_req.path.startsWith("/api")) {
+      res.sendFile(path.join(eejMobileDist, "index.html"));
+    }
+  });
+}
+
 export default app;

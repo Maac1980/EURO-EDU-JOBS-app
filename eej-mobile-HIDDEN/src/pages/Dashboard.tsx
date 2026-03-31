@@ -39,6 +39,7 @@ import PricingTab from "./tabs/PricingTab";
 import AiAuditTab from "./tabs/AiAuditTab";
 import GDPRTab from "./tabs/GDPRTab";
 import AgencySettingsTab from "./tabs/AgencySettingsTab";
+import NetPerHourTab from "./tabs/NetPerHourTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { fetchNotifications } from "@/lib/api";
@@ -118,6 +119,7 @@ function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: A
   if (tab === "aiaudit") return <AiAuditTab />;
   if (tab === "gdpr") return <GDPRTab />;
   if (tab === "agency") return <AgencySettingsTab />;
+  if (tab === "netperhour") return <NetPerHourTab />;
   return null;
 }
 

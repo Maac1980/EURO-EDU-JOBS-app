@@ -39,7 +39,8 @@ export type ActiveTab = "calculator" | "home"
   | "pricing"
   | "aiaudit"
   | "gdpr"
-  | "agency";
+  | "agency"
+  | "netperhour";
 
 export interface Permission {
   seeFinancials: boolean;

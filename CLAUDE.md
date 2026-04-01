@@ -173,3 +173,129 @@ REGULATORY_CRON=0 7 * * *
 - Bottom nav: Home, Candidates, Jobs, Alerts, More
 - "More" menu grid links to: ATS Pipeline, Interviews, Contracts, Invoices, Regulatory Intelligence, Immigration Search, Work Permits, GPS Tracking, ZUS Calculator, Profile
 - State-based tab switching (no URL routing)
+
+---
+
+## ROADMAP — Phase 1-3 Execution Plan
+
+### Owner: Manish Shetty
+### Companies: EEJ (Euro Edu Jobs), Apatris, IWS, STPG
+### Workers: 200+ foreign workers across Poland
+
+---
+
+## RULES (MUST FOLLOW)
+- Always use pnpm not npm
+- Always build dist before pushing
+- Always test ZUS formula: 160h × 31.40 = 3929.05 net
+- Never use DROP TABLE — only CREATE TABLE IF NOT EXISTS
+- Never break existing features
+- Use DATABASE_URL for EEJ database connection
+- Push to `master` branch for EEJ
+- After every change: build dist → copy to artifacts → commit → push
+- Replit deploy: `git fetch origin master && git reset --hard origin/master`
+- Vite base must be "/" not "/eej-mobile/"
+- .gitignore must NOT contain "dist" — frontend dist must stay tracked
+
+---
+
+## PHASE 1 — WEEK 1: Core Business Tools (21 Features)
+
+### 1. CRM Module
+- Client list: company name, NIP, contact person, email, phone
+- Deal pipeline: Lead → Proposal → Negotiation → Won → Active
+- Activity log per client
+- Link clients to workers
+- Dashboard widget showing pipeline value
+
+### 2. Client Portal
+- Read-only access for clients to see worker compliance
+- Secure token-based access
+
+### 3. Worker Self-Service Portal
+- Workers login, see documents, submit hours, upload docs
+
+### 4. Google Workspace Integration
+- Gmail alerts, Calendar scheduling, Drive storage, Chat notifications
+
+### 5. WhatsApp Alerts via Twilio
+- Document expiry reminders, payslip delivery, shift notifications
+
+### 6. AI Contract Generator
+- Umowa Zlecenie / Umowa o Pracę from worker data, PDF with signatures
+
+### 7. Worker Matching AI
+- Match workers to client requests by skill, location, documents
+
+### 8. Predictive Compliance
+- 30/60/90 day expiry prediction, risk scoring, PIP readiness
+
+### 9. Salary Prediction AI
+- Market rate comparison, retention suggestions
+
+### 10. Legal Change Predictor
+- Monitor Dz.U., predict legislation impact
+
+### 11. Revenue Forecasting
+- Monthly revenue prediction, utilization tracking, margin analysis
+
+### 12. Onboarding Checklist
+- Step-by-step new worker setup with document collection
+
+### 13. Invoice Auto-Send
+- Monthly Faktura VAT generation and auto-send
+
+### 14. Salary Advance Request
+- Worker requests advance, manager approves, auto-deducted from payroll
+
+### 15. Voice Check-in
+- Twilio Voice API for phone-based check-in/out
+
+### 16. Worker Mood Tracker
+- Weekly pulse survey, site mood scores
+
+### 17. ESSPASS Integration
+- EU digital social security pass tracking
+
+### 18. ZUS/DRA Tax Filing Auto
+- Generate ZUS DRA declarations, XML export for e-Płatnik
+
+### 19. Multi-Country Support
+- Ireland, Germany, Czech Republic payroll and permits
+
+### 20. Site Safety AI
+- Photo scanning for PPE violations
+
+### 21. Competitor Price Monitor
+- Track market pricing, alert on changes
+
+---
+
+## PHASE 2 — ENTERPRISE ARCHITECTURE
+
+### Model Routing
+- Gemini Flash for fast queries
+- Claude Sonnet for complex reasoning
+- Llama on AWS Bedrock for private data
+- Claude Vision for document scanning
+- Perplexity for real-time search
+
+### Sub-Agent Architecture
+- Parallel sub-agents: Compliance, Payroll, Immigration, Notification
+
+### AWS Bedrock
+- Private model hosting for PESEL/IBAN/passport data
+
+### Google Vertex AI
+- AutoML worker matching, demand forecasting, salary prediction
+
+### MCP Servers
+- google-workspace, twilio, stripe, neon, github
+
+---
+
+## PHASE 3 — SaaS PLATFORM
+- Multi-tenant: any agency can sign up
+- Starter €199, Professional €499, Enterprise €999
+- White-label option
+- Public API + webhook system

@@ -57,7 +57,7 @@ if (eejMobileDist) {
 // Also serve from root / so the app loads without /eej-mobile prefix
 if (eejMobileDist) {
   app.use("/", express.static(eejMobileDist));
-  app.get("*", (_req, res, next) => {
+  app.get("/{*splat}", (_req, res, next) => {
     // SPA fallback — serve index.html for navigation routes only, not static assets
     if (!_req.path.startsWith("/api") && !_req.path.startsWith("/assets/") && !_req.path.match(/\.(js|css|png|svg|ico|json|woff|woff2)$/)) {
       res.sendFile(path.join(eejMobileDist, "index.html"));

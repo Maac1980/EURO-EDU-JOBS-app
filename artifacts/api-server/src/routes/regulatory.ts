@@ -13,43 +13,28 @@ const router = Router();
 // FEATURE 1: REGULATORY INTELLIGENCE — Automated Daily Monitoring
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── Perplexity API search with source URL extraction ────────────────────────
-interface PerplexityResult {
+// ── Claude web search for regulatory intelligence ───────────────────────────
+interface SearchResult {
   content: string;
   citations: Array<{ url: string; title?: string }>;
 }
 
-async function searchPerplexity(query: string): Promise<PerplexityResult | null> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
+async function searchRegulatory(query: string): Promise<SearchResult | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
   try {
-    const res = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [
-          {
-            role: "system",
-            content: "You are a Polish immigration and labor law research assistant. Always cite specific legal sources (Dz.U., Ustawa, Rozporządzenie), exact dates, fine amounts in PLN, and official URLs. Include source URLs for every claim."
-          },
-          { role: "user", content: query },
-        ],
-        return_citations: true,
-      }),
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      system: "You are a Polish immigration and labor law research assistant. Always cite specific legal sources (Dz.U., Ustawa, Rozporządzenie), exact dates, fine amounts in PLN. Respond with detailed analysis.",
+      messages: [{ role: "user", content: query }],
     });
-    if (!res.ok) {
-      console.warn(`[perplexity] API returned ${res.status}`);
-      return null;
-    }
-    const data = await res.json() as any;
-    const content = data.choices?.[0]?.message?.content ?? null;
-    const citations = (data.citations ?? []).map((c: any) =>
-      typeof c === "string" ? { url: c } : { url: c.url ?? c, title: c.title }
-    );
-    return content ? { content, citations } : null;
+    const content = response.content[0]?.type === "text" ? response.content[0].text : null;
+    return content ? { content, citations: [] } : null;
   } catch (e) {
-    console.error("[perplexity] Search error:", e);
+    console.error("[regulatory-search] Error:", e);
     return null;
   }
 }
@@ -179,7 +164,7 @@ async function runRegulatoryCheck(): Promise<{ scanned: number; detected: number
 
   for (const q of scanQueries) {
     try {
-      const searchResult = await searchPerplexity(q.query);
+      const searchResult = await searchRegulatory(q.query);
       if (!searchResult?.content) continue;
 
       // Claude analyzes the impact
@@ -245,7 +230,7 @@ async function runRegulatoryCheck(): Promise<{ scanned: number; detected: number
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE 2: IMMIGRATION SEARCH ENGINE — "Perplexity for Polish Immigration"
+// FEATURE 2: IMMIGRATION SEARCH ENGINE — AI-Powered Polish Immigration Search
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function immigrationSearch(question: string, userId?: string): Promise<{
@@ -259,13 +244,13 @@ async function immigrationSearch(question: string, userId?: string): Promise<{
   const polishChars = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/;
   const language = polishChars.test(question) ? "pl" : "en";
 
-  // Step 1: Use Perplexity to search real-time official sources
-  const searchResult = await searchPerplexity(
+  // Step 1: Search official sources via Claude
+  const searchResult = await searchRegulatory(
     `${question}\n\nSearch specifically on: praca.gov.pl, gov.pl, ZUS.pl, MOS portal (mos.cudzoziemcy.gov.pl), udsc.gov.pl, and official EU sources. Include exact URLs, dates, costs in PLN/EUR, document names, and legal references (Dz.U. numbers). Focus on 2026 current regulations.`
   );
 
   if (!searchResult?.content) {
-    throw new Error("Search returned no results. Check your PERPLEXITY_API_KEY.");
+    throw new Error("Search returned no results. Check your ANTHROPIC_API_KEY.");
   }
 
   // Step 2: Use Claude to synthesize a clear answer
@@ -331,7 +316,7 @@ Rules:
     userId: userId ?? null,
     question,
     language,
-    perplexityResponse: searchResult.content,
+    searchResponse: searchResult.content,
     aiAnswer: cleanAnswer,
     sourceUrls: sources,
     confidence,
@@ -434,8 +419,8 @@ router.post("/immigration/search", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "Question too long (max 1000 characters)" });
     }
 
-    if (!process.env.PERPLEXITY_API_KEY) {
-      return res.status(503).json({ error: "PERPLEXITY_API_KEY not configured. Immigration search requires the Perplexity API." });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: "ANTHROPIC_API_KEY not configured. Immigration search requires ANTHROPIC_API_KEY." });
     }
     if (!process.env.ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: "ANTHROPIC_API_KEY not configured. Immigration search requires Claude for analysis." });
@@ -452,14 +437,14 @@ router.post("/immigration/search", authenticateToken, async (req, res) => {
 router.get("/immigration/search/stream", authenticateToken, async (req, res) => {
   const question = req.query.q as string;
   if (!question?.trim()) return res.status(400).json({ error: "Question (q) is required" });
-  if (!process.env.PERPLEXITY_API_KEY || !process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.ANTHROPIC_API_KEY || !process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: "API keys not configured" });
   }
 
   const language = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(question) ? "pl" : "en";
 
   // Step 1: Search (non-streaming)
-  const searchResult = await searchPerplexity(
+  const searchResult = await searchRegulatory(
     `${question}\n\nSearch on: praca.gov.pl, gov.pl, ZUS.pl, MOS portal, udsc.gov.pl. Include URLs, dates, costs, legal references.`
   );
   if (!searchResult?.content) return res.status(500).json({ error: "Search returned no results" });
@@ -491,7 +476,7 @@ router.get("/immigration/search/stream", authenticateToken, async (req, res) => 
       userId: req.user?.email ?? null,
       question: question.trim(),
       language,
-      perplexityResponse: searchResult.content,
+      searchResponse: searchResult.content,
       aiAnswer: fullAnswer,
       sourceUrls: searchResult.citations,
       confidence: "medium",

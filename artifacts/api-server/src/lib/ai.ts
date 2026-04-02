@@ -9,7 +9,7 @@ export async function analyzeImage(base64: string, mimeType: string, prompt: str
   try {
     const mediaType = mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 512,
       messages: [{
         role: "user",
@@ -31,7 +31,7 @@ export async function analyzeText(prompt: string, systemPrompt?: string): Promis
   if (!process.env.ANTHROPIC_API_KEY) return null;
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }],
@@ -47,7 +47,7 @@ export async function analyzeText(prompt: string, systemPrompt?: string): Promis
 export async function streamAnalysis(prompt: string, systemPrompt?: string): Promise<AsyncIterable<string>> {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
   const stream = anthropic.messages.stream({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
     max_tokens: 2048,
     system: systemPrompt,
     messages: [{ role: "user", content: prompt }],

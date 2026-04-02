@@ -92,7 +92,7 @@ Expiring/Missing Documents: ${JSON.stringify(expiringDocuments, null, 2)}
 Red flags: ${redCount}, Amber warnings: ${amberCount}`
 
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         temperature: 0.2,
         system: `You are a Polish labor compliance expert. Respond in JSON format with this exact structure:

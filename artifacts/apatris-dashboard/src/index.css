@@ -75,9 +75,9 @@
 /* ============================================
    EURO EDU JOBS BRAND THEME
    Primary:     Navy Blue (#1B2A4A)
-   Accent:      Blue (#0066CC)
-   Background:  White / Light grey (#F5F7FA)
-   Text:        Dark on light
+   Accent:      Lime Yellow (#E9FF70)
+   Background:  White (#FFFFFF)
+   Text:        Navy on white
    ============================================ */
 
 :root {
@@ -87,9 +87,9 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.06);
 
-  /* Light background */
-  --background: 220 20% 97%;
-  --foreground: 220 30% 15%;
+  /* White background */
+  --background: 0 0% 100%;
+  --foreground: 220 40% 16%;
   --border: 220 13% 88%;
   --input: 220 13% 91%;
   --ring: 213 100% 40%;
@@ -114,9 +114,9 @@
   --popover-foreground: 220 30% 15%;
   --popover-border: 220 13% 88%;
 
-  /* Primary: Blue accent */
-  --primary: 213 100% 40%;
-  --primary-foreground: 0 0% 100%;
+  /* Primary: Lime Yellow buttons with navy text */
+  --primary: 69 100% 72%;
+  --primary-foreground: 220 40% 16%;
 
   /* Secondary */
   --secondary: 220 14% 92%;
@@ -553,14 +553,14 @@ html, body {
 }
 
 .app-top-nav-item:hover {
-  background: rgba(0,102,204,0.15);
+  background: rgba(233,255,112,0.2);
   color: #fff;
 }
 
 .app-top-nav-item--active {
-  background: #0066CC;
-  color: #ffffff;
-  box-shadow: 0 0 8px rgba(0,102,204,0.3);
+  background: #E9FF70;
+  color: #1B2A4A;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   font-weight: 700;
 }
 

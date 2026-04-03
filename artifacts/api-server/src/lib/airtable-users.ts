@@ -184,8 +184,8 @@ async function updatePasswordHash(recordId: string, passwordHash: string): Promi
 // ── Startup: ensure table exists and upsert all seed users ─────────────────
 
 const INITIAL_USERS = [
-  { name: "Anna Brzozowska",  email: "anna.b@edu-jobs.eu",    role: "T1" as const, designation: "Executive Board & Finance",        shortName: "Executive" },
-  { name: "Anna Brzozowska",  email: "ceo@euro-edu-jobs.eu",  role: "T1" as const, designation: "Executive Board & Finance",        shortName: "Executive" },
+  { name: "Anna Bondarenko",  email: "anna.b@edu-jobs.eu",    role: "T1" as const, designation: "Executive Board & Finance",        shortName: "Executive" },
+  { name: "Anna Bondarenko",  email: "ceo@euro-edu-jobs.eu",  role: "T1" as const, designation: "Executive Board & Finance",        shortName: "Executive" },
   { name: "Marta Wiśniewska", email: "legal@euro-edu-jobs.eu", role: "T2" as const, designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance" },
   { name: "Piotr Nowak",      email: "ops@euro-edu-jobs.eu",   role: "T3" as const, designation: "Workforce & Commercial Operations", shortName: "Operations" },
 ];

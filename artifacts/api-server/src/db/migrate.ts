@@ -392,7 +392,7 @@ export async function seedInitialData(): Promise<void> {
   if (existingAdmin.length === 0) {
     await db.insert(schema.users).values({
       email: "anna.b@edu-jobs.eu",
-      name: "Anna Brzozowska",
+      name: "Anna Bondarenko",
       role: "admin",
       site: null,
       passwordHash: null, // Admin uses EEJ_ADMIN_PASSWORD env var
@@ -404,7 +404,7 @@ export async function seedInitialData(): Promise<void> {
   const existingProfile = await db.select().from(schema.adminProfile);
   if (existingProfile.length === 0) {
     await db.insert(schema.adminProfile).values({
-      fullName: "Anna Brzozowska",
+      fullName: "Anna Bondarenko",
       email: "anna.b@edu-jobs.eu",
       phone: "",
       role: "Administrator",
@@ -415,8 +415,8 @@ export async function seedInitialData(): Promise<void> {
   // Seed system users (EEJ mobile) if not exist
   const INITIAL_PASSWORD = "EEJ2026!";
   const seedUsers = [
-    { name: "Anna Brzozowska", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
-    { name: "Anna Brzozowska", email: "ceo@euro-edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
+    { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
+    { name: "Anna Bondarenko", email: "ceo@euro-edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
     { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance" },
     { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations" },
   ];

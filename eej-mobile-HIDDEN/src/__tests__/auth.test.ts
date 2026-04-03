@@ -36,7 +36,7 @@ describe("isValidUser", () => {
       tier: 1,
       designation: "Executive Board & Finance",
       shortName: "Executive",
-      name: "Anna Brzozowska",
+      name: "Anna Bondarenko",
       email: "anna.b@edu-jobs.eu",
     };
     expect(isValidUser(validUser)).toBe(true);

@@ -43,6 +43,14 @@ import InvoiceManagement from "@/pages/InvoiceManagement";
 import ImmigrationDashboard from "@/pages/ImmigrationDashboard";
 import PricingPage from "@/pages/PricingPage";
 import WorkerUpload from "@/pages/WorkerUpload";
+import ATSPipeline from "@/pages/ATSPipeline";
+import Interviews from "@/pages/Interviews";
+import Candidates from "@/pages/Candidates";
+import AgencySettings from "@/pages/AgencySettings";
+import BulkUpload from "@/pages/BulkUpload";
+import Profile from "@/pages/Profile";
+import MyDocs from "@/pages/MyDocs";
+import Updates from "@/pages/Updates";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -177,6 +185,30 @@ function Router() {
         </Route>
         <Route path="/calculator">
           {() => <ProtectedRoute component={() => <div className="p-6 min-h-screen overflow-y-auto pb-20 bg-background"><KnowledgeCenter /></div>} />}
+        </Route>
+        <Route path="/ats-pipeline">
+          {() => <ProtectedRoute component={ATSPipeline} />}
+        </Route>
+        <Route path="/interviews">
+          {() => <ProtectedRoute component={Interviews} />}
+        </Route>
+        <Route path="/candidates">
+          {() => <ProtectedRoute component={Candidates} />}
+        </Route>
+        <Route path="/agency-settings">
+          {() => <ProtectedRoute component={AgencySettings} />}
+        </Route>
+        <Route path="/bulk-upload">
+          {() => <ProtectedRoute component={BulkUpload} />}
+        </Route>
+        <Route path="/profile">
+          {() => <ProtectedRoute component={Profile} />}
+        </Route>
+        <Route path="/my-docs">
+          {() => <ProtectedRoute component={MyDocs} />}
+        </Route>
+        <Route path="/updates">
+          {() => <ProtectedRoute component={Updates} />}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

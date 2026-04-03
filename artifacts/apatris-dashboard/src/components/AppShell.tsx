@@ -9,36 +9,49 @@ import {
   Globe, Building2, UserPlus, Briefcase, Receipt, FileText, DollarSign, Stamp,
 } from "lucide-react";
 
+// ── Recruitment ──
 const NAV_ITEMS = [
-  { path: "/payroll",            label: "Payroll",     icon: Calculator },
-  { path: "/compliance-alerts",  label: "Alerts",      icon: AlertTriangle },
-  { path: "/contracts",          label: "Contracts",   icon: FileSignature },
-  { path: "/doc-workflow",       label: "Docs",        icon: FileCheck },
-  { path: "/gps-tracking",      label: "GPS",         icon: MapPin },
-  { path: "/analytics",         label: "Analytics",   icon: BarChart3 },
-  { path: "/ai-copilot",        label: "AI",          icon: Sparkles },
-  { path: "/regulatory",        label: "Regulatory",  icon: Shield },
-  { path: "/immigration-search",label: "Immigration", icon: Search },
-  { path: "/trc-service",       label: "TRC",         icon: FileCheck },
-  { path: "/availability",      label: "Avail",       icon: CalendarDays },
-  { path: "/shift-schedule",    label: "Shifts",      icon: Clock },
-  { path: "/skills-matrix",     label: "Skills",      icon: Award },
-  { path: "/salary-benchmark",  label: "Bench",       icon: TrendingUp },
-  { path: "/ai-audit",          label: "Audit",       icon: Shield },
-  { path: "/history",            label: "History",     icon: History },
-  { path: "/admin-settings",    label: "Admin",       icon: Settings },
-  { path: "/calculator",        label: "ZUS",         icon: Calculator },
-  { path: "/gdpr",              label: "GDPR",        icon: Shield },
-  { path: "/posted-workers",    label: "Posted",      icon: Globe },
-  { path: "/country-compliance",label: "Countries",   icon: Globe },
-  { path: "/hours",             label: "Hours",       icon: Clock },
-  { path: "/system-logs",       label: "Logs",        icon: FileText },
-  { path: "/clients",           label: "Clients",     icon: Building2 },
-  { path: "/pay-transparency",  label: "PayRpt",      icon: BarChart3 },
-  { path: "/applications",      label: "Apps",        icon: UserPlus },
-  { path: "/job-board",         label: "Jobs",        icon: Briefcase },
-  { path: "/invoices",          label: "Invoices",    icon: Receipt },
-  { path: "/immigration",       label: "Permits",     icon: Stamp },
+  { path: "/candidates",        label: "Candidates",  icon: Users,          group: "Recruit" },
+  { path: "/job-board",         label: "Jobs",        icon: Briefcase,      group: "Recruit" },
+  { path: "/ats-pipeline",      label: "ATS",         icon: UserPlus,       group: "Recruit" },
+  { path: "/applications",      label: "Apps",        icon: UserPlus,       group: "Recruit" },
+  { path: "/interviews",        label: "Interviews",  icon: CalendarDays,   group: "Recruit" },
+  { path: "/bulk-upload",       label: "Upload",      icon: FileText,       group: "Recruit" },
+// ── Compliance ──
+  { path: "/compliance-alerts",  label: "Alerts",     icon: AlertTriangle,  group: "Comply" },
+  { path: "/doc-workflow",       label: "Docs",       icon: FileCheck,      group: "Comply" },
+  { path: "/regulatory",        label: "Regulatory",  icon: Shield,         group: "Comply" },
+  { path: "/immigration-search",label: "Immigration", icon: Search,         group: "Comply" },
+  { path: "/immigration",       label: "Permits",     icon: Stamp,          group: "Comply" },
+  { path: "/trc-service",       label: "TRC",         icon: FileCheck,      group: "Comply" },
+  { path: "/gdpr",              label: "GDPR",        icon: Shield,         group: "Comply" },
+  { path: "/ai-audit",          label: "Audit",       icon: Shield,         group: "Comply" },
+// ── Finance ──
+  { path: "/payroll",            label: "Payroll",    icon: Calculator,     group: "Finance" },
+  { path: "/calculator",        label: "ZUS",         icon: Calculator,     group: "Finance" },
+  { path: "/invoices",          label: "Invoices",    icon: Receipt,        group: "Finance" },
+  { path: "/clients",           label: "Clients",     icon: Building2,      group: "Finance" },
+  { path: "/pay-transparency",  label: "PayRpt",      icon: BarChart3,      group: "Finance" },
+  { path: "/salary-benchmark",  label: "Bench",       icon: TrendingUp,     group: "Finance" },
+// ── Operations ──
+  { path: "/contracts",          label: "Contracts",  icon: FileSignature,  group: "Ops" },
+  { path: "/gps-tracking",      label: "GPS",         icon: MapPin,         group: "Ops" },
+  { path: "/availability",      label: "Avail",       icon: CalendarDays,   group: "Ops" },
+  { path: "/shift-schedule",    label: "Shifts",      icon: Clock,          group: "Ops" },
+  { path: "/hours",             label: "Hours",       icon: Clock,          group: "Ops" },
+  { path: "/skills-matrix",     label: "Skills",      icon: Award,          group: "Ops" },
+  { path: "/posted-workers",    label: "Posted",      icon: Globe,          group: "Ops" },
+  { path: "/country-compliance",label: "Countries",   icon: Globe,          group: "Ops" },
+// ── System ──
+  { path: "/analytics",         label: "Analytics",   icon: BarChart3,      group: "System" },
+  { path: "/ai-copilot",        label: "AI",          icon: Sparkles,       group: "System" },
+  { path: "/history",            label: "History",    icon: History,        group: "System" },
+  { path: "/system-logs",       label: "Logs",        icon: FileText,       group: "System" },
+  { path: "/updates",           label: "Updates",     icon: AlertTriangle,  group: "System" },
+  { path: "/my-docs",           label: "MyDocs",      icon: FileCheck,      group: "System" },
+  { path: "/profile",           label: "Profile",     icon: Users,          group: "System" },
+  { path: "/agency-settings",   label: "Agency",      icon: Settings,       group: "System" },
+  { path: "/admin-settings",    label: "Admin",       icon: Settings,       group: "System" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -90,14 +103,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Flat nav pills — horizontal scroll */}
         <nav className="app-top-nav">
-          {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ path, label, icon: Icon, group }, i) => {
             const active = isActive(path);
+            const prevGroup = i > 0 ? NAV_ITEMS[i - 1].group : null;
+            const showDivider = prevGroup && prevGroup !== group;
             return (
-              <button key={path} onClick={() => setLocation(path)}
-                className={`app-top-nav-item ${active ? "app-top-nav-item--active" : ""}`}>
-                <Icon className="w-3 h-3" />
-                <span>{label}</span>
-              </button>
+              <React.Fragment key={path}>
+                {showDivider && <div className="w-px h-6 bg-slate-700/60 mx-1 flex-shrink-0" />}
+                <button onClick={() => setLocation(path)}
+                  className={`app-top-nav-item ${active ? "app-top-nav-item--active" : ""}`}>
+                  <Icon className="w-3 h-3" />
+                  <span>{label}</span>
+                </button>
+              </React.Fragment>
             );
           })}
         </nav>

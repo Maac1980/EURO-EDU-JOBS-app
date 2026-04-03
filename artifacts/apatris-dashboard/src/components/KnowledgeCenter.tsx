@@ -48,10 +48,21 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   return { gross, employeeZus, health, pit, net, netPerHour, employerZus, totalCost, taxBase };
 }
 
-// Reverse: walk gross/h by 0.01, return first where netPerHour >= desired
+// Reverse: find gross/h that yields desired net/h
+// Uses smart estimate then walks by 0.01 to find first match
 export function reverseCalculate(hours: number, desiredNet: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
   if (hours <= 0 || desiredNet <= 0) return calculate(hours, 0, contract, applyPit2, includeSickness);
-  let g = 0.01;
+  const desiredNetMonthly = desiredNet * hours;
+  // Estimate gross monthly, then walk down to find start below target
+  let gMonthly = Math.max(0.01, Math.round((desiredNetMonthly / 0.82) * 100) / 100);
+  while (gMonthly > 0.01) {
+    const rate = Math.round((gMonthly / hours) * 100) / 100;
+    const r = calculate(hours, rate, contract, applyPit2, includeSickness);
+    if (r.net < desiredNetMonthly) break;
+    gMonthly = Math.round((gMonthly - hours) * 100) / 100; // step down by 1 PLN/h worth
+  }
+  // Now walk UP by 0.01 PLN/h
+  let g = Math.max(0.01, Math.round((gMonthly / hours) * 100) / 100);
   while (g < 500) {
     const r = calculate(hours, g, contract, applyPit2, includeSickness);
     if (r.netPerHour >= desiredNet) return r;

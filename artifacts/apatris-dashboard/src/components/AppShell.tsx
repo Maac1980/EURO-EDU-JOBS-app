@@ -146,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ─── Mobile Bottom Bar (scrollable for many tabs) ──────────────── */}
       <nav className="app-bottom-bar">
-        {NAV_ITEMS.map(({ path, labelKey, icon: Icon }) => {
+        {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
           const active = isActive(path);
           return (
             <button
@@ -160,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className={`text-[9px] font-mono font-bold uppercase tracking-wide leading-none whitespace-nowrap ${
                 active ? "text-[#E9FF70]" : "text-slate-600"
               }`}>
-                {t(labelKey)}
+                {label}
               </span>
             </button>
           );

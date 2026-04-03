@@ -28,18 +28,28 @@ app.use("/api", limiter);
 app.use("/api", router);
 
 // Serve eej-mobile static files — check multiple possible locations
+const cwd = process.cwd();
+console.log("[static] cwd:", cwd, "__dirname:", __dirname);
 const eejMobilePaths = [
-  path.join(process.cwd(), "eej-mobile-HIDDEN/dist/public"),
+  // Fly.io Docker paths
+  "/app/eej-mobile-HIDDEN/dist/public",
+  "/app/artifacts/eej-mobile/dist/public",
+  // Local / Replit paths
+  path.join(cwd, "eej-mobile-HIDDEN/dist/public"),
+  path.join(cwd, "artifacts/eej-mobile/dist/public"),
+  path.resolve(__dirname, "../../eej-mobile/dist/public"),
+  path.resolve(__dirname, "../../../eej-mobile-HIDDEN/dist/public"),
+  path.resolve(__dirname, "../../../artifacts/eej-mobile/dist/public"),
   "/home/runner/workspace/eej-mobile-HIDDEN/dist/public",
-  path.join(process.cwd(), "artifacts/eej-mobile/dist/public"),
   "/home/runner/workspace/artifacts/eej-mobile/dist/public",
 ];
+console.log("[static] checking eej-mobile paths:", eejMobilePaths.map(p => `${p} → ${fs.existsSync(p)}`));
 const eejMobileDist = eejMobilePaths.find((p) => fs.existsSync(p));
 
 if (eejMobileDist) {
   console.log("[static] serving eej-mobile from:", eejMobileDist);
   app.use("/eej-mobile", express.static(eejMobileDist));
-  app.get("/eej-mobile/*splat", (_req, res) => {
+  app.get("/eej-mobile/{*splat}", (_req, res) => {
     res.sendFile(path.join(eejMobileDist, "index.html"));
   });
 } else {

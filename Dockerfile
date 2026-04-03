@@ -22,6 +22,7 @@ ENV PORT=8080
 COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
 COPY --from=builder /app/eej-mobile-HIDDEN/dist ./eej-mobile-HIDDEN/dist
 COPY --from=builder /app/artifacts/eej-mobile/dist ./artifacts/eej-mobile/dist
+COPY --from=builder /app/artifacts/apatris-dashboard/dist ./artifacts/apatris-dashboard/dist
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/artifacts/api-server/node_modules ./artifacts/api-server/node_modules
 EXPOSE 8080

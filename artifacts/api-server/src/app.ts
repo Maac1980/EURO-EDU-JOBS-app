@@ -27,6 +27,14 @@ app.use("/api", limiter);
 // API routes
 app.use("/api", router);
 
+// No-cache for HTML so browsers always fetch fresh builds
+app.use((req, res, next) => {
+  if (req.path === "/" || req.path.endsWith(".html")) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  }
+  next();
+});
+
 // ── Static file serving for dashboard and mobile app ─────────────────────
 const cwd = process.cwd();
 console.log("[static] cwd:", cwd, "__dirname:", __dirname);

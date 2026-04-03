@@ -938,9 +938,10 @@ export default function Dashboard() {
               })
               .map((worker) => {
                 const statusColor = worker.complianceStatus === "compliant"
-                  ? "#4ade80" : worker.complianceStatus === "warning"
-                  ? "#fbbf24" : worker.complianceStatus === "critical"
-                  ? "#f87171" : "#94a3b8";
+                  ? "#22c55e" : worker.complianceStatus === "warning"
+                  ? "#f59e0b" : worker.complianceStatus === "critical"
+                  ? "#ef4444" : worker.complianceStatus === "non-compliant"
+                  ? "#ef4444" : "#f59e0b";
                 const daysLeft = (d?: string | null) => {
                   if (!d) return null;
                   const diff = Math.round((new Date(d).getTime() - Date.now()) / 86400000);
@@ -1051,6 +1052,11 @@ export default function Dashboard() {
                 ) : (
                   (workersData?.workers ?? [])
                     .filter((w) => {
+                      if (specialization && (w as any).specialization !== specialization) return false;
+                      if (status) {
+                        const s = w.complianceStatus;
+                        if (s !== status) return false;
+                      }
                       const site = (w as any).siteLocation as string | null;
                       if (siteFilter) {
                         if (siteFilter === "Available") { if (!(!site || site === "Available")) return false; }

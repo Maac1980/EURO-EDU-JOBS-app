@@ -177,6 +177,13 @@ body { overscroll-behavior: none; }
 
 input[type="search"]::-webkit-search-cancel-button { display:none; }
 
+/* ══ GLASS PANEL ══ */
+.glass-panel {
+  background: #101624;
+  border: 1px solid rgba(212,232,75,0.08);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
 /* ══ MEGA MENU ══ */
 .app-mega-menu {
   position: absolute; top: 100%; right: 0; z-index: 999;

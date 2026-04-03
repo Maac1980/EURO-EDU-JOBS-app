@@ -48,13 +48,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     case "non-compliant":
       config = {
         label: t("status.nonCompliant"),
-        classes: "border",
-        style: {
-          background: "rgba(233,255,112,0.1)",
-          color: "#E9FF70",
-          borderColor: "rgba(233,255,112,0.3)",
-          boxShadow: "0 0 10px rgba(233,255,112,0.15)",
-        },
+        classes: "bg-red-500/10 text-red-400 border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.3)]",
         icon: XOctagon,
       };
       break;

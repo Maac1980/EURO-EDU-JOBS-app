@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true);
     const result = await login(email, password);
     setLoading(false);
-    if (result.ok) {
+    if (result.success) {
       setLocation("/");
     } else {
       setError(result.error ?? "Login failed");

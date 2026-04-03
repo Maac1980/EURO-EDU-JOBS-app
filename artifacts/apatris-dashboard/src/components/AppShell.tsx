@@ -1,189 +1,115 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useLocation } from "wouter";
-import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
 import {
-  Users, Calculator, AlertTriangle, History, Settings, LogOut,
+  Users, Calculator, AlertTriangle, History, Settings, LogOut, Bell,
   FileSignature, FileCheck, MapPin, BarChart3, Sparkles,
   Shield, Search, CalendarDays, Clock, Award, TrendingUp,
-  Globe, Building2, UserPlus, Briefcase, Receipt, FileText, DollarSign, Stamp,
+  Globe, Building2, UserPlus, Briefcase, Receipt, FileText, Stamp, Upload,
 } from "lucide-react";
 
-// ── Recruitment ──
-const NAV_ITEMS = [
-  { path: "/candidates",        label: "Candidates",  icon: Users,          group: "Recruit" },
-  { path: "/job-board",         label: "Jobs",        icon: Briefcase,      group: "Recruit" },
-  { path: "/ats-pipeline",      label: "ATS",         icon: UserPlus,       group: "Recruit" },
-  { path: "/applications",      label: "Apps",        icon: UserPlus,       group: "Recruit" },
-  { path: "/interviews",        label: "Interviews",  icon: CalendarDays,   group: "Recruit" },
-  { path: "/bulk-upload",       label: "Upload",      icon: FileText,       group: "Recruit" },
-// ── Compliance ──
-  { path: "/compliance-alerts",  label: "Alerts",     icon: AlertTriangle,  group: "Comply" },
-  { path: "/doc-workflow",       label: "Docs",       icon: FileCheck,      group: "Comply" },
-  { path: "/regulatory",        label: "Regulatory",  icon: Shield,         group: "Comply" },
-  { path: "/immigration-search",label: "Immigration", icon: Search,         group: "Comply" },
-  { path: "/immigration",       label: "Permits",     icon: Stamp,          group: "Comply" },
-  { path: "/trc-service",       label: "TRC",         icon: FileCheck,      group: "Comply" },
-  { path: "/gdpr",              label: "GDPR",        icon: Shield,         group: "Comply" },
-  { path: "/ai-audit",          label: "Audit",       icon: Shield,         group: "Comply" },
-// ── Finance ──
-  { path: "/payroll",            label: "Payroll",    icon: Calculator,     group: "Finance" },
-  { path: "/calculator",        label: "ZUS",         icon: Calculator,     group: "Finance" },
-  { path: "/invoices",          label: "Invoices",    icon: Receipt,        group: "Finance" },
-  { path: "/clients",           label: "Clients",     icon: Building2,      group: "Finance" },
-  { path: "/pay-transparency",  label: "PayRpt",      icon: BarChart3,      group: "Finance" },
-  { path: "/salary-benchmark",  label: "Bench",       icon: TrendingUp,     group: "Finance" },
-// ── Operations ──
-  { path: "/contracts",          label: "Contracts",  icon: FileSignature,  group: "Ops" },
-  { path: "/gps-tracking",      label: "GPS",         icon: MapPin,         group: "Ops" },
-  { path: "/availability",      label: "Avail",       icon: CalendarDays,   group: "Ops" },
-  { path: "/shift-schedule",    label: "Shifts",      icon: Clock,          group: "Ops" },
-  { path: "/hours",             label: "Hours",       icon: Clock,          group: "Ops" },
-  { path: "/skills-matrix",     label: "Skills",      icon: Award,          group: "Ops" },
-  { path: "/posted-workers",    label: "Posted",      icon: Globe,          group: "Ops" },
-  { path: "/country-compliance",label: "Countries",   icon: Globe,          group: "Ops" },
-// ── System ──
-  { path: "/analytics",         label: "Analytics",   icon: BarChart3,      group: "System" },
-  { path: "/ai-copilot",        label: "AI",          icon: Sparkles,       group: "System" },
-  { path: "/history",            label: "History",    icon: History,        group: "System" },
-  { path: "/system-logs",       label: "Logs",        icon: FileText,       group: "System" },
-  { path: "/updates",           label: "Updates",     icon: AlertTriangle,  group: "System" },
-  { path: "/my-docs",           label: "MyDocs",      icon: FileCheck,      group: "System" },
-  { path: "/profile",           label: "Profile",     icon: Users,          group: "System" },
-  { path: "/agency-settings",   label: "Agency",      icon: Settings,       group: "System" },
-  { path: "/admin-settings",    label: "Admin",       icon: Settings,       group: "System" },
+const NAV = [
+  { path: "/",                   label: "Home",        icon: BarChart3 },
+  { path: "/candidates",        label: "Candidates",  icon: Users },
+  { path: "/job-board",         label: "Jobs",        icon: Briefcase },
+  { path: "/ats-pipeline",      label: "ATS",         icon: UserPlus },
+  { path: "/applications",      label: "Apps",        icon: UserPlus },
+  { path: "/interviews",        label: "Interviews",  icon: CalendarDays },
+  { path: "/clients",           label: "Clients",     icon: Building2 },
+  { path: "/payroll",            label: "Payroll",    icon: Calculator },
+  { path: "/calculator",        label: "ZUS Calc",    icon: Calculator },
+  { path: "/invoices",          label: "Invoices",    icon: Receipt },
+  { path: "/contracts",          label: "Contracts",  icon: FileSignature },
+  { path: "/compliance-alerts",  label: "Alerts",     icon: AlertTriangle },
+  { path: "/doc-workflow",       label: "Docs",       icon: FileCheck },
+  { path: "/regulatory",        label: "Regulatory",  icon: Shield },
+  { path: "/immigration-search",label: "Immigration", icon: Search },
+  { path: "/immigration",       label: "Permits",     icon: Stamp },
+  { path: "/trc-service",       label: "TRC",         icon: FileCheck },
+  { path: "/gps-tracking",      label: "GPS",         icon: MapPin },
+  { path: "/availability",      label: "Avail",       icon: CalendarDays },
+  { path: "/shift-schedule",    label: "Shifts",      icon: Clock },
+  { path: "/skills-matrix",     label: "Skills",      icon: Award },
+  { path: "/salary-benchmark",  label: "Bench",       icon: TrendingUp },
+  { path: "/analytics",         label: "Analytics",   icon: BarChart3 },
+  { path: "/ai-copilot",        label: "AI",          icon: Sparkles },
+  { path: "/ai-audit",          label: "Audit",       icon: Shield },
+  { path: "/gdpr",              label: "GDPR",        icon: Shield },
+  { path: "/pay-transparency",  label: "PayRpt",      icon: BarChart3 },
+  { path: "/hours",             label: "Hours",       icon: Clock },
+  { path: "/bulk-upload",       label: "Upload",      icon: Upload },
+  { path: "/history",            label: "History",    icon: History },
+  { path: "/posted-workers",    label: "Posted",      icon: Globe },
+  { path: "/country-compliance",label: "Countries",   icon: Globe },
+  { path: "/system-logs",       label: "Logs",        icon: FileText },
+  { path: "/profile",           label: "Profile",     icon: Users },
+  { path: "/agency-settings",   label: "Agency",      icon: Settings },
+  { path: "/admin-settings",    label: "Admin",       icon: Settings },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, logout } = useAuth();
   const [location, setLocation] = useLocation();
-  const { t } = useTranslation();
 
-  const isPublicRoute =
-    location === "/login" ||
-    location.startsWith("/apply") ||
-    location.startsWith("/worker-upload") ||
-    location === "/pricing";
-
+  const isPublicRoute = location === "/login" || location.startsWith("/apply") || location.startsWith("/worker-upload") || location === "/pricing";
   const showShell = isAuthenticated && !isPublicRoute;
 
   useEffect(() => {
-    if (showShell) {
-      document.body.classList.add("has-app-shell");
-    } else {
-      document.body.classList.remove("has-app-shell");
-    }
+    if (showShell) document.body.classList.add("has-app-shell");
+    else document.body.classList.remove("has-app-shell");
     return () => document.body.classList.remove("has-app-shell");
   }, [showShell]);
 
   if (!showShell) return <>{children}</>;
 
-  const isAdmin = user?.role === "Admin";
-
-  const isActive = (path: string) =>
-    path === "/" ? location === "/" : location.startsWith(path);
+  const isActive = (path: string) => path === "/" ? location === "/" : location.startsWith(path);
 
   return (
     <div className="app-shell-root">
-      {/* ─── Top Navigation Bar ───────────────────────────────────────── */}
       <header className="app-top-bar">
-        {/* Brand — click to go home */}
-        <div className="app-top-brand cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLocation("/")}>
-          <div
-            className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
-            style={{ background: "#0066CC", boxShadow: "0 0 0 2px rgba(0,102,204,0.4)" }}
-          >
-            <span style={{ fontWeight: 900, fontSize: 11, color: "#fff", letterSpacing: -0.5 }}>EEJ</span>
+        {/* Brand */}
+        <div className="app-top-brand cursor-pointer" onClick={() => setLocation("/")}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: "#d4e84b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontWeight: 900, fontSize: 12, color: "#0b101e", letterSpacing: -0.5 }}>EEJ</span>
           </div>
           <div className="hidden sm:block">
-            <p className="text-sm font-bold tracking-widest uppercase leading-none text-white">Euro Edu Jobs</p>
-            <p className="text-[9px] text-blue-300 font-mono tracking-widest uppercase leading-none mt-0.5">Recruitment &amp; Compliance</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#d4e84b", letterSpacing: "0.1em", lineHeight: 1, margin: 0 }}>EURO EDU JOBS</p>
+            <p style={{ fontSize: 9, color: "#7a8599", letterSpacing: "0.08em", lineHeight: 1, marginTop: 3 }}>Recruitment & Compliance</p>
           </div>
         </div>
 
-        {/* Flat nav pills — horizontal scroll */}
+        {/* Nav pills */}
         <nav className="app-top-nav">
-          {NAV_ITEMS.map(({ path, label, icon: Icon, group }, i) => {
-            const active = isActive(path);
-            const prevGroup = i > 0 ? NAV_ITEMS[i - 1].group : null;
-            const showDivider = prevGroup && prevGroup !== group;
-            return (
-              <React.Fragment key={path}>
-                {showDivider && <div className="w-px h-6 bg-slate-700/60 mx-1 flex-shrink-0" />}
-                <button onClick={() => setLocation(path)}
-                  className={`app-top-nav-item ${active ? "app-top-nav-item--active" : ""}`}>
-                  <Icon className="w-3 h-3" />
-                  <span>{label}</span>
-                </button>
-              </React.Fragment>
-            );
-          })}
+          {NAV.map(({ path, label, icon: Icon }) => (
+            <button key={path} onClick={() => setLocation(path)}
+              className={`app-top-nav-item ${isActive(path) ? "app-top-nav-item--active" : ""}`}>
+              <Icon style={{ width: 13, height: 13 }} />
+              <span>{label}</span>
+            </button>
+          ))}
         </nav>
 
-        {/* Right: admin settings + user chip */}
+        {/* Right — user + logout */}
         <div className="app-top-right">
-          {isAdmin && (
-            <button
-              onClick={() => setLocation("/admin-settings")}
-              title="Ustawienia"
-              className={`p-1.5 rounded-lg transition-colors ${
-                isActive("/admin-settings")
-                  ? "text-white bg-slate-700"
-                  : "text-slate-500 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-700/60">
-            <div className="w-7 h-7 rounded-full bg-blue-500/30 border border-blue-400/40 flex items-center justify-center flex-shrink-0">
-              <span className="text-[11px] font-bold text-blue-200 font-mono">
-                {user?.name?.charAt(0)?.toUpperCase() ?? "A"}
-              </span>
+          <button onClick={() => setLocation("/compliance-alerts")} style={{ background: "none", border: "none", color: "#7a8599", cursor: "pointer", padding: 4, position: "relative" }}>
+            <Bell style={{ width: 16, height: 16 }} />
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 8, borderLeft: "1px solid rgba(212,232,75,0.1)" }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(212,232,75,0.15)", border: "1px solid rgba(212,232,75,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#d4e84b" }}>{user?.name?.charAt(0) ?? "A"}</span>
             </div>
             <div className="hidden md:block">
-              <p className="text-xs font-bold text-white leading-none">{user?.name}</p>
-              <p className="text-[10px] text-blue-300 font-mono leading-none mt-0.5">{user?.role}</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: "#dde4f0", lineHeight: 1, margin: 0 }}>Anna Bondarenko</p>
+              <p style={{ fontSize: 9, color: "#d4e84b", fontWeight: 600, lineHeight: 1, marginTop: 2 }}>ADMIN</p>
             </div>
-            <button
-              onClick={logout}
-              className="p-1.5 text-slate-500 hover:text-white transition-colors rounded-lg hover:bg-white/10 flex-shrink-0"
-              title="Wyloguj"
-            >
-              <LogOut className="w-4 h-4" />
+            <button onClick={logout} style={{ background: "none", border: "none", color: "#7a8599", cursor: "pointer", padding: 4 }} title="Logout">
+              <LogOut style={{ width: 15, height: 15 }} />
             </button>
           </div>
         </div>
       </header>
 
-      {/* ─── Page content ─────────────────────────────────────────────── */}
-      <div className="app-content-wrapper">
-        {children}
-      </div>
-
-      {/* ─── Mobile Bottom Bar (scrollable for many tabs) ──────────────── */}
-      <nav className="app-bottom-bar">
-        {NAV_ITEMS.map(({ path, label, icon: Icon }) => {
-          const active = isActive(path);
-          return (
-            <button
-              key={path}
-              onClick={() => setLocation(path)}
-              className="flex flex-col items-center justify-center gap-0.5 min-w-[60px] px-1 h-full transition-colors flex-shrink-0"
-            >
-              <div className={`p-1.5 rounded-xl transition-all ${active ? "bg-blue-500/20" : ""}`}>
-                <Icon className={`w-5 h-5 ${active ? "text-white" : "text-slate-500"}`} />
-              </div>
-              <span className={`text-[9px] font-mono font-bold uppercase tracking-wide leading-none whitespace-nowrap ${
-                active ? "text-white" : "text-slate-600"
-              }`}>
-                {label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+      <div className="app-content-wrapper">{children}</div>
     </div>
   );
 }

@@ -1,233 +1,260 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useTranslation } from "react-i18next";
-import { KeyRound, Loader2, RotateCcw, Shield } from "lucide-react";
+
+const LIME = "#E9FF70";
+const DARK = "#333333";
 
 export default function Login() {
-  const { login, verifyOtp } = useAuth();
+  const { login } = useAuth();
   const [, setLocation] = useLocation();
   const { t } = useTranslation();
-
-  // Screen: "login" | "otp"
-  const [screen, setScreen] = useState<"login" | "otp">("login");
-  const [otpSession, setOtpSession] = useState("");
-  const [otpEmail, setOtpEmail] = useState("");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpToken, setTotpToken] = useState("");
+  const [requires2FA, setRequires2FA] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // OTP: 6 individual digit inputs
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const inputStyle = {
+    background: "#f7f7f7",
+    border: "2px solid #e8e8e8",
+    color: DARK,
+    opacity: loading ? 0.6 : 1,
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = LIME;
+    e.currentTarget.style.boxShadow = `0 0 0 3px ${LIME}40`;
+  };
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = "#e8e8e8";
+    e.currentTarget.style.boxShadow = "none";
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const result = await login(email, password);
+    const result = await login(email, password, requires2FA ? totpToken : undefined);
     setLoading(false);
-    if (!result.ok) {
-      setError(result.error || t("login.invalidCredentials"));
-      return;
-    }
-    if (result.otpRequired && result.session) {
-      setOtpSession(result.session);
-      setOtpEmail(email);
-      setScreen("otp");
-      return;
-    }
-    setLocation("/");
-  };
-
-  const handleOtpChange = (idx: number, val: string) => {
-    const digit = val.replace(/\D/g, "").slice(-1);
-    const next = [...otp];
-    next[idx] = digit;
-    setOtp(next);
-    if (digit && idx < 5) otpRefs.current[idx + 1]?.focus();
-  };
-
-  const handleOtpKeyDown = (idx: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !otp[idx] && idx > 0) {
-      otpRefs.current[idx - 1]?.focus();
+    if (result.success) {
+      const returnTo = sessionStorage.getItem("eej_return_to");
+      if (returnTo) {
+        sessionStorage.removeItem("eej_return_to");
+        window.location.href = window.location.pathname + returnTo;
+      } else {
+        setLocation("/");
+      }
+    } else if (result.requires2FA) {
+      setRequires2FA(true);
+      setError("");
+    } else {
+      setError(result.error ?? t("login.invalidCredentials"));
     }
   };
 
-  const handleOtpPaste = (e: React.ClipboardEvent) => {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted.length === 6) {
-      setOtp(pasted.split(""));
-      otpRefs.current[5]?.focus();
-    }
-  };
+  return (
+    <div className="h-screen w-full flex overflow-hidden" style={{ background: "#ffffff" }}>
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = otp.join("");
-    if (code.length < 6) { setError("Please enter all 6 digits."); return; }
-    setError("");
-    setLoading(true);
-    const result = await verifyOtp(otpSession, code);
-    setLoading(false);
-    if (!result.ok) {
-      setError(result.error || "Invalid code");
-      setOtp(["", "", "", "", "", ""]);
-      otpRefs.current[0]?.focus();
-      return;
-    }
-    setLocation("/");
-  };
+      {/* ── Left: Lime brand panel ── */}
+      <div
+        className="hidden lg:flex flex-col justify-between flex-1 relative overflow-hidden"
+        style={{ background: LIME }}
+      >
+        {/* Grid texture */}
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: `repeating-linear-gradient(0deg, ${DARK} 0px, transparent 1px, transparent 40px),
+                              repeating-linear-gradient(90deg, ${DARK} 0px, transparent 1px, transparent 40px)`,
+            backgroundSize: "40px 40px",
+          }}
+        />
 
-  const brandPanel = (
-    <div className="hidden lg:flex flex-1 relative overflow-hidden">
-      <img
-        src={`${import.meta.env.BASE_URL}images/brand-bg.png`}
-        alt="EEJ Brand"
-        className="w-full h-full object-cover object-center"
-      />
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-background" />
-      <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-background/20" />
-      <div className="absolute bottom-10 left-10 right-16">
-        <p className="text-white/30 font-mono text-xs tracking-widest uppercase">
-          EEJ · SPECIALIST WELDING · EST. WARSAW
-        </p>
-      </div>
-    </div>
-  );
-
-  const brandHeader = (
-    <div className="text-center mb-8">
-      <div className="w-14 h-1 bg-lime-500 mx-auto mb-6 rounded-full" />
-      <h1 className="text-4xl font-bold text-white tracking-[0.2em] uppercase leading-none">EEJ</h1>
-      <p className="text-gray-400 text-sm tracking-wider uppercase mt-3 leading-snug">
-        Precision Welding Outsourcing.&nbsp;Your vision, expertly welded.
-      </p>
-    </div>
-  );
-
-  // ── OTP Screen ──────────────────────────────────────────────────────────────
-  if (screen === "otp") {
-    return (
-      <div className="h-screen w-full flex bg-background overflow-hidden">
-        {brandPanel}
-        <div className="w-full lg:w-[460px] flex flex-col justify-center items-center h-full overflow-y-auto relative bg-background border-l border-white/5 px-8 py-10">
-          <div className="absolute inset-0 opacity-15 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-          <div className="relative z-10 w-full max-w-sm">
-            {brandHeader}
-            <div className="bg-gray-900/80 border border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
-              <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-full bg-lime-500/20 border border-lime-400/40 flex items-center justify-center mx-auto mb-3">
-                  <KeyRound className="w-6 h-6 text-lime-300" />
-                </div>
-                <h2 className="text-white font-bold text-base tracking-widest uppercase">Two-Factor Verification</h2>
-                <p className="text-gray-400 text-xs mt-2 leading-relaxed">
-                  A 6-digit code was sent to<br />
-                  <span className="text-gray-200 font-mono">{otpEmail}</span>
-                </p>
-              </div>
-
-              {error && (
-                <div className="mb-4 p-3 rounded-lg bg-lime-400/30 border border-lime-400/40 text-lime-300 text-sm text-center">
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleVerifyOtp} className="space-y-6">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 tracking-widest uppercase mb-3 text-center">
-                    Enter Verification Code
-                  </label>
-                  <div className="flex gap-2 justify-center" onPaste={handleOtpPaste}>
-                    {otp.map((digit, idx) => (
-                      <input
-                        key={idx}
-                        ref={(el) => { otpRefs.current[idx] = el; }}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={digit}
-                        disabled={loading}
-                        onChange={(e) => handleOtpChange(idx, e.target.value)}
-                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                        className="w-11 h-14 text-center text-xl font-bold font-mono bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-red-500/50 transition-all disabled:opacity-50 caret-transparent"
-                      />
-                    ))}
-                  </div>
-                  <p className="text-center text-xs text-gray-600 font-mono mt-3">Code expires in 5 minutes</p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || otp.join("").length < 6}
-                  className="w-full flex items-center justify-center gap-2 bg-lime-500 hover:bg-lime-500 disabled:bg-lime-400/60 disabled:cursor-not-allowed transition-colors rounded-lg px-4 py-3 text-white font-bold uppercase tracking-widest text-sm shadow-lg shadow-red-900/30"
-                >
-                  {loading ? <><Loader2 className="w-4 h-4 animate-spin" /><span>Verifying...</span></> : <><Shield className="w-4 h-4" /><span>Verify & Sign In</span></>}
-                </button>
-              </form>
-            </div>
-
-            <button
-              onClick={() => { setScreen("login"); setError(""); setOtp(["", "", "", "", "", ""]); }}
-              className="mt-4 w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-xs font-mono transition-colors"
+        {/* Centre content */}
+        <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-16 text-center select-none">
+          <div
+            className="w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-2xl"
+            style={{ background: DARK }}
+          >
+            <span
+              className="text-3xl font-black tracking-tighter"
+              style={{ color: LIME, fontFamily: "Arial Black, Arial, sans-serif" }}
             >
-              <RotateCcw className="w-3 h-3" /> Back to login
-            </button>
+              EEJ
+            </span>
           </div>
+
+          <h1
+            className="text-5xl font-black uppercase tracking-tight leading-none"
+            style={{ color: DARK }}
+          >
+            EURO EDU JOBS
+          </h1>
+
+          <p
+            className="text-base font-bold mt-5 uppercase tracking-widest leading-relaxed"
+            style={{ color: DARK, opacity: 0.7 }}
+          >
+            Your Reliable Partners<br />In Europe
+          </p>
+        </div>
+
+        {/* Bottom tag */}
+        <div className="relative z-10 px-10 py-8">
+          <p className="text-xs font-mono uppercase tracking-widest" style={{ color: DARK, opacity: 0.35 }}>
+            Est. Europe · Global Talent Solutions
+          </p>
         </div>
       </div>
-    );
-  }
 
-  // ── Login Screen ────────────────────────────────────────────────────────────
-  return (
-    <div className="h-screen w-full flex bg-background overflow-hidden">
-      {brandPanel}
-      <div className="w-full lg:w-[460px] flex flex-col justify-center items-center h-full overflow-y-auto relative bg-background border-l border-white/5 px-8 py-10">
-        <div className="absolute inset-0 opacity-15 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-        <div className="relative z-10 w-full max-w-sm">
-          {brandHeader}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/10" />
-            <span className="text-gray-500 font-mono text-xs tracking-widest uppercase">{t("login.terminal")}</span>
-            <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/10" />
+      {/* ── Right: Login form ── */}
+      <div
+        className="w-full lg:w-[460px] flex flex-col justify-center items-center h-full px-10 py-10"
+        style={{ background: "#ffffff" }}
+      >
+        <div className="w-full max-w-[340px]">
+
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-10">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3"
+              style={{ background: LIME }}
+            >
+              <span className="text-xl font-black tracking-tighter" style={{ color: DARK }}>EEJ</span>
+            </div>
+            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: DARK }}>
+              EURO EDU JOBS
+            </h1>
+            <p className="text-xs font-bold uppercase tracking-widest mt-1" style={{ color: "#aaa" }}>
+              Your Reliable Partners In Europe
+            </p>
           </div>
 
-          <div className="bg-gray-900/80 border border-white/10 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {error && (
-                <div className="p-3 rounded-lg bg-lime-400/30 border border-lime-400/40 text-lime-300 text-sm text-center">
-                  {error}
+          {/* Heading */}
+          <div className="mb-8">
+            <h2 className="text-3xl font-black uppercase tracking-tight" style={{ color: DARK }}>
+              Sign In
+            </h2>
+            <div className="mt-3 h-1 w-10 rounded-full" style={{ background: LIME }} />
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div
+              className="p-3 rounded-xl text-sm font-medium mb-5"
+              style={{ background: "#fff0f0", border: "1px solid #ffd0d0", color: "#c0392b" }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: "#999" }}>
+                {t("login.operatorId")}
+              </label>
+              <input
+                type="email"
+                required
+                autoComplete="username"
+                disabled={loading}
+                className="w-full rounded-xl px-4 py-3 text-sm transition-all outline-none"
+                style={inputStyle}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                placeholder="you@euro-edu-jobs.eu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: "#999" }}>
+                {t("login.passcode")}
+              </label>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                disabled={loading}
+                className="w-full rounded-xl px-4 py-3 text-sm transition-all outline-none"
+                style={inputStyle}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                placeholder="••••••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            {/* 2FA TOTP — only shown when required */}
+            {requires2FA && (
+              <div className="space-y-1.5">
+                <div
+                  className="p-3 rounded-xl text-xs font-medium"
+                  style={{ background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e" }}
+                >
+                  Enter the 6-digit code from your Authenticator app.
                 </div>
-              )}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-300 tracking-widest uppercase">{t("login.operatorId")}</label>
+                <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: "#999" }}>
+                  Authenticator Code
+                </label>
                 <input
-                  type="email" required disabled={loading}
-                  className="w-full bg-gray-800 border border-gray-500 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-red-500/50 transition-all placeholder:text-gray-500 disabled:opacity-50"
-                  placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  required
+                  disabled={loading}
+                  className="w-full rounded-xl px-4 py-3 text-center font-mono tracking-[0.4em] text-xl transition-all outline-none"
+                  style={inputStyle}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
+                  placeholder="000000"
+                  value={totpToken}
+                  onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 />
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-300 tracking-widest uppercase">{t("login.passcode")}</label>
-                <input
-                  type="password" required disabled={loading}
-                  className="w-full bg-gray-800 border border-gray-500 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-red-500/50 transition-all placeholder:text-gray-500 disabled:opacity-50"
-                  placeholder="••••••••••••" value={password} onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <button
-                type="submit" disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-lime-500 hover:bg-lime-500 disabled:bg-lime-400/60 disabled:cursor-not-allowed transition-colors rounded-lg px-4 py-3 text-white font-bold uppercase tracking-widest text-sm mt-2 shadow-lg shadow-red-900/30"
-              >
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /><span>Verifying...</span></> : <><Shield className="w-4 h-4" /><span>{t("login.submit")}</span></>}
-              </button>
-            </form>
-          </div>
+            )}
 
-          <p className="text-center text-xs font-mono text-gray-600 mt-5">{t("login.unauthorized")}</p>
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 font-black uppercase tracking-widest text-sm transition-all hover:opacity-90 mt-2"
+              style={{
+                background: loading ? "#d0d0d0" : LIME,
+                color: DARK,
+                boxShadow: loading ? "none" : `0 4px 24px ${LIME}66`,
+                cursor: loading ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke={DARK} strokeWidth="4" />
+                    <path className="opacity-75" fill={DARK} d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Verifying…
+                </>
+              ) : (
+                t("login.submit")
+              )}
+            </button>
+
+          </form>
+
+          <p className="text-center text-[10px] font-mono mt-8" style={{ color: "#ccc" }}>
+            {t("login.unauthorized")}
+          </p>
+
         </div>
       </div>
     </div>

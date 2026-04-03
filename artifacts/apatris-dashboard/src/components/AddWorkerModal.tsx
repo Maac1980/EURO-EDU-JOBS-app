@@ -1,131 +1,80 @@
 import React, { useState } from "react";
-import { X, UserPlus, Loader2, Landmark } from "lucide-react";
+import { X, UserPlus, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetWorkersQueryKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
-const SPEC_OPTIONS = ["TIG", "MIG", "MAG", "MMA", "ARC / Electrode", "FCAW", "FABRICATOR"];
-const ZUS_OPTIONS = ["Registered", "Unregistered", "Unknown"];
-const VISA_TYPES = [
-  "Karta Pobytu - Czasowy", "Karta Pobytu - Stały", "Karta Pobytu - UE LT",
-  "Wiza D", "Wiza C", "EU Citizen", "Other",
-];
+const LIME = "#E9FF70";
+const LIME_BORDER = "rgba(233,255,112,0.25)";
+const inputCls = "w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none placeholder:text-gray-600 transition-colors";
+const inputStyle = { border: `1px solid ${LIME_BORDER}` };
 
-const inputCls =
-  "w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-lime-400/60 placeholder:text-gray-600 transition-colors";
-const labelCls = "block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5";
+const JOB_ROLES = ["TIG", "MIG", "MAG", "MMA", "FCAW", "FABRICATOR", "Pipe Fitter", "Structural Welder", "Site Supervisor", "Other"];
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className={labelCls}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[10px] font-bold uppercase tracking-widest text-lime-300 border-b border-white/10 pb-2 mb-3 mt-5 first:mt-0">
-      {children}
-    </p>
-  );
-}
-
-interface Props {
+interface AddWorkerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreated?: (workerId: string) => void;
 }
 
-export function AddWorkerModal({ isOpen, onClose, onCreated }: Props) {
+export function AddWorkerModal({ isOpen, onClose }: AddWorkerModalProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [saving, setSaving] = useState(false);
 
-  // Required
   const [name, setName] = useState("");
-  // Core
   const [specialization, setSpecialization] = useState("");
-  const [assignedSite, setAssignedSite] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  // Expiries
-  const [trcExpiry, setTrcExpiry] = useState("");
-  const [passportExpiry, setPassportExpiry] = useState("");
-  const [bhpExpiry, setBhpExpiry] = useState("");
-  const [contractEndDate, setContractEndDate] = useState("");
-  const [workPermitExpiry, setWorkPermitExpiry] = useState("");
-  const [medicalExamExpiry, setMedicalExamExpiry] = useState("");
-  const [oswiadczenieExpiry, setOswiadczenieExpiry] = useState("");
-  const [udtCertExpiry, setUdtCertExpiry] = useState("");
-  // Identity
-  const [pesel, setPesel] = useState("");
-  const [nip, setNip] = useState("");
-  const [visaType, setVisaType] = useState("");
-  const [zusStatus, setZusStatus] = useState("");
-  // Bank
+  const [siteLocation, setSiteLocation] = useState("");
   const [iban, setIban] = useState("");
+  const [trcExpiry, setTrcExpiry] = useState("");
+  const [workPermitExpiry, setWorkPermitExpiry] = useState("");
+  const [contractEndDate, setContractEndDate] = useState("");
+  const [hourlyNettoRate, setHourlyNettoRate] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const reset = () => {
-    setName(""); setSpecialization(""); setAssignedSite(""); setEmail(""); setPhone("");
-    setTrcExpiry(""); setPassportExpiry(""); setBhpExpiry(""); setContractEndDate("");
-    setWorkPermitExpiry(""); setMedicalExamExpiry(""); setOswiadczenieExpiry(""); setUdtCertExpiry("");
-    setPesel(""); setNip(""); setVisaType(""); setZusStatus(""); setIban("");
+    setName(""); setSpecialization(""); setEmail(""); setPhone("");
+    setSiteLocation(""); setIban(""); setTrcExpiry(""); setWorkPermitExpiry("");
+    setContractEndDate(""); setHourlyNettoRate("");
   };
 
   const handleClose = () => { reset(); onClose(); };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      toast({ title: t("addWorker.nameRequired"), variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
-      const body: Record<string, string> = { name: name.trim() };
-      if (specialization) body.specialization = specialization;
-      if (assignedSite.trim()) body.assignedSite = assignedSite.trim();
-      if (email.trim()) body.email = email.trim();
-      if (phone.trim()) body.phone = phone.trim();
-      if (trcExpiry) body.trcExpiry = trcExpiry;
-      if (passportExpiry) body.passportExpiry = passportExpiry;
-      if (bhpExpiry) body.bhpExpiry = bhpExpiry;
-      if (contractEndDate) body.contractEndDate = contractEndDate;
-      if (workPermitExpiry) body.workPermitExpiry = workPermitExpiry;
-      if (medicalExamExpiry) body.medicalExamExpiry = medicalExamExpiry;
-      if (oswiadczenieExpiry) body.oswiadczenieExpiry = oswiadczenieExpiry;
-      if (udtCertExpiry) body.udtCertExpiry = udtCertExpiry;
-      if (pesel.trim()) body.pesel = pesel.trim();
-      if (nip.trim()) body.nip = nip.trim();
-      if (visaType) body.visaType = visaType;
-      if (zusStatus) body.zusStatus = zusStatus;
-      if (iban.trim()) body.iban = iban.trim().toUpperCase().replace(/\s/g, "");
+      const payload: Record<string, unknown> = { name: name.trim() };
+      if (specialization) payload.specialization = specialization;
+      if (email.trim()) payload.email = email.trim();
+      if (phone.trim()) payload.phone = phone.trim();
+      if (siteLocation.trim()) payload.siteLocation = siteLocation.trim();
+      if (trcExpiry) payload.trcExpiry = trcExpiry;
+      if (workPermitExpiry) payload.workPermitExpiry = workPermitExpiry;
+      if (contractEndDate) payload.contractEndDate = contractEndDate;
+      const rate = parseFloat(hourlyNettoRate);
+      if (!isNaN(rate) && rate > 0) payload.hourlyNettoRate = rate;
+      if (iban.trim()) payload.iban = iban.trim().toUpperCase();
 
-      const res = await fetch(`${import.meta.env.BASE_URL}api/workers`, {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/workers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Failed to create worker" }));
-        throw new Error(err.error ?? "Failed to create worker");
-      }
-      const worker = await res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create worker");
+
       await queryClient.invalidateQueries({ queryKey: getGetWorkersQueryKey() });
-      await queryClient.invalidateQueries({ queryKey: ["workers-sites"] });
-      toast({
-        title: "Worker Created",
-        description: `${worker.name} has been added to the system.`,
-        className: "border-green-500/50 bg-slate-900 text-white [&>div]:text-green-400",
-      });
-      reset();
-      onClose();
-      if (onCreated) onCreated(worker.id);
+      toast({ title: `✓ ${t("addWorker.created")}`, description: name.trim(), variant: "success" as any });
+      handleClose();
     } catch (err) {
-      toast({
-        title: "Creation Failed",
-        description: err instanceof Error ? err.message : "Unknown error",
-        variant: "destructive",
-      });
+      toast({ title: t("addWorker.failed"), description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -134,155 +83,143 @@ export function AddWorkerModal({ isOpen, onClose, onCreated }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={handleClose}>
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    >
       <div
-        className="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        style={{ boxShadow: "0 0 0 1px rgba(196,30,24,0.2), 0 25px 60px rgba(0,0,0,0.7)" }}
+        className="w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden"
+        style={{ background: "#0f1218", borderColor: LIME_BORDER }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
+        <div className="px-6 py-5 border-b flex items-center justify-between" style={{ borderColor: LIME_BORDER, background: "rgba(233,255,112,0.04)" }}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-lime-500/20 border border-lime-400/30 flex items-center justify-center">
-              <UserPlus className="w-4 h-4 text-lime-300" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: LIME }}>
+              <UserPlus className="w-5 h-5" style={{ color: "#333333" }} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Add New Worker</h2>
-              <p className="text-xs text-gray-500 font-mono">Creates a record directly in Airtable</p>
+              <h2 className="text-base font-black text-white uppercase tracking-wide">{t("addWorker.title")}</h2>
+              <p className="text-[10px] font-mono mt-0.5" style={{ color: LIME, opacity: 0.7 }}>EURO EDU JOBS · New Record</p>
             </div>
           </div>
-          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <X className="w-5 h-5 text-gray-400" />
+          <button onClick={handleClose} className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors">
+            <X className="w-4 h-4 text-gray-400" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-0">
+        <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
 
-            <SectionTitle>Identity (required)</SectionTitle>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <Field label="Full Name *">
-                  <input
-                    type="text" value={name} onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Jan Kowalski" required
-                    className={`${inputCls} ${!name.trim() ? "border-lime-400/40" : ""}`}
-                  />
-                </Field>
-              </div>
-              <Field label="Specialization">
-                <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className={inputCls}>
-                  <option value="">— Select —</option>
-                  {SPEC_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </Field>
-              <Field label="Client / Site">
-                <input type="text" value={assignedSite} onChange={(e) => setAssignedSite(e.target.value)} placeholder="e.g. Gdańsk Shipyard" className={inputCls} />
-              </Field>
-              <Field label="Email">
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jan@example.com" className={inputCls} />
-              </Field>
-              <Field label="Phone">
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+48 000 000 000" className={inputCls} />
-              </Field>
+          {/* Name — required */}
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>
+              {t("addWorker.name")} <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("addWorker.namePlaceholder")}
+              className={inputCls}
+              style={inputStyle}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            />
+          </div>
+
+          {/* Job Role */}
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.jobRole")}</label>
+            <select value={specialization} onChange={(e) => setSpecialization(e.target.value)} className="w-full bg-slate-800 text-white rounded-lg px-3 py-2.5 text-sm font-mono appearance-none focus:outline-none" style={inputStyle}>
+              <option value="">—</option>
+              {JOB_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          {/* Email + Phone */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("settings.email")}</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email.com" className={`text-xs ${inputCls}`} style={inputStyle} />
             </div>
-
-            <SectionTitle>Document Expiry Dates</SectionTitle>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="TRC Expiry">
-                <input type="date" value={trcExpiry} onChange={(e) => setTrcExpiry(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Passport Expiry">
-                <input type="date" value={passportExpiry} onChange={(e) => setPassportExpiry(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="BHP Certificate Expiry">
-                <input type="date" value={bhpExpiry} onChange={(e) => setBhpExpiry(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Contract End Date">
-                <input type="date" value={contractEndDate} onChange={(e) => setContractEndDate(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Work Permit Expiry">
-                <input type="date" value={workPermitExpiry} onChange={(e) => setWorkPermitExpiry(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Medical Exam (Badania) Expiry">
-                <input type="date" value={medicalExamExpiry} onChange={(e) => setMedicalExamExpiry(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="Oświadczenie Expiry">
-                <input type="date" value={oswiadczenieExpiry} onChange={(e) => setOswiadczenieExpiry(e.target.value)} className={inputCls} />
-              </Field>
-              <Field label="UDT Certificate Expiry">
-                <input type="date" value={udtCertExpiry} onChange={(e) => setUdtCertExpiry(e.target.value)} className={inputCls} />
-              </Field>
-            </div>
-
-            <SectionTitle>Legal Status</SectionTitle>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="PESEL">
-                <input type="text" value={pesel} onChange={(e) => setPesel(e.target.value)} placeholder="00000000000" maxLength={11} className={inputCls} />
-              </Field>
-              <Field label="NIP">
-                <input type="text" value={nip} onChange={(e) => setNip(e.target.value)} placeholder="000-000-00-00" className={inputCls} />
-              </Field>
-              <Field label="ZUS Status">
-                <select value={zusStatus} onChange={(e) => setZusStatus(e.target.value)} className={inputCls}>
-                  <option value="">— Select —</option>
-                  {ZUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </Field>
-              <Field label="Visa / Permit Type">
-                <select value={visaType} onChange={(e) => setVisaType(e.target.value)} className={inputCls}>
-                  <option value="">— Select —</option>
-                  {VISA_TYPES.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </Field>
-            </div>
-
-            <SectionTitle>Bank Details</SectionTitle>
-            <div className="grid grid-cols-1 gap-3">
-              <Field label="IBAN (Bank Account Number)">
-                <div className="relative">
-                  <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={iban}
-                    onChange={(e) => setIban(e.target.value.toUpperCase().replace(/\s/g, ""))}
-                    placeholder="e.g. PL61109010140000071219812874"
-                    className={`${inputCls} pl-9`}
-                    maxLength={34}
-                  />
-                </div>
-                <p className="text-[10px] text-gray-600 font-mono mt-1.5">Used for automatic bank transfer CSV generation. Spaces are auto-removed.</p>
-              </Field>
-            </div>
-
-            <div className="pt-2 pb-1">
-              <p className="text-xs text-gray-600 font-mono text-center">
-                Documents & payroll can be added after creation via the worker profile panel
-              </p>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("settings.phone")}</label>
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+48…" className={`text-xs ${inputCls}`} style={inputStyle} />
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex gap-3 px-6 py-4 border-t border-white/10 flex-shrink-0">
-            <button
-              type="button" onClick={handleClose}
-              className="flex-1 py-2.5 border border-white/15 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-sm font-bold uppercase tracking-wider transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit" disabled={saving || !name.trim()}
-              className="flex-1 py-2.5 bg-red-700 hover:bg-lime-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(196,30,24,0.35)]"
-            >
-              {saving ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</>
-              ) : (
-                <><UserPlus className="w-4 h-4" /> Create Worker</>
-              )}
-            </button>
+          {/* Assigned Site */}
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("table.assignedSite")}</label>
+            <input type="text" value={siteLocation} onChange={(e) => setSiteLocation(e.target.value)} placeholder={t("edit.assignPlaceholder")} className={inputCls} style={inputStyle} />
           </div>
-        </form>
+
+          {/* Hourly Rate */}
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("edit.hourlyNettoRate")}</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-400">zł</span>
+              <input type="number" min="0" step="0.5" value={hourlyNettoRate} onChange={(e) => setHourlyNettoRate(e.target.value)} placeholder="e.g. 28" className={`${inputCls} pl-8 pr-12`} style={inputStyle} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-gray-500">/hr</span>
+            </div>
+          </div>
+
+          {/* Bank IBAN */}
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5 flex items-center gap-1.5" style={{ color: LIME }}>
+              🏦 Bank IBAN
+            </label>
+            <input
+              type="text"
+              value={iban}
+              onChange={(e) => setIban(e.target.value.toUpperCase())}
+              placeholder="PL61 1090 1014 0000 0712 1981 2874"
+              className={inputCls}
+              style={inputStyle}
+            />
+            <p className="text-[10px] font-mono mt-1 text-gray-600">Auto-populated in payroll ledger IBAN column</p>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t pt-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color: LIME, opacity: 0.6 }}>{t("addWorker.documents")}</p>
+          </div>
+
+          {/* TRC + Work Permit */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("panel.trcExpiry")}</label>
+              <input type="date" value={trcExpiry} onChange={(e) => setTrcExpiry(e.target.value)} className={`text-xs ${inputCls}`} style={{ ...inputStyle, colorScheme: "dark" }} />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("panel.workPermitExpiry")}</label>
+              <input type="date" value={workPermitExpiry} onChange={(e) => setWorkPermitExpiry(e.target.value)} className={`text-xs ${inputCls}`} style={{ ...inputStyle, colorScheme: "dark" }} />
+            </div>
+          </div>
+
+          {/* Contract End Date */}
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: LIME }}>{t("panel.contractEndDate")}</label>
+            <input type="date" value={contractEndDate} onChange={(e) => setContractEndDate(e.target.value)} className={inputCls} style={{ ...inputStyle, colorScheme: "dark" }} />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t flex gap-3" style={{ borderColor: LIME_BORDER, background: "rgba(0,0,0,0.2)" }}>
+          <button onClick={handleClose} className="flex-1 py-2.5 rounded-xl border text-sm font-bold uppercase tracking-wider text-gray-300 hover:text-white transition-all hover:bg-white/5" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+            {t("edit.close")}
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving || !name.trim()}
+            className="flex-1 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
+            style={{ background: LIME, color: "#333333" }}
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+            {saving ? t("edit.saving") : t("addWorker.create")}
+          </button>
+        </div>
       </div>
     </div>
   );

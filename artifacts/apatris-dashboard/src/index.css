@@ -73,8 +73,8 @@
 }
 
 /* ============================================
-   EEJ BRAND THEME
-   Primary:     Lime Yellow (#E9FF70)
+   EURO EDU JOBS BRAND THEME
+   Primary:     EEJ Lime Yellow (#E9FF70 / hsl 69 100% 72%)
    Steel:       Metallic Silver (#8A9BB0)
    Background:  Deep charcoal steel (#0D0F14)
    Accent:      Warm steel grey
@@ -114,7 +114,7 @@
   --popover-foreground: 210 18% 88%;
   --popover-border: 216 16% 18%;
 
-  /* Primary: EEJ Lime Yellow (#E9FF70)
+  /* Primary: EEJ Lime Yellow */
   --primary: 69 100% 72%;
   --primary-foreground: 0 0% 20%;
 
@@ -149,7 +149,7 @@
   --chart-4: 0 85% 58%;
   --chart-5: 28 95% 52%;
 
-  --app-font-sans: 'Inter', system-ui, sans-serif;
+  --app-font-sans: 'Montserrat', 'Inter', system-ui, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --radius: 0.5rem;
@@ -255,7 +255,7 @@
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 4px 10px -6px rgba(0, 0, 0, 0.3);
   }
 
-  /* Tech border — EEJ crimson glow */
+  /* Tech border — Agency Blue accent */
   .tech-border {
     border: 1px solid #334155;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
@@ -264,11 +264,6 @@
   /* Steel divider line */
   .steel-divider {
     border-color: rgba(138, 155, 176, 0.15);
-  }
-
-  /* Skeleton shimmer animation */
-  @keyframes shimmer {
-    100% { transform: translateX(100%); }
   }
 
   /* Fade-in animation */
@@ -290,7 +285,7 @@
     text-shadow: 0 0 20px rgba(233, 255, 112, 0.7);
   }
   .text-glow-destructive {
-    text-shadow: 0 0 20px rgba(200, 224, 80, 0.6);
+    text-shadow: 0 0 20px rgba(220, 60, 60, 0.6);
   }
 
   input[type="search"]::-webkit-search-cancel-button { @apply hidden; }
@@ -339,272 +334,220 @@
   .border.active-elevate:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after { inset: -1px; }
+
+  /* Table scroll container utility */
+  .table-scroll-container {
+    overflow-x: scroll;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   GLOBAL PHYSICS FOUNDATION
-   Spec: html, body — margin:0; padding:0; overflow:hidden; height:100vh;
-         width:100vw; box-sizing:border-box
-   viewport meta in index.html: maximum-scale=1.0, user-scalable=no,
-                                 viewport-fit=cover  (already set)
-   ═══════════════════════════════════════════════════════════════════════════ */
-*, *::before, *::after { box-sizing: border-box; }
-
-html {
-  margin: 0;
-  padding: 0;
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
+/* Scrollbar styling — outside layer so webkit pseudo-elements apply reliably */
+.table-scroll-container::-webkit-scrollbar {
+  height: 8px;
+}
+.table-scroll-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+.table-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(233, 255, 112, 0.4);
+  border-radius: 4px;
+}
+.table-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(233, 255, 112, 0.7);
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-  overscroll-behavior: none;    /* kills iOS elastic bounce without blocking touch */
-}
+/* ═══════════════════════════════════════════════════════════════════
+   HYBRID APP SHELL  —  Responsive Native/Enterprise Layout
+   Mobile  ≤ 768px : Bottom App Bar + physics scroll lock
+   Desktop ≥ 769px : Fixed Left Sidebar + full-width tables
+═══════════════════════════════════════════════════════════════════ */
 
-#root {
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   APP SHELL ROOT  — flex column: [top-bar] + [content wrapper]
-   ═══════════════════════════════════════════════════════════════════════════ */
-.app-shell-root {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TOP NAVIGATION BAR  (desktop)
-   Height: 52px. Contains: brand | nav tabs (center) | user+logout (right)
-   ═══════════════════════════════════════════════════════════════════════════ */
-.app-top-bar {
-  height: 52px;
-  flex-shrink: 0;
-  width: 100%;
-  background: linear-gradient(180deg, #0f172a 0%, #0c1424 100%);
-  border-bottom: 1px solid rgba(196,30,24,0.18);
-  display: flex;
-  align-items: stretch;
-  z-index: 200;
-  box-shadow: 0 1px 0 rgba(196,30,24,0.08), 0 1px 0 rgba(255,255,255,0.03), 0 4px 24px rgba(0,0,0,0.45);
-}
-
-.app-top-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 20px;
-  flex-shrink: 0;
-  border-right: 1px solid rgba(255,255,255,0.06);
-}
-
-/* Nav tabs — compact pills, horizontally scrollable */
-.app-top-nav {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  gap: 3px;
-  padding: 0 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  -webkit-overflow-scrolling: touch;
-}
-.app-top-nav::-webkit-scrollbar { display: none; }
-
-.app-top-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  font-size: 10px;
-  font-family: ui-monospace, monospace;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  border: none;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.04);
-  color: #64748b;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  flex-shrink: 0;
-}
-/* Always show labels — pills are small enough */
-
-.app-top-nav-item:hover {
-  background: rgba(196,30,24,0.15);
-  color: #fca5a5;
-  box-shadow: 0 0 6px rgba(196,30,24,0.12);
-}
-.app-top-nav-item--active {
-  background: #E9FF70;
-  color: #ffffff;
-  box-shadow: 0 0 12px rgba(196,30,24,0.4);
-  font-weight: 700;
-}
-
-.app-top-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px;
-  flex-shrink: 0;
-  border-left: 1px solid rgba(255,255,255,0.06);
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   CONTENT WRAPPER  — fills remaining height below top bar
-   ═══════════════════════════════════════════════════════════════════════════ */
-.app-content-wrapper {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Pages (.app-shell-page) fill the content wrapper exactly.
-   height: 100% overrides the Tailwind h-screen (100vh) that pages apply —
-   we want the page to fill app-content-wrapper, not the full viewport. */
-.app-shell-page {
-  flex: 1;
+/* 1. VIEWPORT & PHYSICS LOCK */
+html, body {
   height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  margin: 0;
+  padding: 0;
 }
 
-/* Hide in-page nav buttons — top bar handles navigation */
-body.has-app-shell .app-shell-nav-btns {
+@media (max-width: 768px) {
+  html, body {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    position: fixed;
+    touch-action: none;
+  }
+}
+
+/* 2. APP SHELL CONTAINER */
+.eej-app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 3. LEFT SIDEBAR — hidden on all breakpoints (replaced by top nav) */
+.eej-sidebar {
   display: none !important;
 }
 
-/* Bottom bar hidden on desktop */
-.app-bottom-bar { display: none; }
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TABLE OVERFLOW FIX
-   Spec: .table-responsive  width:100%; overflow-x:auto; white-space:nowrap;
-         -webkit-overflow-scrolling:touch
-         Parent container: min-width:0; overflow:hidden
-   ═══════════════════════════════════════════════════════════════════════════ */
-.table-responsive,
-.app-table-scroll {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+.eej-sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
 }
-.table-responsive::-webkit-scrollbar,
-.app-table-scroll::-webkit-scrollbar  { height: 4px; width: 4px; }
-.table-responsive::-webkit-scrollbar-thumb,
-.app-table-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 2px; }
-.table-responsive::-webkit-scrollbar-corner,
-.app-table-scroll::-webkit-scrollbar-corner { background: transparent; }
 
-/* Parent wrapper — must have these to force scrollbar to appear.
-   CRITICAL: width + max-width cap the BFC so it never expands to match
-   the table's intrinsic preferred width (table-layout:auto), which would
-   make app-table-scroll equally wide → zero overflow → no scrollbar. */
-.table-responsive-container {
+.eej-sidebar-nav {
+  flex: 1;
+  padding: 10px 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.eej-sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  background: none;
   width: 100%;
-  max-width: 100%;
+  text-align: left;
+}
+
+.eej-sidebar-nav-item:hover {
+  background: rgba(233, 255, 112, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.eej-sidebar-nav-item.active {
+  background: rgba(233, 255, 112, 0.13);
+  color: #E9FF70;
+  border-color: rgba(233, 255, 112, 0.22);
+  box-shadow: 0 0 16px rgba(233, 255, 112, 0.08);
+}
+
+.eej-sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+/* 4. MAIN COLUMN (header + scrollable content) */
+.eej-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   min-width: 0;
+  height: 100vh;
   overflow: hidden;
 }
 
-/* When the table card is used as a flex-1 fill container (Payroll page),
-   the inner scroll area must also stretch to fill. */
-.table-responsive-container.flex-1 > .app-table-scroll {
+/* 5. SCROLLABLE CONTENT AREA */
+.app-content-scroll {
   flex: 1;
-  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
-/* Invisible-scrollbar utility (used on header button bar) */
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-.no-scrollbar::-webkit-scrollbar { display: none; }
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   MOBILE MODE  (≤ 768px)  — "Native App Shell"
-   Layout: [top bar with brand+user only] / [page content] / [fixed bottom bar]
-   Nav tabs are hidden from top bar on mobile — bottom bar handles navigation.
-   ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-
-  /* 1. Hide nav tabs on mobile — bottom bar handles navigation */
-  .app-top-nav { display: none !important; }
-
-  /* 2. Main content needs bottom padding to clear the fixed bottom nav */
-  body.has-app-shell .app-shell-page > main {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom)) !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    overscroll-behavior-y: contain;
+  .app-content-scroll {
+    padding-bottom: 80px;
   }
+}
 
-  /* 3. Bottom nav bar — fixed at bottom, horizontally scrollable */
-  .app-bottom-bar {
+/* 6. HIDE HORIZONTAL TAB BAR — sidebar / bottom-bar handles nav */
+.eej-tab-bar {
+  display: none !important;
+}
+
+/* 7. BOTTOM APP BAR — mobile only */
+.eej-bottom-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .eej-bottom-bar {
     display: flex;
     position: fixed;
     bottom: 0;
     left: 0;
-    right: 0;
     width: 100%;
     height: 70px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 1000;
-    background: #0f172a;
+    background: #0f1117;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    align-items: stretch;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    padding-bottom: max(env(safe-area-inset-bottom), 0px);
-    box-shadow:
-      0 -4px 32px rgba(0, 0, 0, 0.55),
-      0 -1px 8px rgba(233, 255, 112, 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: 0 -6px 32px rgba(0, 0, 0, 0.6), 0 -1px 0 rgba(233, 255, 112, 0.08);
+    align-items: center;
+    justify-content: space-around;
   }
-  .app-bottom-bar::-webkit-scrollbar { display: none; }
-
-  /* Logo text in Dashboard header — hide to save horizontal space */
-  .mobile-hide-logo-text { display: none; }
 }
 
+.eej-bottom-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  height: 100%;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.3);
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  border: none;
+  background: none;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+.eej-bottom-nav-btn span {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.eej-bottom-nav-btn.active {
+  color: #E9FF70;
+}
+
+.eej-bottom-nav-btn.active svg {
+  filter: drop-shadow(0 0 6px rgba(233, 255, 112, 0.5));
+}
+
+/* 8. TABLE HORIZONTAL SCROLL (touch-friendly) */
+.eej-table-scroll {
+  overflow-x: auto;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Desktop: no max-width cap so tables use full available width */
 @media (min-width: 769px) {
-  .mobile-hide-logo-text { display: block; }
-}
-
-/* ── Defensive fix: mx-auto on a flex-column child prevents stretch,
-   causing the element to collapse to fit-content width.
-   Explicitly set width:100% on all main/content areas inside the
-   app content wrapper so the table container always fills the pane.   ── */
-.app-content-wrapper main,
-.app-content-wrapper .app-content-scroll {
-  width: 100%;
+  .eej-main > .app-content-scroll main {
+    max-width: 100% !important;
+  }
 }

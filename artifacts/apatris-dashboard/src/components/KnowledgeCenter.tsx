@@ -48,16 +48,20 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   return { gross, employeeZus, health, pit, net, netPerHour, employerZus, totalCost, taxBase };
 }
 
-// Reverse: walk gross/h by 0.01, return first where netPerHour >= desired
+// Reverse calculator: given desired net, find gross rate per hour
 export function reverseCalculate(hours: number, desiredNet: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
-  if (hours <= 0 || desiredNet <= 0) return calculate(hours, 0, contract, applyPit2, includeSickness);
-  let g = 0.01;
-  while (g < 500) {
-    const r = calculate(hours, g, contract, applyPit2, includeSickness);
-    if (r.netPerHour >= desiredNet) return r;
-    g = Math.round((g + 0.01) * 100) / 100;
+  // Binary search for the gross rate that produces the desired net
+  let lo = 0, hi = desiredNet * 3;
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    const result = calculate(hours, mid, contract, applyPit2, includeSickness);
+    const netPerHour = hours > 0 ? result.net / hours : 0;
+    if (netPerHour < desiredNet) lo = mid;
+    else hi = mid;
+    if (Math.abs(netPerHour - desiredNet) < 0.005) break;
   }
-  return calculate(hours, g, contract, applyPit2, includeSickness);
+  const grossRate = Math.round(((lo + hi) / 2) * 100) / 100;
+  return calculate(hours, grossRate, contract, applyPit2, includeSickness);
 }
 
 export function KnowledgeCenter() {
@@ -176,12 +180,12 @@ export function KnowledgeCenter() {
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
             <p className="text-xs text-slate-400 uppercase mb-1">Employee ZUS</p>
-            <p className="text-xl font-black text-lime-300">-{r.employeeZus.toFixed(2)}</p>
+            <p className="text-xl font-black text-red-400">-{r.employeeZus.toFixed(2)}</p>
             <p className="text-xs text-slate-500">PLN</p>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
             <p className="text-xs text-slate-400 uppercase mb-1">Health</p>
-            <p className="text-xl font-black text-lime-300">-{r.health.toFixed(2)}</p>
+            <p className="text-xl font-black text-red-400">-{r.health.toFixed(2)}</p>
             <p className="text-xs text-slate-500">PLN</p>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">

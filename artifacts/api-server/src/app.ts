@@ -59,10 +59,19 @@ console.log("[static] checking dashboard paths:", dashboardPaths.map(p => `${p} 
 const eejMobileDist = eejMobilePaths.find((p) => fs.existsSync(p));
 const dashDist = dashboardPaths.find((p) => fs.existsSync(p));
 
-// 1. Serve mobile app at /eej-mobile/
+// 1. Serve mobile app at /eej-mobile/ AND its assets at /assets/
 if (eejMobileDist) {
   console.log("[static] serving eej-mobile from:", eejMobileDist);
   app.use("/eej-mobile", express.static(eejMobileDist));
+
+  // Mobile Vite build references /assets/* (root-relative) — serve them
+  // before the dashboard catch-all can intercept
+  const mobileAssetsDir = path.join(eejMobileDist, "assets");
+  if (fs.existsSync(mobileAssetsDir)) {
+    app.use("/assets", express.static(mobileAssetsDir));
+    console.log("[static] serving mobile /assets from:", mobileAssetsDir);
+  }
+
   app.get("/eej-mobile/{*splat}", (_req, res) => {
     res.sendFile(path.join(eejMobileDist, "index.html"));
   });

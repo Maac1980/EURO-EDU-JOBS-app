@@ -1,15 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
+import type { User, Role } from "@/types";
 
-export type UserRole = "admin" | "coordinator" | "manager";
-
-export interface User {
-  id?: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  site: string | null;
-}
+// Re-export for convenience
+export type { User, Role };
 
 interface AuthContextType {
   user: User | null;
@@ -72,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     warnRef.current = setTimeout(() => {
       if (typeof window !== "undefined") {
         const confirmed = window.confirm(
-          "Twoja sesja wygaśnie za 5 minut z powodu braku aktywności. Kliknij OK, aby pozostać zalogowanym."
+          "Your session will expire in 5 minutes due to inactivity. Click OK to stay logged in."
         );
         if (confirmed) resetTimer();
       }
@@ -112,7 +106,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       const data = await res.json() as {
-        token?: string; user?: User; error?: string;
+        token?: string; jwt?: string;
+        user?: { name: string; email: string; role: string; tier?: number; designation?: string; shortName?: string; site?: string };
+        name?: string; email?: string; role?: string;
+        error?: string;
         requires2FA?: boolean; requiresEmailOtp?: boolean;
       };
 
@@ -123,14 +120,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, requiresEmailOtp: true };
       }
 
-      if (!res.ok || !data.token || !data.user) {
+      const token = data.token || data.jwt;
+      if (!res.ok || !token) {
         return { success: false, error: data.error ?? "Invalid credentials." };
       }
 
-      sessionStorage.setItem(TOKEN_KEY, data.token);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data.user));
-      setUser(data.user);
-      setAuthToken(data.token);
+      // Build User from API response — handle both nested and flat response shapes
+      const apiUser = data.user ?? { name: data.name ?? "", email: data.email ?? email, role: data.role ?? "executive" };
+      const roleLower = (apiUser.role ?? "executive").toLowerCase();
+      const roleMap: Record<string, Role> = {
+        admin: "executive", executive: "executive",
+        legal: "legal", coordinator: "operations",
+        manager: "operations", operations: "operations",
+        candidate: "candidate",
+      };
+
+      const u: User = {
+        role: roleMap[roleLower] ?? "executive",
+        tier: (apiUser.tier ?? (roleLower === "admin" || roleLower === "executive" ? 1 : roleLower === "legal" ? 2 : roleLower === "candidate" ? 4 : 3)) as 1 | 2 | 3 | 4,
+        designation: apiUser.designation ?? apiUser.role ?? "Admin",
+        shortName: apiUser.shortName ?? apiUser.name?.split(" ")[0] ?? "User",
+        name: apiUser.name ?? "",
+        email: apiUser.email ?? email,
+      };
+
+      sessionStorage.setItem(TOKEN_KEY, token);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+      setUser(u);
+      setAuthToken(token);
       return { success: true };
     } catch (err) {
       console.error("Login fetch error:", err);
@@ -138,21 +155,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
-    doLogout();
-  };
-
   return (
     <AuthContext.Provider value={{
       user,
       token: authToken,
       login,
-      logout,
+      logout: doLogout,
       isAuthenticated: !!user,
       isLoading,
-      isAdmin: user?.role === "admin",
-      isCoordinator: user?.role === "coordinator",
-      isManager: user?.role === "manager",
+      isAdmin: user?.role === "executive",
+      isCoordinator: user?.role === "operations",
+      isManager: user?.role === "legal",
     }}>
       {children}
     </AuthContext.Provider>

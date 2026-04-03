@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Pages
 import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
+import Dashboard from "@/pages/DashboardShell";
 import Apply from "@/pages/Apply";
 import WorkerPortal from "@/pages/WorkerPortal";
 import NotFound from "@/pages/not-found";

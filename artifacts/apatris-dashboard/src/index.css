@@ -551,3 +551,107 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+/* ============================================
+   DASHBOARD SHELL — desktop tab layout
+   ============================================ */
+
+.dashboard-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  background: #0d0f14;
+}
+
+/* Mobile tab pages adapted for desktop */
+.tab-page {
+  padding: 24px;
+  min-height: 100%;
+  color: #e5e7eb;
+}
+
+.tab-greeting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(233, 255, 112, 0.06);
+}
+
+.tab-greeting-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tab-greeting-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: #f3f4f6;
+  margin-top: 2px;
+}
+
+/* Card styles used by mobile tabs */
+.dash-card {
+  background: #111318;
+  border: 1px solid rgba(233, 255, 112, 0.06);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Scrollbar styling */
+.dashboard-content::-webkit-scrollbar {
+  width: 6px;
+}
+.dashboard-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dashboard-content::-webkit-scrollbar-thumb {
+  background: rgba(233, 255, 112, 0.1);
+  border-radius: 3px;
+}
+.dashboard-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(233, 255, 112, 0.2);
+}
+
+/* Nav badge for notification counts */
+.nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: #EF4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+/* Toast container */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

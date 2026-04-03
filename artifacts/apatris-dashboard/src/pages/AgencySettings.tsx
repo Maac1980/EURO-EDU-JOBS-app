@@ -16,6 +16,7 @@ export default function AgencySettings() {
         <div className="bg-card border border-border rounded-xl p-5">
           <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Mail className="w-4 h-4" /> Contact</h2>
           <div className="space-y-3 text-sm">
+            <div><span className="text-muted-foreground">Admin:</span> <span className="text-white ml-2">Anna Bondarenko</span></div>
             <div><span className="text-muted-foreground">Email:</span> <span className="text-white ml-2">anna.b@edu-jobs.eu</span></div>
             <div><span className="text-muted-foreground">Phone:</span> <span className="text-white ml-2">—</span></div>
           </div>

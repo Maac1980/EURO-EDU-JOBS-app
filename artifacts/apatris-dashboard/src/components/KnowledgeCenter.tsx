@@ -48,20 +48,16 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   return { gross, employeeZus, health, pit, net, netPerHour, employerZus, totalCost, taxBase };
 }
 
-// Reverse calculator: given desired net, find gross rate per hour
+// Reverse: walk gross/h by 0.01, return first where netPerHour >= desired
 export function reverseCalculate(hours: number, desiredNet: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
-  // Binary search for the gross rate that produces the desired net
-  let lo = 0, hi = desiredNet * 3;
-  for (let i = 0; i < 100; i++) {
-    const mid = (lo + hi) / 2;
-    const result = calculate(hours, mid, contract, applyPit2, includeSickness);
-    const netPerHour = hours > 0 ? result.net / hours : 0;
-    if (netPerHour < desiredNet) lo = mid;
-    else hi = mid;
-    if (Math.abs(netPerHour - desiredNet) < 0.005) break;
+  if (hours <= 0 || desiredNet <= 0) return calculate(hours, 0, contract, applyPit2, includeSickness);
+  let g = 0.01;
+  while (g < 500) {
+    const r = calculate(hours, g, contract, applyPit2, includeSickness);
+    if (r.netPerHour >= desiredNet) return r;
+    g = Math.round((g + 0.01) * 100) / 100;
   }
-  const grossRate = Math.round(((lo + hi) / 2) * 100) / 100;
-  return calculate(hours, grossRate, contract, applyPit2, includeSickness);
+  return calculate(hours, g, contract, applyPit2, includeSickness);
 }
 
 export function KnowledgeCenter() {

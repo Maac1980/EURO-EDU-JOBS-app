@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PayrollRowSkeleton } from "@/components/Skeleton";
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("eej_jwt");
+  const token = localStorage.getItem("apatris_jwt");
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : {};
 }
 
@@ -49,7 +49,7 @@ interface ZUSBreakdown {
   estimatedTax: number;
   netAfterTax: number;
   takeHome: number;
-  employerZUS: number;       // what EEJ pays on top of gross
+  employerZUS: number;       // what Apatris pays on top of gross
   totalEmployerCost: number; // gross + employerZUS
 }
 
@@ -190,7 +190,7 @@ function calcZUS(gross: number, advance: number, penalties: number, rates: ZUSRa
   // Net = gross - ZUS - health - PIT
   const netAfterTax = Math.round((gross - employeeZUS - healthInsurance - estimatedTax) * 100) / 100;
   const takeHome = netAfterTax - advance - penalties;
-  // Employer ZUS — paid by EEJ on top of gross, does not affect worker's net
+  // Employer ZUS — paid by Apatris on top of gross, does not affect worker's net
   const employerRate = ((rates.emerytalneEmployer ?? 9.76) + (rates.rentoweEmployer ?? 6.5) + (rates.wypadkowe ?? 1.67) + (rates.fp ?? 2.45) + (rates.fgsp ?? 0.10)) / 100;
   const employerZUS = gross * employerRate;
   const totalEmployerCost = gross + employerZUS;
@@ -213,7 +213,7 @@ function reverseNetToGross(desiredNetPerHour: number, hours: number, rates: ZUSR
 }
 
 // ─── Split-Employer Calculator ────────────────────────────────────────────────
-// In Poland: if Contract 1 (EEJ) covers minimum wage, Contract 2 (other
+// In Poland: if Contract 1 (Apatris) covers minimum wage, Contract 2 (other
 // company) is ZUS-exempt. Worker pays only PIT on the 2nd employer's income.
 function calcSplit(
   mainTakeHome: number,
@@ -227,7 +227,7 @@ function calcSplit(
   const otherTaxBase = Math.max(0, otherGross - otherKUP);
   const otherPIT = otherTaxBase * (rates.pit / 100);
   const otherNet = otherGross - otherPIT;
-  // ZUS saved = what WOULD have been deducted if these hours were at EEJ
+  // ZUS saved = what WOULD have been deducted if these hours were at Apatris
   const zusRate = (rates.emerytalneEmployee + rates.rentoweEmployee + (rates.chorobowe ?? 2.45)) / 100;
   const wouldBeZUS = otherGross * zusRate;
   const wouldBeHealth = (otherGross - wouldBeZUS) * (rates.zdrowotne / 100);
@@ -641,19 +641,19 @@ export default function PayrollPage() {
 
   const handleExportPDF = () => {
     const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-    triggerDownload(`${window.location.origin}${base}/api/payroll/export/pdf?month=${selectedMonth}`, `EEJ-Payroll-${selectedMonth}.pdf`);
+    triggerDownload(`${window.location.origin}${base}/api/payroll/export/pdf?month=${selectedMonth}`, `Apatris-Payroll-${selectedMonth}.pdf`);
     toast({ title: "PDF downloading", description: `Payroll report for ${selectedMonth}.` });
   };
 
   const handleBankExport = () => {
     const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-    triggerDownload(`${window.location.origin}${base}/api/payroll/export/bank-csv?month=${selectedMonth}`, `EEJ-Bank-${selectedMonth}.csv`);
+    triggerDownload(`${window.location.origin}${base}/api/payroll/export/bank-csv?month=${selectedMonth}`, `Apatris-Bank-${selectedMonth}.csv`);
     toast({ title: "Bank CSV downloading", description: `Transfer list for ${selectedMonth}.` });
   };
 
   const handleAccountingExport = () => {
     const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-    triggerDownload(`${window.location.origin}${base}/api/payroll/export/accounting-csv?month=${selectedMonth}`, `EEJ-Accounting-${selectedMonth}.csv`);
+    triggerDownload(`${window.location.origin}${base}/api/payroll/export/accounting-csv?month=${selectedMonth}`, `Apatris-Accounting-${selectedMonth}.csv`);
     toast({ title: "Accounting CSV downloading", description: `Full ZUS breakdown for ${selectedMonth}.` });
   };
 
@@ -667,10 +667,10 @@ export default function PayrollPage() {
       <header className="h-12 border-b border-slate-700/60 bg-slate-900/98 sticky top-0 z-30 px-4 sm:px-5 flex items-center justify-between gap-4"
         style={{ boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 2px 16px rgba(0,0,0,0.25)" }}>
         <div className="flex items-center gap-2.5 min-w-0 flex-shrink-0">
-          <Calculator className="w-4 h-4 text-lime-300 flex-shrink-0" />
+          <Calculator className="w-4 h-4 text-red-400 flex-shrink-0" />
           <div className="min-w-0">
             <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-white font-mono leading-none">Monthly Payroll Run</span>
-            <span className="text-[10px] text-lime-300/70 font-mono uppercase tracking-widest hidden sm:inline ml-2">· Rozliczenie Miesięczne</span>
+            <span className="text-[10px] text-red-400/70 font-mono uppercase tracking-widest hidden sm:inline ml-2">· Rozliczenie Miesięczne</span>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
@@ -678,7 +678,7 @@ export default function PayrollPage() {
             <Calendar className="w-4 h-4 text-gray-400" />
             <input
               type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-slate-800 border border-slate-600 text-white rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-mono focus:outline-none focus:border-lime-400/60"
+              className="bg-slate-800 border border-slate-600 text-white rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-mono focus:outline-none focus:border-red-500/60"
             />
           </div>
           {isAdmin && (
@@ -804,7 +804,7 @@ export default function PayrollPage() {
             <div>
               <p className="text-teal-300 font-bold uppercase tracking-widest text-[10px] mb-1">2nd Employer ZUS Split — Dwie Umowy Zlecenie</p>
               <p className="text-teal-200/70">
-                When Contract 1 (EEJ) covers minimum wage, Contract 2 at another company is <span className="text-teal-300 font-semibold">ZUS-exempt</span> — worker pays PIT only.
+                When Contract 1 (Apatris) covers minimum wage, Contract 2 at another company is <span className="text-teal-300 font-semibold">ZUS-exempt</span> — worker pays PIT only.
                 Enter the hours worked at the other company in the <span className="text-teal-300 font-semibold">"2nd Co. Hrs"</span> column.
                 The <span className="text-green-400 font-semibold">"ZUS Saved"</span> column shows how much the worker saves vs. having all hours at one employer.
               </p>
@@ -879,7 +879,7 @@ export default function PayrollPage() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
                 <input type="text" placeholder="Search workers…" value={payrollSearch} onChange={(e) => setPayrollSearch(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-600 text-white rounded-lg text-xs font-mono focus:outline-none focus:border-lime-400/60 placeholder:text-gray-600 w-44 sm:w-52" />
+                  className="pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-600 text-white rounded-lg text-xs font-mono focus:outline-none focus:border-red-500/60 placeholder:text-gray-600 w-44 sm:w-52" />
               </div>
               {(payrollSearch || siteFilter) && (
                 <span className="text-[10px] font-mono text-gray-400">{filteredWorkers.length} / {workers.length}</span>
@@ -923,7 +923,7 @@ export default function PayrollPage() {
             const colourAmount = (r: Row) => {
               if (r.kind === "gross") return "text-white";
               if (r.kind === "netto") return "text-lime-400";
-              if (r.kind === "sub")   return r.amount < 0 ? "text-lime-300" : "text-gray-300";
+              if (r.kind === "sub")   return r.amount < 0 ? "text-red-400" : "text-gray-300";
               return "text-gray-400";
             };
             const prefix = (r: Row) => r.kind === "sub" && r.amount < 0 ? "−" : r.kind === "sub" ? "+" : "";
@@ -1017,14 +1017,14 @@ export default function PayrollPage() {
                           <div className="bg-slate-800/60 rounded-xl border border-slate-700 p-4">
                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Cost Split</p>
                             <div className="flex rounded-full overflow-hidden h-2.5 mb-3">
-                              <div title={`ZUS ${pct(workerZUS)}`} className="bg-lime-400" style={{ width: pct(workerZUS) }} />
+                              <div title={`ZUS ${pct(workerZUS)}`} className="bg-red-500" style={{ width: pct(workerZUS) }} />
                               <div title={`Health ${pct(healthTax)}`} className="bg-orange-400" style={{ width: pct(healthTax) }} />
                               <div title={`PIT ${pct(incomeTax)}`} className="bg-yellow-400" style={{ width: pct(incomeTax) }} />
                               <div title={`Netto ${pct(netto)}`} className="bg-lime-500 flex-1" />
                             </div>
                             <div className="space-y-1 text-[10px] font-mono">
                               {[
-                                { label: "ZUS",    val: workerZUS, color: "bg-lime-400"    },
+                                { label: "ZUS",    val: workerZUS, color: "bg-red-500"    },
                                 { label: "Health", val: healthTax, color: "bg-orange-400" },
                                 { label: "PIT",    val: incomeTax, color: "bg-yellow-400" },
                                 { label: "Netto",  val: netto,     color: "bg-lime-500"   },
@@ -1056,7 +1056,7 @@ export default function PayrollPage() {
                 onClick={() => setSiteFilter("")}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold font-mono transition-all whitespace-nowrap ${
                   !siteFilter
-                    ? "bg-lime-500 text-white shadow-[0_0_10px_rgba(196,30,24,0.4)]"
+                    ? "bg-red-600 text-white shadow-[0_0_10px_rgba(196,30,24,0.4)]"
                     : "bg-slate-700 text-gray-400 hover:bg-slate-600 hover:text-white"
                 }`}
               >
@@ -1071,7 +1071,7 @@ export default function PayrollPage() {
                   onClick={() => setSiteFilter(siteFilter === site ? "" : site)}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold font-mono transition-all whitespace-nowrap ${
                     siteFilter === site
-                      ? "bg-lime-500 text-white shadow-[0_0_10px_rgba(196,30,24,0.4)]"
+                      ? "bg-red-600 text-white shadow-[0_0_10px_rgba(196,30,24,0.4)]"
                       : "bg-slate-700 text-gray-400 hover:bg-slate-600 hover:text-white"
                   }`}
                 >
@@ -1124,7 +1124,7 @@ export default function PayrollPage() {
                     {isAdmin ? <span className="text-orange-400">Advances ✎</span> : <span className="text-gray-600">Advances</span>}
                   </th>
                   <th className={`${thCls} text-right`} style={{ minWidth: "110px" }}>
-                    {isAdmin ? <span className="text-lime-300">Penalties ✎</span> : <span className="text-gray-600">Penalties</span>}
+                    {isAdmin ? <span className="text-red-400">Penalties ✎</span> : <span className="text-gray-600">Penalties</span>}
                   </th>
                   <th className={`${thCls} text-right`} style={{ minWidth: "130px" }}>
                     <span className="text-green-400">Take-Home</span>
@@ -1166,7 +1166,7 @@ export default function PayrollPage() {
                           <div className="flex flex-col gap-0.5">
                             <span className="text-xs font-mono text-gray-400 whitespace-nowrap">{w.specialization || "—"}</span>
                             {w.assignedSite && (
-                              <span className="text-[10px] text-lime-300 whitespace-nowrap">{w.assignedSite}</span>
+                              <span className="text-[10px] text-red-400 whitespace-nowrap">{w.assignedSite}</span>
                             )}
                           </div>
                         </td>
@@ -1278,13 +1278,13 @@ export default function PayrollPage() {
                         {/* Penalties */}
                         <td className={`${tdCls} text-right`}>
                           {isAdmin
-                            ? <NumCell value={w.penalties} workerId={w.id} field="penalties" onSave={handleSave} accent="text-lime-300" />
+                            ? <NumCell value={w.penalties} workerId={w.id} field="penalties" onSave={handleSave} accent="text-red-400" />
                             : <span className="text-sm font-mono text-gray-600 block text-right">{fmt(w.penalties)}</span>}
                         </td>
                         {/* Take-home / Netto */}
                         <td className={`${tdCls} text-right`}>
                           <div>
-                            <span className={`text-sm font-mono font-bold ${(zus ? zus.takeHome : w.finalNetto) < 0 ? "text-lime-300" : "text-green-400"}`}>
+                            <span className={`text-sm font-mono font-bold ${(zus ? zus.takeHome : w.finalNetto) < 0 ? "text-red-400" : "text-green-400"}`}>
                               {fmt(zus ? zus.takeHome : w.finalNetto)}
                             </span>
                             <span className="text-[10px] text-gray-500 ml-1 font-mono">PLN</span>
@@ -1343,7 +1343,7 @@ export default function PayrollPage() {
                       <td className={`${tdCls} text-right text-sm font-mono text-gray-500`}>—</td>
                     )}
                     <td className={`${tdCls} text-right text-sm font-mono font-bold text-orange-400`}>{fmt(totals.advances)}</td>
-                    <td className={`${tdCls} text-right text-sm font-mono font-bold text-lime-300`}>{fmt(totals.penalties)}</td>
+                    <td className={`${tdCls} text-right text-sm font-mono font-bold text-red-400`}>{fmt(totals.penalties)}</td>
                     <td className={`${tdCls} text-right`}>
                       <span className="text-base font-mono font-bold text-green-400">{fmt(zusTotal ? zusTotal.take : totals.netto)}</span>
                       <span className="text-xs text-gray-500 ml-1 font-mono">PLN</span>
@@ -1357,10 +1357,10 @@ export default function PayrollPage() {
 
         {/* ── Close Month (pinned at bottom) ───────────────────────────── */}
         {isAdmin && (
-          <div className="flex-shrink-0 border border-lime-400/30 bg-red-950/20 rounded-xl p-3 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          <div className="flex-shrink-0 border border-red-500/30 bg-red-950/20 rounded-xl p-3 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <FileCheck className="w-5 h-5 text-lime-300" /> Close Month & Save to Ledger
+                <FileCheck className="w-5 h-5 text-red-400" /> Close Month & Save to Ledger
               </h2>
               <p className="text-xs text-gray-400 font-mono mt-1">
                 Zamknij Miesiąc — Saves a permanent snapshot for each worker and resets Hours, Advances & Penalties to 0.
@@ -1375,7 +1375,7 @@ export default function PayrollPage() {
               )}
             </div>
             <button onClick={() => setShowCommitModal(true)} disabled={workers.length === 0}
-              className="flex-shrink-0 flex items-center gap-2 px-5 sm:px-6 py-3 bg-red-700 hover:bg-lime-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all shadow-[0_0_20px_rgba(196,30,24,0.3)] whitespace-nowrap">
+              className="flex-shrink-0 flex items-center gap-2 px-5 sm:px-6 py-3 bg-red-700 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold uppercase tracking-wider text-sm transition-all shadow-[0_0_20px_rgba(196,30,24,0.3)] whitespace-nowrap">
               <FileCheck className="w-4 h-4" /> Close Month — {selectedMonth}
             </button>
           </div>
@@ -1390,10 +1390,10 @@ export default function PayrollPage() {
       {/* ── Commit Confirmation Modal ─────────────────────────────────── */}
       {showCommitModal && !commitResult && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-lime-400/40 rounded-2xl shadow-2xl max-w-md w-full p-6">
+          <div className="bg-slate-900 border border-red-500/40 rounded-2xl shadow-2xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-full bg-lime-500/20 border border-lime-400/40 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-lime-300" />
+              <div className="w-10 h-10 rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
               </div>
               <div>
                 <h2 className="text-base font-bold text-white">Confirm Payroll Commit</h2>
@@ -1404,7 +1404,7 @@ export default function PayrollPage() {
               <div className="flex justify-between text-sm"><span className="text-gray-400">Workers:</span><span className="font-mono text-white">{workers.length}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-400">Total Hours:</span><span className="font-mono text-yellow-400">{fmt(totals.hours)}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-400">Gross Payroll:</span><span className="font-mono text-blue-400">{fmt(totals.gross)} PLN</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-400">Total Deductions:</span><span className="font-mono text-lime-300">− {fmt(totals.advances + totals.penalties)} PLN</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-400">Total Deductions:</span><span className="font-mono text-red-400">− {fmt(totals.advances + totals.penalties)} PLN</span></div>
               <div className="flex justify-between text-base border-t border-slate-600 pt-2 mt-2 font-bold">
                 <span className="text-gray-300">Final Net Payout:</span>
                 <span className="font-mono text-green-400">{fmt(totals.netto)} PLN</span>
@@ -1419,7 +1419,7 @@ export default function PayrollPage() {
                 Cancel
               </button>
               <button onClick={() => { commitMutation.mutate(); setShowCommitModal(false); }} disabled={commitMutation.isPending}
-                className="flex-1 py-2.5 bg-red-700 hover:bg-lime-500 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2">
+                className="flex-1 py-2.5 bg-red-700 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2">
                 {commitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck className="w-4 h-4" />}
                 Confirm & Commit
               </button>

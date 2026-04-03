@@ -74,10 +74,10 @@
 
 /* ============================================
    EURO EDU JOBS BRAND THEME
-   Primary:     EEJ Lime Yellow (#E9FF70 / hsl 69 100% 72%)
-   Steel:       Metallic Silver (#8A9BB0)
-   Background:  Deep charcoal steel (#0D0F14)
-   Accent:      Warm steel grey
+   Primary:     Navy Blue (#1B2A4A)
+   Accent:      Blue (#0066CC)
+   Background:  White / Light grey (#F5F7FA)
+   Text:        Dark on light
    ============================================ */
 
 :root {
@@ -85,66 +85,66 @@
   --badge-outline: rgba(0, 0, 0, 0.05);
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0, 0, 0, 0.03);
-  --elevate-2: rgba(0, 0, 0, 0.08);
+  --elevate-2: rgba(0, 0, 0, 0.06);
 
-  /* Deep steel charcoal background */
-  --background: 218 22% 7%;
-  --foreground: 210 18% 90%;
-  --border: 216 16% 16%;
-  --input: 216 16% 20%;
-  --ring: 69 100% 72%;
+  /* Light background */
+  --background: 220 20% 97%;
+  --foreground: 220 30% 15%;
+  --border: 220 13% 88%;
+  --input: 220 13% 91%;
+  --ring: 213 100% 40%;
 
   /* Cards */
-  --card: 218 22% 10%;
-  --card-foreground: 210 18% 88%;
-  --card-border: 216 16% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 30% 15%;
+  --card-border: 220 13% 90%;
 
-  /* Sidebar */
-  --sidebar: 218 24% 8%;
-  --sidebar-foreground: 210 18% 82%;
-  --sidebar-border: 216 16% 16%;
-  --sidebar-primary: 69 100% 72%;
-  --sidebar-primary-foreground: 0 0% 20%;
-  --sidebar-accent: 218 20% 14%;
-  --sidebar-accent-foreground: 210 18% 82%;
-  --sidebar-ring: 69 100% 72%;
+  /* Sidebar — navy */
+  --sidebar: 220 40% 16%;
+  --sidebar-foreground: 220 10% 85%;
+  --sidebar-border: 220 30% 22%;
+  --sidebar-primary: 213 100% 40%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 35% 22%;
+  --sidebar-accent-foreground: 220 10% 85%;
+  --sidebar-ring: 213 100% 40%;
 
   /* Popover */
-  --popover: 218 24% 9%;
-  --popover-foreground: 210 18% 88%;
-  --popover-border: 216 16% 18%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 30% 15%;
+  --popover-border: 220 13% 88%;
 
-  /* Primary: EEJ Lime Yellow */
-  --primary: 69 100% 72%;
-  --primary-foreground: 0 0% 20%;
+  /* Primary: Blue accent */
+  --primary: 213 100% 40%;
+  --primary-foreground: 0 0% 100%;
 
-  /* Secondary: Steel dark */
-  --secondary: 218 16% 15%;
-  --secondary-foreground: 210 18% 78%;
+  /* Secondary */
+  --secondary: 220 14% 92%;
+  --secondary-foreground: 220 25% 30%;
 
   /* Muted */
-  --muted: 218 16% 13%;
-  --muted-foreground: 216 10% 48%;
+  --muted: 220 14% 95%;
+  --muted-foreground: 220 10% 46%;
 
-  /* Accent: Metallic steel silver */
-  --accent: 216 20% 52%;
-  --accent-foreground: 218 22% 7%;
+  /* Accent */
+  --accent: 220 14% 92%;
+  --accent-foreground: 220 30% 15%;
 
-  /* Destructive: keeps bright red for errors (distinct from primary) */
+  /* Destructive */
   --destructive: 0 85% 58%;
   --destructive-foreground: 0 0% 100%;
 
-  /* Success: Industrial green */
+  /* Success */
   --success: 141 65% 42%;
   --success-foreground: 0 0% 100%;
 
-  /* Warning: Amber/orange */
+  /* Warning */
   --warning: 28 95% 52%;
   --warning-foreground: 0 0% 100%;
 
   /* Charts */
-  --chart-1: 69 100% 72%;
-  --chart-2: 216 20% 52%;
+  --chart-1: 213 100% 40%;
+  --chart-2: 220 40% 16%;
   --chart-3: 141 65% 42%;
   --chart-4: 0 85% 58%;
   --chart-5: 28 95% 52%;
@@ -154,14 +154,14 @@
   --app-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --radius: 0.5rem;
 
-  --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-  --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.6);
-  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 6px 10px -2px rgba(0, 0, 0, 0.5), 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 8px -2px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
-  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 6px 10px -2px rgba(0, 0, 0, 0.08), 0 4px 6px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -174,72 +174,8 @@
   --destructive-border: hsl(var(--destructive));
 }
 
-.dark {
-  --button-outline: rgba(255, 255, 255, 0.10);
-  --badge-outline: rgba(255, 255, 255, 0.05);
-  --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255, 255, 255, 0.04);
-  --elevate-2: rgba(255, 255, 255, 0.09);
-
-  --background: 218 22% 7%;
-  --foreground: 210 18% 90%;
-  --border: 216 16% 16%;
-  --input: 216 16% 20%;
-  --ring: 69 100% 72%;
-
-  --card: 218 22% 10%;
-  --card-foreground: 210 18% 88%;
-  --card-border: 216 16% 18%;
-
-  --sidebar: 218 24% 8%;
-  --sidebar-foreground: 210 18% 82%;
-  --sidebar-border: 216 16% 16%;
-  --sidebar-primary: 69 100% 72%;
-  --sidebar-primary-foreground: 0 0% 20%;
-  --sidebar-accent: 218 20% 14%;
-  --sidebar-accent-foreground: 210 18% 82%;
-  --sidebar-ring: 69 100% 72%;
-
-  --popover: 218 24% 9%;
-  --popover-foreground: 210 18% 88%;
-  --popover-border: 216 16% 18%;
-
-  --primary: 69 100% 72%;
-  --primary-foreground: 0 0% 20%;
-
-  --secondary: 218 16% 15%;
-  --secondary-foreground: 210 18% 78%;
-
-  --muted: 218 16% 13%;
-  --muted-foreground: 216 10% 48%;
-
-  --accent: 216 20% 52%;
-  --accent-foreground: 218 22% 7%;
-
-  --destructive: 0 85% 58%;
-  --destructive-foreground: 0 0% 100%;
-
-  --success: 141 65% 42%;
-  --success-foreground: 0 0% 100%;
-
-  --warning: 28 95% 52%;
-  --warning-foreground: 0 0% 100%;
-
-  --chart-1: 69 100% 72%;
-  --chart-2: 216 20% 52%;
-  --chart-3: 141 65% 42%;
-  --chart-4: 0 85% 58%;
-  --chart-5: 28 95% 52%;
-
-  --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.7);
-  --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.8);
-  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.7), 0 1px 2px -1px rgba(0, 0, 0, 0.6);
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.7), 0 2px 4px -1px rgba(0, 0, 0, 0.6);
-  --shadow-md: 0 6px 10px -2px rgba(0, 0, 0, 0.7), 0 4px 6px -1px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 8px -2px rgba(0, 0, 0, 0.6);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.6);
-  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
-}
+/* Dark mode not used — EEJ uses light theme */
+.dark {}
 
 @layer base {
   * { @apply border-border; }
@@ -567,12 +503,12 @@ html, body {
   height: 52px;
   flex-shrink: 0;
   width: 100%;
-  background: linear-gradient(180deg, #0f172a 0%, #0c1424 100%);
-  border-bottom: 1px solid rgba(233,255,112,0.12);
+  background: #1B2A4A;
+  border-bottom: 1px solid #2d3f5e;
   display: flex;
   align-items: stretch;
   z-index: 200;
-  box-shadow: 0 1px 0 rgba(233,255,112,0.06), 0 1px 0 rgba(255,255,255,0.03), 0 4px 24px rgba(0,0,0,0.45);
+  box-shadow: 0 2px 8px rgba(27,42,74,0.15);
 }
 
 .app-top-brand {
@@ -617,15 +553,14 @@ html, body {
 }
 
 .app-top-nav-item:hover {
-  background: rgba(233,255,112,0.12);
-  color: #E9FF70;
-  box-shadow: 0 0 6px rgba(233,255,112,0.1);
+  background: rgba(0,102,204,0.15);
+  color: #fff;
 }
 
 .app-top-nav-item--active {
-  background: rgba(233,255,112,0.18);
-  color: #E9FF70;
-  box-shadow: 0 0 12px rgba(233,255,112,0.2);
+  background: #0066CC;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(0,102,204,0.3);
   font-weight: 700;
 }
 
@@ -665,7 +600,7 @@ html, body {
     align-items: stretch;
     height: 64px;
     background: #0c1424;
-    border-top: 1px solid rgba(233,255,112,0.1);
+    border-top: 1px solid #2d3f5e;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;

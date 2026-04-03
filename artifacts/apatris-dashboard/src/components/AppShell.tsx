@@ -91,13 +91,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="app-top-brand cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLocation("/")}>
           <div
             className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #E9FF70, #c8e050)", boxShadow: "0 0 0 2px rgba(233,255,112,0.35), 0 0 10px rgba(233,255,112,0.2)" }}
+            style={{ background: "#0066CC", boxShadow: "0 0 0 2px rgba(0,102,204,0.4)" }}
           >
-            <span style={{ fontWeight: 900, fontSize: 11, color: "#111", letterSpacing: -0.5 }}>EEJ</span>
+            <span style={{ fontWeight: 900, fontSize: 11, color: "#fff", letterSpacing: -0.5 }}>EEJ</span>
           </div>
           <div className="hidden sm:block">
-            <p className="text-sm font-bold tracking-widest uppercase leading-none" style={{ color: "#E9FF70" }}>Euro Edu Jobs</p>
-            <p className="text-[9px] text-slate-400 font-mono tracking-widest uppercase leading-none mt-0.5">Recruitment &amp; Compliance</p>
+            <p className="text-sm font-bold tracking-widest uppercase leading-none text-white">Euro Edu Jobs</p>
+            <p className="text-[9px] text-blue-300 font-mono tracking-widest uppercase leading-none mt-0.5">Recruitment &amp; Compliance</p>
           </div>
         </div>
 
@@ -137,14 +137,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="flex items-center gap-2 pl-2 border-l border-slate-700/60">
-            <div className="w-7 h-7 rounded-full bg-lime-400/50 border border-lime-400/30 flex items-center justify-center flex-shrink-0">
-              <span className="text-[11px] font-bold text-lime-300 font-mono">
+            <div className="w-7 h-7 rounded-full bg-blue-500/30 border border-blue-400/40 flex items-center justify-center flex-shrink-0">
+              <span className="text-[11px] font-bold text-blue-200 font-mono">
                 {user?.name?.charAt(0)?.toUpperCase() ?? "A"}
               </span>
             </div>
             <div className="hidden md:block">
               <p className="text-xs font-bold text-white leading-none">{user?.name}</p>
-              <p className="text-[10px] text-lime-300 font-mono leading-none mt-0.5">{user?.role}</p>
+              <p className="text-[10px] text-blue-300 font-mono leading-none mt-0.5">{user?.role}</p>
             </div>
             <button
               onClick={logout}
@@ -172,11 +172,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => setLocation(path)}
               className="flex flex-col items-center justify-center gap-0.5 min-w-[60px] px-1 h-full transition-colors flex-shrink-0"
             >
-              <div className={`p-1.5 rounded-xl transition-all ${active ? "bg-lime-400/15" : ""}`}>
-                <Icon className={`w-5 h-5 ${active ? "text-[#E9FF70]" : "text-slate-500"}`} />
+              <div className={`p-1.5 rounded-xl transition-all ${active ? "bg-blue-500/20" : ""}`}>
+                <Icon className={`w-5 h-5 ${active ? "text-white" : "text-slate-500"}`} />
               </div>
               <span className={`text-[9px] font-mono font-bold uppercase tracking-wide leading-none whitespace-nowrap ${
-                active ? "text-[#E9FF70]" : "text-slate-600"
+                active ? "text-white" : "text-slate-600"
               }`}>
                 {label}
               </span>

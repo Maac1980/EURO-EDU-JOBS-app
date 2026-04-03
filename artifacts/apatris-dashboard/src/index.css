@@ -77,7 +77,7 @@
   --secondary: 222 20% 14%;
   --secondary-foreground: 222 20% 80%;
   --muted: 222 20% 12%;
-  --muted-foreground: 222 12% 50%;
+  --muted-foreground: 216 22% 52%;
   --accent: 222 20% 14%;
   --accent-foreground: 222 20% 92%;
   --destructive: 0 85% 58%;
@@ -99,7 +99,7 @@
   --sidebar-accent: 222 20% 14%;
   --sidebar-accent-foreground: 222 20% 80%;
   --sidebar-ring: 66 74% 59%;
-  --app-font-sans: 'DM Sans', 'Inter', system-ui, sans-serif;
+  --app-font-sans: 'Syne', 'DM Sans', 'Inter', system-ui, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'JetBrains Mono', monospace;
   --radius: 0.5rem;

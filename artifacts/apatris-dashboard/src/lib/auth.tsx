@@ -1,172 +1,188 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import type { User, Role } from "@/types";
 
-// Re-export for convenience
-export type { User, Role };
+// 8 hours — matches construction-site work patterns
+const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000;
+const STORAGE_KEY = "eej_auth";
+const TOKEN_KEY  = "eej_jwt";
+
+interface User {
+  id?: string;
+  email: string;
+  name: string;
+  role: string;
+  assignedSite?: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
-  login: (email: string, pass: string, totpToken?: string, emailOtp?: string) => Promise<{ success: boolean; requires2FA?: boolean; requiresEmailOtp?: boolean; error?: string }>;
+  login: (email: string, pass: string) => Promise<{ ok: boolean; error?: string; otpRequired?: boolean; session?: string }>;
+  verifyOtp: (session: string, otp: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
-  isLoading: boolean;
-  isAdmin: boolean;
-  isCoordinator: boolean;
-  isManager: boolean;
+  sessionExpired: boolean;
+  isRestoring: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const STORAGE_KEY = "eej_auth";
-const TOKEN_KEY = "eej_token";
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
-const WARN_BEFORE_MS = 5 * 60 * 1000;
-
-function getApiBase() {
-  const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-  return `${base}/api`;
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
   const [, setLocation] = useLocation();
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const warnRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    const token = sessionStorage.getItem(TOKEN_KEY);
-    if (stored && token) {
-      try {
-        setUser(JSON.parse(stored));
-        setAuthToken(token);
-      } catch {
-        sessionStorage.removeItem(STORAGE_KEY);
-        sessionStorage.removeItem(TOKEN_KEY);
-      }
-    }
-    setIsLoading(false);
-  }, []);
-
-  const doLogout = useCallback(() => {
+  const logout = useCallback((expired = false) => {
     setUser(null);
-    setAuthToken(null);
-    sessionStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    if (expired) setSessionExpired(true);
     setLocation("/login");
   }, [setLocation]);
 
   const resetTimer = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (warnRef.current) clearTimeout(warnRef.current);
-    warnRef.current = setTimeout(() => {
-      if (typeof window !== "undefined") {
-        const confirmed = window.confirm(
-          "Your session will expire in 5 minutes due to inactivity. Click OK to stay logged in."
-        );
-        if (confirmed) resetTimer();
-      }
-    }, SESSION_TIMEOUT_MS - WARN_BEFORE_MS);
-    timeoutRef.current = setTimeout(() => {
-      doLogout();
-    }, SESSION_TIMEOUT_MS);
-  }, [doLogout]);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => logout(true), SESSION_TIMEOUT_MS);
+  }, [logout]);
+
+  // ── Restore session on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    const storedUser  = localStorage.getItem(STORAGE_KEY);
+
+    if (!storedToken && !storedUser) {
+      setIsRestoring(false);
+      return;
+    }
+
+    if (storedToken) {
+      // Validate JWT with server — get fresh user payload
+      // Send both cookie (via credentials) and Authorization header for backwards compatibility
+      fetch(`${import.meta.env.BASE_URL}api/auth/verify`, {
+        headers: { Authorization: `Bearer ${storedToken}` },
+        credentials: "include",
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json();
+            const { jwt: newToken, ...userData } = data as any;
+            setUser(userData as User);
+            if (newToken) localStorage.setItem(TOKEN_KEY, newToken);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+          } else {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(TOKEN_KEY);
+          }
+        })
+        .catch(() => {
+          // Offline — restore from localStorage so app works without network
+          if (storedUser) {
+            try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
+          }
+        })
+        .finally(() => setIsRestoring(false));
+    } else if (storedUser) {
+      // Legacy session without JWT — restore directly
+      try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
+      setIsRestoring(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!user) return;
-    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    if (!user) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      return;
+    }
+    const events = ["mousemove", "keydown", "click", "touchstart", "scroll"];
     events.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }));
     resetTimer();
     return () => {
       events.forEach((e) => window.removeEventListener(e, resetTimer));
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (warnRef.current) clearTimeout(warnRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [user, resetTimer]);
 
-  const login = async (
-    email: string,
-    pass: string,
-    totpToken?: string,
-    emailOtp?: string
-  ): Promise<{ success: boolean; requires2FA?: boolean; requiresEmailOtp?: boolean; error?: string }> => {
+  const login = async (email: string, pass: string): Promise<{ ok: boolean; error?: string; otpRequired?: boolean; session?: string }> => {
     try {
-      const res = await fetch(`${getApiBase()}/auth/login`, {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email, password: pass,
-          ...(totpToken ? { totpToken } : {}),
-          ...(emailOtp ? { emailOtp } : {}),
-        }),
+        credentials: "include",
+        body: JSON.stringify({ email, password: pass }),
       });
 
-      const data = await res.json() as {
-        token?: string; jwt?: string;
-        user?: { name: string; email: string; role: string; tier?: number; designation?: string; shortName?: string; site?: string };
-        name?: string; email?: string; role?: string;
-        error?: string;
-        requires2FA?: boolean; requiresEmailOtp?: boolean;
-      };
-
-      if (res.status === 202 && data.requires2FA) {
-        return { success: false, requires2FA: true };
-      }
-      if (res.status === 202 && data.requiresEmailOtp) {
-        return { success: false, requiresEmailOtp: true };
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return { ok: false, error: (data as any).error || "Invalid credentials" };
       }
 
-      const token = data.token || data.jwt;
-      if (!res.ok || !token) {
-        return { success: false, error: data.error ?? "Invalid credentials." };
+      const data = await res.json();
+
+      if (data.otpRequired) {
+        return { ok: true, otpRequired: true, session: data.session };
       }
 
-      // Build User from API response — handle both nested and flat response shapes
-      const apiUser = data.user ?? { name: data.name ?? "", email: data.email ?? email, role: data.role ?? "executive" };
-      const roleLower = (apiUser.role ?? "executive").toLowerCase();
-      const roleMap: Record<string, Role> = {
-        admin: "executive", executive: "executive",
-        legal: "legal", coordinator: "operations",
-        manager: "operations", operations: "operations",
-        candidate: "candidate",
-      };
-
-      const u: User = {
-        role: roleMap[roleLower] ?? "executive",
-        tier: (apiUser.tier ?? (roleLower === "admin" || roleLower === "executive" ? 1 : roleLower === "legal" ? 2 : roleLower === "candidate" ? 4 : 3)) as 1 | 2 | 3 | 4,
-        designation: apiUser.designation ?? apiUser.role ?? "Admin",
-        shortName: apiUser.shortName ?? apiUser.name?.split(" ")[0] ?? "User",
-        name: apiUser.name ?? "",
-        email: apiUser.email ?? email,
-      };
-
-      sessionStorage.setItem(TOKEN_KEY, token);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-      setUser(u);
-      setAuthToken(token);
-      return { success: true };
-    } catch (err) {
-      console.error("Login fetch error:", err);
-      return { success: false, error: "Cannot reach the server. Please try again." };
+      const { jwt: token, ...userData } = data as any;
+      setUser(userData as User);
+      setSessionExpired(false);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Connection error — please try again" };
     }
   };
 
+  const verifyOtp = async (session: string, otp: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ session, otp }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return { ok: false, error: (data as any).error || "Invalid code" };
+      }
+
+      const data = await res.json();
+      const { jwt: token, ...userData } = data as any;
+      setUser(userData as User);
+      setSessionExpired(false);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Connection error — please try again" };
+    }
+  };
+
+  const logoutPublic = useCallback(() => logout(false), [logout]);
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      token: authToken,
-      login,
-      logout: doLogout,
-      isAuthenticated: !!user,
-      isLoading,
-      isAdmin: user?.role === "executive",
-      isCoordinator: user?.role === "operations",
-      isManager: user?.role === "legal",
-    }}>
+    <AuthContext.Provider value={{ user, login, verifyOtp, logout: logoutPublic, isAuthenticated: !!user, sessionExpired, isRestoring }}>
+      {sessionExpired && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-lime-400/40 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
+            <div className="w-14 h-14 rounded-full bg-lime-500/20 border border-lime-400/40 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-lime-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-bold text-white mb-2">Session Expired</h2>
+            <p className="text-gray-400 text-sm mb-6">Your session timed out after 8 hours of inactivity. Please log in again.</p>
+            <button
+              onClick={() => { setSessionExpired(false); setLocation("/login"); }}
+              className="w-full py-2.5 bg-lime-500 hover:bg-lime-500 text-white font-bold rounded-lg transition-colors text-sm uppercase tracking-wider"
+            >
+              Log In Again
+            </button>
+          </div>
+        </div>
+      )}
       {children}
     </AuthContext.Provider>
   );
@@ -176,8 +192,4 @@ export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
-}
-
-export function getAuthToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY);
 }

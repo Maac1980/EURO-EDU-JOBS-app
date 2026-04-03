@@ -48,7 +48,7 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   return { gross, employeeZus, health, pit, net, netPerHour, employerZus, totalCost, taxBase };
 }
 
-// Reverse: brute force walk from 0.01 — guaranteed correct
+// Reverse: walk gross/h by 0.01, return first where netPerHour >= desired
 export function reverseCalculate(hours: number, desiredNet: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
   if (hours <= 0 || desiredNet <= 0) return calculate(hours, 0, contract, applyPit2, includeSickness);
   let g = 0.01;
@@ -176,12 +176,12 @@ export function KnowledgeCenter() {
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
             <p className="text-xs text-slate-400 uppercase mb-1">Employee ZUS</p>
-            <p className="text-xl font-black text-red-400">-{r.employeeZus.toFixed(2)}</p>
+            <p className="text-xl font-black text-lime-300">-{r.employeeZus.toFixed(2)}</p>
             <p className="text-xs text-slate-500">PLN</p>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
             <p className="text-xs text-slate-400 uppercase mb-1">Health</p>
-            <p className="text-xl font-black text-red-400">-{r.health.toFixed(2)}</p>
+            <p className="text-xl font-black text-lime-300">-{r.health.toFixed(2)}</p>
             <p className="text-xs text-slate-500">PLN</p>
           </div>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">

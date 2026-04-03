@@ -17,7 +17,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   const { t } = useTranslation();
   const normalizedStatus = status?.toLowerCase() || "unknown";
 
-  let config: { label: string; classes: string; style?: React.CSSProperties; icon: React.ElementType } = {
+  let config = {
     label: t("status.unknown"),
     classes: "bg-muted/20 text-muted-foreground border-muted-foreground/30",
     icon: Clock,
@@ -48,13 +48,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     case "non-compliant":
       config = {
         label: t("status.nonCompliant"),
-        classes: "border",
-        style: {
-          background: "rgba(233,255,112,0.1)",
-          color: "#E9FF70",
-          borderColor: "rgba(233,255,112,0.3)",
-          boxShadow: "0 0 10px rgba(233,255,112,0.15)",
-        },
+        classes: "bg-lime-400/40 text-lime-300 border-lime-400/30",
         icon: XOctagon,
       };
       break;
@@ -69,7 +63,6 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         config.classes,
         className
       )}
-      style={config.style}
     >
       <Icon className="w-3.5 h-3.5" />
       {config.label}

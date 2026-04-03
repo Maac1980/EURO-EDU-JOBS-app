@@ -1,7 +1,9 @@
 import React from "react";
+import { AlertTriangle, RefreshCcw } from "lucide-react";
 
 interface Props {
   children: React.ReactNode;
+  fallbackMessage?: string;
 }
 
 interface State {
@@ -9,7 +11,7 @@ interface State {
   error: Error | null;
 }
 
-export default class ErrorBoundary extends React.Component<Props, State> {
+export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -19,8 +21,8 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[ErrorBoundary] Caught error:", error, info);
   }
 
   handleRetry = () => {
@@ -30,66 +32,24 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 40,
-            minHeight: 300,
-            textAlign: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: "50%",
-              background: "#FEF2F2",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 16,
-              fontSize: 24,
-            }}
-          >
-            !
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-lime-400/30 border border-lime-400/20 flex items-center justify-center mb-4">
+            <AlertTriangle className="w-8 h-8 text-lime-300" />
           </div>
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: "#111827",
-              marginBottom: 8,
-            }}
-          >
-            Something went wrong
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: "#6B7280",
-              marginBottom: 20,
-              maxWidth: 280,
-              lineHeight: 1.5,
-            }}
-          >
-            An unexpected error occurred. Please try again or contact support if the issue persists.
-          </div>
+          <h2 className="text-lg font-bold text-white mb-2">Something went wrong</h2>
+          <p className="text-sm text-slate-400 max-w-md mb-1">
+            {this.props.fallbackMessage || "An unexpected error occurred while loading this page."}
+          </p>
+          {this.state.error && (
+            <p className="text-xs text-lime-300/60 font-mono mb-4 max-w-md truncate">
+              {this.state.error.message}
+            </p>
+          )}
           <button
             onClick={this.handleRetry}
-            style={{
-              padding: "10px 24px",
-              borderRadius: 10,
-              border: "none",
-              background: "#1B2A4A",
-              color: "#FFD600",
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-lime-400/40 text-lime-300 text-sm font-bold hover:bg-lime-400/60 transition-colors"
           >
+            <RefreshCcw className="w-4 h-4" />
             Try Again
           </button>
         </div>

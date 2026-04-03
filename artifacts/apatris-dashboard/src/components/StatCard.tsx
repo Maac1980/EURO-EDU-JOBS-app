@@ -17,17 +17,17 @@ export function StatCard({ title, value, icon: Icon, variant = "default" }: Stat
   let accentLine = "bg-gradient-to-r from-transparent via-primary/60 to-transparent";
 
   if (variant === "critical") {
-    colors = "border-yellow-400/20 shadow-lg";
-    iconBg = "bg-primary/10 text-primary border-primary/20";
+    colors = "border-lime-400/30 shadow-lg";
+    iconBg = "bg-destructive/10 text-destructive border-destructive/20";
     valueColor = "text-white";
-    glowColor = "bg-primary/15";
-    accentLine = "bg-gradient-to-r from-transparent via-primary/60 to-transparent";
+    glowColor = "bg-destructive/15";
+    accentLine = "bg-gradient-to-r from-transparent via-destructive/60 to-transparent";
   } else if (variant === "warning") {
     colors = "border-yellow-500/30 shadow-lg";
-    iconBg = "bg-primary/10 text-primary border-primary/20";
+    iconBg = "bg-warning/10 text-warning border-warning/20";
     valueColor = "text-white";
-    glowColor = "bg-primary/12";
-    accentLine = "bg-gradient-to-r from-transparent via-primary/50 to-transparent";
+    glowColor = "bg-warning/15";
+    accentLine = "bg-gradient-to-r from-transparent via-warning/60 to-transparent";
   } else if (variant === "success") {
     colors = "border-success/25 shadow-[0_0_15px_rgba(34,180,80,0.1)]";
     iconBg = "bg-success/10 text-success border-success/20";
@@ -42,18 +42,15 @@ export function StatCard({ title, value, icon: Icon, variant = "default" }: Stat
       <div className={cn("absolute top-0 left-0 right-0 h-px opacity-60", accentLine)} />
 
       <div className="flex items-start justify-between relative z-10">
-        <div className="flex-1 flex flex-col">
-          <p
-            className="text-[10px] font-mono font-bold tracking-widest uppercase text-white leading-tight mb-3"
-            style={{ minHeight: "2.5rem", display: "flex", alignItems: "flex-start" }}
-          >
+        <div className="flex-1">
+          <p className="text-xs font-mono font-bold tracking-widest uppercase text-white mb-3">
             {title}
           </p>
           <h3 className={cn("text-4xl font-mono font-bold tracking-tight", valueColor)}>
             {value}
           </h3>
         </div>
-        <div className={cn("p-3 rounded-xl border backdrop-blur-md flex-shrink-0", iconBg)}>
+        <div className={cn("p-3 rounded-xl border backdrop-blur-md", iconBg)}>
           <Icon className="w-6 h-6" />
         </div>
       </div>

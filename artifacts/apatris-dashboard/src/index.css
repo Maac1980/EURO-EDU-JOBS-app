@@ -200,11 +200,10 @@ input[type="search"]::-webkit-search-cancel-button { display:none; }
 
 /* ══ MEGA MENU ══ */
 .app-mega-menu {
-  position: absolute; top: 100%; right: 0; z-index: 999;
+  position: fixed; top: 54px; right: 16px; z-index: 9999;
   width: 720px; max-height: 80vh; overflow-y: auto;
-  background: #0d1220; border: 1px solid rgba(212,232,75,0.1);
-  border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-  margin-top: 4px;
+  background: #0d1220; border: 1px solid rgba(212,232,75,0.15);
+  border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.7);
 }
 .app-mega-menu-grid {
   display: grid; grid-template-columns: repeat(3, 1fr);

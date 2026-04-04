@@ -960,8 +960,7 @@ export default function Dashboard() {
                 <tr>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.operator")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.spec")}</th>
-                  
-                  
+                  <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-right" style={{ color: "#4ade80" }}>Net/HR</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.badaniaLek")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.oswiadczenie")}</th>
                   <th className="px-2 py-3 text-[10px] font-display font-bold uppercase tracking-widest text-white">{t("table.exp")}</th>
@@ -1022,6 +1021,23 @@ export default function Dashboard() {
                         <span className="px-2 py-1 rounded bg-white/10 border border-white/20 text-xs font-bold text-white">
                           {worker.specialization || '—'}
                         </span>
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        {(() => {
+                          const rate = (worker as any).hourlyNettoRate ?? 0;
+                          if (rate <= 0) return <span className="text-gray-600">—</span>;
+                          const pension = Math.round(rate * 160 * 0.0976 * 100) / 100;
+                          const disability = Math.round(rate * 160 * 0.015 * 100) / 100;
+                          const zus = pension + disability;
+                          const healthBase = rate * 160 - zus;
+                          const health = Math.round(healthBase * 0.09 * 100) / 100;
+                          const kup = Math.round(healthBase * 0.20 * 100) / 100;
+                          const taxBase = Math.round(healthBase - kup);
+                          const pit = Math.max(0, Math.round(taxBase * 0.12) - 300);
+                          const netMonthly = rate * 160 - zus - health - pit;
+                          const netH = Math.round(netMonthly / 160 * 100) / 100;
+                          return <span className="font-mono font-bold text-xs" style={{ color: "#4ade80" }}>{netH.toFixed(2)}</span>;
+                        })()}
                       </td>
                       <td className="px-6 py-4 font-mono text-sm">
                         {(() => {

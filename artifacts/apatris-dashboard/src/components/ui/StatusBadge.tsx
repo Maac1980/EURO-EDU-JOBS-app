@@ -24,6 +24,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   };
 
   switch (normalizedStatus) {
+    case "expired":
     case "critical":
       config = {
         label: t("status.critical"),
@@ -31,6 +32,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         icon: AlertCircle,
       };
       break;
+    case "pending":
     case "warning":
       config = {
         label: t("status.warning"),
@@ -38,6 +40,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         icon: Clock,
       };
       break;
+    case "valid":
     case "compliant":
       config = {
         label: t("status.compliant"),

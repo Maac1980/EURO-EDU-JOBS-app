@@ -492,79 +492,18 @@ export default function Dashboard() {
       ═══════════════════════════════════════════ */}
       <div className="eej-main">
 
-      {/* ═══════════ UNIFIED TOP HEADER ═══════════ */}
-      <header style={{
-        height: 75,
-        minHeight: 75,
-        padding: "0 40px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        background: "#0f1117",
-        borderBottom: "1px solid rgba(233,255,112,0.12)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-        flexShrink: 0,
-        position: "sticky",
-        top: 0,
-        zIndex: 30,
-      }}>
-        {/* Left: ONE logo + tagline */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{
-            width: 46, height: 46, borderRadius: 12, flexShrink: 0,
-            background: "#E9FF70", display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 0 0 1px rgba(233,255,112,0.3), 0 4px 16px rgba(233,255,112,0.2)",
-          }}>
-            <span style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif", fontWeight: 900, fontSize: 15, letterSpacing: "-0.05em" }}>EEJ</span>
-          </div>
-          <div>
-            <div style={{ color: "#ffffff", fontWeight: 900, fontSize: 16, letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1, fontFamily: "Montserrat, sans-serif" }}>
-              EURO EDU JOBS
-            </div>
-            <div style={{ color: "#E9FF70", fontSize: 9, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.7, marginTop: 4, fontFamily: "monospace" }}>
-              YOUR RELIABLE PARTNERS IN EUROPE
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Language + Notification + User + Logout */}
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <LanguageToggle />
-          <NotificationBell onSelectWorker={(id) => setSelectedWorkerId(id)} />
-          <div style={{ width: 1, height: 32, background: "rgba(255,255,255,0.1)" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ color: "#ffffff", fontWeight: 700, fontSize: 13, lineHeight: 1 }}>{user?.name ?? "User"}</div>
-              <div style={{ color: "#E9FF70", fontSize: 10, fontWeight: 600, fontFamily: "monospace", textTransform: "uppercase", marginTop: 3, opacity: 0.8 }}>{user?.role}</div>
-            </div>
-            <div style={{
-              width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
-              background: "#E9FF70", display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <span style={{ color: "#333333", fontWeight: 900, fontSize: 15 }}>{user?.name?.[0]?.toUpperCase() ?? "U"}</span>
-            </div>
-          </div>
-          <button onClick={logout} title={t("header.logout")} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", padding: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#ff6b6b")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
-          >
-            <LogOut size={18} />
-          </button>
-        </div>
-      </header>
-
-      {/* ── Scrollable content area ── */}
+      {/* ── Scrollable content area (header is in AppShell) ── */}
       <div className="app-content-scroll">
 
       {/* ═══════════ MODULE NAV CARDS ═══════════ */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, margin: "28px 40px 0" }}>
         {(([
-          { tab: "compliance", icon: ShieldAlert, label: t("tabs.compliance"), hide: false,                        color: "#ef4444", glow: "rgba(239,68,68,0.3)" },
-          { tab: "payroll",    icon: Calculator,  label: t("tabs.payroll"),    hide: !isAdmin && !isCoordinator,   color: "#22c55e", glow: "rgba(34,197,94,0.3)" },
-          { tab: "deployment", icon: MapPin,       label: t("tabs.deployment"), hide: false,                        color: "#3b82f6", glow: "rgba(59,130,246,0.3)" },
-          { tab: "alerts",     icon: AlertOctagon, label: t("tabs.alerts"),    hide: false,                        color: "#f59e0b", glow: "rgba(245,158,11,0.3)" },
-          { tab: "calculator", icon: Zap,          label: "Calculator",         hide: !isAdmin && !isCoordinator,   color: "#a855f7", glow: "rgba(168,85,247,0.3)" },
-        ] as { tab: "compliance"|"payroll"|"deployment"|"alerts"|"calculator"|"settings"; icon: React.ElementType; label: string; hide: boolean; color: string; glow: string }[]).filter((c) => !c.hide).map(({ tab, icon: Icon, label, color, glow }) => {
+          { tab: "compliance", icon: ShieldAlert, label: t("tabs.compliance"), hide: false,                        color: "#ff6b6b", glow: "rgba(239,68,68,0.3)",  grad: "linear-gradient(135deg,#c0392b,#7b241c)" },
+          { tab: "payroll",    icon: Calculator,  label: t("tabs.payroll"),    hide: !isAdmin && !isCoordinator,   color: "#4ade80", glow: "rgba(34,197,94,0.3)",  grad: "linear-gradient(135deg,#1a5e38,#0e3d23)" },
+          { tab: "deployment", icon: MapPin,       label: t("tabs.deployment"), hide: false,                        color: "#93c5fd", glow: "rgba(59,130,246,0.3)", grad: "linear-gradient(135deg,#1a3a6e,#0f2550)" },
+          { tab: "alerts",     icon: AlertOctagon, label: t("tabs.alerts"),    hide: false,                        color: "#fb923c", glow: "rgba(245,158,11,0.3)", grad: "linear-gradient(135deg,#4a2500,#2d1700)" },
+          { tab: "calculator", icon: Zap,          label: "Calculator",         hide: !isAdmin && !isCoordinator,   color: "#c084fc", glow: "rgba(168,85,247,0.3)", grad: "linear-gradient(135deg,#2d1060,#1a0940)" },
+        ] as { tab: "compliance"|"payroll"|"deployment"|"alerts"|"calculator"|"settings"; icon: React.ElementType; label: string; hide: boolean; color: string; glow: string; grad: string }[]).filter((c) => !c.hide).map(({ tab, icon: Icon, label, color, glow, grad }) => {
           const isActive = activeTab === tab;
           return (
           <button
@@ -572,8 +511,8 @@ export default function Dashboard() {
             onClick={() => setActiveTab(tab as typeof activeTab)}
             style={{
               padding: "22px 16px",
-              background: isActive ? color : color + "22",
-              border: `2px solid ${isActive ? color : color + "66"}`,
+              background: isActive ? grad : grad,
+              border: `2px solid ${isActive ? color : "rgba(255,255,255,0.08)"}`,
               borderRadius: 14,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12,
               cursor: "pointer",
@@ -661,10 +600,10 @@ export default function Dashboard() {
         {/* ── Tab Bar — hidden via CSS; bottom bar handles mobile ── */}
         <div className="eej-tab-bar overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800/60 border border-white/8 w-fit min-w-max">
-          {(["compliance", "payroll", "deployment", "alerts", "calculator", "settings"] as const)
+          {(["compliance", "payroll", "deployment", "alerts", "calculator"] as const)
             .filter((tab) => {
-              if (tab === "settings") return isAdmin;
               if (tab === "payroll") return isAdmin || isCoordinator;
+              if (tab === "calculator") return isAdmin || isCoordinator;
               return true;
             })
             .map((tab) => (
@@ -674,7 +613,7 @@ export default function Dashboard() {
               className="flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
               style={
                 activeTab === tab
-                  ? { background: "#E9FF70", color: "#333333", boxShadow: "0 0 14px rgba(233,255,112,0.25)" }
+                  ? { background: "#d4e84b", color: "#0b101e", boxShadow: "0 0 14px rgba(212,232,75,0.25)" }
                   : { color: "rgba(255,255,255,0.45)" }
               }
             >
@@ -682,8 +621,8 @@ export default function Dashboard() {
               {tab === "payroll" && <Calculator className="w-3.5 h-3.5" />}
               {tab === "deployment" && <MapPin className="w-3.5 h-3.5" />}
               {tab === "alerts" && <AlertOctagon className="w-3.5 h-3.5" />}
-              {tab === "settings" && <Settings className="w-3.5 h-3.5" />}
-              {tab === "compliance" ? t("tabs.compliance") : tab === "payroll" ? t("tabs.payroll") : tab === "deployment" ? t("tabs.deployment") : tab === "alerts" ? t("tabs.alerts") : t("tabs.settings")}
+              {tab === "calculator" && <Zap className="w-3.5 h-3.5" />}
+              {tab === "compliance" ? t("tabs.compliance") : tab === "payroll" ? t("tabs.payroll") : tab === "deployment" ? t("tabs.deployment") : tab === "alerts" ? t("tabs.alerts") : "Calculator"}
             </button>
           ))}
         </div>
@@ -937,11 +876,11 @@ export default function Dashboard() {
                 return true;
               })
               .map((worker) => {
-                const statusColor = worker.complianceStatus === "compliant"
-                  ? "#22c55e" : worker.complianceStatus === "warning"
-                  ? "#f59e0b" : worker.complianceStatus === "critical"
-                  ? "#ef4444" : worker.complianceStatus === "non-compliant"
-                  ? "#ef4444" : "#f59e0b";
+                const sc = worker.complianceStatus;
+                const statusColor = (sc === "compliant" || sc === "valid") ? "#22c55e"
+                  : (sc === "warning" || sc === "pending") ? "#f59e0b"
+                  : (sc === "critical" || sc === "non-compliant" || sc === "expired") ? "#ef4444"
+                  : "#f59e0b";
                 const daysLeft = (d?: string | null) => {
                   if (!d) return null;
                   const diff = Math.round((new Date(d).getTime() - Date.now()) / 86400000);
@@ -1825,10 +1764,9 @@ export default function Dashboard() {
           BOTTOM APP BAR — mobile (≤768px) only
       ═══════════════════════════════════════════ */}
       <nav className="eej-bottom-bar">
-        {(["compliance", "payroll", "deployment", "alerts", "calculator", "settings"] as const)
+        {(["compliance", "payroll", "deployment", "alerts", "calculator"] as const)
           .filter((tab) => {
-            if (tab === "settings") return isAdmin;
-            if (tab === "payroll") return isAdmin || isCoordinator;
+            if (tab === "payroll" || tab === "calculator") return isAdmin || isCoordinator;
             return true;
           })
           .map((tab) => (
@@ -1837,13 +1775,13 @@ export default function Dashboard() {
               {tab === "payroll"    && <Calculator  className="w-5 h-5" />}
               {tab === "deployment" && <MapPin       className="w-5 h-5" />}
               {tab === "alerts"     && <AlertOctagon className="w-5 h-5" />}
-              {tab === "settings"   && <Settings     className="w-5 h-5" />}
+              {tab === "calculator" && <Zap          className="w-5 h-5" />}
               <span>
                 {tab === "compliance" ? "Workers"
                   : tab === "payroll"    ? "Payroll"
                   : tab === "deployment" ? "Sites"
                   : tab === "alerts"     ? "Alerts"
-                  : "Settings"}
+                  : "ZUS Calc"}
               </span>
             </button>
           ))}

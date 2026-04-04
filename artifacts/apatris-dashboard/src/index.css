@@ -166,9 +166,23 @@ body { overscroll-behavior: none; }
 .app-content-wrapper > * { flex:1; min-height:0; overflow-y:auto; }
 
 .app-bottom-bar { display:none; }
+
+/* Dashboard internal bottom nav */
+.eej-bottom-bar { display:none; }
+.eej-bottom-nav-btn {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:4px; padding:0 12px; min-width:60px; background:none; border:none;
+  color:#7a8599; cursor:pointer; font-size:9px; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.05em; flex-shrink:0;
+}
+.eej-bottom-nav-btn.active { color:#d4e84b; }
+.eej-bottom-nav-btn span { white-space:nowrap; }
+
 @media (max-width:768px) {
   .app-top-nav { display:none !important; }
   .app-bottom-bar { display:flex; height:64px; background:#0b101e; border-top:2px solid #d4e84b; overflow-x:auto; scrollbar-width:none; flex-shrink:0; }
+  .eej-bottom-bar { display:flex; align-items:stretch; height:60px; background:#0b101e; border-top:1px solid rgba(212,232,75,0.1); flex-shrink:0; }
+  .eej-tab-bar { display:none !important; }
 }
 
 ::-webkit-scrollbar { width:6px; }

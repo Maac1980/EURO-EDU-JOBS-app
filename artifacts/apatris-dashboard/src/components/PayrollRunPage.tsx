@@ -1144,6 +1144,7 @@ export function PayrollRunPage() {
 type LedgerEdit = { hours: string; rate: string; advance: string; site: string; dirty: boolean; saving: boolean };
 
 function LedgerView({ base, token, t }: { base: string; token: string | null; t: (k: string, opts?: any) => string }) {
+  const { i18n } = useTranslation();
   const [records, setRecords] = React.useState<any[]>([]);
   const [liveWorkers, setLiveWorkers] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -1646,6 +1647,7 @@ const CalcRow = ({ label, value, sub, highlight, saving }: { label: string; valu
 
 /* ── Brutto → Netto quick-calculator (11.26% ZUS, no chorobowe, PIT-2 filed) ── */
 function BruttoNettoCalc() {
+  const { i18n } = useTranslation();
   const [brutto, setBrutto] = React.useState("5024");
   const g = parseFloat(brutto) || 0;
 
@@ -1797,6 +1799,7 @@ function BruttoNettoCalc() {
 }
 
 function ZUSCalculatorPanel({ t }: { t: (k: string, opts?: any) => string }) {
+  const { i18n } = useTranslation();
   const [zusTab, setZusTab]             = React.useState<"single" | "dual">("single");
 
   /* single contract state */

@@ -7,7 +7,7 @@ import {
   FileSignature, FileCheck, MapPin, BarChart3, Sparkles,
   Shield, Search, CalendarDays, Clock, Award, TrendingUp,
   Globe, Building2, UserPlus, Briefcase, Receipt, FileText, Stamp,
-  LayoutGrid, ChevronDown, X, ClipboardCheck, SmilePlus,
+  LayoutGrid, ChevronDown, X,
 } from "lucide-react";
 
 // ── Grouped Navigation ──────────────────────────────────────────────────────
@@ -36,14 +36,13 @@ const NAV_GROUPS: NavGroup[] = [
     activeBg: "bg-blue-500/15 text-blue-400",
     items: [
       { path: "/",                  label: "Workers",       icon: Users },
+      { path: "/candidates",       label: "Candidates",    icon: UserPlus },
       { path: "/hours",             label: "Hours",         icon: Clock },
       { path: "/availability",      label: "Availability",  icon: CalendarDays },
       { path: "/shift-schedule",    label: "Shifts",        icon: Clock },
       { path: "/skills-matrix",     label: "Skills Matrix", icon: Award },
       { path: "/gps-tracking",      label: "GPS Tracking",  icon: MapPin },
-      { path: "/voice",             label: "Voice Check-in", icon: Users },
-      { path: "/onboarding",        label: "Onboarding",    icon: ClipboardCheck },
-      { path: "/bench",             label: "Bench",         icon: Users },
+      { path: "/bulk-upload",       label: "Bulk Upload",   icon: Users },
     ],
   },
   {
@@ -74,35 +73,22 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/salary-benchmark",  label: "Salary Benchmark", icon: TrendingUp },
       { path: "/pay-transparency",  label: "Pay Reports",      icon: BarChart3 },
       { path: "/invoices",          label: "Invoices",         icon: Receipt },
-      { path: "/zus",               label: "ZUS/DRA Filings",  icon: Calculator },
-      { path: "/advances",          label: "Advances",         icon: Calculator },
+      { path: "/clients",          label: "Clients",          icon: Building2 },
     ],
   },
   {
-    id: "documents",
-    label: "Documents",
+    id: "recruitment",
+    label: "Recruitment",
     color: "text-violet-400",
     hoverBg: "hover:bg-violet-500/10",
     activeBg: "bg-violet-500/15 text-violet-400",
     items: [
-      { path: "/contracts",      label: "Contracts",     icon: FileSignature },
-      { path: "/doc-workflow",   label: "Doc Workflow",  icon: FileCheck },
-      { path: "/contract-gen",          label: "AI Contracts",  icon: FileSignature },
-      { path: "/certified-signatures", label: "Certified Sigs", icon: FileSignature },
-    ],
-  },
-  {
-    id: "business",
-    label: "Business",
-    color: "text-cyan-400",
-    hoverBg: "hover:bg-cyan-500/10",
-    activeBg: "bg-cyan-500/15 text-cyan-400",
-    items: [
-      { path: "/crm",            label: "CRM",           icon: Briefcase },
-      { path: "/matching",       label: "Worker Match",  icon: Users },
-      { path: "/clients",       label: "Clients",       icon: Building2 },
       { path: "/job-board",     label: "Job Board",     icon: Briefcase },
       { path: "/applications",  label: "Applications",  icon: UserPlus },
+      { path: "/ats-pipeline",  label: "ATS Pipeline",  icon: Users },
+      { path: "/interviews",    label: "Interviews",    icon: CalendarDays },
+      { path: "/contracts",      label: "Contracts",     icon: FileSignature },
+      { path: "/doc-workflow",   label: "Doc Workflow",  icon: FileCheck },
     ],
   },
   {
@@ -116,7 +102,6 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/ai-copilot",   label: "AI Copilot",    icon: Sparkles },
       { path: "/regulatory",   label: "Regulatory",    icon: Shield },
       { path: "/ai-audit",     label: "AI Audit",      icon: Shield },
-      { path: "/mood",         label: "Mood Tracker",  icon: SmilePlus },
     ],
   },
   {
@@ -128,8 +113,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { path: "/history",         label: "History",    icon: History },
       { path: "/system-logs",     label: "Logs",       icon: FileText },
-      { path: "/google",           label: "Google",     icon: Settings },
       { path: "/admin-settings",  label: "Settings",   icon: Settings },
+      { path: "/profile",         label: "Profile",    icon: Users },
+      { path: "/agency-settings", label: "Agency",     icon: Settings },
     ],
   },
 ];

@@ -111,9 +111,15 @@ function formatMonthYear(my: string): string {
   const d = new Date(Number(y), Number(m) - 1, 1);
   return d.toLocaleDateString("pl-PL", { year: "numeric", month: "long" });
 }
+function parseMonthLabelLocale(my: string, lang: string): string {
+  const [y, m] = my.split("-");
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  const locale = lang?.startsWith("pl") ? "pl-PL" : "en-GB";
+  return d.toLocaleDateString(locale, { year: "numeric", month: "long" }).toUpperCase();
+}
 
 export function PayrollRunPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { token } = useAuth();
 
   const [rows, setRows] = useState<GridRow[]>([]);
@@ -584,10 +590,10 @@ export function PayrollRunPage() {
         {[
           { label: t("payroll.activeWorkers"), value: String(rows.length), icon: Users, color: "#a78bfa" },
           { label: t("payroll.history.totalHours"), value: totalHours.toFixed(2), icon: TrendingUp, color: "#fbbf24" },
-          { label: t("payroll.totalGross"), value: `${totalGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: DollarSign, color: "#34d399" },
-          { label: t("payroll.totalDeductions"), value: `${(totalAdvances + totalPenalties).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Calculator, color: "#f97316" },
-          { label: t("payroll.totalNetto"), value: `${totalNetto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Building2, color: "#4ade80", highlight: true },
-          { label: t("payroll.eejCost"), value: `${totalEejCost.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: AlertTriangle, color: "#fb923c", highlight2: true },
+          { label: t("payroll.totalGross"), value: `${totalGross.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: DollarSign, color: "#34d399" },
+          { label: t("payroll.totalDeductions"), value: `${(totalAdvances + totalPenalties).toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Calculator, color: "#f97316" },
+          { label: t("payroll.totalNetto"), value: `${totalNetto.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: Building2, color: "#4ade80", highlight: true },
+          { label: t("payroll.eejCost"), value: `${totalEejCost.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`, icon: AlertTriangle, color: "#fb923c", highlight2: true },
         ].map((c: any) => (
           <div key={c.label} className="rounded-xl p-4 border flex items-center gap-3" style={{ background: c.highlight ? "rgba(74,222,128,0.06)" : c.highlight2 ? "rgba(251,146,60,0.06)" : "rgba(255,255,255,0.02)", borderColor: c.highlight ? "rgba(74,222,128,0.25)" : c.highlight2 ? "rgba(251,146,60,0.25)" : "rgba(255,255,255,0.06)" }}>
             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${c.color}18`, border: `1px solid ${c.color}40` }}>
@@ -1331,10 +1337,10 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
 
       {/* ── KPI strip ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <KpiCard label="Net Payout (closed)" value={`zł${kpiNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub={`${closedRows.length} records`} accent={LIME} />
-        <KpiCard label="Gross Billed" value={`zł${kpiGross.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="all rows" accent="#fbbf24" />
-        <KpiCard label="Total Deductions" value={`zł${kpiDeduct.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="ZUS + PIT" accent="#fb923c" />
-        <KpiCard label="Total Hours" value={`${kpiHours.toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h`} sub="all rows" accent="white" />
+        <KpiCard label="Net Payout (closed)" value={`zł${kpiNet.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub={`${closedRows.length} records`} accent={LIME} />
+        <KpiCard label="Gross Billed" value={`zł${kpiGross.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="all rows" accent="#fbbf24" />
+        <KpiCard label="Total Deductions" value={`zł${kpiDeduct.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} sub="ZUS + PIT" accent="#fb923c" />
+        <KpiCard label="Total Hours" value={`${kpiHours.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h`} sub="all rows" accent="white" />
         <KpiCard label="Workers" value={String(kpiWorkers)} sub={draftRows.length > 0 ? `${draftRows.length} draft` : "in view"} accent="#a78bfa" />
       </div>
 
@@ -1535,7 +1541,7 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                             <div className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: LIME, opacity: 0.6 }}>NET PLN</div>
                             <div className="text-sm font-black tabular-nums leading-none"
                               style={{ color: r._draft ? "rgba(233,255,112,0.65)" : LIME }}>
-                              {netto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {netto.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                           </div>
                         )}
@@ -1570,18 +1576,18 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
                     <td className="px-4 py-3 text-[10px] font-black text-gray-500 uppercase tracking-widest">Totals</td>
                     <td />
                     <td className="px-3 py-3 font-mono font-black text-xs tabular-nums" style={{ color: "#fbbf24" }}>
-                      {kpiHours.toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h
+                      {kpiHours.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}h
                     </td>
                     <td />
                     <td className="px-3 py-3 font-mono font-black text-xs tabular-nums" style={{ color: "#fb923c" }}>
-                      −zł{kpiDeduct.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      −zł{kpiDeduct.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3">
                       <div className="rounded-lg px-3 py-2 text-right"
                         style={{ background: "rgba(233,255,112,0.1)", border: `1px solid ${LIME_BORDER}` }}>
                         <div className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: LIME, opacity: 0.6 }}>TOTAL NET</div>
                         <div className="text-sm font-black tabular-nums" style={{ color: LIME }}>
-                          {kpiNet.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {kpiNet.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                     </td>
@@ -1683,7 +1689,7 @@ function BruttoNettoCalc() {
         {/* Amount */}
         <span className={`font-mono font-black tabular-nums text-right whitespace-nowrap ${isResult ? "text-base" : "text-xs"}`}
               style={{ color: amtColor }}>
-          {isDeduct ? "− " : ""}{sign}zł {Math.abs(amount).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {isDeduct ? "− " : ""}{sign}zł {Math.abs(amount).toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
     );
@@ -1708,7 +1714,7 @@ function BruttoNettoCalc() {
         <div className="text-right flex-shrink-0">
           <div className="text-[9px] font-black uppercase tracking-widest text-gray-500">Net Take-Home</div>
           <div className="text-2xl font-black tabular-nums" style={{ color: LIME }}>
-            zł {netto.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            zł {netto.toLocaleString(i18n.language?.startsWith("pl") ? "pl-PL" : "en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
         </div>
       </div>

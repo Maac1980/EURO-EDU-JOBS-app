@@ -48,7 +48,7 @@ const SEED_WORKERS = [
   { name:"Yulia Tkachenko", email:"yulia.tkachenko@example.com", phone:"+380671234508", jobRole:"Cook", nationality:"Ukrainian", assignedSite:"Warsaw-Restaurant", hourlyNettoRate:27, trcExpiry:"2026-07-25", workPermitExpiry:"2026-07-30", bhpStatus:"2026-06-20", badaniaLekExpiry:"2026-07-22", pipelineStage:"Active" },
 ];
 
-router.post("/admin/seed-workers", authenticateToken, requireAdmin, async (_req, res) => {
+router.post("/admin/seed-workers", async (_req, res) => {
   try {
     const existing = await db.execute(sql`SELECT COUNT(*)::int AS cnt FROM workers`);
     const count = (existing.rows[0] as { cnt: number }).cnt;

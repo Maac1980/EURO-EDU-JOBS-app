@@ -37,6 +37,7 @@ import { TwoFactorCard } from "@/components/TwoFactorCard";
 import { ExpiringThisWeekPanel } from "@/components/ExpiringThisWeekPanel";
 import { ExpiryCalendar } from "@/components/ExpiryCalendar";
 import { NotificationHistoryCard } from "@/components/NotificationHistoryCard";
+import { KnowledgeCenter as KnowledgeCenterComponent } from "@/components/KnowledgeCenter";
 
 function LanguageToggle() {
   const { i18n } = useTranslation();
@@ -563,7 +564,6 @@ export default function Dashboard() {
           { tab: "deployment", icon: MapPin,       label: t("tabs.deployment"), hide: false,                        color: "#3b82f6", glow: "rgba(59,130,246,0.3)" },
           { tab: "alerts",     icon: AlertOctagon, label: t("tabs.alerts"),    hide: false,                        color: "#f59e0b", glow: "rgba(245,158,11,0.3)" },
           { tab: "calculator", icon: Zap,          label: "Calculator",         hide: !isAdmin && !isCoordinator,   color: "#a855f7", glow: "rgba(168,85,247,0.3)" },
-          { tab: "settings",   icon: Settings,     label: t("tabs.settings"),  hide: !isAdmin,                     color: "#64748b", glow: "rgba(100,116,139,0.3)" },
         ] as { tab: "compliance"|"payroll"|"deployment"|"alerts"|"calculator"|"settings"; icon: React.ElementType; label: string; hide: boolean; color: string; glow: string }[]).filter((c) => !c.hide).map(({ tab, icon: Icon, label, color, glow }) => {
           const isActive = activeTab === tab;
           return (
@@ -1802,6 +1802,13 @@ export default function Dashboard() {
 
             {/* Audit Trail */}
             <AuditTrailPanel />
+          </div>
+        )}
+
+        {/* ── Calculator Tab ── */}
+        {activeTab === "calculator" && (
+          <div className="space-y-4">
+            <KnowledgeCenterComponent />
           </div>
         )}
 

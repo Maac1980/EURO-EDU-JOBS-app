@@ -24,6 +24,7 @@ import agencyRouter from "./agency.js";
 import regulatoryRouter from "./regulatory.js";
 import permitsRouter from "./permits.js";
 import trcServiceRouter from "./trc-service.js";
+import seedRouter from "./seed.js";
 
 const router: IRouter = Router();
 
@@ -52,5 +53,6 @@ router.use(agencyRouter);
 router.use(regulatoryRouter);
 router.use(permitsRouter);
 router.use(trcServiceRouter);
+router.use(seedRouter);
 
 export default router;

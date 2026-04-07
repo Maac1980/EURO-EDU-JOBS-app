@@ -1031,7 +1031,7 @@ export default function Dashboard() {
                           const zus = pension + disability;
                           const healthBase = rate * 160 - zus;
                           const health = Math.round(healthBase * 0.09 * 100) / 100;
-                          const kup = Math.round(healthBase * 0.20 * 100) / 100;
+                          const kup = Math.floor(healthBase * 0.20); // Floored to full PLN per Polish tax practice
                           const taxBase = Math.round(healthBase - kup);
                           const pit = Math.max(0, Math.round(taxBase * 0.12) - 300);
                           const netMonthly = rate * 160 - zus - health - pit;

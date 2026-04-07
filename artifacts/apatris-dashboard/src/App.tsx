@@ -62,6 +62,8 @@ import Messaging from "@/pages/Messaging";
 import MoodTracker from "@/pages/MoodTracker";
 import LegalKB from "@/pages/LegalKB";
 import GoogleWorkspace from "@/pages/GoogleWorkspace";
+import PIPReadiness from "@/pages/PIPReadiness";
+import RevenueForecast from "@/pages/RevenueForecast";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -253,6 +255,12 @@ function Router() {
         </Route>
         <Route path="/google">
           {() => <ProtectedRoute component={GoogleWorkspace} />}
+        </Route>
+        <Route path="/pip-readiness">
+          {() => <ProtectedRoute component={PIPReadiness} />}
+        </Route>
+        <Route path="/revenue">
+          {() => <ProtectedRoute component={RevenueForecast} />}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

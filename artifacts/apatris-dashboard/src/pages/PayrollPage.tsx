@@ -181,7 +181,7 @@ function calcZUS(gross: number, advance: number, penalties: number, rates: ZUSRa
   // Health = healthBase × 9%
   const healthInsurance = Math.round(healthBase * (rates.zdrowotne / 100) * 100) / 100;
   // KUP = healthBase × 20%
-  const kup = Math.round(healthBase * (rates.kup / 100) * 100) / 100;
+  const kup = Math.floor(healthBase * (rates.kup / 100)); // Floored to full PLN per Polish tax practice
   // taxBase = round(healthBase - KUP)
   const taxBase = Math.max(0, Math.round(healthBase - kup));
   // PIT = max(0, round(taxBase × 12%) - 300 with PIT-2)

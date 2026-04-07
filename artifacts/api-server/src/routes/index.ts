@@ -54,5 +54,6 @@ router.use(regulatoryRouter);
 router.use(permitsRouter);
 router.use(trcServiceRouter);
 router.use(seedRouter);
+try { const m = await import("./pip-readiness.js"); router.use(m.default); } catch { /* optional */ }
 
 export default router;

@@ -17,24 +17,19 @@ describe('ZUS Contribution Calculations', () => {
   it('calculates 11.26% ZUS on standard salary', () => {
     expect(calculateZUSContribution(5000)).toBe(563)
   })
-
   it('calculates ZUS on minimum wage (4300 PLN)', () => {
     expect(calculateZUSContribution(4300)).toBe(484.18)
   })
-
   it('calculates ZUS on high earner salary (15000 PLN)', () => {
     expect(calculateZUSContribution(15000)).toBe(1689)
   })
-
   it('returns 0 ZUS for 0 salary', () => {
     expect(calculateZUSContribution(0)).toBe(0)
   })
-
   it('netto is always less than gross', () => {
     const netto = calculateNettoFromGross(6000)
     expect(netto).toBeLessThan(6000)
   })
-
   it('handles decimal salary amounts correctly', () => {
     const zus = calculateZUSContribution(4567.89)
     expect(typeof zus).toBe('number')
@@ -44,12 +39,9 @@ describe('ZUS Contribution Calculations', () => {
 
 describe('Payroll Edge Cases', () => {
   it('handles very small salary', () => {
-    const zus = calculateZUSContribution(100)
-    expect(zus).toBe(11.26)
+    expect(calculateZUSContribution(100)).toBe(11.26)
   })
-
   it('never produces negative netto', () => {
-    const netto = calculateNettoFromGross(1000)
-    expect(netto).toBeGreaterThan(0)
+    expect(calculateNettoFromGross(1000)).toBeGreaterThan(0)
   })
 })

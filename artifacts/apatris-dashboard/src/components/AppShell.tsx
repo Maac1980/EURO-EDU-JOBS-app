@@ -62,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/country-compliance", label: "Country Rules",      icon: Globe },
       { path: "/gdpr",              label: "GDPR",               icon: Shield },
       { path: "/legal-kb",          label: "Legal KB",           icon: Shield },
+      { path: "/pip-readiness",    label: "PIP Readiness",      icon: Shield },
     ],
   },
   {
@@ -78,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/invoices",          label: "Invoices",         icon: Receipt },
       { path: "/clients",          label: "Clients",          icon: Building2 },
       { path: "/advances",         label: "Advances",         icon: Calculator },
+      { path: "/revenue",          label: "Revenue",          icon: TrendingUp },
       { path: "/zus",              label: "ZUS Filings",      icon: Receipt },
     ],
   },

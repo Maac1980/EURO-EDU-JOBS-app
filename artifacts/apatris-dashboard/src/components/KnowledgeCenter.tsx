@@ -20,7 +20,7 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   // Tax base
   let taxBase: number;
   if (contract === "zlecenie") {
-    const kup = Math.round(healthBase * 0.20 * 100) / 100;
+    const kup = Math.floor(healthBase * 0.20); // Floored to full PLN per Polish tax practice
     taxBase = Math.round(healthBase - kup);
   } else {
     taxBase = Math.round(gross - employeeZus - 250);

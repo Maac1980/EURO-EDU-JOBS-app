@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface BenchmarkRole {
   role: string;
-  apatrisRate: number;
+  eejRate: number;
   marketRate: number;
   difference: number;
   diffPercent: number;
@@ -12,14 +12,14 @@ interface BenchmarkRole {
 }
 
 const BENCHMARK_DATA: BenchmarkRole[] = [
-  { role: "TIG Welder (certified)", apatrisRate: 35, marketRate: 32, difference: 3, diffPercent: 9.4, status: "Above Market" },
-  { role: "MIG Welder", apatrisRate: 30, marketRate: 30, difference: 0, diffPercent: 0, status: "Competitive" },
-  { role: "ARC Welder", apatrisRate: 28, marketRate: 29, difference: -1, diffPercent: -3.4, status: "Below Market" },
-  { role: "Pipe Fitter", apatrisRate: 32, marketRate: 31, difference: 1, diffPercent: 3.2, status: "Competitive" },
-  { role: "General Helper / Labourer", apatrisRate: 23, marketRate: 25, difference: -2, diffPercent: -8.0, status: "Below Market" },
-  { role: "Site Foreman", apatrisRate: 42, marketRate: 40, difference: 2, diffPercent: 5.0, status: "Above Market" },
-  { role: "Quality Inspector", apatrisRate: 38, marketRate: 37, difference: 1, diffPercent: 2.7, status: "Competitive" },
-  { role: "Safety Officer (BHP)", apatrisRate: 36, marketRate: 35, difference: 1, diffPercent: 2.9, status: "Competitive" },
+  { role: "TIG Welder (certified)", eejRate: 35, marketRate: 32, difference: 3, diffPercent: 9.4, status: "Above Market" },
+  { role: "MIG Welder", eejRate: 30, marketRate: 30, difference: 0, diffPercent: 0, status: "Competitive" },
+  { role: "ARC Welder", eejRate: 28, marketRate: 29, difference: -1, diffPercent: -3.4, status: "Below Market" },
+  { role: "Pipe Fitter", eejRate: 32, marketRate: 31, difference: 1, diffPercent: 3.2, status: "Competitive" },
+  { role: "General Helper / Labourer", eejRate: 23, marketRate: 25, difference: -2, diffPercent: -8.0, status: "Below Market" },
+  { role: "Site Foreman", eejRate: 42, marketRate: 40, difference: 2, diffPercent: 5.0, status: "Above Market" },
+  { role: "Quality Inspector", eejRate: 38, marketRate: 37, difference: 1, diffPercent: 2.7, status: "Competitive" },
+  { role: "Safety Officer (BHP)", eejRate: 36, marketRate: 35, difference: 1, diffPercent: 2.9, status: "Competitive" },
 ];
 
 const STATUS_BADGE: Record<string, string> = {
@@ -35,7 +35,7 @@ export default function SalaryBenchmark() {
   const handleExport = () => {
     const header = "Role,EEJ Rate (PLN/h),Market Rate (PLN/h),Difference,Diff %,Status\n";
     const rows = data.map(r =>
-      `"${r.role}",${r.apatrisRate},${r.marketRate},${r.difference},${r.diffPercent}%,"${r.status}"`
+      `"${r.role}",${r.eejRate},${r.marketRate},${r.difference},${r.diffPercent}%,"${r.status}"`
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -47,7 +47,7 @@ export default function SalaryBenchmark() {
     toast({ title: "Exported", description: "CSV downloaded" });
   };
 
-  const avgEEJ = Math.round(data.reduce((s, r) => s + r.apatrisRate, 0) / data.length * 10) / 10;
+  const avgEEJ = Math.round(data.reduce((s, r) => s + r.eejRate, 0) / data.length * 10) / 10;
   const avgMarket = Math.round(data.reduce((s, r) => s + r.marketRate, 0) / data.length * 10) / 10;
   const competitive = data.filter(r => r.status === "Competitive" || r.status === "Above Market").length;
 
@@ -102,7 +102,7 @@ export default function SalaryBenchmark() {
               <tr key={r.role} className="border-b border-slate-700/30 hover:bg-slate-700/20 transition-colors">
                 <td className="p-3 text-sm text-white font-medium">{r.role}</td>
                 <td className="p-3 text-center">
-                  <span className="text-sm font-bold text-white">{r.apatrisRate}</span>
+                  <span className="text-sm font-bold text-white">{r.eejRate}</span>
                 </td>
                 <td className="p-3 text-center">
                   <span className="text-sm text-slate-300">{r.marketRate}</span>

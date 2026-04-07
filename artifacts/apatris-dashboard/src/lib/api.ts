@@ -1,12 +1,13 @@
 /**
- * Shared API utilities for the Apatris dashboard.
+ * Shared API utilities for the EEJ dashboard.
  * Centralises auth headers, list extraction, snake→camel conversion,
  * and safe JSON parsing so every page uses the same patterns.
  */
 
 // ── Auth headers ────────────────────────────────────────────────────────────
 export function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("apatris_jwt");
+  // EEJ uses sessionStorage with key "eej_token"
+  const token = sessionStorage.getItem("eej_token");
   return token
     ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
     : { "Content-Type": "application/json" };

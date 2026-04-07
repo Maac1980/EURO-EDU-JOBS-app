@@ -9,7 +9,7 @@ const R = "#ef4444";
 const A = "#f59e0b";
 
 function getToken(): string {
-  return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? "";
+  return sessionStorage.getItem("eej_token") ?? "";
 }
 
 function fmt(n: number): string {

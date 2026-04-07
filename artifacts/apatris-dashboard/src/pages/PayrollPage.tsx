@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PayrollRowSkeleton } from "@/components/Skeleton";
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("apatris_jwt");
+  const token = sessionStorage.getItem("eej_token");
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : {};
 }
 
@@ -151,7 +151,7 @@ const DEFAULT_RATES_2026: ZUSRates = {
 
 function loadZUSRates(): ZUSRates {
   try {
-    const stored = localStorage.getItem("apatris_zus_rates");
+    const stored = localStorage.getItem("eej_zus_rates");
     if (stored) {
       const parsed = JSON.parse(stored) as Partial<ZUSRates>;
       // Migrate: if chorobowe is still the old 2.45 default, reset to 0 (2026 standard — voluntary, not included)
@@ -165,7 +165,7 @@ function loadZUSRates(): ZUSRates {
 }
 
 function saveZUSRates(rates: ZUSRates) {
-  localStorage.setItem("apatris_zus_rates", JSON.stringify(rates));
+  localStorage.setItem("eej_zus_rates", JSON.stringify(rates));
 }
 
 // ─── Calculation ──────────────────────────────────────────────────────────────

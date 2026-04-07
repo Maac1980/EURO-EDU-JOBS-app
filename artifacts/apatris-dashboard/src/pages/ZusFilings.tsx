@@ -84,7 +84,7 @@ export default function ZusFilings() {
   const yearWorkers = yearFilings.reduce((s, f) => s + (f.filing?.worker_count || 0), 0);
 
   const downloadXml = (id: string, month: number, year: number) => {
-    const token = localStorage.getItem("apatris_jwt");
+    const token = sessionStorage.getItem("eej_token");
     window.open(`${import.meta.env.BASE_URL}api/zus/filings/${id}/download?token=${token}`, "_blank");
   };
 

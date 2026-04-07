@@ -366,3 +366,112 @@ export const gdprRequests = pgTable("gdpr_requests", {
   processedBy: text("processed_by"),
   notes: text("notes"),
 });
+
+// ── Legal Operations Tables ──────────────────────────────────────────────────
+
+export const legalSnapshots = pgTable("legal_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  caseId: uuid("case_id"),
+  legalStatus: text("legal_status").notNull(),
+  legalBasis: text("legal_basis"),
+  riskLevel: text("risk_level").default("MEDIUM"),
+  conditions: jsonb("conditions"),
+  warnings: jsonb("warnings"),
+  requiredActions: jsonb("required_actions"),
+  permitExpiry: date("permit_expiry"),
+  trcFilingDate: date("trc_filing_date"),
+  employerContinuity: boolean("employer_continuity").default(false),
+  roleContinuity: boolean("role_continuity").default(false),
+  formalDefect: boolean("formal_defect").default(false),
+  nationality: text("nationality"),
+  evidenceIds: jsonb("evidence_ids"),
+  snapshotData: jsonb("snapshot_data").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: text("created_by"),
+});
+
+export const legalEvidence = pgTable("legal_evidence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "cascade" }),
+  caseId: uuid("case_id"),
+  evidenceType: text("evidence_type").notNull(),
+  filename: text("filename"),
+  storageKey: text("storage_key"),
+  storageUrl: text("storage_url"),
+  ocrResult: jsonb("ocr_result"),
+  ocrConfidence: integer("ocr_confidence"),
+  manualData: jsonb("manual_data"),
+  mismatchFlags: jsonb("mismatch_flags"),
+  extractedFilingDate: date("extracted_filing_date"),
+  extractedReference: text("extracted_reference"),
+  extractedAuthority: text("extracted_authority"),
+  verified: boolean("verified").default(false),
+  verifiedBy: text("verified_by"),
+  verifiedAt: timestamp("verified_at"),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+});
+
+export const legalDocuments = pgTable("legal_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").references(() => workers.id, { onDelete: "set null" }),
+  caseId: uuid("case_id"),
+  templateId: uuid("template_id"),
+  docType: text("doc_type").notNull(),
+  language: text("language").default("pl"),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  status: text("status").default("draft"),
+  approvedBy: text("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  sentAt: timestamp("sent_at"),
+  linkedSnapshotId: uuid("linked_snapshot_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const legalSuggestions = pgTable("legal_suggestions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "cascade" }),
+  caseId: uuid("case_id"),
+  suggestionType: text("suggestion_type").notNull(),
+  reason: text("reason").notNull(),
+  priority: integer("priority").default(50),
+  status: text("status").default("pending"),
+  dismissedBy: text("dismissed_by"),
+  dismissedAt: timestamp("dismissed_at"),
+  actedOnAt: timestamp("acted_on_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const legalApprovals = pgTable("legal_approvals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  targetType: text("target_type").notNull(),
+  targetId: uuid("target_id").notNull(),
+  action: text("action").notNull(),
+  roleRequired: text("role_required").default("case_manager"),
+  status: text("status").default("pending"),
+  approvedBy: text("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  notes: text("notes"),
+  aiRequest: text("ai_request"),
+  aiResponse: text("ai_response"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const legalNotifications = pgTable("legal_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").references(() => workers.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  caseId: uuid("case_id"),
+  channel: text("channel").default("internal"),
+  messageType: text("message_type").notNull(),
+  message: text("message").notNull(),
+  recipientType: text("recipient_type").default("worker"),
+  status: text("status").default("pending"),
+  sentAt: timestamp("sent_at"),
+  aiGenerated: boolean("ai_generated").default(false),
+  approved: boolean("approved").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

@@ -64,6 +64,13 @@ import LegalKB from "@/pages/LegalKB";
 import GoogleWorkspace from "@/pages/GoogleWorkspace";
 import PIPReadiness from "@/pages/PIPReadiness";
 import RevenueForecast from "@/pages/RevenueForecast";
+import LegalDashboard from "@/pages/LegalDashboard";
+import CaseManagement from "@/pages/CaseManagement";
+import DocumentTemplates from "@/pages/DocumentTemplates";
+import ClientPortalPage from "@/pages/ClientPortal";
+import LegalQueue from "@/pages/LegalQueue";
+import RejectionIntelligence from "@/pages/RejectionIntelligence";
+import InspectionReport from "@/pages/InspectionReport";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -261,6 +268,27 @@ function Router() {
         </Route>
         <Route path="/revenue">
           {() => <ProtectedRoute component={RevenueForecast} />}
+        </Route>
+        <Route path="/legal-dashboard">
+          {() => <ProtectedRoute component={LegalDashboard} />}
+        </Route>
+        <Route path="/case-management">
+          {() => <ProtectedRoute component={CaseManagement} />}
+        </Route>
+        <Route path="/document-templates">
+          {() => <ProtectedRoute component={DocumentTemplates} />}
+        </Route>
+        <Route path="/client-portal">
+          {() => <ProtectedRoute component={ClientPortalPage} />}
+        </Route>
+        <Route path="/legal-queue">
+          {() => <ProtectedRoute component={LegalQueue} />}
+        </Route>
+        <Route path="/rejection-intel">
+          {() => <ProtectedRoute component={RejectionIntelligence} />}
+        </Route>
+        <Route path="/inspection-report">
+          {() => <ProtectedRoute component={InspectionReport} />}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

@@ -429,6 +429,134 @@ export async function runMigrations(): Promise<void> {
       user_data JSONB NOT NULL,
       expires_at TIMESTAMP NOT NULL
     );
+
+    -- Extend legal_cases with TRC/case management fields
+    DO $$ BEGIN
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS trc_case_id UUID;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS case_manager TEXT;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS client_comm_status TEXT DEFAULT 'none';
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS doc_completeness INTEGER DEFAULT 0;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS appeal_deadline DATE;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS rejection_text TEXT;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS rejection_classification JSONB;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS priority_score INTEGER DEFAULT 50;
+    END $$;
+
+    CREATE TABLE IF NOT EXISTS legal_snapshots (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+      case_id UUID REFERENCES legal_cases(id) ON DELETE SET NULL,
+      legal_status TEXT NOT NULL,
+      legal_basis TEXT,
+      risk_level TEXT DEFAULT 'MEDIUM',
+      conditions JSONB,
+      warnings JSONB,
+      required_actions JSONB,
+      permit_expiry DATE,
+      trc_filing_date DATE,
+      employer_continuity BOOLEAN DEFAULT FALSE,
+      role_continuity BOOLEAN DEFAULT FALSE,
+      formal_defect BOOLEAN DEFAULT FALSE,
+      nationality TEXT,
+      evidence_ids JSONB,
+      snapshot_data JSONB NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      created_by TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_snapshots_worker ON legal_snapshots(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_legal_snapshots_status ON legal_snapshots(legal_status);
+
+    CREATE TABLE IF NOT EXISTS legal_evidence (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      case_id UUID REFERENCES legal_cases(id) ON DELETE SET NULL,
+      evidence_type TEXT NOT NULL,
+      filename TEXT,
+      storage_key TEXT,
+      storage_url TEXT,
+      ocr_result JSONB,
+      ocr_confidence INTEGER,
+      manual_data JSONB,
+      mismatch_flags JSONB,
+      extracted_filing_date DATE,
+      extracted_reference TEXT,
+      extracted_authority TEXT,
+      verified BOOLEAN DEFAULT FALSE,
+      verified_by TEXT,
+      verified_at TIMESTAMP,
+      uploaded_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_evidence_worker ON legal_evidence(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_legal_evidence_case ON legal_evidence(case_id);
+
+    CREATE TABLE IF NOT EXISTS legal_documents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
+      case_id UUID REFERENCES legal_cases(id) ON DELETE SET NULL,
+      template_id UUID REFERENCES contract_templates(id) ON DELETE SET NULL,
+      doc_type TEXT NOT NULL,
+      language TEXT DEFAULT 'pl',
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      status TEXT DEFAULT 'draft',
+      approved_by TEXT,
+      approved_at TIMESTAMP,
+      sent_at TIMESTAMP,
+      linked_snapshot_id UUID,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_documents_worker ON legal_documents(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_legal_documents_status ON legal_documents(status);
+
+    CREATE TABLE IF NOT EXISTS legal_suggestions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      case_id UUID REFERENCES legal_cases(id) ON DELETE SET NULL,
+      suggestion_type TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      priority INTEGER DEFAULT 50,
+      status TEXT DEFAULT 'pending',
+      dismissed_by TEXT,
+      dismissed_at TIMESTAMP,
+      acted_on_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_legal_suggestions_dedup ON legal_suggestions(worker_id, suggestion_type, status) WHERE status = 'pending';
+
+    CREATE TABLE IF NOT EXISTS legal_approvals (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      target_type TEXT NOT NULL,
+      target_id UUID NOT NULL,
+      action TEXT NOT NULL,
+      role_required TEXT DEFAULT 'case_manager',
+      status TEXT DEFAULT 'pending',
+      approved_by TEXT,
+      approved_at TIMESTAMP,
+      notes TEXT,
+      ai_request TEXT,
+      ai_response TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_approvals_status ON legal_approvals(status);
+
+    CREATE TABLE IF NOT EXISTS legal_notifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
+      client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+      case_id UUID REFERENCES legal_cases(id) ON DELETE SET NULL,
+      channel TEXT DEFAULT 'internal',
+      message_type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      recipient_type TEXT DEFAULT 'worker',
+      status TEXT DEFAULT 'pending',
+      sent_at TIMESTAMP,
+      ai_generated BOOLEAN DEFAULT FALSE,
+      approved BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_notifications_worker ON legal_notifications(worker_id);
   `);
 
   console.log("[db] Tables created successfully");

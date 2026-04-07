@@ -54,6 +54,8 @@ router.use(regulatoryRouter);
 router.use(permitsRouter);
 router.use(trcServiceRouter);
 router.use(seedRouter);
-try { const m = await import("./pip-readiness.js"); router.use(m.default); } catch { /* optional */ }
+
+// PIP readiness — dynamic import to avoid top-level await in CJS
+import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });
 
 export default router;

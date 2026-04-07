@@ -17,9 +17,19 @@
  * Risk levels: >=80 LOW, >=50 MEDIUM, <50 HIGH
  */
 
-import { query } from "../lib/db.js";
-import { fetchAllWorkers } from "../lib/workers-db.js";
-import { mapRowToWorker, type Worker } from "../lib/compliance.js";
+import { db, schema } from "../db/index.js";
+
+interface Worker {
+  id: string;
+  name: string;
+  trcExpiry?: string | null;
+  passportExpiry?: string | null;
+  bhpExpiry?: string | null;
+  workPermitExpiry?: string | null;
+  contractEndDate?: string | null;
+  medicalExamExpiry?: string | null;
+  [key: string]: any;
+}
 
 // ═══ TYPES ══════════════════════════════════════════════════════════════════
 
@@ -69,8 +79,13 @@ export async function calculatePIPReadiness(tenantId: string): Promise<PIPReadin
   const counts = { expired: 0, critical: 0, warning: 0, missing: 0 };
 
   // 1. Fetch all workers with compliance status
-  const rows = await fetchAllWorkers(tenantId);
-  const workers = rows.map(mapRowToWorker);
+  const rows = await db.select().from(schema.workers);
+  const workers: Worker[] = rows.map((r: any) => ({
+    id: r.id, name: r.name,
+    trcExpiry: r.trcExpiry, passportExpiry: r.passportExpiry,
+    bhpExpiry: r.bhpStatus, workPermitExpiry: r.workPermitExpiry,
+    contractEndDate: r.contractEndDate, medicalExamExpiry: r.badaniaLekExpiry,
+  }));
   const totalWorkers = workers.length;
 
   if (totalWorkers === 0) {

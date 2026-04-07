@@ -197,19 +197,36 @@ function calcZUS(gross: number, advance: number, penalties: number, rates: ZUSRa
   return { employeeZUS, healthInsurance, estimatedTax, netAfterTax, takeHome, employerZUS, totalEmployerCost };
 }
 
-// Reverse: given desired net/h, find gross/h via binary search
+// Reverse: precision solver — scans GROSS TOTAL at 0.01 PLN for exact match.
+// Phase A: binary search. Phase B: 0.01 PLN scan ±5 PLN on total.
 function reverseNetToGross(desiredNetPerHour: number, hours: number, rates: ZUSRates, pit2: boolean): number {
   if (hours <= 0 || desiredNetPerHour <= 0) return 0;
-  const targetNet = desiredNetPerHour * hours;
-  let lo = 0, hi = targetNet * 3;
-  for (let i = 0; i < 100; i++) {
-    const midGross = (lo + hi) / 2;
-    const r = calcZUS(midGross, 0, 0, rates, pit2);
-    if (r.netAfterTax < targetNet) lo = midGross;
-    else hi = midGross;
-    if (Math.abs(r.netAfterTax - targetNet) < 0.5) break;
+  const targetNet = Math.round(desiredNetPerHour * hours * 100) / 100;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  // Phase A — Binary search on gross TOTAL
+  let lo = targetNet * 0.8, hi = targetNet * 2.5;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    const net = calcZUS(r2(mid), 0, 0, rates, pit2).netAfterTax;
+    if (Math.abs(net - targetNet) < 0.50) break;
+    if (net < targetNet) lo = mid; else hi = mid;
   }
-  return Math.round(((lo + hi) / 2 / hours) * 100) / 100;
+  const approx = r2((lo + hi) / 2);
+
+  // Phase B — Precision scan on gross TOTAL ±5 PLN at 0.01 step
+  const scanLo = r2(Math.max(1, approx - 5));
+  const scanHi = r2(approx + 5);
+  let bestGross = approx, bestDiff = Infinity;
+
+  for (let g = scanLo; g <= scanHi; g = r2(g + 0.01)) {
+    const net = calcZUS(g, 0, 0, rates, pit2).netAfterTax;
+    const diff = Math.abs(net - targetNet);
+    if (diff < bestDiff) { bestDiff = diff; bestGross = g; }
+    if (diff < 0.005) break;
+  }
+
+  return r2(bestGross / hours);
 }
 
 // ─── Split-Employer Calculator ────────────────────────────────────────────────

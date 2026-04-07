@@ -48,27 +48,42 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   return { gross, employeeZus, health, pit, net, netPerHour, employerZus, totalCost, taxBase };
 }
 
-// Reverse: find gross/h that yields desired net/h
-// Uses smart estimate then walks by 0.01 to find first match
+// Reverse: precision solver — finds exact gross that produces desired net.
+// Scans GROSS TOTAL at 0.01 PLN steps (not per-hour rate) for maximum precision.
+// Phase A: binary search on total. Phase B: 0.01 PLN total scan ±5 PLN.
 export function reverseCalculate(hours: number, desiredNet: number, contract: ContractType, applyPit2: boolean, includeSickness: boolean) {
   if (hours <= 0 || desiredNet <= 0) return calculate(hours, 0, contract, applyPit2, includeSickness);
-  const desiredNetMonthly = desiredNet * hours;
-  // Estimate gross monthly, then walk down to find start below target
-  let gMonthly = Math.max(0.01, Math.round((desiredNetMonthly / 0.82) * 100) / 100);
-  while (gMonthly > 0.01) {
-    const rate = Math.round((gMonthly / hours) * 100) / 100;
-    const r = calculate(hours, rate, contract, applyPit2, includeSickness);
-    if (r.net < desiredNetMonthly) break;
-    gMonthly = Math.round((gMonthly - hours) * 100) / 100; // step down by 1 PLN/h worth
+  const targetNetTotal = Math.round(desiredNet * hours * 100) / 100;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  const netFromGrossTotal = (grossTotal: number) => {
+    const rate = grossTotal / hours;
+    return calculate(hours, rate, contract, applyPit2, includeSickness).net;
+  };
+
+  // Phase A — Binary search on gross TOTAL
+  let lo = targetNetTotal * 0.8, hi = targetNetTotal * 2.5;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    const net = netFromGrossTotal(mid);
+    if (Math.abs(net - targetNetTotal) < 0.50) break;
+    if (net < targetNetTotal) lo = mid; else hi = mid;
   }
-  // Now walk UP by 0.01 PLN/h
-  let g = Math.max(0.01, Math.round((gMonthly / hours) * 100) / 100);
-  while (g < 500) {
-    const r = calculate(hours, g, contract, applyPit2, includeSickness);
-    if (r.netPerHour >= desiredNet) return r;
-    g = Math.round((g + 0.01) * 100) / 100;
+  const approxTotal = r2((lo + hi) / 2);
+
+  // Phase B — Precision scan on gross TOTAL at 0.01 PLN steps ±5 PLN
+  const scanLo = r2(Math.max(1, approxTotal - 5));
+  const scanHi = r2(approxTotal + 5);
+  let bestTotal = approxTotal, bestDiff = Infinity;
+
+  for (let g = scanLo; g <= scanHi; g = r2(g + 0.01)) {
+    const net = netFromGrossTotal(g);
+    const diff = Math.abs(net - targetNetTotal);
+    if (diff < bestDiff) { bestDiff = diff; bestTotal = g; }
+    if (diff < 0.005) break;
   }
-  return calculate(hours, g, contract, applyPit2, includeSickness);
+
+  return calculate(hours, bestTotal / hours, contract, applyPit2, includeSickness);
 }
 
 export function KnowledgeCenter() {

@@ -703,6 +703,7 @@ export function PayrollRunPage() {
                     { label: t("payroll.col.healthIns"), clr: "#fb923c" },
                     { label: t("payroll.col.estPit"), clr: "#f87171" },
                     { label: t("payroll.col.netAfterTax"), clr: "#4ade80" },
+                    { label: "Net/h", clr: "#4ade80" },
                     { label: t("payroll.col.eejCost"), clr: "#fb923c" },
                     { label: "Total Employer Cost", clr: "#e879f9" },
                     { label: t("payroll.col.advance"), clr: "#f97316" },
@@ -717,21 +718,23 @@ export function PayrollRunPage() {
               <tbody className="divide-y divide-white/5">
                 {loading ? (
                   Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={i}>{Array.from({ length: 11 }).map((_, j) => (
+                    <tr key={i}>{Array.from({ length: 12 }).map((_, j) => (
                       <td key={j} className="px-3 py-2.5">
                         <div className="h-3.5 bg-white/5 rounded animate-pulse" style={{ width: j === 0 ? "100px" : "64px" }} />
                       </td>
                     ))}</tr>
                   ))
                 ) : displayed.length === 0 ? (
-                  <tr><td colSpan={11} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">No workers found.</td></tr>
+                  <tr><td colSpan={12} className="px-6 py-12 text-center text-gray-500 font-mono text-sm">No workers found.</td></tr>
                 ) : (
                   displayed.map((row) => {
                     const hours = parseFloat(row._hours) || 0;
                     const gross = hours * (parseFloat(row._rate) || row.hourlyNettoRate);
                     const empZus = gross * empZusRate;
                     const healthIns = (gross - empZus) * (rates.zdrowotne / 100);
-                    const _taxBase = Math.round((gross - empZus) * (1 - rates.kup / 100));
+                    const _healthBase = gross - empZus;
+                    const _kup = Math.floor(_healthBase * (rates.kup / 100)); // Floored per Polish tax practice
+                    const _taxBase = Math.round(_healthBase - _kup);
                     const estPit = Math.max(0, Math.round(_taxBase * (rates.pitFlat / 100) - MONTHLY_RELIEF));
                     const netAfterTax = gross - empZus - healthIns - estPit;
                     const advance = parseFloat(row._advance) || 0;
@@ -840,6 +843,10 @@ export function PayrollRunPage() {
                         {/* Net After Tax */}
                         <td className="px-3 py-2.5 font-mono text-sm font-black" style={{ color: netAfterTax >= 0 ? "#4ade80" : "#ef4444" }}>
                           {gross > 0 ? netAfterTax.toFixed(2) : "—"}
+                        </td>
+                        {/* Net/h */}
+                        <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#4ade80" }}>
+                          {gross > 0 && hours > 0 ? (netAfterTax / hours).toFixed(2) : "—"}
                         </td>
                         {/* EEJ (Employer) Cost */}
                         <td className="px-3 py-2.5 font-mono text-xs font-bold" style={{ color: "#fb923c" }}>

@@ -71,6 +71,11 @@ import ClientPortalPage from "@/pages/ClientPortal";
 import LegalQueue from "@/pages/LegalQueue";
 import RejectionIntelligence from "@/pages/RejectionIntelligence";
 import InspectionReport from "@/pages/InspectionReport";
+import CrmPipeline from "@/pages/CrmPipeline";
+import OnboardingChecklist from "@/pages/OnboardingChecklist";
+import WorkerUploadPage from "@/pages/WorkerUploadPage";
+import GeofenceMap from "@/pages/GeofenceMap";
+import AiCopilotChat from "@/pages/AiCopilotChat";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -289,6 +294,21 @@ function Router() {
         </Route>
         <Route path="/inspection-report">
           {() => <ProtectedRoute component={InspectionReport} />}
+        </Route>
+        <Route path="/crm-pipeline">
+          {() => <ProtectedRoute component={CrmPipeline} />}
+        </Route>
+        <Route path="/onboarding-checklist">
+          {() => <ProtectedRoute component={OnboardingChecklist} />}
+        </Route>
+        <Route path="/worker-upload-portal">
+          {() => <ProtectedRoute component={WorkerUploadPage} />}
+        </Route>
+        <Route path="/geofence-map">
+          {() => <ProtectedRoute component={GeofenceMap} />}
+        </Route>
+        <Route path="/ai-copilot-chat">
+          {() => <ProtectedRoute component={AiCopilotChat} />}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

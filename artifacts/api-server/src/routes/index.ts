@@ -31,6 +31,8 @@ import documentOcrRouter from "../services/document-ocr.js";
 import legalKbRouter from "../services/legal-kb.service.js";
 import contractEngineRouter from "../services/contract-engine.js";
 import legalOperationsRouter from "../services/legal-operations.js";
+import testSafetyRouter from "../services/test-safety.js";
+import platformFeaturesRouter from "../services/platform-features.js";
 
 const router: IRouter = Router();
 
@@ -66,6 +68,8 @@ router.use(documentOcrRouter);
 router.use(legalKbRouter);
 router.use(contractEngineRouter);
 router.use(legalOperationsRouter);
+router.use(testSafetyRouter);
+router.use(platformFeaturesRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

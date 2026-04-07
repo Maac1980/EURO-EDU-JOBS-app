@@ -430,6 +430,56 @@ export async function runMigrations(): Promise<void> {
       expires_at TIMESTAMP NOT NULL
     );
 
+    -- Add tenant_id for test data isolation
+    DO $$ BEGIN
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
+    END $$;
+
+    -- Worker onboarding checklist
+    CREATE TABLE IF NOT EXISTS onboarding_checklists (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      step_name TEXT NOT NULL,
+      step_order INTEGER NOT NULL,
+      completed BOOLEAN DEFAULT FALSE,
+      completed_at TIMESTAMP,
+      completed_by TEXT,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_onboarding_worker ON onboarding_checklists(worker_id);
+
+    -- CRM deals
+    CREATE TABLE IF NOT EXISTS crm_deals (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      stage TEXT DEFAULT 'lead',
+      value REAL DEFAULT 0,
+      workers_needed INTEGER DEFAULT 0,
+      probability INTEGER DEFAULT 50,
+      expected_close DATE,
+      notes TEXT,
+      assigned_to TEXT,
+      tenant_id TEXT DEFAULT 'production',
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_crm_deals_stage ON crm_deals(stage);
+
+    -- GPS geofence sites
+    CREATE TABLE IF NOT EXISTS geofence_sites (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius_meters INTEGER DEFAULT 200,
+      tenant_id TEXT DEFAULT 'production',
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+
     -- Extend legal_cases with TRC/case management fields
     DO $$ BEGIN
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS trc_case_id UUID;

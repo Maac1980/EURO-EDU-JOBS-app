@@ -42,9 +42,10 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/shift-schedule",    label: "Shifts",        icon: Clock },
       { path: "/skills-matrix",     label: "Skills Matrix", icon: Award },
       { path: "/gps-tracking",      label: "GPS Tracking",  icon: MapPin },
+      { path: "/geofence-map",     label: "Geofence",      icon: MapPin },
       { path: "/bulk-upload",       label: "Bulk Upload",   icon: Users },
-      { path: "/self-service",     label: "Self Service",  icon: Users },
-      { path: "/mood",             label: "Mood Tracker",  icon: Users },
+      { path: "/onboarding-checklist", label: "Onboarding", icon: Users },
+      { path: "/worker-upload-portal", label: "Worker Upload", icon: Users },
     ],
   },
   {
@@ -97,6 +98,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { path: "/job-board",     label: "Job Board",     icon: Briefcase },
       { path: "/applications",  label: "Applications",  icon: UserPlus },
+      { path: "/crm-pipeline",  label: "CRM Pipeline",  icon: Briefcase },
       { path: "/ats-pipeline",  label: "ATS Pipeline",  icon: Users },
       { path: "/interviews",    label: "Interviews",    icon: CalendarDays },
       { path: "/contracts",      label: "Contracts",     icon: FileSignature },
@@ -115,6 +117,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { path: "/analytics",    label: "Analytics",     icon: BarChart3 },
       { path: "/ai-copilot",   label: "AI Copilot",    icon: Sparkles },
+      { path: "/ai-copilot-chat", label: "AI Chat",    icon: Sparkles },
       { path: "/regulatory",   label: "Regulatory",    icon: Shield },
       { path: "/ai-audit",     label: "AI Audit",      icon: Shield },
     ],

@@ -25,6 +25,11 @@ import regulatoryRouter from "./regulatory.js";
 import permitsRouter from "./permits.js";
 import trcServiceRouter from "./trc-service.js";
 import seedRouter from "./seed.js";
+import legalEngineRouter from "../services/legal-engine.js";
+import immigrationServiceRouter from "../services/immigration.service.js";
+import documentOcrRouter from "../services/document-ocr.js";
+import legalKbRouter from "../services/legal-kb.service.js";
+import contractEngineRouter from "../services/contract-engine.js";
 
 const router: IRouter = Router();
 
@@ -54,6 +59,11 @@ router.use(regulatoryRouter);
 router.use(permitsRouter);
 router.use(trcServiceRouter);
 router.use(seedRouter);
+router.use(legalEngineRouter);
+router.use(immigrationServiceRouter);
+router.use(documentOcrRouter);
+router.use(legalKbRouter);
+router.use(contractEngineRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

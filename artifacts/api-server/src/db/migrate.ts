@@ -376,6 +376,59 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_immigration_searches_date ON immigration_searches(searched_at);
     CREATE INDEX IF NOT EXISTS idx_regulatory_category ON regulatory_updates(category);
     CREATE INDEX IF NOT EXISTS idx_regulatory_severity ON regulatory_updates(severity);
+
+    CREATE TABLE IF NOT EXISTS legal_cases (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
+      case_type TEXT NOT NULL,
+      severity TEXT DEFAULT 'warning',
+      status TEXT DEFAULT 'open',
+      title TEXT NOT NULL,
+      description TEXT,
+      ai_recommendation TEXT,
+      ai_sources JSONB,
+      ai_confidence INTEGER,
+      lawyer_notes TEXT,
+      lawyer_decision TEXT,
+      decided_by TEXT,
+      decided_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_cases_worker ON legal_cases(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_legal_cases_status ON legal_cases(status);
+
+    CREATE TABLE IF NOT EXISTS legal_articles (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      source_url TEXT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT NOT NULL,
+      law_reference TEXT,
+      keywords TEXT,
+      verified_by TEXT,
+      last_verified TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_legal_articles_category ON legal_articles(category);
+
+    CREATE TABLE IF NOT EXISTS contract_templates (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      contract_type TEXT NOT NULL,
+      language TEXT DEFAULT 'pl',
+      content TEXT NOT NULL,
+      placeholders JSONB,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS otp_sessions (
+      session TEXT PRIMARY KEY,
+      otp_hash TEXT NOT NULL,
+      user_data JSONB NOT NULL,
+      expires_at TIMESTAMP NOT NULL
+    );
   `);
 
   console.log("[db] Tables created successfully");

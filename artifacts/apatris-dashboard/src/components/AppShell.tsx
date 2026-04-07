@@ -43,6 +43,8 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/skills-matrix",     label: "Skills Matrix", icon: Award },
       { path: "/gps-tracking",      label: "GPS Tracking",  icon: MapPin },
       { path: "/bulk-upload",       label: "Bulk Upload",   icon: Users },
+      { path: "/self-service",     label: "Self Service",  icon: Users },
+      { path: "/mood",             label: "Mood Tracker",  icon: Users },
     ],
   },
   {
@@ -59,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/posted-workers",     label: "Posted Workers",     icon: Globe },
       { path: "/country-compliance", label: "Country Rules",      icon: Globe },
       { path: "/gdpr",              label: "GDPR",               icon: Shield },
+      { path: "/legal-kb",          label: "Legal KB",           icon: Shield },
     ],
   },
   {
@@ -74,6 +77,8 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/pay-transparency",  label: "Pay Reports",      icon: BarChart3 },
       { path: "/invoices",          label: "Invoices",         icon: Receipt },
       { path: "/clients",          label: "Clients",          icon: Building2 },
+      { path: "/advances",         label: "Advances",         icon: Calculator },
+      { path: "/zus",              label: "ZUS Filings",      icon: Receipt },
     ],
   },
   {
@@ -89,6 +94,9 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/interviews",    label: "Interviews",    icon: CalendarDays },
       { path: "/contracts",      label: "Contracts",     icon: FileSignature },
       { path: "/doc-workflow",   label: "Doc Workflow",  icon: FileCheck },
+      { path: "/matching",      label: "Worker Match",  icon: Sparkles },
+      { path: "/contract-gen",  label: "Contract Gen",  icon: FileSignature },
+      { path: "/onboarding",    label: "Onboarding",    icon: UserPlus },
     ],
   },
   {
@@ -116,6 +124,9 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/admin-settings",  label: "Settings",   icon: Settings },
       { path: "/profile",         label: "Profile",    icon: Users },
       { path: "/agency-settings", label: "Agency",     icon: Settings },
+      { path: "/crm",            label: "CRM",        icon: Building2 },
+      { path: "/messages",       label: "Messaging",  icon: FileText },
+      { path: "/google",         label: "Google",     icon: Globe },
     ],
   },
 ];

@@ -51,6 +51,17 @@ import BulkUpload from "@/pages/BulkUpload";
 import Profile from "@/pages/Profile";
 import MyDocs from "@/pages/MyDocs";
 import Updates from "@/pages/Updates";
+import CrmPage from "@/pages/CrmPage";
+import OnboardingPage from "@/pages/OnboardingPage";
+import WorkerMatching from "@/pages/WorkerMatching";
+import ContractGenerator from "@/pages/ContractGenerator";
+import SalaryAdvances from "@/pages/SalaryAdvances";
+import SelfService from "@/pages/SelfService";
+import ZusFilings from "@/pages/ZusFilings";
+import Messaging from "@/pages/Messaging";
+import MoodTracker from "@/pages/MoodTracker";
+import LegalKB from "@/pages/LegalKB";
+import GoogleWorkspace from "@/pages/GoogleWorkspace";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -209,6 +220,39 @@ function Router() {
         </Route>
         <Route path="/updates">
           {() => <ProtectedRoute component={Updates} />}
+        </Route>
+        <Route path="/crm">
+          {() => <ProtectedRoute component={CrmPage} />}
+        </Route>
+        <Route path="/onboarding">
+          {() => <ProtectedRoute component={OnboardingPage} />}
+        </Route>
+        <Route path="/matching">
+          {() => <ProtectedRoute component={WorkerMatching} />}
+        </Route>
+        <Route path="/contract-gen">
+          {() => <ProtectedRoute component={ContractGenerator} />}
+        </Route>
+        <Route path="/advances">
+          {() => <ProtectedRoute component={SalaryAdvances} />}
+        </Route>
+        <Route path="/self-service">
+          {() => <ProtectedRoute component={SelfService} />}
+        </Route>
+        <Route path="/zus">
+          {() => <ProtectedRoute component={ZusFilings} />}
+        </Route>
+        <Route path="/messages">
+          {() => <ProtectedRoute component={Messaging} />}
+        </Route>
+        <Route path="/mood">
+          {() => <ProtectedRoute component={MoodTracker} />}
+        </Route>
+        <Route path="/legal-kb">
+          {() => <ProtectedRoute component={LegalKB} />}
+        </Route>
+        <Route path="/google">
+          {() => <ProtectedRoute component={GoogleWorkspace} />}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

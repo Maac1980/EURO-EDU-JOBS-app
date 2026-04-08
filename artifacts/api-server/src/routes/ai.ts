@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express'
 import { scoreWorkerRisk, scoreAllWorkers } from '../lib/complianceAI.js'
 import { logger } from '../lib/logger.js'
+import { authenticateToken } from '../lib/authMiddleware.js'
 
 const router = Router()
 
-router.get('/ai/risk/:workerId', async (req: Request, res: Response): Promise<void> => {
+router.get('/ai/risk/:workerId', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const { workerId } = req.params
     const worker = {
@@ -28,7 +29,7 @@ router.get('/ai/risk/:workerId', async (req: Request, res: Response): Promise<vo
   }
 })
 
-router.post('/ai/risk/batch', async (req: Request, res: Response): Promise<void> => {
+router.post('/ai/risk/batch', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const { workers } = req.body
     if (!Array.isArray(workers) || workers.length === 0) {
@@ -47,7 +48,7 @@ router.post('/ai/risk/batch', async (req: Request, res: Response): Promise<void>
   }
 })
 
-router.post('/ai/risk/summary', async (req: Request, res: Response): Promise<void> => {
+router.post('/ai/risk/summary', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const { workers } = req.body
     if (!Array.isArray(workers)) {

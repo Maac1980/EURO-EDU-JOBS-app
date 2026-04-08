@@ -39,7 +39,7 @@ async function getAllWorkers(): Promise<Worker[]> {
   return rows.map(r => toWorker(r));
 }
 
-router.get("/compliance/documents", async (_req, res) => {
+router.get("/compliance/documents", authenticateToken, async (_req, res) => {
   try {
     const workers = await getAllWorkers();
     const documents: DocumentRecord[] = [];
@@ -89,7 +89,7 @@ router.get("/compliance/documents", async (_req, res) => {
   }
 });
 
-router.get("/compliance/trend", async (_req, res) => {
+router.get("/compliance/trend", authenticateToken, async (_req, res) => {
   try {
     const workers = await getAllWorkers();
     const WEEKS = 8;
@@ -168,7 +168,7 @@ function daysLabel(days: number | null): string {
   return `${days}d left`;
 }
 
-router.get("/compliance/report/pdf", async (req, res) => {
+router.get("/compliance/report/pdf", authenticateToken, async (req, res) => {
   try {
     let workers = await getAllWorkers();
     const siteFilter = typeof req.query.site === "string" && req.query.site ? req.query.site : null;
@@ -323,7 +323,7 @@ router.get("/compliance/alert-status", authenticateToken, async (_req, res) => {
   return res.json({ ran: true, ...status });
 });
 
-router.post("/compliance/trigger-alert", async (req, res) => {
+router.post("/compliance/trigger-alert", authenticateToken, async (req, res) => {
   const testMode = req.body?.testMode !== false;
   const result = await checkAndAlert(testMode);
   return res.json(result);

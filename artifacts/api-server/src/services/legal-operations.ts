@@ -107,6 +107,23 @@ router.post("/legal/scan-all", authenticateToken, async (_req, res) => {
         createdBy: "system-scan",
       });
       await generateSuggestions(w.id, result);
+
+      // Auto-create legal case for CRITICAL/EXPIRED workers
+      if (result.riskLevel === "CRITICAL" || result.legalStatus === "EXPIRED_NOT_PROTECTED" || result.legalStatus === "NO_PERMIT") {
+        const existingCase = await db.execute(sql`
+          SELECT id FROM legal_cases WHERE worker_id = ${w.id} AND status NOT IN ('resolved','closed') LIMIT 1
+        `);
+        if (existingCase.rows.length === 0) {
+          await db.execute(sql`
+            INSERT INTO legal_cases (worker_id, case_type, severity, title, description, status, priority_score, tenant_id)
+            VALUES (${w.id}, 'compliance_critical', 'critical',
+              ${`URGENT: ${w.name} — ${result.legalStatus}`},
+              ${result.warnings.join("; ")},
+              'open', 95, ${w.tenant_id ?? 'production'})
+          `);
+        }
+      }
+
       results.push({ workerId: w.id, name: w.name, status: result.legalStatus, risk: result.riskLevel });
     }
     results.sort((a, b) => riskOrder(a.risk) - riskOrder(b.risk));
@@ -609,7 +626,7 @@ router.get("/legal/portal/status/:workerId", async (req, res) => {
 
 router.get("/legal/pip-report", authenticateToken, async (_req, res) => {
   try {
-    const workers = await db.execute(sql`SELECT * FROM workers WHERE pipeline_stage IN ('Active','Placed')`);
+    const workers = await db.execute(sql`SELECT * FROM workers WHERE pipeline_stage IN ('Active','Placed') AND (tenant_id IS NULL OR tenant_id != 'test')`);
     let score = 100;
     const issues: any[] = [];
     const workerStatuses: any[] = [];

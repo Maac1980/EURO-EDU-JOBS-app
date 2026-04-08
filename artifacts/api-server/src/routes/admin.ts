@@ -19,7 +19,7 @@ async function hashPassword(password: string): Promise<string> {
 
 // ── Admin Profile ─────────────────────────────────────────────────────────────
 
-router.get("/admin/profile", async (_req, res) => {
+router.get("/admin/profile", authenticateToken, async (_req, res) => {
   try {
     const [profile] = await db.select().from(schema.adminProfile);
     if (!profile) {
@@ -33,7 +33,7 @@ router.get("/admin/profile", async (_req, res) => {
   }
 });
 
-router.patch("/admin/profile", async (req, res) => {
+router.patch("/admin/profile", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const [current] = await db.select().from(schema.adminProfile);
     if (!current) return res.status(404).json({ error: "Profile not found." });

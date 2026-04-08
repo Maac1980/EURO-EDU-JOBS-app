@@ -6,7 +6,7 @@ import { authenticateToken } from "../lib/authMiddleware.js";
 const router = Router();
 
 // POST /api/gps/checkin — worker GPS check-in
-router.post("/gps/checkin", async (req, res) => {
+router.post("/gps/checkin", authenticateToken, async (req, res) => {
   try {
     const { workerId, latitude, longitude, accuracy, siteId, checkType } = req.body as {
       workerId: string; latitude: number; longitude: number;

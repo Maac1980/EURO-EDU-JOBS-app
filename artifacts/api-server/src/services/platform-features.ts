@@ -4,10 +4,13 @@
  * bank export, geofencing, AI copilot, client portal, auth fixes
  */
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
 import { evaluateLegalStatus } from "./legal-decision-engine.js";
+
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: "AI rate limit exceeded — max 10 requests per minute" } });
 import { isTestWorker } from "./test-safety.js";
 
 const router = Router();
@@ -333,7 +336,7 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 
 // ══ FEATURE 10: AI COMPLIANCE COPILOT (STREAMING) ═══════════════════════════
 
-router.post("/ai/copilot", authenticateToken, async (req, res) => {
+router.post("/ai/copilot", authenticateToken, aiLimiter, async (req, res) => {
   try {
     const { question, workerId } = req.body as { question: string; workerId?: string };
     if (!question) return res.status(400).json({ error: "question required" });

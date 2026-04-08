@@ -197,6 +197,69 @@ REGULATORY_CRON=0 7 * * *
 - Vite base must be "/" not "/eej-mobile/"
 - .gitignore must NOT contain "dist" — frontend dist must stay tracked
 
+## DECISION MAKING (MUST FOLLOW)
+- Never ask "shall I proceed?" or "which option do you prefer?"
+- Always pick the best option yourself and execute it
+- If genuinely ambiguous (50/50 with real consequences), state your choice and why in one line, then execute
+- Never present numbered options for the user to choose from
+- Never stop to ask for approval mid-task
+- Just build it
+
+## EXECUTION STYLE (MUST FOLLOW)
+- Read CLAUDE.md before starting any task
+- Execute without stopping
+- Test before pushing to GitHub
+- Always push AND fly deploy (not just git push): `~/.fly/bin/flyctl deploy -a eej-jobs-api`
+- Commit after each logical unit, not in one big batch
+- If something fails, fix it and continue — don't stop to ask
+
+## VALIDATION FRAMEWORK (RUN AFTER EVERY BUILD)
+After every build, run this validation before saying "done":
+
+### Step 1 — Functional Test
+- Happy path: does the feature work end-to-end?
+- Missing data: what happens with empty/null inputs?
+- Edge case: duplicate data, expired dates, wrong format
+
+### Step 2 — Logic Check
+- No conflicts between new and existing code
+- No duplicate functions across files
+- AI layer isolated from decision logic
+- All outputs default to DRAFT
+
+### Step 3 — Safety Check
+- No unsafe automatic external actions (WhatsApp, email, SMS)
+- Approval layer respected — nothing sent without explicit approval
+- Test workers blocked from external communication
+- Safe fallback on failure (no crash, no data loss)
+
+### Step 4 — Regression Check
+- Login still works
+- Dashboard still serves
+- Mobile app still serves
+- Workers API returns data
+- Existing features not broken
+
+### Step 5 — Security Check
+- New endpoints use authenticateToken
+- No sensitive data exposed without auth
+- Test data isolated by tenant_id
+
+### Step 6 — Performance Check
+- No N+1 query patterns (loop with DB call inside)
+- Scalable for 200-500 workers
+
+### Step 7 — Report (REQUIRED)
+Output a clear report with:
+1. What works (with evidence)
+2. What is broken (with detail)
+3. Critical issues (fix now)
+4. High issues (fix soon)
+5. Medium/low issues
+6. What needs manual testing
+
+DO NOT say "build succeeded" or "everything works" without running this validation and showing evidence.
+
 ---
 
 ## PHASE 1 — WEEK 1: Core Business Tools (21 Features)

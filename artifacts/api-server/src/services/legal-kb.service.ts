@@ -46,9 +46,13 @@ router.get("/legal-kb/categories", authenticateToken, async (_req, res) => {
 // ── POST /api/legal-kb/seed — seed initial law articles ─────────────────
 router.post("/legal-kb/seed", authenticateToken, async (_req, res) => {
   try {
+    // Seed templates first (independent of articles)
+    const tplExisting = await db.execute(sql`SELECT COUNT(*)::int as cnt FROM contract_templates`);
+    let templatesSeeded = (tplExisting.rows[0] as any).cnt;
+
     const existing = await db.execute(sql`SELECT COUNT(*)::int as cnt FROM legal_articles`);
-    if ((existing.rows[0] as any).cnt > 5) {
-      return res.json({ message: "KB already seeded", count: (existing.rows[0] as any).cnt });
+    if ((existing.rows[0] as any).cnt > 5 && templatesSeeded > 0) {
+      return res.json({ message: "KB already seeded", articlesCount: (existing.rows[0] as any).cnt, templatesCount: templatesSeeded });
     }
 
     const articles = [

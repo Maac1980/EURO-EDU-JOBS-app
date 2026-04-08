@@ -74,7 +74,25 @@ router.post("/legal-kb/seed", authenticateToken, async (_req, res) => {
       `);
     }
 
-    return res.json({ message: "Seeded 12 legal articles", count: 12 });
+    // Seed contract templates
+    const tplCount = await db.execute(sql`SELECT COUNT(*)::int as cnt FROM contract_templates`);
+    if ((tplCount.rows[0] as any).cnt === 0) {
+      const templates = [
+        { name: "Umowa Zlecenie — Standard", contractType: "umowa_zlecenie", language: "pl", content: "UMOWA ZLECENIE\n\nzawarta w dniu {{date}} w {{city}}\npomiędzy:\n{{employer_name}}, NIP: {{employer_nip}}\na\n{{worker_name}}, PESEL: {{worker_pesel}}\n\n§1. Zleceniodawca zleca, a Zleceniobiorca zobowiązuje się do wykonywania pracy na stanowisku {{job_role}}.\n§2. Wynagrodzenie: {{rate}} PLN/godzinę brutto.\n§3. Umowa obowiązuje od {{start_date}} do {{end_date}}.\n§4. Zleceniobiorca oświadcza, że zapoznał się z przepisami BHP.\n§5. Klauzula RODO — dane osobowe przetwarzane zgodnie z RODO.\n\n{{employer_signature}}\n{{worker_signature}}" },
+        { name: "Umowa o Pracę — Standard", contractType: "umowa_o_prace", language: "pl", content: "UMOWA O PRACĘ\n\nzawarta w dniu {{date}} w {{city}}\npomiędzy:\n{{employer_name}}, NIP: {{employer_nip}}\na\n{{worker_name}}, PESEL: {{worker_pesel}}\n\n§1. Pracodawca zatrudnia Pracownika na stanowisku {{job_role}}.\n§2. Wynagrodzenie: {{rate}} PLN/godzinę brutto.\n§3. Wymiar czasu pracy: pełny etat (40h/tydzień).\n§4. Umowa na czas określony od {{start_date}} do {{end_date}}.\n§5. Miejsce pracy: {{work_location}}.\n§6. Pracownik ma prawo do urlopu wypoczynkowego (20/26 dni).\n\n{{employer_signature}}\n{{worker_signature}}" },
+        { name: "TRC Application Cover Letter", contractType: "cover_letter", language: "pl", content: "{{city}}, dnia {{date}}\n\nUrząd Wojewódzki w {{voivodship}}\nWydział Spraw Cudzoziemców\n\nDOTYCZY: Wniosek o udzielenie zezwolenia na pobyt czasowy\n\nSzanowni Państwo,\n\nW imieniu {{worker_name}}, obywatel(ka) {{nationality}}, składam wniosek o udzielenie zezwolenia na pobyt czasowy i pracę na terytorium RP.\n\nPodstawa prawna: Art. 114 Ustawy o cudzoziemcach.\n\nZałączniki:\n1. Wypełniony wniosek\n2. Paszport (kopia)\n3. Zdjęcia\n4. Potwierdzenie zakwaterowania\n5. Ubezpieczenie zdrowotne\n\nZ poważaniem,\n{{employer_name}}" },
+        { name: "Power of Attorney (POA)", contractType: "poa", language: "pl", content: "PEŁNOMOCNICTWO\n\n{{city}}, dnia {{date}}\n\nJa, {{worker_name}}, obywatel(ka) {{nationality}}, nr paszportu {{passport_number}}, niniejszym udzielam pełnomocnictwa {{representative_name}} do reprezentowania mnie przed {{authority}} w sprawie {{case_description}}.\n\nPełnomocnictwo obejmuje składanie wniosków, odbiór decyzji oraz wszelkie czynności związane z powyższą sprawą.\n\n{{worker_signature}}\n{{date}}" },
+        { name: "Appeal Letter Template", contractType: "appeal", language: "pl", content: "{{city}}, dnia {{date}}\n\nSzef Urzędu do Spraw Cudzoziemców\nul. Koszykowa 16\n00-564 Warszawa\n\nza pośrednictwem:\nWojewody {{voivodship}}\n\nODWOŁANIE\n\nod decyzji Wojewody {{voivodship}} z dnia {{decision_date}}, nr {{decision_number}}, odmawiającej udzielenia zezwolenia na pobyt czasowy.\n\nWnoszę o:\n1. Uchylenie zaskarżonej decyzji w całości\n2. Udzielenie zezwolenia na pobyt czasowy\n\nUzasadnienie:\n{{appeal_grounds}}\n\nZ poważaniem,\n{{worker_name}}" },
+      ];
+      for (const t of templates) {
+        await db.execute(sql`
+          INSERT INTO contract_templates (name, contract_type, language, content, placeholders)
+          VALUES (${t.name}, ${t.contractType}, ${t.language}, ${t.content}, '[]'::jsonb)
+        `);
+      }
+    }
+
+    return res.json({ message: "Seeded 12 legal articles + 5 contract templates", articlesCount: 12, templatesCount: 5 });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

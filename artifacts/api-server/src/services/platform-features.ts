@@ -401,9 +401,14 @@ router.get("/client-portal/:clientId/workers", async (req, res) => {
           WHEN w.trc_expiry::date < (NOW() + INTERVAL '30 days')::date OR w.work_permit_expiry::date < (NOW() + INTERVAL '30 days')::date THEN 'attention'
           ELSE 'current'
         END as compliance_status
-      FROM workers w
-      JOIN clients c ON w.assigned_site LIKE '%' || c.name || '%'
+      FROM workers w, clients c
       WHERE c.id = ${req.params.clientId}
+        AND w.assigned_site IS NOT NULL
+        AND w.assigned_site != 'Available'
+        AND w.assigned_site != ''
+        AND (w.assigned_site ILIKE '%' || split_part(c.name, ' ', 1) || '%'
+          OR w.assigned_site ILIKE '%' || c.contact_person || '%'
+          OR w.assigned_site = c.name)
       ORDER BY w.name
     `);
     // Safe view — no legal codes, no risk levels

@@ -1,26 +1,40 @@
 {
-  "name": "EURO EDU JOBS Portal",
+  "name": "Euro Edu Jobs",
   "short_name": "EEJ",
-  "description": "Euro Edu Jobs — International Recruitment & Compliance Portal",
+  "description": "Enterprise Workforce Management Platform",
   "start_url": "./",
-  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#1e293b",
-  "theme_color": "#E9FF70",
-  "categories": ["business", "productivity"],
+  "background_color": "#1B2A4A",
+  "theme_color": "#1B2A4A",
   "icons": [
     {
-      "src": "./icon-192.png",
+      "src": "icon-192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
-  ]
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en-GB",
+  "dir": "ltr",
+  "scope": "/"
 }

@@ -17,13 +17,13 @@ export function calculate(hours: number, rate: number, contract: ContractType, a
   // Health insurance = healthBase × 9%
   const health = Math.round(healthBase * 0.09 * 100) / 100;
 
-  // Tax base
+  // Tax base — Math.floor per official Polish tax calculator
   let taxBase: number;
   if (contract === "zlecenie") {
-    const kup = Math.floor(healthBase * 0.20); // Floored to full PLN per Polish tax practice
-    taxBase = Math.round(healthBase - kup);
+    const kup = Math.floor(healthBase * 0.20);
+    taxBase = Math.floor(healthBase - kup);
   } else {
-    taxBase = Math.round(gross - employeeZus - 250);
+    taxBase = Math.floor(gross - employeeZus - 250);
   }
 
   // PIT = max(0, round(taxBase × 12%) - 300 if PIT-2)

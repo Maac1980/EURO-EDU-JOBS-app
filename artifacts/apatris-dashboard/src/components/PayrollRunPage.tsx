@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/lib/auth";
+import { calculate as canonicalCalculate } from "./KnowledgeCenter";
 import { PayrollTrendChart } from "./PayrollTrendChart";
 import {
   Calculator, Save, Lock, Loader2, RefreshCcw, ChevronDown, ChevronUp,
@@ -1616,28 +1617,26 @@ function LedgerView({ base, token, t }: { base: string; token: string | null; t:
 /* ────────────────────────────────────────────────────────────────────────── */
 /* ── shared ZUS math helpers ─────────────────────────────────────────── */
 function calcSingleZUS(grossNum: number, inclChorobowe: boolean, inclPit2 = false) {
-  // Employee social ZUS
-  const emerytalne_e  = grossNum * 0.0976;
-  const rentowe_e     = grossNum * 0.015;
-  const chorobowe_e   = inclChorobowe ? grossNum * 0.0245 : 0;
-  const totalZusEmp   = emerytalne_e + rentowe_e + chorobowe_e;
-  // Employer social ZUS
-  const emerytalne_er = grossNum * 0.0976;
-  const rentowe_er    = grossNum * 0.065;
-  const wypadkowe     = grossNum * 0.0167;
-  const fp            = grossNum * 0.0245;
-  const fgsb          = grossNum * 0.001;
+  // Use canonical calculate() from KnowledgeCenter — single source of truth
+  const c = canonicalCalculate(1, grossNum, "zlecenie", inclPit2, inclChorobowe);
+  // Decompose for backward-compatible return shape
+  const emerytalne_e  = Math.round(grossNum * 0.0976 * 100) / 100;
+  const rentowe_e     = Math.round(grossNum * 0.015 * 100) / 100;
+  const chorobowe_e   = inclChorobowe ? Math.round(grossNum * 0.0245 * 100) / 100 : 0;
+  const totalZusEmp   = c.employeeZus;
+  const emerytalne_er = Math.round(grossNum * 0.0976 * 100) / 100;
+  const rentowe_er    = Math.round(grossNum * 0.065 * 100) / 100;
+  const wypadkowe     = Math.round(grossNum * 0.0167 * 100) / 100;
+  const fp            = Math.round(grossNum * 0.0245 * 100) / 100;
+  const fgsb          = Math.round(grossNum * 0.001 * 100) / 100;
   const totalZusEr    = emerytalne_er + rentowe_er + wypadkowe + fp + fgsb;
-  // Zdrowotna (health) — 9% of (gross − social ZUS)
   const zdrowotnaBase = grossNum - totalZusEmp;
-  const zdrowotna     = zdrowotnaBase * 0.09;
-  // PIT for zlecenie: KUP = 20% of przychód (gross − ZUS), taxBase = przychód × 80%
-  // PIT-2: if filed, reduces monthly advance tax by 300 zł (kwota zmniejszająca)
-  const kup       = zdrowotnaBase * 0.20;   // 20% of przychód (gross − ZUS), not of gross
-  const taxBase   = Math.max(0, Math.round(zdrowotnaBase - kup));
-  const pitGross  = taxBase * 0.12;
-  const pit       = inclPit2 ? Math.max(0, Math.round(pitGross - 300)) : Math.round(pitGross);
-  const netto     = grossNum - totalZusEmp - zdrowotna - pit;
+  const zdrowotna     = c.health;
+  const kup           = Math.floor(zdrowotnaBase * 0.20);
+  const taxBase       = c.taxBase;
+  const pitGross      = taxBase * 0.12;
+  const pit           = c.pit;
+  const netto         = c.net;
   return { emerytalne_e, rentowe_e, chorobowe_e, totalZusEmp, emerytalne_er, rentowe_er, wypadkowe, fp, fgsb, totalZusEr, zdrowotnaBase, zdrowotna, kup, taxBase, pitGross, pit, netto };
 }
 

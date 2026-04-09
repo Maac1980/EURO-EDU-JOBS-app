@@ -78,6 +78,12 @@ import OnboardingChecklist from "@/pages/OnboardingChecklist";
 import WorkerUploadPage from "@/pages/WorkerUploadPage";
 import GeofenceMap from "@/pages/GeofenceMap";
 import AiCopilotChat from "@/pages/AiCopilotChat";
+import LinkedCases from "@/pages/LinkedCases";
+import PostedDeadlines from "@/pages/PostedDeadlines";
+import SignatureTracking from "@/pages/SignatureTracking";
+import SafetyMonitor from "@/pages/SafetyMonitor";
+import MarginAnalysis from "@/pages/MarginAnalysis";
+import HousingOverview from "@/pages/HousingOverview";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -302,6 +308,24 @@ function Router() {
         </Route>
         <Route path="/fines-report">
           {() => <ProtectedRoute component={FinesRiskReport} />}
+        </Route>
+        <Route path="/linked-cases">
+          {() => <ProtectedRoute component={LinkedCases} />}
+        </Route>
+        <Route path="/posted-deadlines">
+          {() => <ProtectedRoute component={PostedDeadlines} />}
+        </Route>
+        <Route path="/signature-tracking">
+          {() => <ProtectedRoute component={SignatureTracking} />}
+        </Route>
+        <Route path="/safety-monitor">
+          {() => <ProtectedRoute component={SafetyMonitor} />}
+        </Route>
+        <Route path="/margin-analysis">
+          {() => <ProtectedRoute component={MarginAnalysis} />}
+        </Route>
+        <Route path="/housing">
+          {() => <ProtectedRoute component={HousingOverview} />}
         </Route>
         <Route path="/crm-pipeline">
           {() => <ProtectedRoute component={CrmPipeline} />}

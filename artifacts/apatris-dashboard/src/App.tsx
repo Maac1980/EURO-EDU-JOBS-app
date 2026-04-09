@@ -79,6 +79,7 @@ import WorkerUploadPage from "@/pages/WorkerUploadPage";
 import GeofenceMap from "@/pages/GeofenceMap";
 import AiCopilotChat from "@/pages/AiCopilotChat";
 import LinkedCases from "@/pages/LinkedCases";
+import CaseActionCenter from "@/pages/CaseActionCenter";
 import PostedDeadlines from "@/pages/PostedDeadlines";
 import SignatureTracking from "@/pages/SignatureTracking";
 import SafetyMonitor from "@/pages/SafetyMonitor";
@@ -308,6 +309,9 @@ function Router() {
         </Route>
         <Route path="/fines-report">
           {() => <ProtectedRoute component={FinesRiskReport} />}
+        </Route>
+        <Route path="/case-action-center">
+          {() => <ProtectedRoute component={CaseActionCenter} />}
         </Route>
         <Route path="/linked-cases">
           {() => <ProtectedRoute component={LinkedCases} />}

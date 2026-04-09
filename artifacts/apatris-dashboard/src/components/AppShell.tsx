@@ -71,6 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/document-templates",label: "Doc Templates",     icon: FileCheck },
       { path: "/rejection-intel",  label: "Rejections",         icon: AlertTriangle },
       { path: "/inspection-report",label: "PIP Report",         icon: Shield },
+      { path: "/case-action-center", label: "Action Center",     icon: Shield },
       { path: "/fines-report",     label: "Fines Risk",         icon: AlertTriangle },
       { path: "/linked-cases",    label: "Linked Cases",       icon: FileCheck },
       { path: "/posted-deadlines",label: "Posted Deadlines",   icon: Globe },

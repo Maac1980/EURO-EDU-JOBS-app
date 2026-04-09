@@ -435,6 +435,9 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
       ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS next_action TEXT;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS blockers JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS linked_evidence_count INTEGER DEFAULT 0;
     END $$;
 
     -- Worker onboarding checklist

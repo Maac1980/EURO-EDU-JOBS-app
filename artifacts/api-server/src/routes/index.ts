@@ -40,6 +40,7 @@ import finesPreventionRouter from "../services/fines-prevention.js";
 import tier2Router from "../services/tier2-features.js";
 import smartDocRouter from "../services/smart-document.js";
 import legalCompletionsRouter from "../services/legal-completions.js";
+import caseEngineRouter from "../services/case-engine.js";
 
 const router: IRouter = Router();
 
@@ -84,6 +85,7 @@ router.use(finesPreventionRouter);
 router.use(tier2Router);
 router.use(smartDocRouter);
 router.use(legalCompletionsRouter);
+router.use(caseEngineRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

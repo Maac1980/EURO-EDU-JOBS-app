@@ -610,6 +610,25 @@ export async function runMigrations(): Promise<void> {
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_legal_notifications_worker ON legal_notifications(worker_id);
+
+    CREATE TABLE IF NOT EXISTS communication_outputs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
+      case_id UUID REFERENCES legal_cases(id) ON DELETE SET NULL,
+      comm_type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      content_edited TEXT,
+      is_approved BOOLEAN DEFAULT FALSE,
+      approved_by TEXT,
+      approved_at TIMESTAMP,
+      generated_by TEXT DEFAULT 'ai',
+      generated_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      sent_at TIMESTAMP,
+      snapshot_id UUID,
+      audit_log JSONB DEFAULT '[]'::jsonb
+    );
+    CREATE INDEX IF NOT EXISTS idx_comm_outputs_worker ON communication_outputs(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_comm_outputs_approved ON communication_outputs(is_approved);
   `);
 
   console.log("[db] Tables created successfully");

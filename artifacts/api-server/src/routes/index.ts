@@ -42,6 +42,7 @@ import smartDocRouter from "../services/smart-document.js";
 import legalCompletionsRouter from "../services/legal-completions.js";
 import caseEngineRouter from "../services/case-engine.js";
 import consistencyRouter from "../services/consistency-checker.js";
+import communicationRouter from "../services/communication.js";
 
 const router: IRouter = Router();
 
@@ -88,6 +89,7 @@ router.use(smartDocRouter);
 router.use(legalCompletionsRouter);
 router.use(caseEngineRouter);
 router.use(consistencyRouter);
+router.use(communicationRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

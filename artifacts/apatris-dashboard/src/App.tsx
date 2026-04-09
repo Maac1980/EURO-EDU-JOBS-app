@@ -71,6 +71,8 @@ import ClientPortalPage from "@/pages/ClientPortal";
 import LegalQueue from "@/pages/LegalQueue";
 import RejectionIntelligence from "@/pages/RejectionIntelligence";
 import InspectionReport from "@/pages/InspectionReport";
+import WorkerTimeline from "@/pages/WorkerTimeline";
+import FinesRiskReport from "@/pages/FinesRiskReport";
 import CrmPipeline from "@/pages/CrmPipeline";
 import OnboardingChecklist from "@/pages/OnboardingChecklist";
 import WorkerUploadPage from "@/pages/WorkerUploadPage";
@@ -294,6 +296,12 @@ function Router() {
         </Route>
         <Route path="/inspection-report">
           {() => <ProtectedRoute component={InspectionReport} />}
+        </Route>
+        <Route path="/worker-timeline">
+          {() => <ProtectedRoute component={WorkerTimeline} />}
+        </Route>
+        <Route path="/fines-report">
+          {() => <ProtectedRoute component={FinesRiskReport} />}
         </Route>
         <Route path="/crm-pipeline">
           {() => <ProtectedRoute component={CrmPipeline} />}

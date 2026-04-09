@@ -34,6 +34,9 @@ import contractEngineRouter from "../services/contract-engine.js";
 import legalOperationsRouter from "../services/legal-operations.js";
 import testSafetyRouter from "../services/test-safety.js";
 import platformFeaturesRouter from "../services/platform-features.js";
+import workerTimelineRouter from "../services/worker-timeline.js";
+import authorityPacksRouter from "../services/authority-packs.js";
+import finesPreventionRouter from "../services/fines-prevention.js";
 
 const router: IRouter = Router();
 
@@ -72,6 +75,9 @@ router.use(contractEngineRouter);
 router.use(legalOperationsRouter);
 router.use(testSafetyRouter);
 router.use(platformFeaturesRouter);
+router.use(workerTimelineRouter);
+router.use(authorityPacksRouter);
+router.use(finesPreventionRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

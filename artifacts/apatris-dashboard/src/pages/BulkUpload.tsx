@@ -6,7 +6,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2, Download
 
 interface ParsedRow { name: string; phone?: string; email?: string; specialization?: string; site?: string; nationality?: string; [key: string]: string | undefined; }
 
-const CSV_TEMPLATE = "Name,Phone,Email,Specialization,Assigned Site,Nationality,Visa Type,PESEL,IBAN\nJan Kowalski,+48601234567,jan@example.com,TIG,Gdansk Shipyard,Polish,EU Citizen,,PL61109010140000071219812874";
+const CSV_TEMPLATE = "Name,Phone,Email,Specialization,Assigned Site,Nationality,Visa Type,PESEL,IBAN,Hourly Rate,TRC Expiry,Work Permit Expiry,Contract End,BHP Expiry,Medical Expiry\nJan Kowalski,+48601234567,jan@example.com,Welder TIG,Wroclaw-Site-A,Polish,EU Citizen,,PL61109010140000071219812874,35.00,,,2027-06-30,2026-12-01,2027-01-15\nOlena Petryk,+380671234567,olena@example.com,Healthcare Assistant,Warsaw-MediCare,Ukrainian,Type A,,,,2026-08-15,2026-09-01,2026-12-31,2026-10-01,2026-11-15";
 
 export default function BulkUpload() {
   const { toast } = useToast();
@@ -58,15 +58,21 @@ export default function BulkUpload() {
 
     for (const row of rows) {
       try {
-        const body: Record<string, string> = { fullName: row.name };
+        const body: Record<string, string> = { name: row.name };
         if (row.phone) body.phone = row.phone;
         if (row.email) body.email = row.email;
         if (row.specialization) body.specialization = row.specialization;
-        if (row.assigned_site || row.site) body.assignedSite = row.assigned_site ?? row.site ?? "";
+        if (row.assigned_site || row.site) body.siteLocation = row.assigned_site ?? row.site ?? "";
         if (row.nationality) body.nationality = row.nationality;
         if (row.visa_type) body.visaType = row.visa_type;
         if (row.pesel) body.pesel = row.pesel;
         if (row.iban) body.iban = row.iban;
+        if (row.hourly_rate || row.rate) body.hourlyNettoRate = row.hourly_rate ?? row.rate ?? "";
+        if (row.trc_expiry) body.trcExpiry = row.trc_expiry;
+        if (row.work_permit_expiry) body.workPermitExpiry = row.work_permit_expiry;
+        if (row.contract_end) body.contractEndDate = row.contract_end;
+        if (row.bhp_expiry) body.bhpExpiry = row.bhp_expiry;
+        if (row.medical_expiry) body.medicalExpiry = row.medical_expiry;
 
         const res = await fetch(`${BASE}/api/workers`, { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
         if (res.ok) { ok++; setImported(ok); }
@@ -120,10 +126,10 @@ export default function BulkUpload() {
           </div>
           <table className="w-full text-xs">
             <thead><tr className="border-b border-border text-muted-foreground">
-              <th className="text-left p-3">#</th><th className="text-left p-3">Name</th><th className="text-left p-3">Phone</th><th className="text-left p-3">Spec</th><th className="text-left p-3">Site</th>
+              <th className="text-left p-3">#</th><th className="text-left p-3">Name</th><th className="text-left p-3">Phone</th><th className="text-left p-3">Nationality</th><th className="text-left p-3">Spec</th><th className="text-left p-3">Site</th><th className="text-left p-3">Rate</th>
             </tr></thead>
             <tbody>{rows.slice(0, 50).map((r, i) => (
-              <tr key={i} className="border-b border-border/50"><td className="p-3 text-muted-foreground">{i + 1}</td><td className="p-3 text-white font-medium">{r.name}</td><td className="p-3">{r.phone ?? "—"}</td><td className="p-3">{r.specialization ?? "—"}</td><td className="p-3">{r.assigned_site ?? r.site ?? "—"}</td></tr>
+              <tr key={i} className="border-b border-border/50"><td className="p-3 text-muted-foreground">{i + 1}</td><td className="p-3 text-white font-medium">{r.name}</td><td className="p-3">{r.phone ?? "—"}</td><td className="p-3">{r.nationality ?? "—"}</td><td className="p-3">{r.specialization ?? "—"}</td><td className="p-3">{r.assigned_site ?? r.site ?? "—"}</td><td className="p-3 text-primary font-mono">{r.hourly_rate ?? r.rate ?? "—"}</td></tr>
             ))}</tbody>
           </table>
         </div>

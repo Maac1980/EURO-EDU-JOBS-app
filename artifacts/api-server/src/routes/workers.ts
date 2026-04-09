@@ -337,6 +337,12 @@ router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req
     if (body.workPermitExpiry) fields.workPermitExpiry = body.workPermitExpiry;
     if (body.contractEndDate) fields.contractEndDate = body.contractEndDate;
     if (body.iban) fields.iban = String(body.iban).toUpperCase();
+    if (body.nationality) fields.nationality = body.nationality;
+    if (body.visaType) fields.visaType = body.visaType;
+    if (body.pesel) fields.pesel = body.pesel;
+    if (body.bhpExpiry) fields.bhpStatus = body.bhpExpiry;
+    if (body.medicalExpiry) fields.badaniaLekExpiry = body.medicalExpiry;
+    if (body.pipelineStage) fields.pipelineStage = body.pipelineStage;
 
     const [newRecord] = await db.insert(schema.workers).values(fields).returning();
     const worker = toWorker(newRecord);

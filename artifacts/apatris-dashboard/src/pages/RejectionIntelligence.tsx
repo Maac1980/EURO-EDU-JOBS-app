@@ -1,112 +1,89 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Shield, FileText, Users, Clock, AlertTriangle, CheckCircle } from "lucide-react";
-
-const TOKEN_KEY = "eej_token";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem(TOKEN_KEY) ?? ""; }
-function headers() { return { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" }; }
-
-const ENDPOINTS: Record<string, string> = {
-  CaseManagement: "/api/legal/cases",
-  DocumentTemplates: "/api/legal/documents",
-  ClientPortal: "/api/legal/notifications",
-  LegalQueue: "/api/legal/queue",
-  RejectionIntelligence: "/api/legal/cases?status=REJECTED",
-  InspectionReport: "/api/legal/pip-report",
-};
-
-const TITLES: Record<string, string> = {
-  CaseManagement: "Case Management",
-  DocumentTemplates: "Document Templates",
-  ClientPortal: "Client Portal",
-  LegalQueue: "Legal Priority Queue",
-  RejectionIntelligence: "Rejection Intelligence",
-  InspectionReport: "PIP Inspection Report",
-};
-
-const ICONS: Record<string, any> = {
-  CaseManagement: FileText,
-  DocumentTemplates: FileText,
-  ClientPortal: Users,
-  LegalQueue: Clock,
-  RejectionIntelligence: AlertTriangle,
-  InspectionReport: Shield,
-};
+import { AlertTriangle, FileText, Shield, Clock, CheckCircle, User } from "lucide-react";
+import SmartDocumentDrop from "@/components/SmartDocumentDrop";
 
 export default function RejectionIntelligence() {
   const { t } = useTranslation();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const pageName = "RejectionIntelligence";
-  const Icon = ICONS[pageName] ?? Shield;
-
-  useEffect(() => {
-    fetch(ENDPOINTS[pageName] ?? "/api/healthz", { headers: headers() })
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const items = data?.cases ?? data?.documents ?? data?.queue ?? data?.notifications ?? (data?.score !== undefined ? [data] : []);
+  const [result, setResult] = useState<any>(null);
 
   return (
     <div className="p-6 min-h-screen overflow-y-auto pb-20 bg-background">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-6">
-        <Icon className="w-6 h-6 text-primary" /> {TITLES[pageName]}
+      <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-2">
+        <AlertTriangle className="w-6 h-6 text-red-400" /> Rejection Intelligence
       </h1>
+      <p className="text-sm text-muted-foreground mb-6">Drop a rejection letter — AI reads it, matches the worker, classifies the rejection, and suggests next steps</p>
 
-      {loading ? (
-        <div className="text-center text-muted-foreground py-12">Loading...</div>
-      ) : !data ? (
-        <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground">
-          No data available. Run a legal scan first.
-        </div>
-      ) : pageName === "InspectionReport" && data.score !== undefined ? (
+      <div className="mb-6">
+        <SmartDocumentDrop
+          endpoint="/api/smart-doc/rejection"
+          label="Drop rejection letter here (PDF or photo)"
+          onResult={setResult}
+        />
+      </div>
+
+      {result && (
         <div className="space-y-4">
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="text-xs text-muted-foreground uppercase mb-2">PIP Readiness Score</div>
-            <div className="text-5xl font-black" style={{ color: data.score >= 80 ? "#22c55e" : data.score >= 50 ? "#f59e0b" : "#ef4444" }}>{data.score}/100</div>
-            <div className="text-sm text-muted-foreground mt-2">{data.readiness} — {data.totalWorkers} workers, {data.openCases} open cases</div>
-          </div>
-          {(data.issues ?? []).length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-card border border-border rounded-xl p-5">
-              <h2 className="text-sm font-bold text-white mb-3">Issues Found</h2>
-              {data.issues.map((i: any, idx: number) => (
-                <div key={idx} className="flex justify-between py-2 border-b border-border/50 text-sm">
-                  <span className="text-white">{i.worker}</span>
-                  <span className="text-muted-foreground">{i.issue}</span>
-                  <span className="text-xs font-bold" style={{ color: i.severity === "CRITICAL" ? "#ef4444" : "#f59e0b" }}>{i.severity}</span>
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1"><User className="w-3 h-3" /> Worker</div>
+              {result.matchedWorker ? (
+                <div>
+                  <div className="text-lg font-bold text-white">{result.matchedWorker.name}</div>
+                  <div className="text-xs mt-1" style={{ color: result.matchedWorker.matchScore >= 80 ? "#22c55e" : "#f59e0b" }}>
+                    {result.matchedWorker.matchScore}% match{result.matchedWorker.matchScore < 70 && " — verify manually"}
+                  </div>
                 </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">No match — {result.extractedFields?.worker_name?.value ?? "name not found"}</div>
+              )}
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1"><FileText className="w-3 h-3" /> Case</div>
+              <div className="text-sm text-white">{result.voivodeship ?? "—"}</div>
+              <div className="text-xs text-muted-foreground mt-1">Ref: {result.caseRef ?? "—"}</div>
+              <div className="text-xs text-muted-foreground">Decision: {result.decisionDate ?? "—"}</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-5">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1"><Clock className="w-3 h-3" /> Appeal Deadline</div>
+              <div className="text-lg font-bold text-red-400">{result.appealDeadline ?? "14 days"}</div>
+              {result.caseCreated && <div className="text-xs text-green-400 mt-1 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Case created</div>}
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-5">
+            <h2 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Shield className="w-4 h-4 text-amber-400" /> Classification</h2>
+            <div className="flex gap-2 flex-wrap mb-4">
+              {(result.classification ?? []).map((c: any, i: number) => (
+                <span key={i} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{
+                  background: c.confidence >= 80 ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
+                  color: c.confidence >= 80 ? "#ef4444" : "#f59e0b",
+                }}>{c.category.replace(/_/g, " ")} ({c.confidence}%)</span>
               ))}
             </div>
+            {result.extractedFields?.rejection_reasons?.value && (
+              <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/10 text-sm text-muted-foreground">
+                <span className="text-xs text-red-400 font-bold uppercase block mb-1">Rejection reasons:</span>
+                {result.extractedFields.rejection_reasons.value}
+              </div>
+            )}
+          </div>
+
+          {result.aiExplanation && (
+            <div className="bg-card border border-border rounded-xl p-5">
+              <div className="text-xs text-amber-400 font-bold uppercase tracking-wider mb-3">AI Analysis — DRAFT</div>
+              <div className="text-sm text-foreground whitespace-pre-wrap">{result.aiExplanation}</div>
+            </div>
           )}
+
+          <div className="text-xs text-muted-foreground text-right">Confidence: {result.overallConfidence ?? 0}%</div>
         </div>
-      ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-border bg-muted/30">
-              <th className="text-left p-3 text-muted-foreground font-medium">ID</th>
-              <th className="text-left p-3 text-muted-foreground font-medium">Type / Title</th>
-              <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
-              <th className="text-left p-3 text-muted-foreground font-medium">Created</th>
-            </tr></thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">No records found</td></tr>
-              ) : items.slice(0, 50).map((item: any, idx: number) => (
-                <tr key={item.id ?? idx} className="border-b border-border/50 hover:bg-muted/20">
-                  <td className="p-3 font-mono text-xs text-muted-foreground">{(item.id ?? "").slice(0, 8)}</td>
-                  <td className="p-3 text-white font-medium">{item.title ?? item.case_type ?? item.doc_type ?? item.message_type ?? item.worker_name ?? "—"}</td>
-                  <td className="p-3"><span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{
-                    background: (item.status === "approved" || item.status === "resolved") ? "rgba(34,197,94,0.15)" : item.status === "REJECTED" ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
-                    color: (item.status === "approved" || item.status === "resolved") ? "#22c55e" : item.status === "REJECTED" ? "#ef4444" : "#f59e0b",
-                  }}>{item.status ?? "—"}</span></td>
-                  <td className="p-3 text-xs text-muted-foreground">{item.created_at ? new Date(item.created_at).toLocaleDateString() : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      )}
+
+      {!result && (
+        <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground">
+          <Shield className="w-10 h-10 mx-auto mb-3 opacity-20" />
+          <p className="text-sm">Drop a rejection letter above to start analysis</p>
         </div>
       )}
     </div>

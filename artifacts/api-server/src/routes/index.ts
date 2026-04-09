@@ -38,6 +38,7 @@ import workerTimelineRouter from "../services/worker-timeline.js";
 import authorityPacksRouter from "../services/authority-packs.js";
 import finesPreventionRouter from "../services/fines-prevention.js";
 import tier2Router from "../services/tier2-features.js";
+import smartDocRouter from "../services/smart-document.js";
 
 const router: IRouter = Router();
 
@@ -80,6 +81,7 @@ router.use(workerTimelineRouter);
 router.use(authorityPacksRouter);
 router.use(finesPreventionRouter);
 router.use(tier2Router);
+router.use(smartDocRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

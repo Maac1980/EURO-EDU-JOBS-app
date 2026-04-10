@@ -105,10 +105,17 @@ export function KnowledgeCenter() {
   const grossRate = mode === "net" && hours > 0 ? Math.round((r.gross / hours) * 100) / 100 : rate;
 
   return (
-    <div className="tab-page" style={{ background: "#0f172a", padding: 0 }}>
-    <div className="p-4 text-slate-200 pb-24">
-      <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-xl font-bold text-white">ZUS Calculator</h1>
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center">
+    <div className="w-full max-w-2xl px-4 pt-8 pb-24 text-slate-200">
+      <div className="space-y-6">
+        {/* Workspace Header */}
+        <div className="text-center mb-4">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-slate-700/50 border border-slate-600 mb-3">
+            <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="8" y1="6" x2="16" y2="6" /><line x1="8" y1="10" x2="16" y2="10" /><line x1="8" y1="14" x2="12" y2="14" /></svg>
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-tight">ZUS Calculator</h1>
+          <p className="text-xs text-slate-500 font-mono mt-1 uppercase tracking-widest">Polish Payroll · Gross ↔ Net · Umowa Zlecenie / o Pracę</p>
+        </div>
 
         {/* Contract Toggle */}
         <div className="flex rounded-lg overflow-hidden border border-slate-700">

@@ -224,7 +224,7 @@ function Router() {
           {() => <ProtectedRoute component={ImmigrationDashboard} />}
         </Route>
         <Route path="/calculator">
-          {() => <ProtectedRoute component={() => <div className="p-6 min-h-screen overflow-y-auto pb-20 bg-background"><KnowledgeCenter /></div>} />}
+          {() => <ProtectedRoute component={() => <div className="min-h-screen overflow-y-auto"><KnowledgeCenter /></div>} />}
         </Route>
         <Route path="/ats-pipeline">
           {() => <ProtectedRoute component={ATSPipeline} />}

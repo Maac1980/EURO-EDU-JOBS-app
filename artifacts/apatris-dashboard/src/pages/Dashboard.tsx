@@ -595,7 +595,14 @@ export default function Dashboard() {
         )}
       </div>
 
-      <main className="px-10 pb-6 z-10 max-w-[1600px] mx-auto w-full space-y-4">
+      {/* Calculator gets its own full-screen layout — skip main wrapper */}
+      {activeTab === "calculator" && (
+        <div className="flex-1">
+          <KnowledgeCenterComponent />
+        </div>
+      )}
+
+      <main className={`px-10 pb-6 z-10 max-w-[1600px] mx-auto w-full space-y-4 ${activeTab === "calculator" ? "hidden" : ""}`}>
 
         {/* ── Tab Bar — hidden via CSS; bottom bar handles mobile ── */}
         <div className="eej-tab-bar overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -1760,12 +1767,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Calculator Tab — full workspace, no surrounding context ── */}
-        {activeTab === "calculator" && (
-          <div className="-mx-6 -mt-4">
-            <KnowledgeCenterComponent />
-          </div>
-        )}
+        {/* Calculator renders outside <main> — see above */}
 
         {/* ── Payroll Tab ── */}
         {activeTab === "payroll" && (

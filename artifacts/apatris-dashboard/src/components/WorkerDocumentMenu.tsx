@@ -231,29 +231,65 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
               <p style={{ color: "#7a8599", fontSize: 12, marginTop: 4 }}>PDF, JPG, PNG — AI odczyta i dopasuje automatycznie</p>
             </div>
           ) : activeTab === "historia" ? (
-            <div>
-              {documents.length === 0 ? (
-                <p style={{ color: "#7a8599", fontSize: 13, textAlign: "center", padding: 32 }}>Brak dokumentów w historii</p>
-              ) : documents.map((d: any) => (
-                <div key={d.id} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "10px 12px", borderRadius: 8, marginBottom: 4,
-                  background: "rgba(255,255,255,0.03)",
-                }}>
-                  <div>
-                    <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{d.title || d.doc_type || "Dokument"}</div>
-                    <div style={{ color: "#7a8599", fontSize: 11, marginTop: 2 }}>
-                      {d.status || "draft"} · {d.created_at ? new Date(d.created_at).toLocaleDateString("pl-PL") : "—"}
-                    </div>
+            (() => {
+              // Merge generated docs + uploaded files into unified timeline
+              const generated = documents.map((d: any) => ({
+                id: d.id, name: d.title || d.doc_type || "Dokument",
+                type: d.doc_type ?? "document", source: "generated" as const,
+                status: d.status ?? "draft",
+                date: d.created_at ? new Date(d.created_at) : new Date(),
+                dateStr: d.created_at ? new Date(d.created_at).toLocaleDateString("pl-PL") : "—",
+                caseId: d.case_id ?? d.caseId ?? null,
+                createdBy: d.approved_by ?? "system",
+              }));
+              const uploaded = workingDocs.map((wd: any) => ({
+                id: wd.id, name: wd.filename || "Plik",
+                type: wd.type ?? "file", source: "uploaded" as const,
+                status: wd.verified ? "verified" : "pending",
+                date: wd.uploadedAt ? new Date(wd.uploadedAt) : new Date(),
+                dateStr: wd.uploadedAt ? new Date(wd.uploadedAt).toLocaleDateString("pl-PL") : "—",
+                caseId: wd.caseId ?? null,
+                createdBy: "upload",
+              }));
+              const all = [...generated, ...uploaded].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+              return (
+                <div>
+                  <div style={{ fontSize: 11, color: "#7a8599", marginBottom: 10 }}>
+                    {generated.length} wygenerowanych · {uploaded.length} przesłanych · {all.length} łącznie
                   </div>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
-                    background: d.status === "approved" ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)",
-                    color: d.status === "approved" ? "#22c55e" : "#f59e0b",
-                  }}>{d.status || "draft"}</span>
+                  {all.length === 0 ? (
+                    <p style={{ color: "#7a8599", fontSize: 13, textAlign: "center", padding: 32 }}>Brak dokumentów w historii</p>
+                  ) : all.map(item => (
+                    <div key={item.id} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "10px 12px", borderRadius: 8, marginBottom: 4,
+                      background: "rgba(255,255,255,0.03)",
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{item.name}</span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                            background: item.source === "generated" ? "rgba(139,92,246,0.15)" : "rgba(14,165,233,0.15)",
+                            color: item.source === "generated" ? "#8b5cf6" : "#0ea5e9",
+                          }}>{item.source === "generated" ? "WYGENEROWANY" : "PRZESŁANY"}</span>
+                        </div>
+                        <div style={{ color: "#7a8599", fontSize: 11, marginTop: 2 }}>
+                          {item.type?.replace(/_/g, " ") || "—"} · {item.dateStr}
+                          {item.caseId && <span style={{ color: "#3b82f6", marginLeft: 6 }}>🔗 sprawa</span>}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
+                        background: (item.status === "approved" || item.status === "verified") ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)",
+                        color: (item.status === "approved" || item.status === "verified") ? "#22c55e" : "#f59e0b",
+                  }}>{item.status || "draft"}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()
           ) : (
             <div>
               {tabTemplates.length === 0 ? (
@@ -301,28 +337,49 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
                     </div>
                   </div>
 
-                  {/* Action buttons */}
-                  {tpl.applicable && (
-                    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                      <button style={{
-                        display: "flex", alignItems: "center", gap: 4, padding: "5px 12px",
-                        borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                        background: tpl.prefillStatus.percentage >= 50 ? "#d4e84b" : "rgba(255,255,255,0.08)",
-                        color: tpl.prefillStatus.percentage >= 50 ? "#0b101e" : "#7a8599",
-                      }}>
-                        <FileText style={{ width: 12, height: 12 }} />
-                        Generuj
-                      </button>
-                      <button style={{
-                        display: "flex", alignItems: "center", gap: 4, padding: "5px 12px",
-                        borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", fontSize: 11,
-                        fontWeight: 600, cursor: "pointer", background: "transparent", color: "#7a8599",
-                      }}>
-                        <ChevronRight style={{ width: 12, height: 12 }} />
-                        Podgląd
-                      </button>
+                  {/* Action buttons with pre-generation validation */}
+                  {tpl.applicable && (() => {
+                    const hasCriticalMissing = tpl.prefillStatus.missing.length > 0 && tpl.prefillStatus.percentage < 50;
+                    const canGenerate = tpl.prefillStatus.percentage >= 50;
+                    return (
+                    <div style={{ marginTop: 10 }}>
+                      {hasCriticalMissing && (
+                        <div style={{
+                          padding: "6px 10px", borderRadius: 6, marginBottom: 6,
+                          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+                          fontSize: 11, color: "#ef4444",
+                        }}>
+                          <XCircle style={{ width: 12, height: 12, display: "inline", verticalAlign: "middle", marginRight: 4 }} />
+                          Brakujące dane: {tpl.prefillStatus.missing.map(f => f.replace(/_/g, " ")).join(", ")}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          disabled={!canGenerate}
+                          title={!canGenerate ? `Brakuje: ${tpl.prefillStatus.missing.join(", ")}` : "Generuj dokument"}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 4, padding: "5px 12px",
+                            borderRadius: 6, border: "none", fontSize: 11, fontWeight: 700,
+                            cursor: canGenerate ? "pointer" : "not-allowed",
+                            opacity: canGenerate ? 1 : 0.4,
+                            background: canGenerate ? "#d4e84b" : "rgba(255,255,255,0.08)",
+                            color: canGenerate ? "#0b101e" : "#7a8599",
+                          }}>
+                          <FileText style={{ width: 12, height: 12 }} />
+                          {canGenerate ? "Generuj" : "Uzupełnij dane"}
+                        </button>
+                        <button style={{
+                          display: "flex", alignItems: "center", gap: 4, padding: "5px 12px",
+                          borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", fontSize: 11,
+                          fontWeight: 600, cursor: "pointer", background: "transparent", color: "#7a8599",
+                        }}>
+                          <ChevronRight style={{ width: 12, height: 12 }} />
+                          Podgląd
+                        </button>
+                      </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               ))}
             </div>

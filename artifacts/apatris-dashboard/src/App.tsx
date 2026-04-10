@@ -86,9 +86,11 @@ import SignatureTracking from "@/pages/SignatureTracking";
 import SafetyMonitor from "@/pages/SafetyMonitor";
 import MarginAnalysis from "@/pages/MarginAnalysis";
 import HousingOverview from "@/pages/HousingOverview";
-import LegalIntelligence from "@/pages/LegalIntelligence";
-import TrcWorkspace from "@/pages/TrcWorkspace";
 import NotFound from "@/pages/not-found";
+
+// Lazy load new features to prevent blank page if import fails
+const LegalIntelligence = React.lazy(() => import("@/pages/LegalIntelligence"));
+const TrcWorkspace = React.lazy(() => import("@/pages/TrcWorkspace"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -321,10 +323,10 @@ function Router() {
           {() => <ProtectedRoute component={LinkedCases} />}
         </Route>
         <Route path="/legal-intelligence">
-          {() => <ProtectedRoute component={LegalIntelligence} />}
+          {() => <React.Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}><ProtectedRoute component={LegalIntelligence} /></React.Suspense>}
         </Route>
         <Route path="/trc-workspace">
-          {() => <ProtectedRoute component={TrcWorkspace} />}
+          {() => <React.Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}><ProtectedRoute component={TrcWorkspace} /></React.Suspense>}
         </Route>
         <Route path="/posted-deadlines">
           {() => <ProtectedRoute component={PostedDeadlines} />}

@@ -48,6 +48,7 @@ import enhancedScanRouter from "../services/enhanced-daily-scan.js";
 import mosEngineRouter from "../services/mos-engine.js";
 import legalBriefRouter from "../services/legal-brief-pipeline.js";
 import templateSuggestionRouter from "../services/template-suggestion.js";
+import workingDocsRouter from "../services/working-documents.js";
 
 const router: IRouter = Router();
 
@@ -100,6 +101,7 @@ router.use(enhancedScanRouter);
 router.use(mosEngineRouter);
 router.use(legalBriefRouter);
 router.use(templateSuggestionRouter);
+router.use(workingDocsRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

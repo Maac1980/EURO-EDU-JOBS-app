@@ -430,6 +430,13 @@ export async function runMigrations(): Promise<void> {
       expires_at TIMESTAMP NOT NULL
     );
 
+    -- Extend legal_evidence for working documents
+    DO $$ BEGIN
+      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'uploaded';
+      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb;
+    END $$;
+
     -- Enrich contract_templates with suggestion metadata
     DO $$ BEGIN
       ALTER TABLE contract_templates ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'inne';

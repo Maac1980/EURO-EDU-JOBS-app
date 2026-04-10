@@ -32,6 +32,7 @@ const TAB_CONFIG: { id: string; label: string; icon: any; color: string }[] = [
   { id: "compliance", label: "Compliance / RODO", icon: Shield, color: "#f59e0b" },
   { id: "certyfikaty", label: "Certyfikaty", icon: CheckCircle, color: "#22c55e" },
   { id: "badania", label: "Badania", icon: AlertTriangle, color: "#ef4444" },
+  { id: "pliki", label: "Pliki robocze", icon: FileText, color: "#0ea5e9" },
   { id: "historia", label: "Historia", icon: Clock, color: "#6b7280" },
   { id: "upload", label: "Dodaj dokument", icon: Upload, color: "#d4e84b" },
 ];
@@ -44,6 +45,8 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
   const [totalTemplates, setTotalTemplates] = useState(0);
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [workingDocs, setWorkingDocs] = useState<any[]>([]);
+  const [workingDocsByType, setWorkingDocsByType] = useState<Record<string, number>>({});
 
   useEffect(() => {
     // Load template suggestions
@@ -61,12 +64,23 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    // Load existing documents for this worker
+    // Load existing generated documents
     fetch(`/api/legal/documents?workerId=${workerId}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then(r => r.json())
       .then(d => setDocuments(d.documents ?? []))
+      .catch(() => {});
+
+    // Load working documents (uploaded files)
+    fetch(`/api/worker-docs/${workerId}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        setWorkingDocs(d.documents ?? []);
+        setWorkingDocsByType(d.byType ?? {});
+      })
       .catch(() => {});
   }, [workerId]);
 
@@ -121,7 +135,8 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
           overflowX: "auto",
         }}>
           {TAB_CONFIG.map(tab => {
-            const count = tab.id === "historia" ? tabDocuments.length :
+            const count = tab.id === "historia" ? documents.length :
+              tab.id === "pliki" ? workingDocs.length :
               tab.id === "upload" ? 0 :
               (suggestions[tab.id] ?? []).filter(s => s.applicable).length;
             const isActive = activeTab === tab.id;
@@ -154,6 +169,57 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
             <div style={{ textAlign: "center", padding: 40, color: "#7a8599" }}>
               <Loader2 style={{ width: 24, height: 24, margin: "0 auto 8px", animation: "spin 1s linear infinite" }} />
               <p style={{ fontSize: 13 }}>Ładowanie szablonów...</p>
+            </div>
+          ) : activeTab === "pliki" ? (
+            <div>
+              {/* Upload button */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>
+                  {workingDocs.length} plików
+                  {Object.keys(workingDocsByType).length > 0 && (
+                    <span style={{ color: "#7a8599", fontWeight: 400, marginLeft: 8 }}>
+                      ({Object.entries(workingDocsByType).map(([t, c]) => `${t}: ${c}`).join(", ")})
+                    </span>
+                  )}
+                </span>
+              </div>
+              {workingDocs.length === 0 ? (
+                <p style={{ color: "#7a8599", fontSize: 13, textAlign: "center", padding: 32 }}>Brak plików roboczych. Użyj zakładki "Dodaj dokument" aby przesłać.</p>
+              ) : workingDocs.map((wd: any) => (
+                <div key={wd.id} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "10px 12px", borderRadius: 8, marginBottom: 4,
+                  background: "rgba(255,255,255,0.03)",
+                  border: wd.hasMismatch ? "1px solid rgba(239,68,68,0.3)" : "1px solid transparent",
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{wd.filename || "Dokument"}</span>
+                      <span style={{
+                        fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700,
+                        background: wd.verified ? "rgba(34,197,94,0.15)" : wd.hasMismatch ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
+                        color: wd.verified ? "#22c55e" : wd.hasMismatch ? "#ef4444" : "#f59e0b",
+                      }}>
+                        {wd.verified ? "✓ Zweryfikowany" : wd.hasMismatch ? "⚠ Niezgodność" : "Oczekuje"}
+                      </span>
+                    </div>
+                    <div style={{ color: "#7a8599", fontSize: 11, marginTop: 2 }}>
+                      {wd.type?.replace(/_/g, " ") || "—"} · {wd.uploadedAt ? new Date(wd.uploadedAt).toLocaleDateString("pl-PL") : "—"}
+                      {wd.caseId && <span style={{ color: "#3b82f6", marginLeft: 6 }}>🔗 Powiązany ze sprawą</span>}
+                    </div>
+                    {wd.notes && <div style={{ color: "#5a6577", fontSize: 10, marginTop: 2 }}>{wd.notes}</div>}
+                    {wd.ocrConfidence !== null && wd.ocrConfidence !== undefined && (
+                      <div style={{ fontSize: 10, marginTop: 2, color: wd.ocrConfidence >= 70 ? "#22c55e" : "#f59e0b" }}>
+                        OCR: {wd.ocrConfidence}%
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)", background: "transparent", color: "#7a8599", fontSize: 10, cursor: "pointer" }}>Podgląd</button>
+                    <button style={{ padding: "4px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.08)", background: "transparent", color: "#ef4444", fontSize: 10, cursor: "pointer" }}>Usuń</button>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : activeTab === "upload" ? (
             <div style={{

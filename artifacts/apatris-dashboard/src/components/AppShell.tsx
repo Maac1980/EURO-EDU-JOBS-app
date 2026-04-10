@@ -179,7 +179,9 @@ function findActiveGroup(location: string): NavGroup | undefined {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, logout } = useAuth();
   const [location, setLocation] = useLocation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language?.startsWith("pl") ? "pl" : "en";
+  const toggleLang = () => i18n.changeLanguage(currentLang === "pl" ? "en" : "pl");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
   const [history, setHistory] = useState<string[]>([]);
@@ -398,6 +400,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {activeGroup.label}
             </span>
           )}
+
+          {/* Language toggle */}
+          <button
+            onClick={toggleLang}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-slate-700 hover:border-[#d4e84b]/40 transition-colors"
+            style={{ color: currentLang === "pl" ? "#d4e84b" : "#94a3b8" }}
+            title={currentLang === "pl" ? "Switch to English" : "Przełącz na Polski"}
+          >
+            <span className={currentLang === "en" ? "text-[#d4e84b]" : "text-slate-500"}>EN</span>
+            <span className="text-slate-600">|</span>
+            <span className={currentLang === "pl" ? "text-[#d4e84b]" : "text-slate-500"}>PL</span>
+          </button>
 
           <div className="flex items-center gap-2 pl-2 border-l border-slate-700/60">
             <div className="w-7 h-7 rounded-full bg-[#d4e84b]/15 border border-[#d4e84b]/30 flex items-center justify-center flex-shrink-0">

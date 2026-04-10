@@ -44,6 +44,9 @@ import caseEngineRouter from "../services/case-engine.js";
 import consistencyRouter from "../services/consistency-checker.js";
 import communicationRouter from "../services/communication.js";
 import documentHardeningRouter from "../services/document-hardening.js";
+import enhancedScanRouter from "../services/enhanced-daily-scan.js";
+import mosEngineRouter from "../services/mos-engine.js";
+import legalBriefRouter from "../services/legal-brief-pipeline.js";
 
 const router: IRouter = Router();
 
@@ -92,6 +95,9 @@ router.use(caseEngineRouter);
 router.use(consistencyRouter);
 router.use(communicationRouter);
 router.use(documentHardeningRouter);
+router.use(enhancedScanRouter);
+router.use(mosEngineRouter);
+router.use(legalBriefRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

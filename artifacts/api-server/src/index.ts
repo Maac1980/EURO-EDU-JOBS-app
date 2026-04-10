@@ -32,10 +32,10 @@ async function start() {
     startAlerter();
     startRegulatoryMonitor();
 
-    // Feature 3: Daily legal scan at 7am
+    // Enhanced daily legal scan at 7am — detects status CHANGES
     import("node-cron").then(cron => {
       cron.default.schedule(process.env.LEGAL_SCAN_CRON ?? "0 7 * * *", () => {
-        import("./services/platform-features.js").then(m => m.runDailyLegalScan()).catch(console.error);
+        import("./services/enhanced-daily-scan.js").then(m => m.runEnhancedScan()).catch(console.error);
       });
       console.log("[cron] Daily legal scan scheduled: 7:00 AM");
     }).catch(() => console.warn("[cron] node-cron not available"));

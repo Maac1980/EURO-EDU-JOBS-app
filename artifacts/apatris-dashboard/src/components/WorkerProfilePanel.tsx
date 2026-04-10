@@ -333,14 +333,14 @@ export function WorkerProfilePanel({
     <>
       <div
         onClick={onClose}
-        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 ${
+        className={`fixed inset-0 top-[52px] bg-black/60 backdrop-blur-sm z-[205] transition-opacity duration-300 ${
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
 
       <div
         ref={panelRef}
-        className={`fixed right-0 top-0 bottom-0 w-full max-w-md bg-slate-900 border-l border-white/10 shadow-2xl z-50 overflow-y-auto transform transition-transform duration-300 ease-out ${
+        className={`fixed right-0 top-[52px] bottom-0 w-full max-w-md bg-slate-900 border-l border-white/10 shadow-2xl z-[210] overflow-y-auto transform transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

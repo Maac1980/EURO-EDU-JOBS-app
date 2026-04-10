@@ -644,6 +644,25 @@ export async function runMigrations(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_comm_outputs_worker ON communication_outputs(worker_id);
     CREATE INDEX IF NOT EXISTS idx_comm_outputs_approved ON communication_outputs(is_approved);
+
+    -- Document action log (append-only)
+    CREATE TABLE IF NOT EXISTS document_action_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
+      document_id UUID,
+      document_type TEXT,
+      action TEXT NOT NULL,
+      actor TEXT,
+      metadata JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_doc_action_log_worker ON document_action_log(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_doc_action_log_doc ON document_action_log(document_id);
+
+    -- Add status to legal_evidence for consistency
+    DO $$ BEGIN
+      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'uploaded';
+    END $$;
   `);
 
   console.log("[db] Tables created successfully");

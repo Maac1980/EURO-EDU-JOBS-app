@@ -44,6 +44,7 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
   const [applicableCount, setApplicableCount] = useState(0);
   const [totalTemplates, setTotalTemplates] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [actionLog, setActionLog] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [workingDocs, setWorkingDocs] = useState<any[]>([]);
   const [workingDocsByType, setWorkingDocsByType] = useState<Record<string, number>>({});
@@ -70,6 +71,14 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
     })
       .then(r => r.json())
       .then(d => setDocuments(d.documents ?? []))
+      .catch(() => {});
+
+    // Load action log
+    fetch(`/api/doc-log/${workerId}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.json())
+      .then(d => setActionLog(d.log ?? []))
       .catch(() => {});
 
     // Load working documents (uploaded files)
@@ -274,16 +283,31 @@ export default function WorkerDocumentMenu({ workerId, workerName, onClose }: Pr
                             background: item.source === "generated" ? "rgba(139,92,246,0.15)" : "rgba(14,165,233,0.15)",
                             color: item.source === "generated" ? "#8b5cf6" : "#0ea5e9",
                           }}>{item.source === "generated" ? "WYGENEROWANY" : "PRZESŁANY"}</span>
+                          {/* Override warning badge */}
+                          {actionLog.some(l => l.document_id === item.id && l.action === "validation_override") && (
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>
+                              ⚠️ POMINIĘTO WALIDACJĘ
+                            </span>
+                          )}
                         </div>
                         <div style={{ color: "#7a8599", fontSize: 11, marginTop: 2 }}>
                           {item.type?.replace(/_/g, " ") || "—"} · {item.dateStr}
                           {item.caseId && <span style={{ color: "#3b82f6", marginLeft: 6 }}>🔗 sprawa</span>}
+                          {item.createdBy && item.createdBy !== "system" && item.createdBy !== "upload" && (
+                            <span style={{ color: "#5a6577", marginLeft: 6 }}>· {item.createdBy}</span>
+                          )}
                         </div>
                       </div>
                       <span style={{
                         fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
-                        background: (item.status === "approved" || item.status === "verified") ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)",
-                        color: (item.status === "approved" || item.status === "verified") ? "#22c55e" : "#f59e0b",
+                        background: item.status === "approved" || item.status === "verified" ? "rgba(34,197,94,0.15)"
+                          : item.status === "sent" ? "rgba(59,130,246,0.15)"
+                          : item.status === "reviewed" ? "rgba(139,92,246,0.15)"
+                          : "rgba(245,158,11,0.15)",
+                        color: item.status === "approved" || item.status === "verified" ? "#22c55e"
+                          : item.status === "sent" ? "#3b82f6"
+                          : item.status === "reviewed" ? "#8b5cf6"
+                          : "#f59e0b",
                   }}>{item.status || "draft"}</span>
                     </div>
                   ))}

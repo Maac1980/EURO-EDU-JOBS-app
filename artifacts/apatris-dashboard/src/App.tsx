@@ -86,6 +86,7 @@ import SignatureTracking from "@/pages/SignatureTracking";
 import SafetyMonitor from "@/pages/SafetyMonitor";
 import MarginAnalysis from "@/pages/MarginAnalysis";
 import HousingOverview from "@/pages/HousingOverview";
+import SystemTest from "@/pages/SystemTest";
 import NotFound from "@/pages/not-found";
 
 // Lazy load new features to prevent blank page if import fails
@@ -327,6 +328,9 @@ function Router() {
         </Route>
         <Route path="/trc-workspace">
           {() => <React.Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}><ProtectedRoute component={TrcWorkspace} /></React.Suspense>}
+        </Route>
+        <Route path="/system-test">
+          {() => <ProtectedRoute component={SystemTest} />}
         </Route>
         <Route path="/posted-deadlines">
           {() => <ProtectedRoute component={PostedDeadlines} />}

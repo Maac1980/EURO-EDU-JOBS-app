@@ -501,5 +501,27 @@
     "zusCompany1": "Firma 1 — Główna",
     "zusCompany2": "Firma 2 — Drugi tytuł",
     "zusHours": "Godziny"
+  },
+  "docWorkflow": {
+    "title": "Obieg Dokumentów",
+    "subtitle": "Przeglądaj, zatwierdzaj i śledź dokumenty pracowników",
+    "uploaded": "Przesłane",
+    "underReview": "W przeglądzie",
+    "approved": "Zatwierdzone",
+    "rejected": "Odrzucone",
+    "resubmit": "Do poprawy",
+    "allReviewed": "Wszystkie dokumenty przejrzane",
+    "noPending": "Brak dokumentów oczekujących na przegląd.",
+    "statusUploaded": "PRZESŁANY",
+    "statusUnderReview": "W PRZEGLĄDZIE",
+    "statusApproved": "ZATWIERDZONY",
+    "statusRejected": "ODRZUCONY",
+    "statusResubmit": "DO POPRAWY",
+    "noFile": "Brak pliku",
+    "uploadedBy": "przez",
+    "expires": "Wygasa",
+    "approveBtn": "Zatwierdź",
+    "rejectBtn": "Odrzuć",
+    "rejectReason": "Podaj powód odrzucenia:"
   }
 }

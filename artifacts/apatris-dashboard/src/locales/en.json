@@ -503,5 +503,67 @@
     "zusCompany1": "Company 1 — Primary",
     "zusCompany2": "Company 2 — Second Permit",
     "zusHours": "Hours"
+  },
+  "aiCopilot": {
+    "title": "AI Copilot",
+    "subtitle": "Ask questions about workers, compliance, and operations",
+    "placeholder": "Ask a question...",
+    "welcome": "How can I help you today?",
+    "poweredBy": "Powered by Claude AI",
+    "rulesBased": "Rule-based answer",
+    "error": "Failed to get response. Please try again."
+  },
+  "analytics": {
+    "title": "Analytics",
+    "subtitle": "Compliance trends and workforce insights",
+    "compliant": "Compliant",
+    "critical": "Critical",
+    "expired": "Expired",
+    "expires": "Expires",
+    "future": "Future",
+    "imminent": "Imminent",
+    "heatmapTab": "Heatmap",
+    "predictiveTab": "Predictive",
+    "pdfReport": "Download PDF Report"
+  },
+  "contractHub": {
+    "title": "Contract Hub",
+    "subtitle": "Manage worker contracts and agreements",
+    "activeContracts": "Active Contracts",
+    "expiringSoon": "Expiring Soon",
+    "generate": "Generate Contract",
+    "poaTab": "Power of Attorney",
+    "contractsTab": "Contracts"
+  },
+  "gpsTracking": {
+    "title": "GPS Tracking",
+    "subtitle": "Worker check-in/out and site geofencing",
+    "checkins": "Check-ins",
+    "activeWorkers": "Active Workers",
+    "sites": "Sites",
+    "lastCheckin": "Last check-in",
+    "noCheckins": "No check-ins recorded yet"
+  },
+  "docWorkflow": {
+    "title": "Document Workflow",
+    "subtitle": "Review, approve, and track worker documents across all stages",
+    "uploaded": "Uploaded",
+    "underReview": "Under Review",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "resubmit": "Resubmit Requested",
+    "allReviewed": "All documents reviewed",
+    "noPending": "No pending documents to review right now.",
+    "statusUploaded": "UPLOADED",
+    "statusUnderReview": "UNDER REVIEW",
+    "statusApproved": "APPROVED",
+    "statusRejected": "REJECTED",
+    "statusResubmit": "RESUBMIT",
+    "noFile": "No file",
+    "uploadedBy": "by",
+    "expires": "Expires",
+    "approveBtn": "Approve",
+    "rejectBtn": "Reject",
+    "rejectReason": "Enter reason for rejection:"
   }
 }

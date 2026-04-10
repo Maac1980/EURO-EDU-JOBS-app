@@ -67,6 +67,7 @@ export function CopilotPanel({ workerId, panelContext = "general", compact = fal
   const [expanded, setExpanded] = useState(false);
   const [result, setResult] = useState<CopilotResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copilotLang, setCopilotLang] = useState<"pl" | "en">("pl");
 
   const ask = useMutation({
     mutationFn: async (q: string) => {
@@ -192,9 +193,15 @@ export function CopilotPanel({ workerId, panelContext = "general", compact = fal
         {/* Result */}
         {result && !ask.isPending && (
           <div className="space-y-2">
-            {/* Answer */}
+            {/* Answer with PL/EN toggle */}
+            {result.answerEN && (
+              <div className="flex rounded-lg overflow-hidden border border-slate-700 w-fit mb-2">
+                <button onClick={() => setCopilotLang("pl")} className={`px-2.5 py-1 text-[10px] font-bold ${copilotLang === "pl" ? "bg-red-700 text-white" : "bg-slate-800 text-slate-500"}`}>PL</button>
+                <button onClick={() => setCopilotLang("en")} className={`px-2.5 py-1 text-[10px] font-bold ${copilotLang === "en" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-500"}`}>EN</button>
+              </div>
+            )}
             <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
-              {result.answer}
+              {copilotLang === "en" && result.answerEN ? result.answerEN : result.answer}
             </div>
 
             {/* Next steps */}

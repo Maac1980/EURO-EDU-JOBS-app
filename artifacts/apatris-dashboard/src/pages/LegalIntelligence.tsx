@@ -104,6 +104,38 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${cls}`}>{status}</span>;
 }
 
+/** Bilingual output card — shows PL/EN toggle on any AI-generated text */
+function BilingualOutput({ label, textPl, textEn, badgePl, badgeEn }: {
+  label: string; textPl: string; textEn?: string;
+  badgePl?: string; badgeEn?: string;
+}) {
+  const [lang, setLang] = useState<"pl" | "en">("pl");
+  const text = lang === "en" && textEn ? textEn : textPl;
+  const hasEn = !!textEn;
+
+  return (
+    <div className={cardCls}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-bold text-white">{label}</h3>
+          {lang === "pl" && badgePl && <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{badgePl}</span>}
+          {lang === "en" && badgeEn && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{badgeEn}</span>}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {hasEn && (
+            <div className="flex rounded-lg overflow-hidden border border-slate-700">
+              <button onClick={() => setLang("pl")} className={`px-2.5 py-1 text-[10px] font-bold transition-colors ${lang === "pl" ? "bg-red-700 text-white" : "bg-slate-800 text-slate-500"}`}>PL</button>
+              <button onClick={() => setLang("en")} className={`px-2.5 py-1 text-[10px] font-bold transition-colors ${lang === "en" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-500"}`}>EN</button>
+            </div>
+          )}
+          <CopyButton text={text} />
+        </div>
+      </div>
+      <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono bg-slate-900 p-3 rounded-lg max-h-[500px] overflow-y-auto leading-relaxed">{text}</pre>
+    </div>
+  );
+}
+
 /** Part 1 — Print/PDF button. Opens a print-friendly window with the content. */
 function PrintButton({ title, contentPl, contentEn }: { title: string; contentPl: string; contentEn?: string }) {
   const print = () => {
@@ -480,7 +512,15 @@ function ResearchTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
               <CopyButton text={viewMemo.summary} />
             </div>
           </div>
-          {viewMemo.summary && <div className="text-sm text-slate-300 whitespace-pre-wrap mb-3">{viewMemo.summary}</div>}
+          {viewMemo.summary && (
+            <BilingualOutput
+              label="Research Summary"
+              textPl={viewMemo.perplexity_answer || viewMemo.summary}
+              textEn={viewMemo.summary}
+              badgePl="Perplexity Research"
+              badgeEn="AI Summary"
+            />
+          )}
           {viewMemo.action_items?.length > 0 && (
             <div className="mb-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">Action Items</p>
@@ -868,8 +908,13 @@ function PoaTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
 
       {result && (
         <div className={`${cardCls} border-blue-500/30`}>
-          <h3 className="text-sm font-bold text-white mb-3">Generated Pełnomocnictwo</h3>
-          <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono bg-slate-900 p-4 rounded-lg mb-3">{result.content_pl}</pre>
+          <BilingualOutput
+            label="Pełnomocnictwo / Power of Attorney"
+            textPl={result.content_pl}
+            textEn={result.content_pl}
+            badgePl="Formal Polish Document"
+            badgeEn="Reference Translation"
+          />
           <OutputActions
             title="Pełnomocnictwo / Power of Attorney"
             contentPl={result.content_pl}
@@ -894,7 +939,7 @@ function AuthorityTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
   const [caseRef, setCaseRef] = useState("");
   const [issue, setIssue] = useState("");
   const [result, setResult] = useState<any>(null);
-  const [showLang, setShowLang] = useState<"pl" | "en">("pl");
+  // Language toggle handled by BilingualOutput component
 
   const { data: types } = useQuery<{ types: DraftType[] }>({
     queryKey: ["authority-draft-types"],
@@ -943,15 +988,13 @@ function AuthorityTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
 
       {result && (
         <div className={`${cardCls} border-green-500/30`}>
-          <h3 className="text-sm font-bold text-white mb-3">Generated Draft</h3>
-          {/* Language toggle */}
-          <div className="flex rounded-lg overflow-hidden border border-slate-700 mb-3 w-fit">
-            <button onClick={() => setShowLang("pl")} className={`px-3 py-1.5 text-[10px] font-bold ${showLang === "pl" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400"}`}>Polish</button>
-            <button onClick={() => setShowLang("en")} className={`px-3 py-1.5 text-[10px] font-bold ${showLang === "en" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400"}`}>English</button>
-          </div>
-          <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono bg-slate-900 p-4 rounded-lg max-h-96 overflow-y-auto mb-3">
-            {showLang === "pl" ? result.content_pl : result.content_en}
-          </pre>
+          <BilingualOutput
+            label="Authority Draft"
+            textPl={result.content_pl}
+            textEn={result.content_en}
+            badgePl="Formal Polish Letter"
+            badgeEn="Internal Translation"
+          />
           <OutputActions
             title={`Authority Draft — ${draftType}`}
             contentPl={result.content_pl}

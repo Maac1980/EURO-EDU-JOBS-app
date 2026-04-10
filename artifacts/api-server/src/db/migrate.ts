@@ -430,6 +430,40 @@ export async function runMigrations(): Promise<void> {
       expires_at TIMESTAMP NOT NULL
     );
 
+    -- ═══ PHASE 1: Domain Separation ═══
+    -- 4 distinct status dimensions per worker (never mixed)
+    DO $$ BEGIN
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS recruitment_stage TEXT DEFAULT 'NEW';
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS worker_status TEXT DEFAULT 'BENCH';
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS compliance_status_v2 TEXT DEFAULT 'PENDING_REVIEW';
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS legal_case_status TEXT DEFAULT 'NOT_STARTED';
+      -- Legal Tracking Card fields
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS residence_basis TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS right_to_work_basis TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS permit_type TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS permit_number TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS permit_issue_date DATE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS permit_authority TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS contract_signed_date DATE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS contract_submitted_to_authority DATE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS salary_consistency_ok BOOLEAN DEFAULT TRUE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS role_consistency_ok BOOLEAN DEFAULT TRUE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS location_consistency_ok BOOLEAN DEFAULT TRUE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS hours_fte_consistency_ok BOOLEAN DEFAULT TRUE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS residence_doc_on_file BOOLEAN DEFAULT FALSE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS work_auth_doc_on_file BOOLEAN DEFAULT FALSE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS translation_required BOOLEAN DEFAULT FALSE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS translation_completed BOOLEAN DEFAULT FALSE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS sworn_translation_required BOOLEAN DEFAULT FALSE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS sworn_translation_completed BOOLEAN DEFAULT FALSE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS mandatory_docs_complete BOOLEAN DEFAULT FALSE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS last_verification_date DATE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS next_review_date DATE;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS risk_level TEXT DEFAULT 'MEDIUM';
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS retention_until DATE;
+    END $$;
+
     -- Extend legal_evidence for working documents
     DO $$ BEGIN
       ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS notes TEXT;

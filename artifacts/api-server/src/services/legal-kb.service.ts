@@ -78,20 +78,49 @@ router.post("/legal-kb/seed", authenticateToken, async (_req, res) => {
       `);
     }
 
-    // Seed contract templates
-    const tplCount = await db.execute(sql`SELECT COUNT(*)::int as cnt FROM contract_templates`);
-    if ((tplCount.rows[0] as any).cnt === 0) {
+    // Seed contract templates with metadata
+    const tplCount = await db.execute(sql`SELECT COUNT(*)::int as cnt FROM contract_templates WHERE category IS NOT NULL AND category != 'inne'`);
+    if ((tplCount.rows[0] as any).cnt < 5) {
+      // Delete old templates without metadata and re-seed
+      await db.execute(sql`DELETE FROM contract_templates WHERE category IS NULL OR category = 'inne'`);
+
       const templates = [
-        { name: "Umowa Zlecenie — Standard", contractType: "umowa_zlecenie", language: "pl", content: "UMOWA ZLECENIE\n\nzawarta w dniu {{date}} w {{city}}\npomiędzy:\n{{employer_name}}, NIP: {{employer_nip}}\na\n{{worker_name}}, PESEL: {{worker_pesel}}\n\n§1. Zleceniodawca zleca, a Zleceniobiorca zobowiązuje się do wykonywania pracy na stanowisku {{job_role}}.\n§2. Wynagrodzenie: {{rate}} PLN/godzinę brutto.\n§3. Umowa obowiązuje od {{start_date}} do {{end_date}}.\n§4. Zleceniobiorca oświadcza, że zapoznał się z przepisami BHP.\n§5. Klauzula RODO — dane osobowe przetwarzane zgodnie z RODO.\n\n{{employer_signature}}\n{{worker_signature}}" },
-        { name: "Umowa o Pracę — Standard", contractType: "umowa_o_prace", language: "pl", content: "UMOWA O PRACĘ\n\nzawarta w dniu {{date}} w {{city}}\npomiędzy:\n{{employer_name}}, NIP: {{employer_nip}}\na\n{{worker_name}}, PESEL: {{worker_pesel}}\n\n§1. Pracodawca zatrudnia Pracownika na stanowisku {{job_role}}.\n§2. Wynagrodzenie: {{rate}} PLN/godzinę brutto.\n§3. Wymiar czasu pracy: pełny etat (40h/tydzień).\n§4. Umowa na czas określony od {{start_date}} do {{end_date}}.\n§5. Miejsce pracy: {{work_location}}.\n§6. Pracownik ma prawo do urlopu wypoczynkowego (20/26 dni).\n\n{{employer_signature}}\n{{worker_signature}}" },
-        { name: "TRC Application Cover Letter", contractType: "cover_letter", language: "pl", content: "{{city}}, dnia {{date}}\n\nUrząd Wojewódzki w {{voivodship}}\nWydział Spraw Cudzoziemców\n\nDOTYCZY: Wniosek o udzielenie zezwolenia na pobyt czasowy\n\nSzanowni Państwo,\n\nW imieniu {{worker_name}}, obywatel(ka) {{nationality}}, składam wniosek o udzielenie zezwolenia na pobyt czasowy i pracę na terytorium RP.\n\nPodstawa prawna: Art. 114 Ustawy o cudzoziemcach.\n\nZałączniki:\n1. Wypełniony wniosek\n2. Paszport (kopia)\n3. Zdjęcia\n4. Potwierdzenie zakwaterowania\n5. Ubezpieczenie zdrowotne\n\nZ poważaniem,\n{{employer_name}}" },
-        { name: "Power of Attorney (POA)", contractType: "poa", language: "pl", content: "PEŁNOMOCNICTWO\n\n{{city}}, dnia {{date}}\n\nJa, {{worker_name}}, obywatel(ka) {{nationality}}, nr paszportu {{passport_number}}, niniejszym udzielam pełnomocnictwa {{representative_name}} do reprezentowania mnie przed {{authority}} w sprawie {{case_description}}.\n\nPełnomocnictwo obejmuje składanie wniosków, odbiór decyzji oraz wszelkie czynności związane z powyższą sprawą.\n\n{{worker_signature}}\n{{date}}" },
-        { name: "Appeal Letter Template", contractType: "appeal", language: "pl", content: "{{city}}, dnia {{date}}\n\nSzef Urzędu do Spraw Cudzoziemców\nul. Koszykowa 16\n00-564 Warszawa\n\nza pośrednictwem:\nWojewody {{voivodship}}\n\nODWOŁANIE\n\nod decyzji Wojewody {{voivodship}} z dnia {{decision_date}}, nr {{decision_number}}, odmawiającej udzielenia zezwolenia na pobyt czasowy.\n\nWnoszę o:\n1. Uchylenie zaskarżonej decyzji w całości\n2. Udzielenie zezwolenia na pobyt czasowy\n\nUzasadnienie:\n{{appeal_grounds}}\n\nZ poważaniem,\n{{worker_name}}" },
+        // Umowy
+        { name: "Umowa Zlecenie", type: "umowa_zlecenie", cat: "umowy", desc: "Umowa cywilnoprawna na wykonywanie zlecenia", when: '["new_worker","contract_renewal"]', fields: '["name","pesel","job_role","hourly_netto_rate","assigned_site","contract_end_date"]',
+          content: "UMOWA ZLECENIE\n\nzawarta w dniu {{date}} w {{city}}\npomiędzy:\n{{employer_name}}, NIP: {{employer_nip}}\na\n{{worker_name}}, PESEL: {{worker_pesel}}\n\n§1. Zleceniodawca zleca, a Zleceniobiorca zobowiązuje się do wykonywania pracy na stanowisku {{job_role}}.\n§2. Wynagrodzenie: {{rate}} PLN/godzinę brutto.\n§3. Umowa obowiązuje od {{start_date}} do {{end_date}}.\n§4. Zleceniobiorca oświadcza, że zapoznał się z przepisami BHP.\n§5. Klauzula RODO.\n\n{{employer_signature}}\n{{worker_signature}}" },
+        { name: "Umowa o Pracę", type: "umowa_o_prace", cat: "umowy", desc: "Pełna umowa o pracę wg Kodeksu Pracy", when: '["new_worker","contract_renewal"]', fields: '["name","pesel","job_role","hourly_netto_rate","assigned_site","contract_end_date"]',
+          content: "UMOWA O PRACĘ\n\nzawarta w dniu {{date}} w {{city}}\npomiędzy:\n{{employer_name}}, NIP: {{employer_nip}}\na\n{{worker_name}}, PESEL: {{worker_pesel}}\n\n§1. Pracodawca zatrudnia Pracownika na stanowisku {{job_role}}.\n§2. Wynagrodzenie: {{rate}} PLN/godzinę brutto.\n§3. Wymiar: pełny etat.\n§4. Okres od {{start_date}} do {{end_date}}.\n§5. Miejsce pracy: {{work_location}}.\n\n{{employer_signature}}\n{{worker_signature}}" },
+        { name: "Aneks do umowy", type: "aneks", cat: "umowy", desc: "Zmiana warunków istniejącej umowy", when: '["contract_renewal","rate_change"]', fields: '["name","pesel","job_role","hourly_netto_rate"]',
+          content: "ANEKS DO UMOWY\n\nz dnia {{original_date}}\n\nStrony postanawiają zmienić następujące warunki:\n{{changes}}\n\nPozostałe warunki umowy pozostają bez zmian.\n\n{{employer_signature}}\n{{worker_signature}}" },
+        // Podatkowe
+        { name: "PIT-2 Oświadczenie", type: "pit2", cat: "podatkowe", desc: "Oświadczenie o stosowaniu kwoty zmniejszającej podatek", when: '["new_worker","tax_year_start"]', fields: '["name","pesel"]',
+          content: "OŚWIADCZENIE PRACOWNIKA (PIT-2)\n\n{{worker_name}}, PESEL: {{worker_pesel}}\n\nOświadczam, że:\n1. Moje dochody w roku {{year}} będą podlegały opodatkowaniu na zasadach określonych w art. 27 ustawy o PIT.\n2. Pracodawca {{employer_name}} jest jedynym pracodawcą upoważnionym do zmniejszania zaliczki o kwotę 300 zł miesięcznie.\n\nData: {{date}}\n{{worker_signature}}" },
+        { name: "Oświadczenie o rezydencji podatkowej", type: "tax_residence", cat: "podatkowe", desc: "Deklaracja rezydencji podatkowej pracownika", when: '["new_worker"]', fields: '["name","nationality","pesel"]',
+          content: "OŚWIADCZENIE O REZYDENCJI PODATKOWEJ\n\n{{worker_name}}, obywatel(ka) {{nationality}}\n\nOświadczam, że moim centrum interesów życiowych jest:\n☐ Polska (rezydent podatkowy RP)\n☐ Inny kraj: ___________\n\nData: {{date}}\n{{worker_signature}}" },
+        // Compliance / RODO
+        { name: "Zgoda RODO", type: "rodo_consent", cat: "compliance", desc: "Klauzula informacyjna i zgoda na przetwarzanie danych", when: '["new_worker"]', fields: '["name","pesel"]',
+          content: "KLAUZULA INFORMACYJNA RODO\n\nAdministrator: {{employer_name}}\nCel: realizacja umowy, ZUS, PIT\nPodstawa: Art. 6 ust. 1 lit. b, c RODO\n\nZgadzam się na przetwarzanie moich danych osobowych.\n\n{{worker_name}}\nData: {{date}}\n{{worker_signature}}" },
+        { name: "Zakres obowiązków", type: "job_scope", cat: "compliance", desc: "Zakres obowiązków na stanowisku pracy", when: '["new_worker"]', fields: '["name","job_role","assigned_site"]',
+          content: "ZAKRES OBOWIĄZKÓW\n\nPracownik: {{worker_name}}\nStanowisko: {{job_role}}\nMiejsce: {{assigned_site}}\n\nDo obowiązków pracownika należy:\n1. {{duties}}\n\nPrzełożony: {{supervisor}}\nData: {{date}}" },
+        { name: "Ryzyko zawodowe", type: "risk_assessment", cat: "compliance", desc: "Informacja o ryzyku zawodowym na stanowisku", when: '["new_worker"]', fields: '["name","job_role","assigned_site"]',
+          content: "INFORMACJA O RYZYKU ZAWODOWYM\n\nStanowisko: {{job_role}}\nMiejsce pracy: {{assigned_site}}\n\nZidentyfikowane zagrożenia:\n{{hazards}}\n\nŚrodki ochrony:\n{{protections}}\n\nPotwierdzam zapoznanie się z ryzykiem zawodowym.\n{{worker_name}}\n{{date}}" },
+        // Certyfikaty / Immigration
+        { name: "List motywacyjny TRC", type: "cover_letter", cat: "certyfikaty", desc: "Pismo przewodnie do wniosku o pobyt czasowy", when: '["trc_expiring","trc_filing"]', fields: '["name","nationality","assigned_site"]',
+          content: "{{city}}, dnia {{date}}\n\nUrząd Wojewódzki w {{voivodship}}\nWydział Spraw Cudzoziemców\n\nDOTYCZY: Wniosek o pobyt czasowy\n\nW imieniu {{worker_name}}, {{nationality}}, składam wniosek.\nPodstawa: Art. 114 Ustawy o cudzoziemcach.\n\nZ poważaniem,\n{{employer_name}}" },
+        { name: "Pełnomocnictwo", type: "poa", cat: "certyfikaty", desc: "Pełnomocnictwo do reprezentowania przed urzędem", when: '["trc_filing","appeal"]', fields: '["name","nationality"]',
+          content: "PEŁNOMOCNICTWO\n\nJa, {{worker_name}}, {{nationality}}, udzielam pełnomocnictwa {{representative_name}} do reprezentowania mnie przed {{authority}}.\n\n{{worker_signature}}\n{{date}}" },
+        { name: "Odwołanie od decyzji", type: "appeal", cat: "certyfikaty", desc: "Odwołanie od negatywnej decyzji urzędu", when: '["case_rejected"]', fields: '["name","nationality"]',
+          content: "ODWOŁANIE\n\nod decyzji Wojewody {{voivodship}} z dnia {{decision_date}}, nr {{decision_number}}\n\nWnoszę o uchylenie decyzji.\n\nUzasadnienie:\n{{appeal_grounds}}\n\n{{worker_name}}" },
+        // Badania
+        { name: "Skierowanie na badania lekarskie", type: "medical_referral", cat: "badania", desc: "Skierowanie na badania wstępne/okresowe", when: '["new_worker","medical_expiring"]', fields: '["name","job_role","assigned_site"]',
+          content: "SKIEROWANIE NA BADANIA LEKARSKIE\n\nPracodawca: {{employer_name}}\nPracownik: {{worker_name}}\nStanowisko: {{job_role}}\nRodzaj badania: ☐ wstępne ☐ okresowe ☐ kontrolne\nCzynniki szkodliwe: {{hazards}}\n\nData: {{date}}\n{{employer_signature}}" },
       ];
+
       for (const t of templates) {
         await db.execute(sql`
-          INSERT INTO contract_templates (name, contract_type, language, content, placeholders)
-          VALUES (${t.name}, ${t.contractType}, ${t.language}, ${t.content}, '[]'::jsonb)
+          INSERT INTO contract_templates (name, contract_type, language, content, placeholders, category, applicable_when, required_worker_fields, description)
+          VALUES (${t.name}, ${t.type}, 'pl', ${t.content}, '[]'::jsonb, ${t.cat}, ${t.when}::jsonb, ${t.fields}::jsonb, ${t.desc})
+          ON CONFLICT DO NOTHING
         `);
       }
     }

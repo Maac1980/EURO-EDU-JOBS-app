@@ -430,6 +430,14 @@ export async function runMigrations(): Promise<void> {
       expires_at TIMESTAMP NOT NULL
     );
 
+    -- Enrich contract_templates with suggestion metadata
+    DO $$ BEGIN
+      ALTER TABLE contract_templates ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'inne';
+      ALTER TABLE contract_templates ADD COLUMN IF NOT EXISTS applicable_when JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE contract_templates ADD COLUMN IF NOT EXISTS required_worker_fields JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE contract_templates ADD COLUMN IF NOT EXISTS description TEXT;
+    END $$;
+
     -- Add tenant_id for test data isolation
     DO $$ BEGIN
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';

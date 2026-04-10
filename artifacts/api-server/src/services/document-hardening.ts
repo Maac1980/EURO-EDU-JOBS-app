@@ -176,9 +176,13 @@ function gateConfidence(fields: Record<string, { value: string | null; confidenc
 
   const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 
-  if (avg >= 85) return { level: "AUTO_SUGGEST", overallConfidence: avg, reason: "High confidence extraction" };
-  if (avg >= 60) return { level: "REVIEW_REQUIRED", overallConfidence: avg, reason: "Medium confidence — manual verification needed" };
-  return { level: "FAILED", overallConfidence: avg, reason: "Low confidence — OCR may have failed" };
+  // Strict thresholds for immigration/legal documents:
+  // >90% = safe to suggest (legal filings must be near-certain)
+  // 70-90% = human must verify every field before proceeding
+  // <70% = too unreliable for legal documents — manual entry required
+  if (avg >= 90) return { level: "AUTO_SUGGEST", overallConfidence: avg, reason: "High confidence extraction — verify before confirming" };
+  if (avg >= 70) return { level: "REVIEW_REQUIRED", overallConfidence: avg, reason: "Medium confidence — every field must be manually verified" };
+  return { level: "FAILED", overallConfidence: avg, reason: "Low confidence — document unreadable or wrong type. Manual entry required." };
 }
 
 // ── Completeness Scoring ────────────────────────────────────────────────
@@ -227,9 +231,11 @@ function validateTimeline(
 
 // ── Identity Risk ───────────────────────────────────────────────────────
 function assessIdentityRisk(matched?: { id: string; name: string; matchScore: number }): HardeningResult["identityRisk"] {
+  // Strict for legal documents — attaching a permit to the wrong worker
+  // can cause illegal employment liability
   if (!matched) return { level: "HIGH", matchConfidence: 0 };
-  if (matched.matchScore >= 85) return { level: "LOW", matchConfidence: matched.matchScore };
-  if (matched.matchScore >= 60) return { level: "MEDIUM", matchConfidence: matched.matchScore };
+  if (matched.matchScore >= 90) return { level: "LOW", matchConfidence: matched.matchScore };
+  if (matched.matchScore >= 75) return { level: "MEDIUM", matchConfidence: matched.matchScore };
   return { level: "HIGH", matchConfidence: matched.matchScore };
 }
 

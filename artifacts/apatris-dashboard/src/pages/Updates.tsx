@@ -1,67 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
-import { authHeaders, BASE, extractList } from "@/lib/api";
-import { Bell, Info, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
-
-interface Update {
-  id: string;
-  type: string;
-  message: string;
-  created_at: string;
-  level?: string;
-}
-
+import { useState, useEffect } from "react";
+import { Bell } from "lucide-react";
+function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
 export default function Updates() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["system-updates"],
-    queryFn: async () => {
-      // Try audit log as updates source
-      const res = await fetch(`${BASE}/api/audit?limit=50`, { headers: authHeaders() });
-      if (!res.ok) return [];
-      const json = await res.json();
-      return extractList<any>(json, "logs", "entries", "audit").slice(0, 30);
-    },
-  });
-
-  const updates = data ?? [];
-
-  const getIcon = (action: string) => {
-    if (action?.includes("create") || action?.includes("add")) return { icon: CheckCircle2, color: "text-emerald-400" };
-    if (action?.includes("alert") || action?.includes("warning")) return { icon: AlertTriangle, color: "text-amber-400" };
-    return { icon: Info, color: "text-blue-400" };
-  };
-
+  const [notifs, setNotifs] = useState<any[]>([]);
+  useEffect(() => { fetch("/api/legal/notifications", { headers: { Authorization: `Bearer ${getToken()}` } }).then(r => r.json()).then(d => setNotifs(d.notifications ?? [])).catch(() => {}); }, []);
   return (
     <div className="p-6 min-h-screen overflow-y-auto pb-20 bg-background">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-6"><Bell className="w-6 h-6" /> Updates</h1>
-
-      {isLoading ? (
-        <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" /></div>
-      ) : updates.length === 0 ? (
-        <div className="bg-card border border-border rounded-xl p-12 text-center">
-          <Bell className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-40" />
-          <p className="text-white font-bold">No updates yet</p>
-          <p className="text-sm text-muted-foreground mt-1">System activity will appear here</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {updates.map((u: any, i: number) => {
-            const { icon: Icon, color } = getIcon(u.action ?? u.type ?? "");
-            return (
-              <div key={u.id ?? i} className="bg-card border border-border rounded-xl p-4 flex items-start gap-3">
-                <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${color}`} />
-                <div className="flex-1">
-                  <p className="text-sm text-white">{u.action ?? u.message ?? u.type ?? "Activity"}{u.entity_type ? ` — ${u.entity_type}` : ""}</p>
-                  {u.details && <p className="text-xs text-muted-foreground mt-0.5">{typeof u.details === "string" ? u.details : JSON.stringify(u.details).slice(0, 100)}</p>}
-                  <p className="text-[10px] text-muted-foreground font-mono mt-1">
-                    {u.created_at ? new Date(u.created_at).toLocaleString("en-GB") : ""}
-                    {u.admin_name ? ` — ${u.admin_name}` : ""}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-6"><Bell className="w-6 h-6" /> Updates & Notifications</h1>
+      <div className="bg-card border border-border rounded-xl p-5">
+        {notifs.length === 0 ? <p className="text-muted-foreground text-center py-8">No notifications</p> : (
+          <div className="space-y-2">{notifs.slice(0, 20).map((n: any) => (
+            <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20"><div className="flex-1"><div className="text-sm text-white">{n.message?.substring(0, 80) ?? "Notification"}</div><div className="text-xs text-muted-foreground mt-1">{n.message_type ?? "update"} · {n.created_at ? new Date(n.created_at).toLocaleDateString() : "—"}</div></div>
+            <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: n.status === "sent" ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)", color: n.status === "sent" ? "#22c55e" : "#f59e0b" }}>{n.status ?? "pending"}</span></div>
+          ))}</div>
+        )}
+      </div>
     </div>
   );
 }

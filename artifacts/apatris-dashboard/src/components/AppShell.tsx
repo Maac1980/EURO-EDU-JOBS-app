@@ -7,7 +7,7 @@ import {
   FileSignature, FileCheck, MapPin, BarChart3, Sparkles,
   Shield, Search, CalendarDays, Clock, Award, TrendingUp,
   Globe, Building2, UserPlus, Briefcase, Receipt, FileText, Stamp,
-  LayoutGrid, ChevronDown, X,
+  LayoutGrid, ChevronDown, X, ArrowLeft,
 } from "lucide-react";
 
 // ── Grouped Navigation ──────────────────────────────────────────────────────
@@ -183,7 +183,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuSearch, setMenuSearch] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Track navigation history for back button
+  useEffect(() => {
+    setHistory(prev => {
+      if (prev[prev.length - 1] === location) return prev;
+      return [...prev.slice(-10), location]; // keep last 10
+    });
+  }, [location]);
+
+  const goBack = () => {
+    if (history.length > 1) {
+      const prev = history[history.length - 2];
+      setHistory(h => h.slice(0, -1));
+      setLocation(prev);
+    }
+  };
+
+  // Focus search when menu opens
+  useEffect(() => {
+    if (menuOpen) {
+      setMenuSearch("");
+      setTimeout(() => searchRef.current?.focus(), 100);
+    }
+  }, [menuOpen]);
 
   const isPublicRoute =
     location === "/login" ||
@@ -252,6 +279,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
+        {/* Back button — shows only when not on home */}
+        {location !== "/" && history.length > 1 && (
+          <button onClick={goBack} title="Wróć" style={{
+            display: "flex", alignItems: "center", gap: 4, padding: "4px 10px",
+            borderRadius: 6, border: "none", background: "rgba(255,255,255,0.05)",
+            color: "#7a8599", cursor: "pointer", fontSize: 11, fontWeight: 600,
+            transition: "all 0.15s", flexShrink: 0, marginLeft: 4,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,232,75,0.1)"; e.currentTarget.style.color = "#d4e84b"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "#7a8599"; }}
+          >
+            <ArrowLeft style={{ width: 14, height: 14 }} />
+            <span className="hidden md:inline">Wróć</span>
+          </button>
+        )}
+
         {/* Quick-access tabs */}
         <nav className="app-top-nav">
           {QUICK_TABS.map(({ path, label, icon: Icon }) => {
@@ -279,22 +322,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {/* ─── Mega Menu ───────────────────────────────────────────── */}
             {menuOpen && (
               <div className="app-mega-menu">
-                {/* Close button */}
-                <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-slate-700/50">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">All Modules</p>
-                  <button onClick={() => setMenuOpen(false)} className="p-1 rounded-lg hover:bg-white/5 text-slate-500 hover:text-white transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
+                {/* Search + Close */}
+                <div className="px-4 pt-4 pb-3 border-b border-slate-700/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">All Modules</p>
+                    <button onClick={() => setMenuOpen(false)} className="p-1 rounded-lg hover:bg-white/5 text-slate-500 hover:text-white transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                    <input
+                      ref={searchRef}
+                      value={menuSearch}
+                      onChange={e => setMenuSearch(e.target.value)}
+                      placeholder="Search modules..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#d4e84b]/40"
+                      onKeyDown={e => {
+                        if (e.key === "Escape") { setMenuOpen(false); }
+                        if (e.key === "Enter") {
+                          // Navigate to first visible result
+                          const q = menuSearch.toLowerCase();
+                          for (const g of NAV_GROUPS) {
+                            const match = g.items.find(i => i.label.toLowerCase().includes(q));
+                            if (match) { navigate(match.path); break; }
+                          }
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
 
                 <div className="app-mega-menu-grid">
-                  {NAV_GROUPS.map(group => (
+                  {NAV_GROUPS.map(group => {
+                    const q = menuSearch.toLowerCase();
+                    const filteredItems = q ? group.items.filter(i => i.label.toLowerCase().includes(q)) : group.items;
+                    if (q && filteredItems.length === 0) return null;
+                    return (
                     <div key={group.id} className="app-mega-menu-group">
                       <p className={`text-[10px] font-black uppercase tracking-[0.15em] mb-2 ${group.color}`}>
                         {group.label}
                       </p>
                       <div className="space-y-0.5">
-                        {group.items.map(item => {
+                        {filteredItems.map(item => {
                           const active = isActive(item.path);
                           const Icon = item.icon;
                           return (
@@ -314,7 +384,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         })}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -1760,9 +1760,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Calculator Tab ── */}
+        {/* ── Calculator Tab — full workspace, no surrounding context ── */}
         {activeTab === "calculator" && (
-          <div className="space-y-4">
+          <div className="-mx-6 -mt-4">
             <KnowledgeCenterComponent />
           </div>
         )}

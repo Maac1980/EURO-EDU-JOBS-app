@@ -99,6 +99,7 @@ if (dashDist) {
   app.use("/", express.static(dashDist));
   app.get("/{*splat}", (_req, res, next) => {
     if (!_req.path.startsWith("/api") && !_req.path.startsWith("/eej-mobile") && !_req.path.startsWith("/apply") && !_req.path.match(/\.(js|css|png|svg|ico|json|woff|woff2)$/)) {
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate");
       res.sendFile(path.join(dashDist, "index.html"));
     } else {
       next();

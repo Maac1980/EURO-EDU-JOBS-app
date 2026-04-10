@@ -117,6 +117,63 @@ async function fuzzyMatchWorker(name: string | null): Promise<{ id: string; name
   return null;
 }
 
+// ── POST /api/intake/full-pipeline — extract + harden in one call ────────
+router.post("/intake/full-pipeline", authenticateToken, async (req, res) => {
+  try {
+    const { image, mimeType } = req.body as { image?: string; mimeType?: string };
+    if (!image) return res.status(400).json({ error: "Base64 image data required" });
+
+    // Stage 1: Extract with Claude Vision
+    const extracted = await extractWithVision(image, mimeType ?? "image/jpeg");
+    if (extracted.error) return res.status(500).json({ error: extracted.error, stage: "extraction" });
+
+    const fields = extracted.fields ?? {};
+    const workerName = fields.worker_name?.value ?? null;
+    const matchedWorker = await fuzzyMatchWorker(workerName);
+    const documentType = extracted.document_type ?? "unknown";
+
+    // Stage 2: Hardening checks
+    const confidences = Object.values(fields).map((f: any) => f.confidence ?? 0) as number[];
+    const overallConfidence = confidences.length > 0 ? Math.round(confidences.reduce((a: number, b: number) => a + b, 0) / confidences.length) : 0;
+
+    // Confidence gating (strict for legal docs)
+    const confidenceGate = overallConfidence >= 90 ? "AUTO_SUGGEST"
+      : overallConfidence >= 70 ? "REVIEW_REQUIRED" : "FAILED";
+
+    // Identity risk
+    const identityRisk = !matchedWorker ? "HIGH"
+      : matchedWorker.matchScore >= 90 ? "LOW"
+      : matchedWorker.matchScore >= 75 ? "MEDIUM" : "HIGH";
+
+    // Completeness
+    const criticalFields = ["worker_name", "document_number", "expiry_date"];
+    const missingCritical = criticalFields.filter(f => !fields[f]?.value);
+
+    // Overall recommendation
+    const blocked = confidenceGate === "FAILED" || identityRisk === "HIGH" || missingCritical.length > 0;
+    const needsReview = confidenceGate === "REVIEW_REQUIRED" || identityRisk === "MEDIUM";
+
+    // Suggested actions
+    const suggestions: string[] = [];
+    if (matchedWorker && matchedWorker.matchScore >= 75) suggestions.push(`Attach to worker: ${matchedWorker.name}`);
+    if (documentType === "rejection_letter") suggestions.push("Run rejection analysis");
+    if (documentType === "filing_proof" || documentType === "mos_stamp" || documentType === "upo") suggestions.push("Create evidence record + verify Art.108");
+    if (documentType === "passport") suggestions.push("Update identity record");
+    if (!matchedWorker) suggestions.push("Select worker manually");
+
+    return res.json({
+      extraction: { documentType, fields, rawText: extracted.raw_text_summary ?? "" },
+      matching: { matchedWorker, identityRisk },
+      hardening: { confidenceGate, overallConfidence, missingCritical, completenessScore: Math.round((1 - missingCritical.length / criticalFields.length) * 100) },
+      recommendation: blocked ? "BLOCKED" : needsReview ? "REVIEW_REQUIRED" : "SAFE_TO_PROCEED",
+      suggestions,
+      status: "DRAFT — confirm before any system updates",
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/smart-doc/process — main processing endpoint ──────────────
 router.post("/smart-doc/process", authenticateToken, async (req, res) => {
   try {

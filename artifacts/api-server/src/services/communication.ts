@@ -9,6 +9,7 @@ import { Router } from "express";
 import { db, schema } from "../db/index.js";
 import { sql, eq, desc } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { completeBilingual, bilingualPromptSuffix } from "./bilingual.js";
 
 const router = Router();
 
@@ -114,17 +115,23 @@ Mark all as DRAFT.` }],
       authorityMsg = `[Deterministic fallback — AI unavailable]\n\nWorker: ${w.name}\nStatus: ${status}\nManual drafting required for authority correspondence.`;
     }
 
-    // Store all 3 outputs
+    // Generate bilingual versions and store all outputs
     const outputs: any[] = [];
-    for (const [type, content] of [["worker", workerMsg], ["internal", internalMsg], ["authority", authorityMsg]] as const) {
+    for (const [type, content, origLang] of [
+      ["worker", workerMsg, "pl"] as const,
+      ["internal", internalMsg, "en"] as const,
+      ["authority", authorityMsg, "pl"] as const,
+    ]) {
       if (!content) continue;
+      const bilingual = await completeBilingual(content, origLang);
+      const fullContent = JSON.stringify({ pl: bilingual.pl, en: bilingual.en, original: origLang });
       await db.execute(sql`
         INSERT INTO communication_outputs (worker_id, case_id, comm_type, content, generated_by, snapshot_id, audit_log)
-        VALUES (${workerId}, ${caseId ?? null}, ${type}, ${content}, ${generatedBy},
+        VALUES (${workerId}, ${caseId ?? null}, ${type}, ${fullContent}, ${generatedBy},
           ${snapshot?.id ?? null},
-          ${JSON.stringify([{ action: "generated", by: generatedBy, at: new Date().toISOString() }])}::jsonb)
+          ${JSON.stringify([{ action: "generated_bilingual", by: generatedBy, at: new Date().toISOString() }])}::jsonb)
       `);
-      outputs.push({ type, content: content.substring(0, 200) + (content.length > 200 ? "..." : ""), generatedBy });
+      outputs.push({ type, pl: bilingual.pl.substring(0, 100) + "...", en: bilingual.en.substring(0, 100) + "...", generatedBy });
     }
 
     return res.json({

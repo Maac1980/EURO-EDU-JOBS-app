@@ -152,6 +152,100 @@ router.get("/consistency/check", authenticateToken, async (_req, res) => {
       }
     }
 
+    // ── Cross-system checks (Rules 8-13) ────────────────────────────────
+    // Rule 8: Workers with CRITICAL risk but no legal case
+    const criticalWorkers = await db.execute(sql`
+      SELECT ls.worker_id, w.name FROM legal_snapshots ls
+      JOIN workers w ON w.id = ls.worker_id
+      WHERE ls.risk_level = 'CRITICAL'
+        AND ls.created_at > NOW() - INTERVAL '7 days'
+        AND NOT EXISTS (SELECT 1 FROM legal_cases lc WHERE lc.worker_id = ls.worker_id AND lc.status NOT IN ('resolved','closed','APPROVED'))
+        AND (w.tenant_id IS NULL OR w.tenant_id != 'test')
+      GROUP BY ls.worker_id, w.name
+    `);
+    for (const cw of criticalWorkers.rows as any[]) {
+      issues.push({
+        workerId: cw.worker_id, workerName: cw.name, caseId: "", caseStatus: "N/A", caseType: "N/A", snapshotStatus: "CRITICAL",
+        rule: "CRITICAL_NO_CASE", severity: "warning" as const,
+        description: `Worker has CRITICAL risk but no open legal case`,
+        suggestedFix: "Create a legal case to track and resolve the compliance issue",
+      });
+    }
+
+    // Rule 9: Pending approvals older than 5 days
+    const stuckApprovals = await db.execute(sql`
+      SELECT COUNT(*)::int as cnt FROM legal_approvals WHERE status = 'pending' AND created_at < NOW() - INTERVAL '5 days'
+    `);
+    const stuckCount = (stuckApprovals.rows[0] as any)?.cnt ?? 0;
+    if (stuckCount > 0) {
+      issues.push({
+        workerId: "", workerName: "System", caseId: "", caseStatus: "N/A", caseType: "N/A", snapshotStatus: "N/A",
+        rule: "STUCK_APPROVALS", severity: "warning" as const,
+        description: `${stuckCount} approval(s) pending for more than 5 days`,
+        suggestedFix: "Review and process pending approvals in the approval queue",
+      });
+    }
+
+    // Rule 10: Documents in draft status older than 7 days
+    const stuckDocs = await db.execute(sql`
+      SELECT COUNT(*)::int as cnt FROM legal_documents WHERE status = 'draft' AND created_at < NOW() - INTERVAL '7 days'
+    `);
+    const stuckDocCount = (stuckDocs.rows[0] as any)?.cnt ?? 0;
+    if (stuckDocCount > 0) {
+      issues.push({
+        workerId: "", workerName: "System", caseId: "", caseStatus: "N/A", caseType: "N/A", snapshotStatus: "N/A",
+        rule: "STUCK_DOCUMENTS", severity: "info" as const,
+        description: `${stuckDocCount} document(s) in draft for more than 7 days`,
+        suggestedFix: "Review draft documents — approve, edit, or delete",
+      });
+    }
+
+    // Rule 11: Evidence with low OCR confidence not reviewed
+    const lowConfEvidence = await db.execute(sql`
+      SELECT COUNT(*)::int as cnt FROM legal_evidence WHERE ocr_confidence IS NOT NULL AND ocr_confidence < 70 AND verified = false
+    `);
+    const lowConfCount = (lowConfEvidence.rows[0] as any)?.cnt ?? 0;
+    if (lowConfCount > 0) {
+      issues.push({
+        workerId: "", workerName: "System", caseId: "", caseStatus: "N/A", caseType: "N/A", snapshotStatus: "N/A",
+        rule: "LOW_CONFIDENCE_EVIDENCE", severity: "warning" as const,
+        description: `${lowConfCount} evidence document(s) with low OCR confidence (<70%) not verified`,
+        suggestedFix: "Review and manually verify these documents",
+      });
+    }
+
+    // Rule 12: Suggestions pending for more than 3 days
+    const stuckSuggestions = await db.execute(sql`
+      SELECT COUNT(*)::int as cnt FROM legal_suggestions WHERE status = 'pending' AND created_at < NOW() - INTERVAL '3 days'
+    `);
+    const stuckSugCount = (stuckSuggestions.rows[0] as any)?.cnt ?? 0;
+    if (stuckSugCount > 5) {
+      issues.push({
+        workerId: "", workerName: "System", caseId: "", caseStatus: "N/A", caseType: "N/A", snapshotStatus: "N/A",
+        rule: "STALE_SUGGESTIONS", severity: "info" as const,
+        description: `${stuckSugCount} suggestions pending for more than 3 days`,
+        suggestedFix: "Act on or dismiss pending suggestions",
+      });
+    }
+
+    // Rule 13: Workers with active cases but no recent snapshot
+    const caseNoSnap = await db.execute(sql`
+      SELECT lc.worker_id, w.name FROM legal_cases lc
+      JOIN workers w ON w.id = lc.worker_id
+      WHERE lc.status NOT IN ('resolved','closed','APPROVED')
+        AND NOT EXISTS (SELECT 1 FROM legal_snapshots ls WHERE ls.worker_id = lc.worker_id AND ls.created_at > NOW() - INTERVAL '14 days')
+        AND (w.tenant_id IS NULL OR w.tenant_id != 'test')
+      GROUP BY lc.worker_id, w.name
+    `);
+    for (const cn of caseNoSnap.rows as any[]) {
+      issues.push({
+        workerId: cn.worker_id, workerName: cn.name, caseId: "", caseStatus: "N/A", caseType: "N/A", snapshotStatus: "N/A",
+        rule: "CASE_NO_RECENT_SNAPSHOT", severity: "warning" as const,
+        description: `Active case but no legal snapshot in last 14 days`,
+        suggestedFix: "Run legal scan or create snapshot for this worker",
+      });
+    }
+
     // Sort: errors first, then warnings, then info
     issues.sort((a, b) => {
       const order = { error: 0, warning: 1, info: 2 };

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppShell } from "@/components/AppShell";
+import GlobalDropZone from "@/components/GlobalDropZone";
 
 // Pages
 import Login from "@/pages/Login";
@@ -117,6 +118,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <AppShell>
+      <GlobalDropZone>
       <Switch>
         <Route path="/login">
           {() => <ErrorBoundary><Login /></ErrorBoundary>}
@@ -353,6 +355,7 @@ function Router() {
           {() => <ErrorBoundary><NotFound /></ErrorBoundary>}
         </Route>
       </Switch>
+      </GlobalDropZone>
     </AppShell>
   );
 }

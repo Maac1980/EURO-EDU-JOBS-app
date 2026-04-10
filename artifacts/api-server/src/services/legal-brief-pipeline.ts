@@ -259,6 +259,20 @@ Return JSON:
       aiResponse: JSON.stringify(brief),
     });
 
+    // Save brief as legal document with approval workflow
+    if (analysisOutput && !analysisOutput.includes("failed")) {
+      await db.insert(schema.legalDocuments).values({
+        workerId,
+        caseId: caseId ?? null,
+        docType: "legal_brief",
+        language: "en",
+        title: `Legal Brief — ${w.name}${caseData ? ` (${caseData.case_type})` : ""}`,
+        content: analysisOutput,
+        status: "draft",
+        linkedSnapshotId: snapshot?.id ?? null,
+      });
+    }
+
     // If validation failed, add warning
     if (!validationPassed) {
       brief.stages.push({

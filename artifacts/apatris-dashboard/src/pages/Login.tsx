@@ -1,15 +1,25 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+
+  useEffect(() => {
+    if (window.PublicKeyCredential) {
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.()
+        .then(available => setBiometricAvailable(available))
+        .catch(() => {});
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,10 +87,16 @@ export default function Login() {
               onBlur={e => e.currentTarget.style.borderColor = "#e5e7eb"} />
 
             <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#0b101e", letterSpacing: "0.08em", marginBottom: 6 }}>PASSWORD</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
-              style={{ width: "100%", padding: "12px 14px", borderRadius: 8, border: "2px solid #e5e7eb", fontSize: 14, color: "#0b101e", marginBottom: 28, outline: "none" }}
-              onFocus={e => e.currentTarget.style.borderColor = "#d4e84b"}
-              onBlur={e => e.currentTarget.style.borderColor = "#e5e7eb"} />
+            <div style={{ position: "relative", marginBottom: 28 }}>
+              <input type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
+                style={{ width: "100%", padding: "12px 42px 12px 14px", borderRadius: 8, border: "2px solid #e5e7eb", fontSize: 14, color: "#0b101e", outline: "none" }}
+                onFocus={e => e.currentTarget.style.borderColor = "#d4e84b"}
+                onBlur={e => e.currentTarget.style.borderColor = "#e5e7eb"} />
+              <button type="button" onClick={() => setShowPassword(p => !p)} tabIndex={-1}
+                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4, color: "#9ca3af" }}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
 
             <button type="submit" disabled={loading}
               style={{ width: "100%", padding: 14, borderRadius: 10, border: "none", background: "#d4e84b", color: "#0b101e",
@@ -89,6 +105,24 @@ export default function Login() {
               {loading ? <Loader2 size={16} className="animate-spin" /> : null}
               {loading ? "AUTHENTICATING..." : "INITIALIZE SESSION"}
             </button>
+
+            {biometricAvailable && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+                  <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+                  <span style={{ fontSize: 11, color: "#9ca3af", letterSpacing: "0.1em" }}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+                </div>
+                <button type="button"
+                  style={{ width: "100%", padding: 14, borderRadius: 10, border: "2px solid #e5e7eb", background: "#f9fafb", color: "#0b101e",
+                    fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer", display: "flex", alignItems: "center",
+                    justifyContent: "center", gap: 10 }}
+                  onClick={() => setError("Enter email + password first, then use biometric to register for next time.")}>
+                  <Fingerprint size={20} />
+                  SIGN IN WITH BIOMETRICS
+                </button>
+              </>
+            )}
           </form>
 
           <p style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", marginTop: 24 }}>

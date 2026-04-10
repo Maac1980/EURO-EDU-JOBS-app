@@ -86,6 +86,8 @@ import SignatureTracking from "@/pages/SignatureTracking";
 import SafetyMonitor from "@/pages/SafetyMonitor";
 import MarginAnalysis from "@/pages/MarginAnalysis";
 import HousingOverview from "@/pages/HousingOverview";
+import LegalIntelligence from "@/pages/LegalIntelligence";
+import TrcWorkspace from "@/pages/TrcWorkspace";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -317,6 +319,12 @@ function Router() {
         </Route>
         <Route path="/linked-cases">
           {() => <ProtectedRoute component={LinkedCases} />}
+        </Route>
+        <Route path="/legal-intelligence">
+          {() => <ProtectedRoute component={LegalIntelligence} />}
+        </Route>
+        <Route path="/trc-workspace">
+          {() => <ProtectedRoute component={TrcWorkspace} />}
         </Route>
         <Route path="/posted-deadlines">
           {() => <ProtectedRoute component={PostedDeadlines} />}

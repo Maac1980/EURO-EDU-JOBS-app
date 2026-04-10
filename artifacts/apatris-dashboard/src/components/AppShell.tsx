@@ -82,6 +82,8 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/inspection-report", label: "PIP Report",     icon: Shield },
       { path: "/rejection-intel",   label: "Rejections",     icon: AlertTriangle },
       { path: "/gdpr",              label: "GDPR",           icon: Shield },
+      { path: "/legal-intelligence", label: "Legal Intelligence", icon: Sparkles },
+      { path: "/trc-workspace",     label: "TRC Workspace",  icon: FileCheck },
     ],
   },
   {
@@ -152,6 +154,7 @@ const QUICK_TABS: NavItem[] = [
   { path: "/legal-dashboard",  label: "Compliance",  icon: Shield },
   { path: "/doc-workflow",     label: "Documents",   icon: FileCheck },
   { path: "/ai-copilot-chat",  label: "Research",    icon: Sparkles },
+  { path: "/legal-intelligence", label: "Legal AI",  icon: Shield },
 ];
 
 // Flat list for mobile bottom bar (top 7 most used)

@@ -88,6 +88,7 @@ import MarginAnalysis from "@/pages/MarginAnalysis";
 import HousingOverview from "@/pages/HousingOverview";
 import SystemTest from "@/pages/SystemTest";
 import LegalAnswerPage from "@/pages/LegalAnswerPage";
+import DocumentVerification from "@/pages/DocumentVerification";
 import NotFound from "@/pages/not-found";
 
 // Lazy load new features to prevent blank page if import fails
@@ -335,6 +336,9 @@ function Router() {
         </Route>
         <Route path="/legal-answer">
           {() => <ProtectedRoute component={LegalAnswerPage} />}
+        </Route>
+        <Route path="/document-verify">
+          {() => <ProtectedRoute component={DocumentVerification} />}
         </Route>
         <Route path="/posted-deadlines">
           {() => <ProtectedRoute component={PostedDeadlines} />}

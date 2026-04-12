@@ -429,4 +429,117 @@ router.patch("/documents/smart-ingest/:id/draft", authenticateToken, async (req,
   }
 });
 
+// ═══ PATCH /api/documents/verify/:docId — confirm extracted data + sync to worker ═══
+
+const WORKER_FIELD_MAP: Record<string, string> = {
+  worker_name: "name",
+  pesel: "pesel",
+  passport_number: "passport_number",
+  expiry_date: "",           // mapped dynamically by doc_type
+  issue_date: "",
+  employer_name: "",         // not a worker field
+  salary: "hourly_netto_rate",
+  position: "job_role",
+};
+
+// Fields that map to worker table based on document type
+const EXPIRY_FIELD_MAP: Record<string, string> = {
+  TRC_APPLICATION: "trc_expiry",
+  TRC_CARD: "trc_expiry",
+  WORK_PERMIT_A: "work_permit_expiry",
+  WORK_PERMIT_B: "work_permit_expiry",
+  SEASONAL_PERMIT: "work_permit_expiry",
+  PASSPORT: "passport_expiry",
+  MEDICAL_CERT: "badania_lek_expiry",
+  BHP_CERT: "bhp_status",
+  OSWIADCZENIE: "oswiadczenie_expiry",
+};
+
+router.patch("/documents/verify/:docId", authenticateToken, async (req, res) => {
+  try {
+    const docId = Array.isArray(req.params.docId) ? req.params.docId[0] : req.params.docId;
+    const { verifiedFields, syncToWorker } = req.body as {
+      verifiedFields: Record<string, string | null>;
+      syncToWorker?: boolean;
+    };
+
+    if (!verifiedFields) return res.status(400).json({ error: "verifiedFields required" });
+
+    // Load doc
+    const docRows = await db.execute(sql`SELECT * FROM smart_documents WHERE id = ${docId}`);
+    if (docRows.rows.length === 0) return res.status(404).json({ error: "Document not found" });
+    const doc = docRows.rows[0] as any;
+
+    // Update smart_documents with verified data
+    const verifiedContext = {
+      ...(doc.ai_context ?? {}),
+      verified: true,
+      verifiedAt: new Date().toISOString(),
+      verifiedBy: (req as any).user?.name ?? "unknown",
+      verifiedFields,
+    };
+
+    await db.execute(sql`
+      UPDATE smart_documents
+      SET extracted_data = ${JSON.stringify(verifiedFields)}::jsonb,
+          ai_context = ${JSON.stringify(verifiedContext)}::jsonb,
+          status = 'verified',
+          updated_at = NOW()
+      WHERE id = ${docId}
+    `);
+
+    // Sync to worker if requested
+    const syncedFields: string[] = [];
+
+    if (syncToWorker && doc.worker_id) {
+      const updates: Array<{ field: string; value: string }> = [];
+
+      // Map extracted fields to worker columns
+      if (verifiedFields.worker_name) updates.push({ field: "name", value: verifiedFields.worker_name });
+      if (verifiedFields.pesel) updates.push({ field: "pesel", value: verifiedFields.pesel });
+      if (verifiedFields.position) updates.push({ field: "job_role", value: verifiedFields.position });
+
+      // Date field based on doc type
+      const expiryCol = EXPIRY_FIELD_MAP[doc.doc_type];
+      if (expiryCol && verifiedFields.expiry_date) {
+        updates.push({ field: expiryCol, value: verifiedFields.expiry_date });
+      }
+
+      if (verifiedFields.passport_number) {
+        updates.push({ field: "passport_number", value: verifiedFields.passport_number });
+      }
+
+      // Apply each update with parameterized SQL
+      for (const u of updates) {
+        switch (u.field) {
+          case "name": await db.execute(sql`UPDATE workers SET name = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "pesel": await db.execute(sql`UPDATE workers SET pesel = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "job_role": await db.execute(sql`UPDATE workers SET job_role = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "trc_expiry": await db.execute(sql`UPDATE workers SET trc_expiry = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "work_permit_expiry": await db.execute(sql`UPDATE workers SET work_permit_expiry = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "badania_lek_expiry": await db.execute(sql`UPDATE workers SET badania_lek_expiry = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "bhp_status": await db.execute(sql`UPDATE workers SET bhp_status = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "oswiadczenie_expiry": await db.execute(sql`UPDATE workers SET oswiadczenie_expiry = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "passport_expiry": await db.execute(sql`UPDATE workers SET passport_expiry = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+          case "passport_number": await db.execute(sql`UPDATE workers SET passport_number = ${u.value}, updated_at = NOW() WHERE id = ${doc.worker_id}`); break;
+        }
+        syncedFields.push(u.field);
+      }
+
+      // Audit
+      await db.execute(sql`
+        INSERT INTO audit_entries (worker_id, worker_name, actor, field, new_value, action)
+        VALUES (${doc.worker_id}, ${verifiedFields.worker_name ?? "worker"},
+                ${(req as any).user?.name ?? "system"},
+                'document_verified', ${JSON.stringify({ docId, syncedFields })}::jsonb,
+                'DOCUMENT_VERIFIED_AND_SYNCED')
+      `);
+    }
+
+    return res.json({ success: true, status: "verified", syncedFields });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

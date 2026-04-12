@@ -95,6 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
     activeBg: "bg-cyan-500/15 text-cyan-400",
     items: [
       { path: "/doc-workflow",       label: "Doc Workflow",   icon: FileCheck },
+      { path: "/document-verify",    label: "Doc Verify",     icon: FileCheck },
       { path: "/document-templates",label: "Templates",      icon: FileText },
       { path: "/worker-upload-portal",label: "Upload",       icon: Users },
       { path: "/signature-tracking",label: "Signatures",     icon: FileCheck },

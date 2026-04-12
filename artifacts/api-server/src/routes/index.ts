@@ -54,6 +54,7 @@ import domainSeparationRouter from "../services/domain-separation.js";
 import legalTrackingCardRouter from "../services/legal-tracking-card.js";
 import researchWorkspaceRouter from "../services/research-workspace.js";
 import legalIntelligenceRouter from "../services/legal-intelligence.js";
+import smartIngestRouter from "../services/smart-ingest.js";
 
 const router: IRouter = Router();
 
@@ -112,6 +113,7 @@ router.use(domainSeparationRouter);
 router.use(legalTrackingCardRouter);
 router.use(researchWorkspaceRouter);
 router.use(legalIntelligenceRouter);
+router.use(smartIngestRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

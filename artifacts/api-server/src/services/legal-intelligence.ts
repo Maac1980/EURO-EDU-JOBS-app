@@ -433,17 +433,32 @@ router.post("/legal-intelligence/copilot", authenticateToken, async (req, res) =
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// --- Approve ---
+// --- Approve (parameterized — no sql.raw) ---
 router.post("/legal-intelligence/approve", authenticateToken, async (req, res) => {
   try {
     const { entityType, entityId } = req.body;
-    const tables: Record<string, string> = {
-      appeal_output: "appeal_outputs", poa_document: "poa_documents",
-      authority_draft: "authority_drafts", research_memo: "research_memos",
-    };
-    const table = tables[entityType];
-    if (!table || !entityId) return res.status(400).json({ error: "Invalid entityType or entityId" });
-    await db.execute(sql.raw(`UPDATE ${table} SET status = 'approved' WHERE id = '${entityId}'`));
+    if (!entityType || !entityId) return res.status(400).json({ error: "entityType and entityId required" });
+
+    // Parameterized update per table — no sql.raw, no string interpolation
+    switch (entityType) {
+      case "appeal_output":
+        await db.execute(sql`UPDATE appeal_outputs SET status = 'approved' WHERE id = ${entityId}`);
+        break;
+      case "poa_document":
+        await db.execute(sql`UPDATE poa_documents SET status = 'approved' WHERE id = ${entityId}`);
+        break;
+      case "authority_draft":
+        await db.execute(sql`UPDATE authority_drafts SET status = 'approved' WHERE id = ${entityId}`);
+        break;
+      case "research_memo":
+        await db.execute(sql`UPDATE research_memos SET status = 'approved' WHERE id = ${entityId}`);
+        break;
+      case "smart_document":
+        await db.execute(sql`UPDATE smart_documents SET status = 'approved' WHERE id = ${entityId}`);
+        break;
+      default:
+        return res.status(400).json({ error: `Unknown entityType: ${entityType}` });
+    }
     res.json({ success: true, status: "approved" });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });

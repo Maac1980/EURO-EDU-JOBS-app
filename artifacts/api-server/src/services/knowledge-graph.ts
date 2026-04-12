@@ -460,4 +460,3 @@ router.get("/legal/patterns/worker/:workerId", authenticateToken, async (req, re
 });
 
 export default router;
-export { syncToGraph };

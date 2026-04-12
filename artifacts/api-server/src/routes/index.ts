@@ -56,6 +56,7 @@ import researchWorkspaceRouter from "../services/research-workspace.js";
 import legalIntelligenceRouter from "../services/legal-intelligence.js";
 import smartIngestRouter from "../services/smart-ingest.js";
 import legalAnswerRouter from "../services/legal-answer-engine.js";
+import knowledgeGraphRouter from "../services/knowledge-graph.js";
 
 const router: IRouter = Router();
 
@@ -116,6 +117,7 @@ router.use(researchWorkspaceRouter);
 router.use(legalIntelligenceRouter);
 router.use(smartIngestRouter);
 router.use(legalAnswerRouter);
+router.use(knowledgeGraphRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

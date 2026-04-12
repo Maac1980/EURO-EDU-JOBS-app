@@ -21,6 +21,7 @@ import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
 import { evaluateLegalStatus, type LegalInput, type LegalOutput } from "./legal-decision-engine.js";
+import { syncToGraph } from "./knowledge-graph.js";
 
 const router = Router();
 
@@ -536,7 +537,28 @@ router.patch("/documents/verify/:docId", authenticateToken, async (req, res) => 
       `);
     }
 
-    return res.json({ success: true, status: "verified", syncedFields });
+    // ── Graph Sync — learn the pattern ──────────────────────────────────────
+    let graphResult = null;
+    try {
+      const wRows = await db.execute(sql`SELECT name, nationality FROM workers WHERE id = ${doc.worker_id}`);
+      const w = wRows.rows[0] as any;
+      graphResult = await syncToGraph({
+        workerId: doc.worker_id,
+        workerName: w?.name ?? verifiedFields.worker_name ?? "worker",
+        nationality: w?.nationality ?? "",
+        docId,
+        docType: doc.doc_type,
+        extractedData: verifiedFields,
+        legalImpact: doc.legal_impact ?? {},
+        legalArticles: Array.isArray(doc.legal_articles) ? doc.legal_articles : [],
+        voivodeship: verifiedFields.voivodeship ?? (doc.extracted_data as any)?.voivodeship ?? undefined,
+        employerName: verifiedFields.employer_name ?? (doc.extracted_data as any)?.employer_name ?? undefined,
+        isRejection: doc.is_rejection ?? false,
+        isApplication: doc.is_application ?? false,
+      });
+    } catch { /* graph sync is best-effort */ }
+
+    return res.json({ success: true, status: "verified", syncedFields, graphSync: graphResult });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

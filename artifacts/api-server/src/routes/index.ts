@@ -61,6 +61,7 @@ import intelligenceRouterService from "../services/intelligence-router.js";
 import mosPackageRouter from "../services/mos-package.js";
 import schengenRouter from "../services/schengen-calculator.js";
 import digitalSafeRouter from "../services/digital-safe.js";
+import mos2026Router from "../services/mos-2026-mandate.js";
 
 const router: IRouter = Router();
 
@@ -126,6 +127,7 @@ router.use(intelligenceRouterService);
 router.use(mosPackageRouter);
 router.use(schengenRouter);
 router.use(digitalSafeRouter);
+router.use(mos2026Router);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

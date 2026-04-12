@@ -388,12 +388,13 @@ router.get("/legal-intelligence/fleet-signals", authenticateToken, async (_req, 
   try {
     const expired = await db.execute(sql`
       SELECT COUNT(DISTINCT id)::int as count FROM workers
-      WHERE (trc_expiry < NOW() OR work_permit_expiry < NOW() OR passport_expiry < NOW())
+      WHERE (trc_expiry IS NOT NULL AND trc_expiry::date < CURRENT_DATE)
+         OR (work_permit_expiry IS NOT NULL AND work_permit_expiry::date < CURRENT_DATE)
     `);
     const expiring = await db.execute(sql`
       SELECT COUNT(DISTINCT id)::int as count FROM workers
-      WHERE (trc_expiry BETWEEN NOW() AND NOW() + INTERVAL '30 days'
-        OR work_permit_expiry BETWEEN NOW() AND NOW() + INTERVAL '30 days')
+      WHERE (trc_expiry IS NOT NULL AND trc_expiry::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 30)
+         OR (work_permit_expiry IS NOT NULL AND work_permit_expiry::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 30)
     `);
     const total = await db.execute(sql`SELECT COUNT(*)::int as count FROM workers`);
 

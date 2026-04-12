@@ -6,8 +6,8 @@
 
 // ── Auth headers ────────────────────────────────────────────────────────────
 export function authHeaders(): Record<string, string> {
-  // EEJ uses sessionStorage with key "eej_token"
-  const token = sessionStorage.getItem("eej_token");
+  // Try localStorage first (persistent), then sessionStorage (fallback)
+  const token = localStorage.getItem("eej_token") ?? sessionStorage.getItem("eej_token");
   return token
     ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
     : { "Content-Type": "application/json" };

@@ -30,6 +30,30 @@ const TOKEN_KEY = "eej_token";
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 const WARN_BEFORE_MS = 5 * 60 * 1000;
 
+// Use localStorage for persistence across tabs/closes, with sessionStorage fallback
+function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY) ?? null;
+}
+function setToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+  sessionStorage.setItem(TOKEN_KEY, token);
+}
+function removeToken() {
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+function getStoredUser(): string | null {
+  return localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY) ?? null;
+}
+function setStoredUser(data: string) {
+  localStorage.setItem(STORAGE_KEY, data);
+  sessionStorage.setItem(STORAGE_KEY, data);
+}
+function removeStoredUser() {
+  localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
+}
+
 function getApiBase() {
   const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
   return `${base}/api`;
@@ -44,15 +68,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const warnRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    const token = sessionStorage.getItem(TOKEN_KEY);
+    const stored = getStoredUser();
+    const token = getToken();
     if (stored && token) {
       try {
         setUser(JSON.parse(stored));
         setAuthToken(token);
       } catch {
-        sessionStorage.removeItem(STORAGE_KEY);
-        sessionStorage.removeItem(TOKEN_KEY);
+        removeStoredUser();
+        removeToken();
       }
     }
     setIsLoading(false);
@@ -61,8 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const doLogout = useCallback(() => {
     setUser(null);
     setAuthToken(null);
-    sessionStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
+    removeStoredUser();
+    removeToken();
     setLocation("/login");
   }, [setLocation]);
 
@@ -127,8 +151,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: data.error ?? "Invalid credentials." };
       }
 
-      sessionStorage.setItem(TOKEN_KEY, data.token);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data.user));
+      setToken(data.token);
+      setStoredUser(JSON.stringify(data.user));
       setUser(data.user);
       setAuthToken(data.token);
       return { success: true };

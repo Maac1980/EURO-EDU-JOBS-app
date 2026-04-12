@@ -18,27 +18,37 @@ export interface SmartDocResult {
   overallConfidence: number;
 }
 
-const EXTRACTION_PROMPT = `You are analyzing a Polish immigration/employment document.
+const EXTRACTION_PROMPT = `You are analyzing a Polish immigration/employment document. Extract data with high precision.
 
 STEP 1: Identify the document type. Choose exactly one:
 rejection_letter, passport, trc_receipt, bhp_certificate, medical_exam, work_permit, contract, mos_stamp, upo, correspondence, unknown
 
-STEP 2: Extract ALL visible fields:
-- worker_name (full name of the foreigner/worker)
-- decision_type (positive/negative/partial)
+STEP 2: Extract ALL visible fields. For PASSPORTS specifically:
+- READ THE MRZ (Machine Readable Zone) — the 2 lines of capital letters/numbers at the bottom of the data page
+- MRZ Line 1: P<NATIONALITY<<SURNAME<<GIVEN_NAMES
+- MRZ Line 2: PASSPORT_NUMBER<CHECK<NATIONALITY<DATE_OF_BIRTH<CHECK<SEX<EXPIRY_DATE<CHECK
+- Extract from MRZ: passport_number, nationality (3-letter ISO), date_of_birth (YYMMDD→YYYY-MM-DD), expiry_date (YYMMDD→YYYY-MM-DD), sex
+- ALSO read the Visual Inspection Zone (VIZ): the printed text above the MRZ with name, photo, etc.
+- If MRZ and VIZ conflict, prefer MRZ data (it's machine-verified)
+
+For ALL document types extract:
+- worker_name (full name — for passport: SURNAME, GIVEN NAMES from MRZ)
+- decision_type (positive/negative/partial — if applicable)
 - rejection_reasons (list if rejection letter)
 - case_reference (sygnatura, numer sprawy)
 - voivodeship (which wojewoda/urząd)
 - decision_date (YYYY-MM-DD)
 - filing_date (YYYY-MM-DD)
-- expiry_date (YYYY-MM-DD)
-- document_number
-- nationality
-- pesel
-- authority_name
+- expiry_date (YYYY-MM-DD — for passport: from MRZ line 2)
+- document_number (for passport: from MRZ line 2, first 9 chars)
+- nationality (for passport: 3-letter code from MRZ, e.g., UKR, BLR, GEO)
+- date_of_birth (YYYY-MM-DD — for passport: from MRZ line 2)
+- pesel (if visible)
+- sex (M/F — for passport: from MRZ)
+- authority_name (issuing authority)
 - key_text (most important paragraph, max 200 chars)
 
-STEP 3: For each field, provide confidence 0-100.
+STEP 3: For each field, provide confidence 0-100. For MRZ-extracted fields, confidence should be 90+ if clearly readable.
 
 Return JSON only:
 {

@@ -100,7 +100,16 @@ RULES:
 - If document is an application, set is_application: true
 - If appeal deadline exists (14 days per KPA Art. 127), calculate action_deadline_days
 - For MOS system documents, note the digital filing reference
-- Never invent data not present in the document`;
+- Never invent data not present in the document
+
+PASSPORT-SPECIFIC RULES:
+- READ THE MRZ (Machine Readable Zone) — 2 lines at bottom of data page
+- MRZ Line 1 format: P<COUNTRY<<SURNAME<<GIVEN_NAMES<<<<<<<<<
+- MRZ Line 2 format: PASSPORT_NO<CHECK<NAT<YYMMDD<CHECK<SEX<YYMMDD<CHECK
+- Convert MRZ dates: YYMMDD → YYYY-MM-DD (add 19xx or 20xx based on context)
+- passport_number = first 9 characters of MRZ line 2
+- nationality = 3-letter ISO code from MRZ (UKR=Ukrainian, BLR=Belarusian, GEO=Georgian, MDA=Moldovan)
+- Prefer MRZ data over printed text if they conflict`;
 
 // ═══ DRAFT GENERATION PROMPT ════════════════════════════════════════════════
 

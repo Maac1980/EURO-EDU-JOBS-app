@@ -391,7 +391,9 @@ router.get("/legal/answer/mos-requirements", authenticateToken, (_req, res) => {
       "UPO serves as proof of filing date for Art. 108 protection",
       "Profil Zaufany or e-Dowód required for login.gov.pl access",
       "Power of Attorney (pełnomocnictwo) can still be submitted on paper",
-      "Fee payments (440 PLN for TRC, 100 PLN for work permit) are handled within MOS",
+      "Fee payments (2026 rates: TRC PLN 800, Work Permit PLN 400 — quadrupled from pre-2026) are handled within MOS portal",
+      "CRITICAL: Employer MUST have Profil Zaufany or Qualified Electronic Signature to sign Annex 1 digital links",
+      "MOS syncs with ZUS/KAS on submit — worker MUST be ZUS-registered before filing or application may be auto-rejected",
     ],
     articles: ARTICLE_DB,
   });

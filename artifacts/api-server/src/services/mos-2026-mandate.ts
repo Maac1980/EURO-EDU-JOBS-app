@@ -103,6 +103,34 @@ router.post("/mos2026/submission-sheet/:workerId", authenticateToken, async (req
       employerAddress?: string; contactPerson?: string;
     };
 
+    // Check employer signature status (Gap 1: block if unsigned)
+    let employerSigned = false;
+    let signatureStatus = "NOT_CHECKED";
+    try {
+      await ensureTables();
+      const sigRows = await db.execute(sql`
+        SELECT signed, deadline FROM employer_signature_links
+        WHERE worker_id = ${wid} AND signed = true
+        ORDER BY created_at DESC LIMIT 1
+      `);
+      if (sigRows.rows.length > 0) {
+        employerSigned = true;
+        signatureStatus = "SIGNED";
+      } else {
+        const pendingRows = await db.execute(sql`
+          SELECT deadline FROM employer_signature_links
+          WHERE worker_id = ${wid} AND signed = false
+          ORDER BY created_at DESC LIMIT 1
+        `);
+        if (pendingRows.rows.length > 0) {
+          const dl = new Date((pendingRows.rows[0] as any).deadline);
+          signatureStatus = dl < new Date() ? "EXPIRED — ANNEX 1 NOT SIGNED (application paralyzed)" : "PENDING — awaiting employer signature";
+        } else {
+          signatureStatus = "NO_LINK_SENT — employer digital link has not been created";
+        }
+      }
+    } catch { /* table may not exist */ }
+
     // Build checklist
     const checklist: MOSSubmissionSheet["checklist"] = [
       { field: "Full Name", value: w.name ?? "", status: w.name ? "filled" : "missing" },
@@ -114,15 +142,26 @@ router.post("/mos2026/submission-sheet/:workerId", authenticateToken, async (req
       { field: "Contract Type", value: w.contract_type ?? "", status: w.contract_type ? "filled" : "verify" },
       { field: "Contract End Date", value: w.contract_end_date ?? "", status: w.contract_end_date ? "filled" : "missing" },
       { field: "Assigned Site", value: w.assigned_site ?? "", status: w.assigned_site ? "filled" : "missing" },
-      { field: "ZUS Status", value: w.zus_status ?? "", status: w.zus_status === "Registered" ? "filled" : "verify" },
+      { field: "ZUS Registration", value: w.zus_status ?? "", status: w.zus_status === "Registered" ? "filled" : "missing" },
+      { field: "⚠ ZUS/KAS Sync Warning", value: w.zus_status === "Registered" ? "OK — KAS sync will succeed" : "CRITICAL — MOS syncs with KAS on submit. Without ZUS registration, application will be auto-rejected", status: w.zus_status === "Registered" ? "filled" : "verify" },
       { field: "TRC Expiry", value: w.trc_expiry ?? "", status: w.trc_expiry ? "filled" : "missing" },
       { field: "Work Permit Expiry", value: w.work_permit_expiry ?? "", status: w.work_permit_expiry ? "filled" : "missing" },
       { field: "Employer NIP", value: employerNip ?? "", status: employerNip ? "filled" : "missing" },
       { field: "Voivodeship", value: voivodeship ?? "", status: voivodeship ? "filled" : "missing" },
+      { field: "⚠ Employer Annex 1 Signature", value: signatureStatus, status: employerSigned ? "filled" : "missing" },
+      { field: "⚠ Employer Profil Zaufany / E-Signature", value: "Employer MUST have Profil Zaufany or Qualified Electronic Signature to sign MOS links", status: employerSigned ? "filled" : "verify" },
+      { field: "Application Fee (2026)", value: "PLN 400–800 (new 2026 rates — fees quadrupled from pre-2026)", status: "verify" },
     ];
 
     const missingCount = checklist.filter(c => c.status === "missing").length;
     const verifyCount = checklist.filter(c => c.status === "verify").length;
+
+    // Blockers — things that PREVENT filing
+    const blockers: string[] = [];
+    if (!employerSigned) blockers.push("BLOCKED: Employer has not signed Annex 1 digital link — application cannot be submitted to MOS");
+    if (w.zus_status !== "Registered") blockers.push("RISK: Worker not registered in ZUS — MOS syncs with KAS on submit, may trigger auto-rejection");
+    if (!w.pesel) blockers.push("BLOCKED: No PESEL — required for MOS submission");
+    if (!w.passport_number) blockers.push("BLOCKED: No passport number on file");
 
     const sheet: MOSSubmissionSheet = {
       worker: {
@@ -159,9 +198,12 @@ router.post("/mos2026/submission-sheet/:workerId", authenticateToken, async (req
 
     return res.json({
       sheet,
-      readiness: missingCount === 0 ? "READY" : missingCount <= 2 ? "ALMOST_READY" : "NOT_READY",
+      readiness: blockers.length > 0 ? "BLOCKED" : missingCount === 0 ? "READY" : missingCount <= 2 ? "ALMOST_READY" : "NOT_READY",
       missingFields: missingCount,
       fieldsToVerify: verifyCount,
+      blockers,
+      employerSignature: { signed: employerSigned, status: signatureStatus },
+      feeNote: "2026 MOS fees: TRC PLN 440→800, Work Permit PLN 100→400. Paid within MOS portal.",
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

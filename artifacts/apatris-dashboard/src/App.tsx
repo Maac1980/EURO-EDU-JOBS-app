@@ -87,6 +87,7 @@ import SafetyMonitor from "@/pages/SafetyMonitor";
 import MarginAnalysis from "@/pages/MarginAnalysis";
 import HousingOverview from "@/pages/HousingOverview";
 import SystemTest from "@/pages/SystemTest";
+import LegalAnswerPage from "@/pages/LegalAnswerPage";
 import NotFound from "@/pages/not-found";
 
 // Lazy load new features to prevent blank page if import fails
@@ -331,6 +332,9 @@ function Router() {
         </Route>
         <Route path="/system-test">
           {() => <ProtectedRoute component={SystemTest} />}
+        </Route>
+        <Route path="/legal-answer">
+          {() => <ProtectedRoute component={LegalAnswerPage} />}
         </Route>
         <Route path="/posted-deadlines">
           {() => <ProtectedRoute component={PostedDeadlines} />}

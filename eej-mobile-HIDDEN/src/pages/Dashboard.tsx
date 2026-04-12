@@ -40,6 +40,9 @@ import AiAuditTab from "./tabs/AiAuditTab";
 import GDPRTab from "./tabs/GDPRTab";
 import AgencySettingsTab from "./tabs/AgencySettingsTab";
 import NetPerHourTab from "./tabs/NetPerHourTab";
+import MyStatusTab from "./tabs/MyStatusTab";
+import MyUPOTab from "./tabs/MyUPOTab";
+import MySchengenTab from "./tabs/MySchengenTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { fetchNotifications } from "@/lib/api";
@@ -120,6 +123,9 @@ function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: A
   if (tab === "gdpr") return <GDPRTab />;
   if (tab === "agency") return <AgencySettingsTab />;
   if (tab === "netperhour") return <NetPerHourTab />;
+  if (tab === "mystatus") return <MyStatusTab />;
+  if (tab === "myupo") return <MyUPOTab />;
+  if (tab === "myschengen") return <MySchengenTab />;
   return null;
 }
 

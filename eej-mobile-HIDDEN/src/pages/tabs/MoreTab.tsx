@@ -3,7 +3,7 @@ import {
   Scale, Search, FileCheck, MapPin, Calculator,
   User, Settings, UserPlus, DollarSign,
   CalendarDays, Clock, BarChart3, Award, TrendingUp,
-  Building2, CreditCard, Shield, Lock,
+  Building2, CreditCard, Shield, Lock, Globe,
 } from "lucide-react";
 import type { ActiveTab } from "@/types";
 
@@ -37,6 +37,9 @@ const MODULES: { id: ActiveTab; label: string; sub: string; Icon: any; color: st
   { id: "gdpr",        label: "GDPR",                     sub: "Data protection & consent",  Icon: Lock,       color: "#7C3AED", bg: "#F5F3FF" },
   { id: "agency",      label: "Agency Settings",          sub: "Profile & billing",          Icon: Settings,   color: "#6B7280", bg: "#F3F4F6" },
   { id: "profile",     label: "Profile & Settings",     sub: "Account & permissions",      Icon: User,       color: "#1B2A4A", bg: "#F0F4FF" },
+  { id: "mystatus",   label: "My Legal Status",        sub: "Am I legal to work?",        Icon: Shield,     color: "#059669", bg: "#ECFDF5" },
+  { id: "myupo",      label: "My UPO Certificate",     sub: "Digital proof of legal stay", Icon: Shield,     color: "#10B981", bg: "#ECFDF5" },
+  { id: "myschengen", label: "Schengen Days",           sub: "90/180 day counter",         Icon: Globe,      color: "#3B82F6", bg: "#EFF6FF" },
 ];
 
 export default function MoreTab({ onNavigate }: Props) {

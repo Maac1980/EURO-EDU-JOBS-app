@@ -83,6 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/rejection-intel",   label: "Rejections",     icon: AlertTriangle },
       { path: "/gdpr",              label: "GDPR",           icon: Shield },
       { path: "/legal-intelligence", label: "Legal Intelligence", icon: Sparkles },
+      { path: "/command-center",     label: "Command Center",  icon: Shield },
       { path: "/legal-answer",      label: "Legal Answer",    icon: Shield },
       { path: "/trc-workspace",     label: "TRC Workspace",  icon: FileCheck },
     ],

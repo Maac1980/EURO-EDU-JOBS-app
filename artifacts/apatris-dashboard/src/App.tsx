@@ -89,6 +89,7 @@ import HousingOverview from "@/pages/HousingOverview";
 import SystemTest from "@/pages/SystemTest";
 import LegalAnswerPage from "@/pages/LegalAnswerPage";
 import DocumentVerification from "@/pages/DocumentVerification";
+import LegalCommandCenter from "@/pages/LegalCommandCenter";
 import NotFound from "@/pages/not-found";
 
 // Lazy load new features to prevent blank page if import fails
@@ -339,6 +340,9 @@ function Router() {
         </Route>
         <Route path="/document-verify">
           {() => <ProtectedRoute component={DocumentVerification} />}
+        </Route>
+        <Route path="/command-center">
+          {() => <ProtectedRoute component={LegalCommandCenter} />}
         </Route>
         <Route path="/posted-deadlines">
           {() => <ProtectedRoute component={PostedDeadlines} />}

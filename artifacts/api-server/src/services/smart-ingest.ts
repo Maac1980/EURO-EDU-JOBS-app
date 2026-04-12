@@ -22,6 +22,7 @@ import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
 import { evaluateLegalStatus, type LegalInput, type LegalOutput } from "./legal-decision-engine.js";
 import { syncToGraph } from "./knowledge-graph.js";
+import { recordFact } from "./intelligence-router.js";
 
 const router = Router();
 
@@ -558,7 +559,18 @@ router.patch("/documents/verify/:docId", authenticateToken, async (req, res) => 
       });
     } catch { /* graph sync is best-effort */ }
 
-    return res.json({ success: true, status: "verified", syncedFields, graphSync: graphResult });
+    // ── Intelligence Router — trigger reassessment pipeline ────────────────
+    let intelResult = null;
+    try {
+      intelResult = await recordFact({
+        workerId: doc.worker_id,
+        factType: "DOCUMENT_VERIFIED",
+        data: { docId, docType: doc.doc_type, syncedFields },
+        source: "document_verification",
+      });
+    } catch { /* intelligence router is best-effort */ }
+
+    return res.json({ success: true, status: "verified", syncedFields, graphSync: graphResult, intelligence: intelResult });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

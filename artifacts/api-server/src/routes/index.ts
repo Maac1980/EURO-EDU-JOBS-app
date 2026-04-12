@@ -58,6 +58,7 @@ import smartIngestRouter from "../services/smart-ingest.js";
 import legalAnswerRouter from "../services/legal-answer-engine.js";
 import knowledgeGraphRouter from "../services/knowledge-graph.js";
 import intelligenceRouterService from "../services/intelligence-router.js";
+import mosPackageRouter from "../services/mos-package.js";
 
 const router: IRouter = Router();
 
@@ -120,6 +121,7 @@ router.use(smartIngestRouter);
 router.use(legalAnswerRouter);
 router.use(knowledgeGraphRouter);
 router.use(intelligenceRouterService);
+router.use(mosPackageRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

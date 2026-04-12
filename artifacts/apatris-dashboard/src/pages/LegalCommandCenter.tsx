@@ -407,6 +407,26 @@ export default function LegalCommandCenter() {
                     </div>
                   </div>
                 )}
+                {/* MOS Package Actions */}
+                <div className="flex gap-2 mt-2 pt-2 border-t border-slate-800">
+                  <a href={`${BASE}api/mos/package/${selectedWorkerId}/strategy-pdf`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors">
+                    <FileText className="w-3 h-3" /> Strategy PDF
+                  </a>
+                  <a href={`${BASE}api/mos/package/${selectedWorkerId}/playbook`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase tracking-wider transition-colors">
+                    <Sparkles className="w-3 h-3" /> Playbook
+                  </a>
+                  <button onClick={() => {
+                    fetch(`${BASE}api/mos/package/${selectedWorkerId}`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ voivodeship: "mazowieckie" }) })
+                      .then(r => r.json()).then(d => setLegalAnswer({ ...legalAnswer, mosPackage: d }));
+                  }}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wider transition-colors">
+                    <Globe className="w-3 h-3" /> MOS Package
+                  </button>
+                </div>
               </>
             )}
           </div>

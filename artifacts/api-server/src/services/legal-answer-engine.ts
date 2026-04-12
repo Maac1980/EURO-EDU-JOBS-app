@@ -174,7 +174,24 @@ async function buildWorkerContext(workerId: string) {
 
   const legalOutput: LegalOutput = evaluateLegalStatus(legalInput);
 
-  return { worker: w, smartDocs, legalInput, legalOutput };
+  // Schengen 90/180 check
+  let schengenData: any = null;
+  try {
+    const crossingRows = await db.execute(sql`
+      SELECT crossing_date, direction FROM border_crossings
+      WHERE worker_id = ${workerId} ORDER BY crossing_date ASC
+    `);
+    if (crossingRows.rows.length > 0) {
+      const { calculateSchengen90180 } = await import("./schengen-calculator.js");
+      const crossings = (crossingRows.rows as any[]).map(r => ({
+        date: r.crossing_date?.toString().slice(0, 10) ?? "",
+        direction: r.direction as "entry" | "exit",
+      }));
+      schengenData = calculateSchengen90180(crossings, undefined, legalOutput.art108Applied);
+    }
+  } catch { /* border_crossings may not exist */ }
+
+  return { worker: w, smartDocs, legalInput, legalOutput, schengenData };
 }
 
 // ═══ AI ANSWER GENERATION ═══════════════════════════════════════════════════
@@ -203,7 +220,7 @@ CRITICAL RULES:
 7. If no data is available, say so and set confidence low`;
 
 async function generateAnswer(question: string, context: any): Promise<LegalAnswer> {
-  const { worker: w, smartDocs, legalOutput } = context;
+  const { worker: w, smartDocs, legalOutput, schengenData } = context;
 
   // Build context string for AI
   const docContext = smartDocs.map((d: any) =>
@@ -231,7 +248,8 @@ WARNINGS: ${legalOutput.warnings.join("; ") || "None"}
 REQUIRED ACTIONS: ${legalOutput.requiredActions.join("; ") || "None"}
 
 ANALYZED DOCUMENTS:
-${docContext}`;
+${docContext}
+${schengenData ? `\nSCHENGEN 90/180 STATUS:\nDays Used: ${schengenData.daysUsed}/90\nDays Remaining: ${schengenData.daysRemaining}\nLatest Legal Exit: ${schengenData.latestLegalExitDate}\nOverstay: ${schengenData.isOverstay ? "YES — CRITICAL" : "No"}\nWarning: ${schengenData.isWarning ? "YES — <15 days remaining" : "No"}` : ""}`;
 
   const prompt = `${workerContext}\n\nQUESTION: ${question}\n\nRespond with the JSON object only.`;
 

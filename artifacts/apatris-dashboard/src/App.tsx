@@ -90,6 +90,11 @@ import SystemTest from "@/pages/SystemTest";
 import LegalAnswerPage from "@/pages/LegalAnswerPage";
 import DocumentVerification from "@/pages/DocumentVerification";
 import LegalCommandCenter from "@/pages/LegalCommandCenter";
+import SmartIngestPage from "@/pages/SmartIngestPage";
+import KnowledgeGraphPage from "@/pages/KnowledgeGraphPage";
+import SchengenCalculatorPage from "@/pages/SchengenCalculatorPage";
+import DigitalSafePage from "@/pages/DigitalSafePage";
+import MOSSubmissionPage from "@/pages/MOSSubmissionPage";
 import NotFound from "@/pages/not-found";
 
 // Lazy load new features to prevent blank page if import fails
@@ -343,6 +348,21 @@ function Router() {
         </Route>
         <Route path="/command-center">
           {() => <ProtectedRoute component={LegalCommandCenter} />}
+        </Route>
+        <Route path="/smart-ingest">
+          {() => <ProtectedRoute component={SmartIngestPage} />}
+        </Route>
+        <Route path="/knowledge-graph">
+          {() => <ProtectedRoute component={KnowledgeGraphPage} />}
+        </Route>
+        <Route path="/schengen-calculator">
+          {() => <ProtectedRoute component={SchengenCalculatorPage} />}
+        </Route>
+        <Route path="/digital-safe">
+          {() => <ProtectedRoute component={DigitalSafePage} />}
+        </Route>
+        <Route path="/mos-2026">
+          {() => <ProtectedRoute component={MOSSubmissionPage} />}
         </Route>
         <Route path="/posted-deadlines">
           {() => <ProtectedRoute component={PostedDeadlines} />}

@@ -86,6 +86,11 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/command-center",     label: "Command Center",  icon: Shield },
       { path: "/legal-answer",      label: "Legal Answer",    icon: Shield },
       { path: "/trc-workspace",     label: "TRC Workspace",  icon: FileCheck },
+      { path: "/smart-ingest",      label: "Smart Ingest",   icon: Sparkles },
+      { path: "/knowledge-graph",   label: "Knowledge Graph", icon: Shield },
+      { path: "/schengen-calculator",label: "Schengen 90/180", icon: Globe },
+      { path: "/digital-safe",      label: "Digital Safe",   icon: Shield },
+      { path: "/mos-2026",          label: "MOS 2026",       icon: FileCheck },
     ],
   },
   {

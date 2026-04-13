@@ -714,4 +714,79 @@ router.get("/first-contact/status", authenticateToken, async (_req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PUBLIC VERIFICATION ENDPOINT (no auth — returns compliance badge only)
+// No PII exposed: no name, no PESEL, no passport, no dates.
+// Only: initials, nationality, risk level, zone color, verification timestamp.
+// Rate-limited by the global express-rate-limit middleware.
+// ═══════════════════════════════════════════════════════════════════════════
+
+router.get("/verify/:workerId", async (req, res) => {
+  try {
+    const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
+
+    const wRows = await db.execute(sql`
+      SELECT name, nationality, trc_expiry, work_permit_expiry, oswiadczenie_expiry,
+             trc_filing_date, compliance_status
+      FROM workers WHERE id = ${wid}
+    `);
+    if (wRows.rows.length === 0) {
+      return res.json({
+        verified: false,
+        message: "Verification ID not found",
+        org_context: "EEJ",
+      });
+    }
+
+    const w = wRows.rows[0] as any;
+
+    // Compute days remaining (no dates exposed)
+    const effectiveExpiry = w.trc_expiry ?? w.work_permit_expiry ?? w.oswiadczenie_expiry;
+    const daysRemaining = effectiveExpiry
+      ? Math.ceil((new Date(effectiveExpiry).getTime() - Date.now()) / 86400000)
+      : null;
+
+    // Compute zone (no raw days exposed to public)
+    let zone: string;
+    let riskLevel: string;
+    let color: string;
+    if (daysRemaining === null) {
+      zone = "UNKNOWN"; riskLevel = "REVIEW_REQUIRED"; color = "#94A3B8";
+    } else if (daysRemaining < 0) {
+      zone = "EXPIRED"; riskLevel = "CRITICAL"; color = "#EF4444";
+    } else if (daysRemaining < 30) {
+      zone = "RED"; riskLevel = "HIGH"; color = "#EF4444";
+    } else if (daysRemaining < 60) {
+      zone = "YELLOW"; riskLevel = "MEDIUM"; color = "#EAB308";
+    } else {
+      zone = "GREEN"; riskLevel = "LOW"; color = "#22C55E";
+    }
+
+    // Art. 108 check (public-safe: just a boolean)
+    const hasArt108 = !!(w.trc_filing_date && effectiveExpiry &&
+      new Date(w.trc_filing_date) <= new Date(effectiveExpiry));
+
+    // Extract initials only (no full name)
+    const nameParts = (w.name ?? "").split(" ").filter(Boolean);
+    const initials = nameParts.map((p: string) => p[0]?.toUpperCase()).join("").slice(0, 3);
+
+    return res.json({
+      verified: true,
+      workerId: wid,
+      initials,
+      nationality: w.nationality ?? null,
+      zone,
+      riskLevel,
+      color,
+      art108Protected: hasArt108,
+      complianceStatus: w.compliance_status ?? null,
+      verifiedAt: new Date().toISOString(),
+      org_context: "EEJ",
+      disclaimer: "This is an automated compliance indicator, not a legal opinion.",
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

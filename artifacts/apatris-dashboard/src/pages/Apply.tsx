@@ -1,15 +1,40 @@
+/**
+ * EEJ Public Recruitment Form — /apply
+ *
+ * Public intake form for candidates. No auth required.
+ * Collects: Name, Email, Phone, Nationality, Passport/Visa upload.
+ *
+ * Pipeline:
+ *  1. POST /api/apply → creates worker record
+ *  2. If passport uploaded → POST /api/documents/smart-ingest → AI OCR extraction
+ *  3. Anna reviews in dashboard Smart Ingest page
+ *
+ * Rate limiting: handled by global express-rate-limit middleware.
+ * Branding: EEJ public brand (#E9FF70 accent on dark).
+ */
 import React, { useRef, useState } from "react";
-import { CheckCircle2, Upload, Loader2 } from "lucide-react";
+import { CheckCircle2, Upload, Loader2, FileText, Shield } from "lucide-react";
+
+const NATIONALITIES = [
+  "Ukrainian", "Belarusian", "Georgian", "Moldovan", "Armenian",
+  "Indian", "Philippine", "Nepali", "Bangladeshi", "Vietnamese",
+  "Turkish", "Indonesian", "Sri Lankan", "Pakistani", "Uzbek",
+  "Other",
+];
 
 export default function Apply() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [nationality, setNationality] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [ocrResult, setOcrResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "") + "/";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,20 +45,47 @@ export default function Apply() {
     }
     setSubmitting(true);
     try {
+      // Step 1: Submit application
       const form = new FormData();
       form.append("name", name.trim());
       form.append("email", email.trim());
       form.append("phone", phone.trim());
+      if (nationality) form.append("nationality", nationality);
       if (file) form.append("cv", file);
 
-      const res = await fetch(`${import.meta.env.BASE_URL}api/apply`, {
-        method: "POST",
-        body: form,
-      });
+      const res = await fetch(`${BASE}api/apply`, { method: "POST", body: form });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Submission failed." }));
         throw new Error(data.error ?? "Submission failed.");
       }
+
+      const applyData = await res.json();
+
+      // Step 2: If passport/visa image uploaded, route through Smart Ingest
+      if (file && applyData.workerId && isImageOrPdf(file)) {
+        try {
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const base64 = (reader.result as string).split(",")[1];
+            const ingestRes = await fetch(`${BASE}api/documents/smart-ingest`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                image: base64,
+                mimeType: file.type,
+                workerId: applyData.workerId,
+                fileName: file.name,
+              }),
+            });
+            if (ingestRes.ok) {
+              const ingestData = await ingestRes.json();
+              setOcrResult(ingestData);
+            }
+          };
+          reader.readAsDataURL(file);
+        } catch { /* Smart Ingest is best-effort for public form */ }
+      }
+
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Submission failed. Please try again.");
@@ -45,165 +97,126 @@ export default function Apply() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4 py-12">
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] blur-[140px] rounded-full" style={{ background: "rgba(233,255,112,0.04)" }} />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] blur-[120px] rounded-full" style={{ background: "rgba(233,255,112,0.03)" }} />
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] blur-[140px] rounded-full" style={{ background: "rgba(59,130,246,0.06)" }} />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] blur-[120px] rounded-full" style={{ background: "rgba(59,130,246,0.04)" }} />
       </div>
 
       <div className="w-full max-w-md z-10">
         <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-16 h-16 rounded-xl flex items-center justify-center mb-4"
-            style={{ background: "#E9FF70", boxShadow: "0 0 0 2px rgba(233,255,112,0.3), 0 0 24px rgba(233,255,112,0.15)" }}
-          >
-            <span
-              className="text-xl font-black tracking-tighter"
-              style={{ color: "#333333", fontFamily: "Arial Black, Arial, sans-serif" }}
-            >
-              EEJ
-            </span>
+          <div className="w-16 h-16 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-4">
+            <span className="text-xl font-black tracking-tighter text-blue-400">EEJ</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-wide text-center">
-            Join Our Global Network
-          </h1>
-          <p className="text-sm text-slate-400 mt-1 text-center">
-            EURO EDU JOBS · International Candidate Portal
-          </p>
+          <h1 className="text-2xl font-bold text-white tracking-wide text-center">Join Our Global Network</h1>
+          <p className="text-sm text-slate-400 mt-1 text-center">EURO EDU JOBS &middot; International Candidate Portal</p>
         </div>
 
         {submitted ? (
-          <div
-            className="bg-slate-800 rounded-2xl p-10 flex flex-col items-center text-center shadow-xl"
-            style={{ border: "1px solid rgba(233,255,112,0.25)" }}
-          >
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
-              style={{ background: "rgba(233,255,112,0.12)", border: "2px solid rgba(233,255,112,0.5)" }}
-            >
-              <CheckCircle2 className="w-8 h-8" style={{ color: "#E9FF70" }} />
+          <div className="bg-slate-800 rounded-2xl p-10 flex flex-col items-center text-center shadow-xl border border-blue-500/20">
+            <div className="w-16 h-16 rounded-full bg-blue-500/10 border-2 border-blue-500/30 flex items-center justify-center mb-5">
+              <CheckCircle2 className="w-8 h-8 text-blue-400" />
             </div>
             <h2 className="text-xl font-bold text-white mb-3">Application Received</h2>
-            <p className="text-slate-300 leading-relaxed">
-              Your application has been received. Our team will review your profile shortly.
-            </p>
-          </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-2xl space-y-5"
-          >
-            {error && (
-              <div
-                className="p-3 rounded-lg text-sm"
-                style={{ background: "rgba(233,255,112,0.08)", border: "1px solid rgba(233,255,112,0.25)", color: "#E9FF70" }}
-              >
-                {error}
+            <p className="text-slate-300 leading-relaxed">Your application has been received. Our recruitment team will review your profile shortly.</p>
+
+            {ocrResult && (
+              <div className="mt-5 w-full rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-left space-y-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs font-bold text-blue-400 uppercase">Document Detected</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">{ocrResult.docType}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${(ocrResult.confidence ?? 0) >= 0.7 ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                    {Math.round((ocrResult.confidence ?? 0) * 100)}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500">Your document has been queued for AI verification. Our team will confirm the details.</p>
               </div>
             )}
 
+            <div className="mt-4 flex items-center gap-2 text-[10px] text-slate-600">
+              <Shield className="w-3 h-3" />
+              <span>Your data is processed in accordance with GDPR and Polish data protection law.</span>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-2xl space-y-5">
+            {error && (
+              <div className="p-3 rounded-lg text-sm bg-red-500/10 border border-red-500/20 text-red-400">{error}</div>
+            )}
+
+            {/* Name */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Full Name <span style={{ color: "#E9FF70" }}>*</span>
+                Full Name <span className="text-blue-400">*</span>
               </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Maria Kowalski"
-                required
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-colors font-mono"
-                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
-              />
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Maria Kowalski" required
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors" />
             </div>
 
+            {/* Email */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Email Address <span style={{ color: "#E9FF70" }}>*</span>
+                Email Address <span className="text-blue-400">*</span>
               </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-colors font-mono"
-                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
-              />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors" />
             </div>
 
+            {/* Phone */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+48 000 000 000"
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-colors font-mono"
-                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(233,255,112,0.6)"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = ""; }}
-              />
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">Phone Number</label>
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+48 000 000 000"
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors" />
             </div>
 
+            {/* Nationality */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                CV / Passport Upload
-              </label>
-              <div
-                onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all"
-                style={{
-                  borderColor: file ? "rgba(233,255,112,0.5)" : "rgba(100,116,139,0.6)",
-                  background: file ? "rgba(233,255,112,0.04)" : "#0f172a",
-                }}
-                onMouseEnter={(e) => { if (!file) (e.currentTarget as HTMLElement).style.borderColor = "rgba(233,255,112,0.3)"; }}
-                onMouseLeave={(e) => { if (!file) (e.currentTarget as HTMLElement).style.borderColor = "rgba(100,116,139,0.6)"; }}
-              >
-                <input
-                  ref={fileRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.jpg,.jpeg,.png,.webp"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nationality</label>
+              <select value={nationality} onChange={e => setNationality(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors">
+                <option value="">— Select Nationality —</option>
+                {NATIONALITIES.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+
+            {/* Passport / Document Upload */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">Passport / Visa Upload</label>
+              <div onClick={() => fileRef.current?.click()}
+                className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                  file ? "border-blue-500/50 bg-blue-500/5" : "border-slate-600 bg-slate-900 hover:border-blue-500/30"
+                }`}>
+                <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  onChange={e => setFile(e.target.files?.[0] ?? null)} />
                 <Upload className="w-6 h-6 text-slate-400" />
                 <span className="text-sm text-slate-400 text-center">
-                  {file ? (
-                    <span className="font-mono font-semibold" style={{ color: "#E9FF70" }}>{file.name}</span>
-                  ) : (
-                    <>
-                      <span className="text-white font-semibold">Click to upload</span> your CV or Passport
-                    </>
-                  )}
+                  {file ? <span className="font-mono font-semibold text-blue-400">{file.name}</span> :
+                    <><span className="text-white font-semibold">Click to upload</span> your Passport or Visa</>}
                 </span>
-                <span className="text-xs text-slate-600">PDF, JPG, PNG or WebP · max 20MB</span>
+                <span className="text-xs text-slate-600">PDF, JPG, PNG or WebP &middot; max 20MB</span>
+                {file && (
+                  <span className="text-[10px] text-blue-400 flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Will be processed by AI for automatic data extraction
+                  </span>
+                )}
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-3.5 rounded-xl font-bold uppercase tracking-wider text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-70 hover:opacity-90"
-              style={{ background: "#E9FF70", color: "#333333" }}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Submitting…
-                </>
-              ) : (
-                "Submit Application"
-              )}
+            {/* Submit */}
+            <button type="submit" disabled={submitting}
+              className="w-full py-3.5 rounded-xl font-bold uppercase tracking-wider text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-70 bg-blue-500 text-white hover:bg-blue-600">
+              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : "Submit Application"}
             </button>
 
-            <p className="text-xs text-slate-600 text-center">
-              By submitting, you agree to our candidate data processing policy.
-            </p>
+            <p className="text-xs text-slate-600 text-center">By submitting, you agree to our candidate data processing policy (GDPR).</p>
           </form>
         )}
       </div>
     </div>
   );
+}
+
+function isImageOrPdf(file: File): boolean {
+  return /\.(pdf|jpg|jpeg|png|webp)$/i.test(file.name) || file.type.startsWith("image/") || file.type === "application/pdf";
 }

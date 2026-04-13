@@ -97,6 +97,7 @@ import DigitalSafePage from "@/pages/DigitalSafePage";
 import MOSSubmissionPage from "@/pages/MOSSubmissionPage";
 import NotFound from "@/pages/not-found";
 import IngestDiagnostics from "@/pages/IngestDiagnostics";
+import PublicVerify from "@/pages/PublicVerify";
 
 // Lazy load new features to prevent blank page if import fails
 const LegalIntelligence = React.lazy(() => import("@/pages/LegalIntelligence"));
@@ -139,6 +140,9 @@ function Router() {
         </Route>
         <Route path="/apply">
           {() => <ErrorBoundary><Apply /></ErrorBoundary>}
+        </Route>
+        <Route path="/verify/:workerId">
+          {() => <ErrorBoundary><PublicVerify /></ErrorBoundary>}
         </Route>
         <Route path="/portal">
           {() => <ErrorBoundary><WorkerPortal /></ErrorBoundary>}

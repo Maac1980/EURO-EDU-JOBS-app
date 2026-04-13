@@ -33,6 +33,7 @@ async function ensureFeedbackTable() {
       severity TEXT NOT NULL DEFAULT 'medium',
       notes TEXT,
       logged_by TEXT NOT NULL DEFAULT 'anna',
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
       resolved BOOLEAN DEFAULT false,
       resolved_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
@@ -41,6 +42,7 @@ async function ensureFeedbackTable() {
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_doc_type ON ocr_feedback_log(doc_type)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_field ON ocr_feedback_log(field_name)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_resolved ON ocr_feedback_log(resolved)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_org ON ocr_feedback_log(org_context)`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -550,7 +552,7 @@ router.post("/first-contact/ocr-feedback", authenticateToken, async (req, res) =
     const validSeverities = ["low", "medium", "high", "critical"];
 
     const rows = await db.execute(sql`
-      INSERT INTO ocr_feedback_log (document_id, worker_id, doc_type, field_name, ocr_value, corrected_value, error_type, severity, notes, logged_by)
+      INSERT INTO ocr_feedback_log (document_id, worker_id, doc_type, field_name, ocr_value, corrected_value, error_type, severity, notes, logged_by, org_context)
       VALUES (
         ${documentId ?? null},
         ${workerId ?? null},
@@ -561,7 +563,8 @@ router.post("/first-contact/ocr-feedback", authenticateToken, async (req, res) =
         ${validErrorTypes.includes(errorType ?? "") ? errorType! : "extraction_error"},
         ${validSeverities.includes(severity ?? "") ? severity! : "medium"},
         ${notes ?? null},
-        ${(req as any).user?.name ?? "anna"}
+        ${(req as any).user?.name ?? "anna"},
+        'EEJ'
       )
       RETURNING *
     `);
@@ -601,30 +604,30 @@ router.get("/first-contact/ocr-feedback", authenticateToken, async (req, res) =>
     let rows;
     if (docType && resolved !== undefined) {
       rows = await db.execute(sql`
-        SELECT * FROM ocr_feedback_log WHERE doc_type = ${docType} AND resolved = ${resolved === "true"}
+        SELECT * FROM ocr_feedback_log WHERE org_context = 'EEJ' AND doc_type = ${docType} AND resolved = ${resolved === "true"}
         ORDER BY created_at DESC LIMIT ${maxRows}
       `);
     } else if (docType) {
       rows = await db.execute(sql`
-        SELECT * FROM ocr_feedback_log WHERE doc_type = ${docType}
+        SELECT * FROM ocr_feedback_log WHERE org_context = 'EEJ' AND doc_type = ${docType}
         ORDER BY created_at DESC LIMIT ${maxRows}
       `);
     } else if (resolved !== undefined) {
       rows = await db.execute(sql`
-        SELECT * FROM ocr_feedback_log WHERE resolved = ${resolved === "true"}
+        SELECT * FROM ocr_feedback_log WHERE org_context = 'EEJ' AND resolved = ${resolved === "true"}
         ORDER BY created_at DESC LIMIT ${maxRows}
       `);
     } else {
       rows = await db.execute(sql`
-        SELECT * FROM ocr_feedback_log ORDER BY created_at DESC LIMIT ${maxRows}
+        SELECT * FROM ocr_feedback_log WHERE org_context = 'EEJ' ORDER BY created_at DESC LIMIT ${maxRows}
       `);
     }
 
-    // Aggregate error patterns for prompt tuning
+    // Aggregate error patterns for prompt tuning (EEJ-scoped only)
     const statsRows = await db.execute(sql`
       SELECT doc_type, field_name, error_type, COUNT(*)::int as count
       FROM ocr_feedback_log
-      WHERE resolved = false
+      WHERE resolved = false AND org_context = 'EEJ'
       GROUP BY doc_type, field_name, error_type
       ORDER BY count DESC
       LIMIT 20
@@ -692,7 +695,7 @@ router.get("/first-contact/status", authenticateToken, async (_req, res) => {
     // Unresolved feedback count
     let unresolvedCount = 0;
     try {
-      const countRows = await db.execute(sql`SELECT COUNT(*)::int as count FROM ocr_feedback_log WHERE resolved = false`);
+      const countRows = await db.execute(sql`SELECT COUNT(*)::int as count FROM ocr_feedback_log WHERE resolved = false AND org_context = 'EEJ'`);
       unresolvedCount = (countRows.rows[0] as any)?.count ?? 0;
     } catch { /* table may not exist yet */ }
 

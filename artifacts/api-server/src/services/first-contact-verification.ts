@@ -5,7 +5,7 @@
  * TASK 2: Decision Engine Stress Test — run Legal Engine on 5 profiles, April 2026 MOS rules
  * TASK 3: OCR Feedback Loop — Anna logs extraction errors for prompt tuning
  *
- * All endpoints use native EEJ/Apatris APIs only.
+ * All endpoints use native EEJ APIs only. No external platform dependencies.
  */
 
 import { Router } from "express";
@@ -496,6 +496,22 @@ router.get("/first-contact/stress-test", authenticateToken, async (_req, res) =>
         ],
         maintenanceWindow: "March 30 – April 2, 2026 (portal maintenance)",
         readinessDeadline: "2026-04-27",
+      },
+      schengenRecruitmentGuidance: {
+        context: "EEJ Recruitment Team — candidate placement risk assessment",
+        rule: "Non-EU candidates entering on Schengen visa have a 90/180-day window. If the candidate uses 80+ days before permit filing, placement is at risk.",
+        actionForAnna: [
+          "Flag any new candidate with 80+ Schengen days used — mandatory MOS filing before placement",
+          "Candidates with <10 Schengen days remaining cannot be placed without Art. 108 or valid permit",
+          "For candidates with pending TRC + UPO on file: Schengen 90/180 rule no longer applies (Art. 108 protection)",
+          "Track filing dates at recruitment intake — do not wait until onboarding to discover Schengen overstay risk",
+        ],
+        riskLevels: {
+          green: "0-79 Schengen days used — safe to proceed with placement",
+          yellow: "80-85 Schengen days used — expedite MOS filing before placement",
+          red: "86-89 Schengen days used — file immediately or defer placement",
+          critical: "90+ days or overstay — do NOT place, consult lawyer",
+        },
       },
       profiles: results,
     });

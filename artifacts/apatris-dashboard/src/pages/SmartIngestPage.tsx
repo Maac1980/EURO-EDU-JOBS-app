@@ -136,16 +136,16 @@ export default function SmartIngestPage() {
               </div>
             </div>}
 
-            {/* ═══ DEVELOPER FEEDBACK / CORRECT DATA ═══ */}
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            {/* ═══ DEVELOPER FEEDBACK / CORRECT DATA — EEJ Professional Blue ═══ */}
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <MessageSquareWarning className="w-4 h-4 text-amber-400" />
-                  <h3 className="text-xs font-bold text-amber-400 uppercase">Developer Feedback</h3>
+                  <MessageSquareWarning className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-xs font-bold text-blue-400 uppercase">Developer Feedback</h3>
                 </div>
                 <button
                   onClick={() => { setFeedbackOpen(!feedbackOpen); setFeedbackSent(false); }}
-                  className="px-3 py-1 rounded-md text-[11px] font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1 rounded-md text-[11px] font-bold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30 transition-colors flex items-center gap-1.5"
                 >
                   {feedbackOpen ? <><X className="w-3 h-3" /> Close</> : <>Correct Data</>}
                 </button>
@@ -236,7 +236,7 @@ export default function SmartIngestPage() {
                   <button
                     onClick={handleFeedbackSubmit}
                     disabled={!feedbackField || !feedbackCorrection || feedbackSending}
-                    className="w-full py-2 rounded-md text-xs font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="w-full py-2 rounded-md text-xs font-bold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                   >
                     {feedbackSending ? <><Loader2 className="w-3 h-3 animate-spin" /> Submitting...</> : <><Send className="w-3 h-3" /> Log OCR Feedback</>}
                   </button>

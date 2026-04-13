@@ -7,7 +7,7 @@ import {
   FileSignature, FileCheck, MapPin, BarChart3, Sparkles,
   Shield, Search, CalendarDays, Clock, Award, TrendingUp,
   Globe, Building2, UserPlus, Briefcase, Receipt, FileText, Stamp,
-  LayoutGrid, ChevronDown, X, ArrowLeft,
+  LayoutGrid, ChevronDown, X, ArrowLeft, Link2, Check,
 } from "lucide-react";
 
 // ── Grouped Navigation ──────────────────────────────────────────────────────
@@ -192,6 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toggleLang = () => i18n.changeLanguage(currentLang === "pl" ? "en" : "pl");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
+  const [adLinkCopied, setAdLinkCopied] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -410,6 +411,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Language toggle */}
+          {/* Copy Recruitment Link — for Facebook Ads */}
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText("https://eej-jobs-api.replit.app/apply").then(() => {
+                setAdLinkCopied(true);
+                setTimeout(() => setAdLinkCopied(false), 3000);
+              });
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-colors"
+            style={{
+              background: adLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.1)",
+              borderColor: adLinkCopied ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)",
+              color: adLinkCopied ? "#22c55e" : "#60A5FA",
+            }}
+            title="Copy recruitment form link for Facebook Ads"
+          >
+            {adLinkCopied ? <><Check className="w-3 h-3" /> Copied for Ads</> : <><Link2 className="w-3 h-3" /> Ad Link</>}
+          </button>
+
           <button
             onClick={toggleLang}
             className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-slate-700 hover:border-[#d4e84b]/40 transition-colors"

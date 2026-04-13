@@ -2,18 +2,18 @@
  * EEJ Public Recruitment Form — /apply
  *
  * Public intake form for candidates. No auth required.
- * Collects: Name, Email, Phone, Nationality, Passport/Visa upload.
+ * Collects: Name, Email, Phone, Nationality, CV upload, Passport/Visa upload.
  *
  * Pipeline:
- *  1. POST /api/apply → creates worker record
+ *  1. POST /api/apply → creates worker record (returns { id })
  *  2. If passport uploaded → POST /api/documents/smart-ingest → AI OCR extraction
  *  3. Anna reviews in dashboard Smart Ingest page
+ *  4. Dashboard auto-refreshes via React Query invalidation
  *
- * Rate limiting: handled by global express-rate-limit middleware.
- * Branding: EEJ public brand (#E9FF70 accent on dark).
+ * Branding: EEJ Blue (#3B82F6).
  */
 import React, { useRef, useState } from "react";
-import { CheckCircle2, Upload, Loader2, FileText, Shield } from "lucide-react";
+import { CheckCircle2, Upload, Loader2, FileText, Shield, Briefcase } from "lucide-react";
 
 const NATIONALITIES = [
   "Ukrainian", "Belarusian", "Georgian", "Moldovan", "Armenian",
@@ -27,12 +27,14 @@ export default function Apply() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [nationality, setNationality] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [ocrResult, setOcrResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cvRef = useRef<HTMLInputElement>(null);
+  const passportRef = useRef<HTMLInputElement>(null);
 
   const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "") + "/";
 
@@ -45,13 +47,14 @@ export default function Apply() {
     }
     setSubmitting(true);
     try {
-      // Step 1: Submit application
+      // Step 1: Submit application with CV
       const form = new FormData();
       form.append("name", name.trim());
       form.append("email", email.trim());
       form.append("phone", phone.trim());
       if (nationality) form.append("nationality", nationality);
-      if (file) form.append("cv", file);
+      if (cvFile) form.append("cv", cvFile);
+      if (passportFile) form.append("documents", passportFile);
 
       const res = await fetch(`${BASE}api/apply`, { method: "POST", body: form });
       if (!res.ok) {
@@ -60,30 +63,25 @@ export default function Apply() {
       }
 
       const applyData = await res.json();
+      const workerId = applyData.id;
 
-      // Step 2: If passport/visa image uploaded, route through Smart Ingest
-      if (file && applyData.workerId && isImageOrPdf(file)) {
+      // Step 2: If passport/visa uploaded, route through Smart Ingest for OCR
+      if (passportFile && workerId && isImageOrPdf(passportFile)) {
         try {
           const reader = new FileReader();
           reader.onload = async () => {
-            const base64 = (reader.result as string).split(",")[1];
-            const ingestRes = await fetch(`${BASE}api/documents/smart-ingest`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                image: base64,
-                mimeType: file.type,
-                workerId: applyData.workerId,
-                fileName: file.name,
-              }),
-            });
-            if (ingestRes.ok) {
-              const ingestData = await ingestRes.json();
-              setOcrResult(ingestData);
-            }
+            try {
+              const base64 = (reader.result as string).split(",")[1];
+              const ingestRes = await fetch(`${BASE}api/documents/smart-ingest`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: base64, mimeType: passportFile.type, workerId, fileName: passportFile.name }),
+              });
+              if (ingestRes.ok) setOcrResult(await ingestRes.json());
+            } catch { /* Smart Ingest is best-effort */ }
           };
-          reader.readAsDataURL(file);
-        } catch { /* Smart Ingest is best-effort for public form */ }
+          reader.readAsDataURL(passportFile);
+        } catch { /* best-effort */ }
       }
 
       setSubmitted(true);
@@ -180,28 +178,55 @@ export default function Apply() {
               </select>
             </div>
 
-            {/* Passport / Document Upload */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">Passport / Visa Upload</label>
-              <div onClick={() => fileRef.current?.click()}
-                className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                  file ? "border-blue-500/50 bg-blue-500/5" : "border-slate-600 bg-slate-900 hover:border-blue-500/30"
-                }`}>
-                <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp"
-                  onChange={e => setFile(e.target.files?.[0] ?? null)} />
-                <Upload className="w-6 h-6 text-slate-400" />
-                <span className="text-sm text-slate-400 text-center">
-                  {file ? <span className="font-mono font-semibold text-blue-400">{file.name}</span> :
-                    <><span className="text-white font-semibold">Click to upload</span> your Passport or Visa</>}
-                </span>
-                <span className="text-xs text-slate-600">PDF, JPG, PNG or WebP &middot; max 20MB</span>
-                {file && (
-                  <span className="text-[10px] text-blue-400 flex items-center gap-1">
-                    <FileText className="w-3 h-3" /> Will be processed by AI for automatic data extraction
-                  </span>
-                )}
+            {/* Two-Column Upload Zone */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* CV Upload */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
+                  <Briefcase className="w-3 h-3 inline mr-1" />CV / Resume
+                </label>
+                <div onClick={() => cvRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center gap-1.5 cursor-pointer transition-all text-center min-h-[100px] justify-center ${
+                    cvFile ? "border-blue-500/50 bg-blue-500/5" : "border-slate-600 bg-slate-900 hover:border-blue-500/30"
+                  }`}>
+                  <input ref={cvRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    onChange={e => setCvFile(e.target.files?.[0] ?? null)} />
+                  <Upload className="w-5 h-5 text-slate-500" />
+                  {cvFile ? (
+                    <span className="text-[10px] font-mono text-blue-400 break-all">{cvFile.name}</span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">Drop CV here</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Passport Upload */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
+                  <Shield className="w-3 h-3 inline mr-1" />Passport / Visa
+                </label>
+                <div onClick={() => passportRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center gap-1.5 cursor-pointer transition-all text-center min-h-[100px] justify-center ${
+                    passportFile ? "border-blue-500/50 bg-blue-500/5" : "border-slate-600 bg-slate-900 hover:border-blue-500/30"
+                  }`}>
+                  <input ref={passportRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={e => setPassportFile(e.target.files?.[0] ?? null)} />
+                  <Upload className="w-5 h-5 text-slate-500" />
+                  {passportFile ? (
+                    <span className="text-[10px] font-mono text-blue-400 break-all">{passportFile.name}</span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500">Drop passport here</span>
+                  )}
+                </div>
               </div>
             </div>
+
+            {(cvFile || passportFile) && (
+              <div className="flex items-center gap-1.5 text-[10px] text-blue-400">
+                <FileText className="w-3 h-3" />
+                <span>{passportFile ? "Passport will be processed by AI for automatic data extraction" : "CV will be scanned for experience and qualifications"}</span>
+              </div>
+            )}
 
             {/* Submit */}
             <button type="submit" disabled={submitting}

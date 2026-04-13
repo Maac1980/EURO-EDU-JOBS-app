@@ -383,10 +383,14 @@ export default function Dashboard() {
     }
   };
 
-  const { data: workersData, isLoading: isLoadingWorkers, isFetching } = useGetWorkers({ 
-    search: search || undefined, 
-    specialization: specialization || undefined, 
-    status: status || undefined 
+  const { data: workersData, isLoading: isLoadingWorkers, isFetching } = useGetWorkers({
+    search: search || undefined,
+    specialization: specialization || undefined,
+    status: status || undefined
+  }, {
+    query: {
+      refetchInterval: 15_000, // Auto-refresh every 15s — new applications appear without reload
+    },
   });
   
   const { data: stats } = useGetWorkerStats();

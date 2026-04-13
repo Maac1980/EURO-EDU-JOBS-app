@@ -462,7 +462,12 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS risk_level TEXT DEFAULT 'MEDIUM';
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS retention_until DATE;
+      -- Phase 2: Voivodeship tracking for recruitment regional sorting
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS voivodeship TEXT;
     END $$;
+
+    -- Index for voivodeship filtering
+    CREATE INDEX IF NOT EXISTS idx_workers_voivodeship ON workers(voivodeship);
 
     -- Extend legal_evidence for working documents
     DO $$ BEGIN

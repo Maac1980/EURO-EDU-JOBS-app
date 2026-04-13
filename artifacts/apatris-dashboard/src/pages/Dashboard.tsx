@@ -208,6 +208,7 @@ export default function Dashboard() {
   const [status, setStatus] = useState("");
   const [siteFilter, setSiteFilter] = useState("");
   const [pipelineFilter, setPipelineFilter] = useState("");
+  const [voivodeshipFilter, setVoivodeshipFilter] = useState("");
 
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -843,6 +844,20 @@ export default function Dashboard() {
                 ))}
               </select>
             </div>
+            <div className="relative flex-1 md:w-44">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <select
+                value={voivodeshipFilter}
+                onChange={(e) => setVoivodeshipFilter(e.target.value)}
+                className="w-full pl-10 pr-8 py-2.5 bg-slate-900 border border-slate-500 rounded-lg text-sm font-mono text-white appearance-none focus:outline-none focus:border-blue-500/60 transition-colors"
+                style={voivodeshipFilter ? { borderColor: "rgba(59,130,246,0.5)", color: "#60A5FA" } : {}}
+              >
+                <option value="">All Voivodeships</option>
+                {["dolnoslaskie","kujawsko-pomorskie","lubelskie","lubuskie","lodzkie","malopolskie","mazowieckie","opolskie","podkarpackie","podlaskie","pomorskie","slaskie","swietokrzyskie","warminsko-mazurskie","wielkopolskie","zachodniopomorskie"].map((v) => (
+                  <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>
+                ))}
+              </select>
+            </div>
             <PrintQRSheet workers={workersData?.workers ?? []} />
           </div>
         </div>
@@ -880,6 +895,7 @@ export default function Dashboard() {
                   else { if (site !== siteFilter) return false; }
                 }
                 if (pipelineFilter && (w as any).pipelineStage !== pipelineFilter) return false;
+                if (voivodeshipFilter && (w as any).voivodeship !== voivodeshipFilter) return false;
                 return true;
               })
               .map((worker) => {
@@ -1011,10 +1027,11 @@ export default function Dashboard() {
                         const stage = (w as any).pipelineStage as string | null;
                         if (stage !== pipelineFilter) return false;
                       }
+                      if (voivodeshipFilter && (w as any).voivodeship !== voivodeshipFilter) return false;
                       return true;
                     })
                     .map((worker) => (
-                    <tr 
+                    <tr
                       key={worker.id} 
                       onClick={() => setSelectedWorkerId(worker.id)}
                       className="hover:bg-white/5 transition-colors cursor-pointer group"

@@ -26,6 +26,7 @@ export const workers = pgTable("workers", {
   experience: text("experience"),
   qualification: text("qualification"),
   assignedSite: text("assigned_site"),
+  voivodeship: text("voivodeship"),
 
   // Document expiry dates
   trcExpiry: date("trc_expiry"),

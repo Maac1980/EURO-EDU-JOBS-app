@@ -419,7 +419,7 @@ router.get("/legal-intelligence/fleet-signals", authenticateToken, async (_req, 
     `);
     const total = await db.execute(sql`SELECT COUNT(*)::int as count FROM workers`);
 
-    res.json({
+    const response = {
       signals: {
         totalWorkers: (total.rows[0] as any)?.count ?? 0,
         expired: (expired.rows[0] as any)?.count ?? 0,

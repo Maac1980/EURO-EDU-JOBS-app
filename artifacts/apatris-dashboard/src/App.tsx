@@ -96,6 +96,7 @@ import SchengenCalculatorPage from "@/pages/SchengenCalculatorPage";
 import DigitalSafePage from "@/pages/DigitalSafePage";
 import MOSSubmissionPage from "@/pages/MOSSubmissionPage";
 import NotFound from "@/pages/not-found";
+import IngestDiagnostics from "@/pages/IngestDiagnostics";
 
 // Lazy load new features to prevent blank page if import fails
 const LegalIntelligence = React.lazy(() => import("@/pages/LegalIntelligence"));
@@ -393,6 +394,9 @@ function Router() {
         </Route>
         <Route path="/ai-copilot-chat">
           {() => <ProtectedRoute component={AiCopilotChat} />}
+        </Route>
+        <Route path="/test/ingest-diagnostics">
+          {() => <ProtectedRoute component={IngestDiagnostics} />}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

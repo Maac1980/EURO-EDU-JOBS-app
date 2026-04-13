@@ -12,7 +12,8 @@
  */
 import React, { useState } from "react";
 import { authHeaders, BASE } from "@/lib/api";
-import { Activity, FileText, Shield, Loader2, CheckCircle2, AlertTriangle, XOctagon, Cpu, Zap } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { Activity, FileText, Shield, Loader2, CheckCircle2, AlertTriangle, XOctagon, Cpu, Zap, Lock } from "lucide-react";
 
 // ═══ MOCK OCR CLASSIFICATION (no DB writes) ═════════════════════════════════
 
@@ -46,12 +47,33 @@ function computeSchengenRisk(days: number | null): { level: string; color: strin
 }
 
 export default function IngestDiagnostics() {
+  const { isAdmin } = useAuth();
   const [stayDays, setStayDays] = useState<string>("");
   const [schengenDays, setSchengenDays] = useState<string>("");
   const [mockDocType, setMockDocType] = useState("PASSPORT");
   const [mockConfidence, setMockConfidence] = useState(85);
   const [healthStatus, setHealthStatus] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+
+  // Access gate: admin-only in production, open in localhost dev
+  const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (!isDev && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center space-y-4">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+            <Lock className="w-7 h-7 text-blue-400" />
+          </div>
+          <h1 className="text-xl font-bold text-white">Access Restricted</h1>
+          <p className="text-sm text-slate-400">This diagnostics page is available to administrators only.</p>
+          <a href="/" className="inline-block px-4 py-2 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-bold hover:bg-blue-500/30 transition-colors">
+            Return to Dashboard
+          </a>
+          <p className="text-[10px] text-slate-600">org_context: EEJ</p>
+        </div>
+      </div>
+    );
+  }
 
   const parsedDays = stayDays.trim() === "" ? null : parseInt(stayDays, 10);
   const parsedSchengen = schengenDays.trim() === "" ? null : parseInt(schengenDays, 10);

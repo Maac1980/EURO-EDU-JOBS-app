@@ -367,7 +367,14 @@ router.get("/workers", authenticateToken, async (req, res) => {
       const managerSite = req.user.site.toLowerCase();
       filtered = filtered.filter(w => w.assignedSite?.toLowerCase() === managerSite);
     }
-    res.json({ workers: filtered, total: filtered.length });
+
+    // Pagination (offset/limit)
+    const total = filtered.length;
+    const offset = parseInt((req.query as any).offset ?? "0", 10);
+    const limit = parseInt((req.query as any).limit ?? "0", 10);
+    const paginated = limit > 0 ? filtered.slice(offset, offset + limit) : filtered;
+
+    res.json({ workers: paginated, total, offset, limit: limit || total });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }

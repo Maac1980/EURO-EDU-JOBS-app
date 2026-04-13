@@ -258,11 +258,15 @@ ${schengenData ? `\nSCHENGEN 90/180 STATUS:\nDays Used: ${schengenData.daysUsed}
   try {
     const mod = await import("@anthropic-ai/sdk");
     const client = new mod.default({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const resp = await client.messages.create({
+    const aiPromise = client.messages.create({
       model: "claude-sonnet-4-20250514", max_tokens: 1500,
       system: ANSWER_SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }],
     });
+    const resp = await Promise.race([
+      aiPromise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI timed out after 30s")), 30000)),
+    ]);
     const raw = resp.content[0]?.type === "text" ? resp.content[0].text : "{}";
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) aiResult = JSON.parse(jsonMatch[0]);

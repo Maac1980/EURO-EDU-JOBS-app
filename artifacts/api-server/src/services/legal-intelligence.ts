@@ -80,17 +80,30 @@ const daysUntil = (d: string | null | undefined) => {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
 };
 
+const AI_TIMEOUT_MS = 30000; // 30 seconds
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)),
+  ]);
+}
+
 async function callClaude(prompt: string, system: string, maxTokens = 1200): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return "[AI not configured]";
   try {
     const mod = await import("@anthropic-ai/sdk");
     const client = new mod.default({ apiKey });
-    const resp = await client.messages.create({
-      model: "claude-sonnet-4-20250514", max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const resp = await withTimeout(
+      client.messages.create({
+        model: "claude-sonnet-4-20250514", max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      AI_TIMEOUT_MS,
+      "Claude AI call",
+    );
     return resp.content[0]?.type === "text" ? resp.content[0].text : "";
   } catch (err: any) {
     return `[AI error: ${err.message}]`;
@@ -383,9 +396,17 @@ router.get("/legal-intelligence/worker/:workerId", authenticateToken, async (req
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// --- Fleet Signals ---
+// --- Fleet Signals (cached 60s) ---
+let fleetCache: { data: any; ts: number } | null = null;
+const FLEET_CACHE_TTL = 60000; // 60 seconds
+
 router.get("/legal-intelligence/fleet-signals", authenticateToken, async (_req, res) => {
   try {
+    // Return cache if fresh
+    if (fleetCache && Date.now() - fleetCache.ts < FLEET_CACHE_TTL) {
+      return res.json(fleetCache.data);
+    }
+
     const expired = await db.execute(sql`
       SELECT COUNT(DISTINCT id)::int as count FROM workers
       WHERE (trc_expiry IS NOT NULL AND trc_expiry::date < CURRENT_DATE)
@@ -404,7 +425,9 @@ router.get("/legal-intelligence/fleet-signals", authenticateToken, async (_req, 
         expired: (expired.rows[0] as any)?.count ?? 0,
         expiringSoon: (expiring.rows[0] as any)?.count ?? 0,
       },
-    });
+    };
+    fleetCache = { data: response, ts: Date.now() };
+    res.json(response);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

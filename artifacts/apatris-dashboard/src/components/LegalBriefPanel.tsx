@@ -76,18 +76,30 @@ export default function LegalBriefPanel() {
 
   const ask = useMutation({
     mutationFn: async (q: string) => {
-      const res = await fetch(`${BASE}api/legal/answer`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ workerId, question: q }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 35000); // 35s client timeout
+      try {
+        const res = await fetch(`${BASE}api/legal/answer`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ workerId, question: q }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error ?? "Service temporarily unavailable");
+        }
+        return res.json();
+      } catch (err: any) {
+        clearTimeout(timeout);
+        if (err.name === "AbortError") throw new Error("AI service busy — please try again in a moment");
+        throw err;
       }
-      return res.json();
     },
     onSuccess: (data) => setAnswer(data.answer),
+    retry: 1, // auto-retry once on failure
+    retryDelay: 2000,
   });
 
   const handleAsk = (q: string) => {
@@ -179,19 +191,41 @@ export default function LegalBriefPanel() {
           </div>
         </div>
 
-        {/* Loading */}
+        {/* Loading skeleton */}
         {ask.isPending && (
-          <div className="flex items-center justify-center gap-3 py-8 text-blue-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm font-medium">Analyzing worker data + legal engine + MOS check...</span>
+          <div className="space-y-3 py-4">
+            <div className="flex items-center gap-3 text-blue-400 mb-3">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-sm font-medium">Analyzing worker data + legal engine + MOS check...</span>
+            </div>
+            <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-5 space-y-3 animate-pulse">
+              <div className="h-4 bg-slate-700 rounded w-3/4" />
+              <div className="h-4 bg-slate-700 rounded w-1/2" />
+              <div className="h-3 bg-slate-700 rounded w-5/6" />
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="h-20 bg-slate-700 rounded-lg" />
+                <div className="h-20 bg-slate-700 rounded-lg" />
+              </div>
+              <div className="h-16 bg-slate-700 rounded-lg" />
+            </div>
+            <p className="text-[10px] text-slate-600 text-center">This may take up to 30 seconds for complex cases</p>
           </div>
         )}
 
-        {/* Error */}
+        {/* Error with retry */}
         {ask.isError && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-3">
-            <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-300">{ask.error instanceof Error ? ask.error.message : "Failed"}</p>
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+            <div className="flex items-center gap-3 mb-2">
+              <XCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+              <p className="text-sm font-medium text-red-300">
+                {ask.error instanceof Error && ask.error.message.includes("busy") ? "Service Busy — Retrying..." : "Analysis failed"}
+              </p>
+            </div>
+            <p className="text-xs text-red-400/70 mb-3">{ask.error instanceof Error ? ask.error.message : "Unknown error"}</p>
+            <button onClick={() => { if (question.trim()) ask.mutate(question.trim()); }}
+              className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 rounded-lg text-xs font-bold transition-colors">
+              Try Again
+            </button>
           </div>
         )}
 

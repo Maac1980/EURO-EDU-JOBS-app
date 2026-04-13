@@ -25,9 +25,9 @@ export default function MyStatusTab() {
             .then(r => r.ok ? r.json() : null)
             .then(intel => { setData({ worker: w, intel: intel?.intelligence }); setLoading(false); })
             .catch(() => { setData({ worker: w, intel: null }); setLoading(false); });
-        } else { setError("No worker data found"); setLoading(false); }
+        } else { setError("No worker profile linked to your account. Contact HR to set up your profile."); setLoading(false); }
       })
-      .catch(() => { setError("Cannot load data"); setLoading(false); });
+      .catch(() => { setError("Cannot connect to server. Check your internet connection and try again."); setLoading(false); });
   }, []);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;

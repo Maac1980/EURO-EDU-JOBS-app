@@ -25,7 +25,7 @@ export default function MyUPOTab() {
             .then(r => r.ok ? r.json() : { records: [] })
             .then(data => { setRecords(data.records ?? []); setLoading(false); })
             .catch(() => setLoading(false));
-        } else setLoading(false);
+        } else { setLoading(false); };
       })
       .catch(() => setLoading(false));
   }, []);

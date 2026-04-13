@@ -25,7 +25,7 @@ export default function MySchengenTab() {
             .then(r => r.ok ? r.json() : null)
             .then(d => { setData(d); setLoading(false); })
             .catch(() => setLoading(false));
-        } else setLoading(false);
+        } else { setLoading(false); };
       })
       .catch(() => setLoading(false));
   }, []);

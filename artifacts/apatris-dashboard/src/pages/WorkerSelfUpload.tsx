@@ -9,9 +9,12 @@
  */
 import React, { useState, useRef, useEffect } from "react";
 import { useRoute } from "wouter";
+import { useTranslation } from "react-i18next";
 import { Upload, Camera, FileText, CheckCircle2, Loader2, Shield, AlertTriangle } from "lucide-react";
+import { PublicLangToggle } from "@/components/PublicLangToggle";
 
 export default function WorkerSelfUpload() {
+  const { t } = useTranslation();
   const [, params] = useRoute("/worker/:workerId/update");
   const workerId = params?.workerId ?? "";
   const [file, setFile] = useState<File | null>(null);
@@ -68,14 +71,15 @@ export default function WorkerSelfUpload() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <PublicLangToggle />
       <div className="max-w-sm w-full space-y-5">
         {/* Header */}
         <div className="text-center">
           <div className="mx-auto w-14 h-14 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-3">
             <Upload className="w-7 h-7 text-blue-400" />
           </div>
-          <h1 className="text-lg font-bold text-white">Upload Document</h1>
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1">EEJ &middot; Worker Self-Service</p>
+          <h1 className="text-lg font-bold text-white">{t("public.worker.title")}</h1>
+          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1">{t("public.worker.subtitle")}</p>
           {workerName && <p className="text-xs text-blue-400 mt-2">Worker: {workerName}</p>}
         </div>
 
@@ -84,8 +88,8 @@ export default function WorkerSelfUpload() {
           <div className="rounded-xl border-2 border-green-500/30 bg-green-500/5 p-6 text-center space-y-4">
             <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
             <div>
-              <h2 className="text-lg font-bold text-white">Document Sent to EEJ for Verification</h2>
-              <p className="text-xs text-slate-400 mt-2">Our team will review and verify your document. You will be notified once it is processed.</p>
+              <h2 className="text-lg font-bold text-white">{t("public.worker.success")}</h2>
+              <p className="text-xs text-slate-400 mt-2">{t("public.worker.successMsg")}</p>
             </div>
 
             {result.ingest && result.ingest.docType && (
@@ -114,20 +118,20 @@ export default function WorkerSelfUpload() {
           /* ── Upload Interface ───────────────────────────────── */
           <div className="space-y-4">
             <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-4 space-y-3">
-              <p className="text-xs text-slate-400 text-center">Take a photo or upload a scan of your document (TRC, Visa, Work Permit, Medical, BHP, etc.)</p>
+              <p className="text-xs text-slate-400 text-center">{t("public.worker.instruction")}</p>
 
               {/* Camera button — mobile-first */}
               <button onClick={() => cameraRef.current?.click()} disabled={uploading}
                 className="w-full py-4 rounded-xl bg-blue-500/10 border-2 border-blue-500/30 text-blue-400 font-bold text-sm flex items-center justify-center gap-3 hover:bg-blue-500/20 transition-colors disabled:opacity-40 active:scale-[0.98]">
                 <Camera className="w-5 h-5" />
-                Take Photo
+                {t("public.worker.takePhoto")}
               </button>
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
 
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-slate-700" />
-                <span className="text-[10px] text-slate-600 uppercase">or</span>
+                <span className="text-[10px] text-slate-600 uppercase">{t("public.worker.or")}</span>
                 <div className="flex-1 h-px bg-slate-700" />
               </div>
 
@@ -135,7 +139,7 @@ export default function WorkerSelfUpload() {
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="w-full py-4 rounded-xl border-2 border-dashed border-slate-600 text-slate-400 font-bold text-sm flex items-center justify-center gap-3 hover:border-blue-500/40 hover:text-blue-400 transition-colors disabled:opacity-40 active:scale-[0.98]">
                 <Upload className="w-5 h-5" />
-                Upload PDF or Image
+                {t("public.worker.uploadFile")}
               </button>
               <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />

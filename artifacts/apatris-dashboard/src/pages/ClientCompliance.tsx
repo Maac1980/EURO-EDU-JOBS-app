@@ -8,7 +8,9 @@
  */
 import React, { useState, useEffect } from "react";
 import { useRoute } from "wouter";
+import { useTranslation } from "react-i18next";
 import { Shield, Users, AlertTriangle, CheckCircle2, XOctagon, Clock, Building2 } from "lucide-react";
+import { PublicLangToggle } from "@/components/PublicLangToggle";
 
 interface ClientWorker {
   id: string;
@@ -33,6 +35,7 @@ const ZONE_ICON: Record<string, typeof Shield> = {
 };
 
 export default function ClientCompliance() {
+  const { t } = useTranslation();
   const [, params] = useRoute("/client/:employerName");
   const employer = decodeURIComponent(params?.employerName ?? "");
   const [data, setData] = useState<{ workers: ClientWorker[]; total: number; atRisk: number; employer: string } | null>(null);
@@ -50,6 +53,7 @@ export default function ClientCompliance() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 p-6">
+      <PublicLangToggle />
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -58,7 +62,7 @@ export default function ClientCompliance() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">{employer || "Employer"}</h1>
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">EEJ Client Compliance Dashboard</p>
+            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">{t("public.client.title")}</p>
           </div>
         </div>
 
@@ -95,12 +99,12 @@ export default function ClientCompliance() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Worker</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Role</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nationality</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Days Left</th>
-                    <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">Art. 108</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t("public.client.worker")}</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t("public.client.role")}</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t("public.client.nationalityCol")}</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t("public.client.status")}</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t("public.client.daysLeft")}</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t("public.client.art108Col")}</th>
                   </tr>
                 </thead>
                 <tbody>

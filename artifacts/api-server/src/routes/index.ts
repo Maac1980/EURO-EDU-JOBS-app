@@ -65,6 +65,7 @@ import mos2026Router from "../services/mos-2026-mandate.js";
 import firstContactRouter from "../services/first-contact-verification.js";
 import notificationEngineRouter from "../services/notification-engine.js";
 import escalationEngineRouter from "../services/escalation-engine.js";
+import stripeWebhooksRouter from "../services/stripe-webhooks.js";
 
 const router: IRouter = Router();
 
@@ -134,6 +135,7 @@ router.use(mos2026Router);
 router.use(firstContactRouter);
 router.use(notificationEngineRouter);
 router.use(escalationEngineRouter);
+router.use(stripeWebhooksRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

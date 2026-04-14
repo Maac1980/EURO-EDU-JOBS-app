@@ -7,8 +7,10 @@
  */
 import React, { useState, useEffect } from "react";
 import { useRoute } from "wouter";
+import { useTranslation } from "react-i18next";
 import { QRCodeSVG } from "qrcode.react";
 import { Shield, CheckCircle2, AlertTriangle, XOctagon, Clock, QrCode, Copy, Check } from "lucide-react";
+import { PublicLangToggle } from "@/components/PublicLangToggle";
 
 interface VerifyResult {
   verified: boolean;
@@ -35,6 +37,7 @@ const ZONE_CONFIG: Record<string, { icon: typeof Shield; label: string; bg: stri
 };
 
 export default function PublicVerify() {
+  const { t } = useTranslation();
   const [, params] = useRoute("/verify/:workerId");
   const workerId = params?.workerId ?? "";
   const [result, setResult] = useState<VerifyResult | null>(null);
@@ -64,14 +67,15 @@ export default function PublicVerify() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+      <PublicLangToggle />
       <div className="max-w-sm w-full space-y-6">
         {/* Header */}
         <div className="text-center">
           <div className="mx-auto w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-3">
             <Shield className="w-6 h-6 text-blue-400" />
           </div>
-          <h1 className="text-lg font-bold text-white">EEJ Compliance Verification</h1>
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1">Euro Edu Jobs &middot; Recruitment Platform</p>
+          <h1 className="text-lg font-bold text-white">{t("public.verify.title")}</h1>
+          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-1">{t("public.verify.subtitle")}</p>
         </div>
 
         {loading ? (

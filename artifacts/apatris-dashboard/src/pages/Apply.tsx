@@ -13,7 +13,9 @@
  * Branding: EEJ Blue (#3B82F6).
  */
 import React, { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CheckCircle2, Upload, Loader2, FileText, Shield, Briefcase } from "lucide-react";
+import { PublicLangToggle } from "@/components/PublicLangToggle";
 
 const NATIONALITIES = [
   "Ukrainian", "Belarusian", "Georgian", "Moldovan", "Armenian",
@@ -23,6 +25,7 @@ const NATIONALITIES = [
 ];
 
 export default function Apply() {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -99,13 +102,14 @@ export default function Apply() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] blur-[120px] rounded-full" style={{ background: "rgba(59,130,246,0.04)" }} />
       </div>
 
+      <PublicLangToggle />
       <div className="w-full max-w-md z-10">
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-4">
             <span className="text-xl font-black tracking-tighter text-blue-400">EEJ</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-wide text-center">Join Our Global Network</h1>
-          <p className="text-sm text-slate-400 mt-1 text-center">EURO EDU JOBS &middot; International Candidate Portal</p>
+          <h1 className="text-2xl font-bold text-white tracking-wide text-center">{t("public.apply.title")}</h1>
+          <p className="text-sm text-slate-400 mt-1 text-center">{t("public.apply.subtitle")}</p>
         </div>
 
         {submitted ? (
@@ -113,8 +117,8 @@ export default function Apply() {
             <div className="w-16 h-16 rounded-full bg-blue-500/10 border-2 border-blue-500/30 flex items-center justify-center mb-5">
               <CheckCircle2 className="w-8 h-8 text-blue-400" />
             </div>
-            <h2 className="text-xl font-bold text-white mb-3">Application Received</h2>
-            <p className="text-slate-300 leading-relaxed">Your application has been received. Our recruitment team will review your profile shortly.</p>
+            <h2 className="text-xl font-bold text-white mb-3">{t("public.apply.received")}</h2>
+            <p className="text-slate-300 leading-relaxed">{t("public.apply.receivedMsg")}</p>
 
             {ocrResult && (
               <div className="mt-5 w-full rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-left space-y-2">
@@ -146,7 +150,7 @@ export default function Apply() {
             {/* Name */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Full Name <span className="text-blue-400">*</span>
+                {t("public.apply.fullName")} <span className="text-blue-400">*</span>
               </label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Maria Kowalski" required
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors" />
@@ -155,7 +159,7 @@ export default function Apply() {
             {/* Email */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-                Email Address <span className="text-blue-400">*</span>
+                {t("public.apply.email")} <span className="text-blue-400">*</span>
               </label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors" />
@@ -163,17 +167,17 @@ export default function Apply() {
 
             {/* Phone */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">Phone Number</label>
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">{t("public.apply.phone")}</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+48 000 000 000"
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/60 transition-colors" />
             </div>
 
             {/* Nationality */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">Nationality</label>
+              <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">{t("public.apply.nationality")}</label>
               <select value={nationality} onChange={e => setNationality(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:outline-none focus:border-blue-500/60 transition-colors">
-                <option value="">— Select Nationality —</option>
+                <option value="">{t("public.apply.selectNationality")}</option>
                 {NATIONALITIES.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
@@ -231,10 +235,10 @@ export default function Apply() {
             {/* Submit */}
             <button type="submit" disabled={submitting}
               className="w-full py-3.5 rounded-xl font-bold uppercase tracking-wider text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-70 bg-blue-500 text-white hover:bg-blue-600">
-              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : "Submit Application"}
+              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("public.apply.processing")}</> : t("public.apply.submit")}
             </button>
 
-            <p className="text-xs text-slate-600 text-center">By submitting, you agree to our candidate data processing policy (GDPR).</p>
+            <p className="text-xs text-slate-600 text-center">{t("public.apply.gdpr")}</p>
           </form>
         )}
       </div>

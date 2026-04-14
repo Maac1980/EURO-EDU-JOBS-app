@@ -1,4 +1,4 @@
-import { pgTable, text, integer, real, timestamp, boolean, uuid, pgEnum, date, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, numeric, timestamp, boolean, uuid, pgEnum, date, jsonb } from "drizzle-orm/pg-core";
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 export const complianceStatusEnum = pgEnum("compliance_status", ["critical", "warning", "compliant", "non-compliant"]);
@@ -51,10 +51,10 @@ export const workers = pgTable("workers", {
   iso9606Position: text("iso9606_position"),
 
   // Payroll
-  hourlyNettoRate: real("hourly_netto_rate").default(0),
-  totalHours: real("total_hours").default(0),
-  advancePayment: real("advance_payment").default(0),
-  penalties: real("penalties").default(0),
+  hourlyNettoRate: numeric("hourly_netto_rate", { precision: 10, scale: 2 }).default("0"),
+  totalHours: numeric("total_hours", { precision: 8, scale: 2 }).default("0"),
+  advancePayment: numeric("advance_payment", { precision: 10, scale: 2 }).default("0"),
+  penalties: numeric("penalties", { precision: 10, scale: 2 }).default("0"),
   iban: text("iban"),
 
   // Contract & pipeline
@@ -108,7 +108,7 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   address: text("address"),
   nip: text("nip"),
-  billingRate: real("billing_rate"),
+  billingRate: numeric("billing_rate", { precision: 10, scale: 2 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -133,13 +133,13 @@ export const payrollRecords = pgTable("payroll_records", {
   workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "cascade" }),
   workerName: text("worker_name").notNull(),
   monthYear: text("month_year").notNull(),
-  totalHours: real("total_hours").notNull().default(0),
-  hourlyRate: real("hourly_rate").notNull().default(0),
-  advancesDeducted: real("advances_deducted").default(0),
-  penaltiesDeducted: real("penalties_deducted").default(0),
-  grossPay: real("gross_pay").notNull().default(0),
-  finalNettoPayout: real("final_netto_payout").notNull().default(0),
-  zusBaseSalary: real("zus_base_salary").default(0),
+  totalHours: numeric("total_hours", { precision: 8, scale: 2 }).notNull().default("0"),
+  hourlyRate: numeric("hourly_rate", { precision: 10, scale: 2 }).notNull().default("0"),
+  advancesDeducted: numeric("advances_deducted", { precision: 10, scale: 2 }).default("0"),
+  penaltiesDeducted: numeric("penalties_deducted", { precision: 10, scale: 2 }).default("0"),
+  grossPay: numeric("gross_pay", { precision: 10, scale: 2 }).notNull().default("0"),
+  finalNettoPayout: numeric("final_netto_payout", { precision: 10, scale: 2 }).notNull().default("0"),
+  zusBaseSalary: numeric("zus_base_salary", { precision: 10, scale: 2 }).default("0"),
   siteLocation: text("site_location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -210,8 +210,8 @@ export const jobPostings = pgTable("job_postings", {
   requirements: text("requirements"),
   location: text("location"),
   clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
-  salaryMin: real("salary_min"),
-  salaryMax: real("salary_max"),
+  salaryMin: numeric("salary_min", { precision: 10, scale: 2 }),
+  salaryMax: numeric("salary_max", { precision: 10, scale: 2 }),
   currency: text("currency").default("PLN"),
   contractType: text("contract_type"),
   isPublished: boolean("is_published").default(false),
@@ -227,7 +227,7 @@ export const jobApplications = pgTable("job_applications", {
   jobId: uuid("job_id").notNull().references(() => jobPostings.id, { onDelete: "cascade" }),
   workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "cascade" }),
   stage: text("stage").default("New"),
-  matchScore: real("match_score"),
+  matchScore: numeric("match_score", { precision: 5, scale: 2 }),
   matchReasons: jsonb("match_reasons"),
   notes: text("notes"),
   appliedAt: timestamp("applied_at").defaultNow().notNull(),
@@ -259,10 +259,10 @@ export const invoices = pgTable("invoices", {
   clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "restrict" }),
   monthYear: text("month_year").notNull(),
   items: jsonb("items").notNull(), // array of {workerId, workerName, hours, rate, amount}
-  subtotal: real("subtotal").notNull(),
-  vatRate: real("vat_rate").default(0.23),
-  vatAmount: real("vat_amount").notNull(),
-  total: real("total").notNull(),
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+  vatRate: numeric("vat_rate", { precision: 4, scale: 2 }).default("0.23"),
+  vatAmount: numeric("vat_amount", { precision: 12, scale: 2 }).notNull(),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull(),
   status: text("status").default("draft"), // draft, sent, paid, overdue, cancelled
   dueDate: date("due_date"),
   paidAt: timestamp("paid_at"),
@@ -280,7 +280,7 @@ export const workPermitApplications = pgTable("work_permit_applications", {
   applicationNumber: text("application_number"),
   portal: text("portal").default("mos"), // mos, praca.gov.pl
   documents: jsonb("documents"), // checklist array
-  governmentFee: real("government_fee"),
+  governmentFee: numeric("government_fee", { precision: 10, scale: 2 }),
   reportingDeadline: date("reporting_deadline"),
   submittedAt: timestamp("submitted_at"),
   decisionDate: date("decision_date"),

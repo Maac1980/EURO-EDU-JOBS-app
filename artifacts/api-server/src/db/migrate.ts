@@ -469,6 +469,31 @@ export async function runMigrations(): Promise<void> {
     -- Index for voivodeship filtering
     CREATE INDEX IF NOT EXISTS idx_workers_voivodeship ON workers(voivodeship);
 
+    -- Phase 2: Fix REAL → NUMERIC(10,2) for monetary columns (prevents floating point rounding)
+    DO $$ BEGIN
+      ALTER TABLE workers ALTER COLUMN hourly_netto_rate TYPE NUMERIC(10,2) USING hourly_netto_rate::NUMERIC(10,2);
+      ALTER TABLE workers ALTER COLUMN advance_payment TYPE NUMERIC(10,2) USING advance_payment::NUMERIC(10,2);
+      ALTER TABLE workers ALTER COLUMN penalties TYPE NUMERIC(10,2) USING penalties::NUMERIC(10,2);
+      ALTER TABLE workers ALTER COLUMN total_hours TYPE NUMERIC(8,2) USING total_hours::NUMERIC(8,2);
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE payroll_records ALTER COLUMN hourly_rate TYPE NUMERIC(10,2) USING hourly_rate::NUMERIC(10,2);
+      ALTER TABLE payroll_records ALTER COLUMN gross_pay TYPE NUMERIC(10,2) USING gross_pay::NUMERIC(10,2);
+      ALTER TABLE payroll_records ALTER COLUMN final_netto_payout TYPE NUMERIC(10,2) USING final_netto_payout::NUMERIC(10,2);
+      ALTER TABLE payroll_records ALTER COLUMN advances_deducted TYPE NUMERIC(10,2) USING advances_deducted::NUMERIC(10,2);
+      ALTER TABLE payroll_records ALTER COLUMN penalties_deducted TYPE NUMERIC(10,2) USING penalties_deducted::NUMERIC(10,2);
+      ALTER TABLE payroll_records ALTER COLUMN zus_base_salary TYPE NUMERIC(10,2) USING zus_base_salary::NUMERIC(10,2);
+      ALTER TABLE payroll_records ALTER COLUMN total_hours TYPE NUMERIC(8,2) USING total_hours::NUMERIC(8,2);
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE invoices ALTER COLUMN subtotal TYPE NUMERIC(12,2) USING subtotal::NUMERIC(12,2);
+      ALTER TABLE invoices ALTER COLUMN vat_rate TYPE NUMERIC(4,2) USING vat_rate::NUMERIC(4,2);
+      ALTER TABLE invoices ALTER COLUMN vat_amount TYPE NUMERIC(12,2) USING vat_amount::NUMERIC(12,2);
+      ALTER TABLE invoices ALTER COLUMN total TYPE NUMERIC(12,2) USING total::NUMERIC(12,2);
+    EXCEPTION WHEN others THEN NULL; END $$;
+
     -- Extend legal_evidence for working documents
     DO $$ BEGIN
       ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS notes TEXT;

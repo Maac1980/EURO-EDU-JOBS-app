@@ -69,6 +69,7 @@ import stripeWebhooksRouter from "../services/stripe-webhooks.js";
 import legalCaseEngineRouter from "../services/legal-case-engine.js";
 import payrollLedgerRouter from "../services/payroll-ledger.js";
 import agencyComplianceRouter from "../services/agency-compliance-engine.js";
+import agencyProtectionRouter from "../services/agency-protection.js";
 
 const router: IRouter = Router();
 
@@ -142,6 +143,7 @@ router.use(stripeWebhooksRouter);
 router.use(legalCaseEngineRouter);
 router.use(payrollLedgerRouter);
 router.use(agencyComplianceRouter);
+router.use(agencyProtectionRouter);
 
 // PIP readiness — dynamic import to avoid top-level await in CJS
 import("./pip-readiness.js").then(m => router.use(m.default)).catch(() => { /* optional module */ });

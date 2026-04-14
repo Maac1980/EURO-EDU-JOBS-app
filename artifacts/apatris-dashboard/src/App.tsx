@@ -100,6 +100,7 @@ import IngestDiagnostics from "@/pages/IngestDiagnostics";
 import PublicVerify from "@/pages/PublicVerify";
 import ClientCompliance from "@/pages/ClientCompliance";
 import WorkerSelfUpload from "@/pages/WorkerSelfUpload";
+import WorkerPass from "@/pages/WorkerPass";
 
 // Lazy load new features to prevent blank page if import fails
 const LegalIntelligence = React.lazy(() => import("@/pages/LegalIntelligence"));
@@ -151,6 +152,9 @@ function Router() {
         </Route>
         <Route path="/worker/:workerId/update">
           {() => <ErrorBoundary><WorkerSelfUpload /></ErrorBoundary>}
+        </Route>
+        <Route path="/pass/:workerId">
+          {() => <ErrorBoundary><WorkerPass /></ErrorBoundary>}
         </Route>
         <Route path="/portal">
           {() => <ErrorBoundary><WorkerPortal /></ErrorBoundary>}

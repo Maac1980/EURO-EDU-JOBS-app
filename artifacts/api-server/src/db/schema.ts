@@ -19,7 +19,11 @@ export const interviewStatusEnum = pgEnum("interview_status", ["scheduled", "com
 export const workers = pgTable("workers", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  firstName: text("first_name"),
+  secondName: text("second_name"),
+  surname: text("surname"),
   email: text("email"),
+  companyEmail: text("company_email"),
   phone: text("phone"),
   jobRole: text("job_role"),
   nationality: text("nationality"),

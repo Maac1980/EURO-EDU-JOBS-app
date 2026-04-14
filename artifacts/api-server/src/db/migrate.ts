@@ -464,6 +464,12 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS retention_until DATE;
       -- Phase 2: Voivodeship tracking for recruitment regional sorting
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS voivodeship TEXT;
+      -- Liza: Split name into first/second/surname for official documents
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS first_name TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS second_name TEXT;
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS surname TEXT;
+      -- Liza: Auto-generated company email (receive-only, forwards to team)
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS company_email TEXT;
     END $$;
 
     -- Index for voivodeship filtering

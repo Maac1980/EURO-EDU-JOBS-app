@@ -370,13 +370,14 @@ router.get("/workers", authenticateToken, async (req, res) => {
       filtered = filtered.filter(w => w.assignedSite?.toLowerCase() === managerSite);
     }
 
-    // Pagination (offset/limit)
+    // Pagination (offset/limit) — default cap 100, max 500
     const total = filtered.length;
-    const offset = parseInt((req.query as any).offset ?? "0", 10);
-    const limit = parseInt((req.query as any).limit ?? "0", 10);
-    const paginated = limit > 0 ? filtered.slice(offset, offset + limit) : filtered;
+    const offset = Math.max(parseInt((req.query as any).offset ?? "0", 10) || 0, 0);
+    const rawLimit = parseInt((req.query as any).limit ?? "100", 10);
+    const limit = Math.min(isNaN(rawLimit) || rawLimit <= 0 ? 100 : rawLimit, 500);
+    const paginated = filtered.slice(offset, offset + limit);
 
-    res.json({ workers: paginated, total, offset, limit: limit || total });
+    res.json({ workers: paginated, total, offset, limit });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }

@@ -500,6 +500,22 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE invoices ALTER COLUMN total TYPE NUMERIC(12,2) USING total::NUMERIC(12,2);
     EXCEPTION WHEN others THEN NULL; END $$;
 
+    -- Clients billing rate — REAL → NUMERIC(10,2)
+    DO $$ BEGIN
+      ALTER TABLE clients ALTER COLUMN billing_rate TYPE NUMERIC(10,2) USING billing_rate::NUMERIC(10,2);
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    -- Job postings salary bands — REAL → NUMERIC(10,2)
+    DO $$ BEGIN
+      ALTER TABLE job_postings ALTER COLUMN salary_min TYPE NUMERIC(10,2) USING salary_min::NUMERIC(10,2);
+      ALTER TABLE job_postings ALTER COLUMN salary_max TYPE NUMERIC(10,2) USING salary_max::NUMERIC(10,2);
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    -- Portal daily log hours — REAL → NUMERIC(8,2)
+    DO $$ BEGIN
+      ALTER TABLE portal_daily_logs ALTER COLUMN hours TYPE NUMERIC(8,2) USING hours::NUMERIC(8,2);
+    EXCEPTION WHEN others THEN NULL; END $$;
+
     -- Extend legal_evidence for working documents
     DO $$ BEGIN
       ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS notes TEXT;

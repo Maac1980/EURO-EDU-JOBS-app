@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import PDFDocument from "pdfkit";
 import { db, schema } from "../db/index.js";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { toWorker } from "../lib/compliance.js";
 import { appendAuditEntry } from "./audit.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
@@ -13,7 +13,9 @@ const ZUS_RATE = 0.1126;
 
 router.get("/payroll/workers", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
-    const rows = await db.select().from(schema.workers);
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+    const rows = await db.select().from(schema.workers).limit(limit).offset(offset);
     const workers = rows.map(w => ({
       id: w.id, name: w.name, specialization: w.jobRole, siteLocation: w.assignedSite,
       hourlyNettoRate: w.hourlyNettoRate ?? 0, totalHours: w.totalHours ?? 0,
@@ -70,38 +72,44 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
     const existing = await db.select().from(schema.payrollRecords).where(eq(schema.payrollRecords.monthYear, monthYear)).limit(1);
     if (existing.length > 0) return res.status(409).json({ error: `Month ${monthYear} already closed.` });
 
-    const rows = await db.select().from(schema.workers);
-    const newRecords: any[] = [];
+    const newRecords: any[] = await db.transaction(async (tx) => {
+      const rows = await tx.select().from(schema.workers);
+      if (rows.length === 0) return [];
 
-    for (const w of rows) {
-      const totalHours = Number(w.totalHours ?? 0);
-      const hourlyRate = Number(w.hourlyNettoRate ?? 0);
-      const advancesDeducted = Number(w.advancePayment ?? 0);
-      const penaltiesDeducted = Number(w.penalties ?? 0);
-      const grossPay = totalHours * hourlyRate;
-      const finalNettoPayout = grossPay - advancesDeducted - penaltiesDeducted;
+      const valuesToInsert = rows.map(w => {
+        const totalHours = Number(w.totalHours ?? 0);
+        const hourlyRate = Number(w.hourlyNettoRate ?? 0);
+        const advancesDeducted = Number(w.advancePayment ?? 0);
+        const penaltiesDeducted = Number(w.penalties ?? 0);
+        const grossPay = totalHours * hourlyRate;
+        const finalNettoPayout = grossPay - advancesDeducted - penaltiesDeducted;
+        return {
+          workerId: w.id,
+          workerName: w.name,
+          monthYear,
+          totalHours: totalHours.toString(),
+          hourlyRate: hourlyRate.toString(),
+          advancesDeducted: advancesDeducted.toString(),
+          penaltiesDeducted: penaltiesDeducted.toString(),
+          grossPay: grossPay.toString(),
+          finalNettoPayout: finalNettoPayout.toString(),
+          zusBaseSalary: grossPay.toString(),
+          siteLocation: w.assignedSite,
+        };
+      });
 
-      const [record] = await db.insert(schema.payrollRecords).values({
-        workerId: w.id,
-        workerName: w.name,
-        monthYear,
-        totalHours: totalHours.toString(),
-        hourlyRate: hourlyRate.toString(),
-        advancesDeducted: advancesDeducted.toString(),
-        penaltiesDeducted: penaltiesDeducted.toString(),
-        grossPay: grossPay.toString(),
-        finalNettoPayout: finalNettoPayout.toString(),
-        zusBaseSalary: grossPay.toString(),
-        siteLocation: w.assignedSite,
-      }).returning();
-      newRecords.push({ ...record, __email: w.email });
+      const inserted = await tx.insert(schema.payrollRecords).values(valuesToInsert).returning();
 
-      await db.update(schema.workers).set({
+      const workerIds = rows.map(w => w.id);
+      await tx.update(schema.workers).set({
         totalHours: "0", advancePayment: "0", penalties: "0", updatedAt: new Date(),
-      }).where(eq(schema.workers.id, w.id));
-    }
+      }).where(inArray(schema.workers.id, workerIds));
 
-    // Fire payslip emails in background
+      const emailByWorkerId = new Map(rows.map(w => [w.id, w.email]));
+      return inserted.map(r => ({ ...r, __email: emailByWorkerId.get(r.workerId) ?? null }));
+    });
+
+    // Fire payslip emails in background (after commit)
     Promise.allSettled(
       newRecords.filter(r => r.__email).map(async (r) => {
         try {
@@ -132,9 +140,13 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
 
 router.get("/payroll/history/:workerId", authenticateToken, async (req, res) => {
   try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
     const history = await db.select().from(schema.payrollRecords)
       .where(eq(schema.payrollRecords.workerId, String(req.params.workerId)))
-      .orderBy(desc(schema.payrollRecords.monthYear));
+      .orderBy(desc(schema.payrollRecords.monthYear))
+      .limit(limit)
+      .offset(offset);
     return res.json({ history });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load history" });
@@ -143,7 +155,12 @@ router.get("/payroll/history/:workerId", authenticateToken, async (req, res) => 
 
 router.get("/payroll/summary", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
-    const records = await db.select().from(schema.payrollRecords);
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+    const records = await db.select().from(schema.payrollRecords)
+      .orderBy(desc(schema.payrollRecords.createdAt))
+      .limit(limit)
+      .offset(offset);
     return res.json({ records });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load summary" });

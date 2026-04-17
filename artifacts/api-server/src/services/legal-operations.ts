@@ -90,40 +90,81 @@ router.get("/legal/snapshot/:workerId", authenticateToken, async (req, res) => {
 router.post("/legal/scan-all", authenticateToken, async (_req, res) => {
   try {
     const workers = await db.execute(sql`SELECT * FROM workers WHERE pipeline_stage IN ('Active','Placed','Screening')`);
+    const workerRows = workers.rows as any[];
     const results: any[] = [];
-    for (const w of workers.rows as any[]) {
+
+    if (workerRows.length === 0) return res.json({ scanned: 0, results });
+
+    // Evaluate all workers in memory first (no DB calls)
+    const evaluated = workerRows.map(w => {
       const input = workerToLegalInput(w);
       const result = evaluateLegalStatus(input);
-      await db.insert(schema.legalSnapshots).values({
-        workerId: w.id,
-        legalStatus: result.legalStatus,
-        legalBasis: result.legalBasis,
-        riskLevel: result.riskLevel,
-        conditions: result.conditions,
-        warnings: result.warnings,
-        requiredActions: result.requiredActions,
-        nationality: w.nationality,
-        snapshotData: { input, result },
-        createdBy: "system-scan",
-      });
-      await generateSuggestions(w.id, result);
+      return { w, input, result };
+    });
 
-      // Auto-create legal case for CRITICAL/EXPIRED workers
-      if (result.riskLevel === "CRITICAL" || result.legalStatus === "EXPIRED_NOT_PROTECTED" || result.legalStatus === "NO_PERMIT") {
-        const existingCase = await db.execute(sql`
-          SELECT id FROM legal_cases WHERE worker_id = ${w.id} AND status NOT IN ('resolved','closed') LIMIT 1
+    // Bulk insert snapshots (1 query)
+    const snapshotValues = evaluated.map(({ w, input, result }) => ({
+      workerId: w.id,
+      legalStatus: result.legalStatus,
+      legalBasis: result.legalBasis,
+      riskLevel: result.riskLevel,
+      conditions: result.conditions,
+      warnings: result.warnings,
+      requiredActions: result.requiredActions,
+      nationality: w.nationality,
+      snapshotData: { input, result } as any,
+      createdBy: "system-scan",
+    }));
+    await db.insert(schema.legalSnapshots).values(snapshotValues);
+
+    // Collect all suggestion rows, then bulk insert (1 query honoring partial unique index).
+    const suggestionTuples = evaluated.flatMap(({ w, result }) =>
+      buildSuggestions(result).map(s => [w.id, s.type, s.reason, s.priority] as const)
+    );
+    if (suggestionTuples.length > 0) {
+      const workerIdsArr = suggestionTuples.map(t => t[0]);
+      const typesArr = suggestionTuples.map(t => t[1]);
+      const reasonsArr = suggestionTuples.map(t => t[2]);
+      const prioritiesArr = suggestionTuples.map(t => t[3]);
+      await db.execute(sql`
+        INSERT INTO legal_suggestions (worker_id, suggestion_type, reason, priority, status)
+        SELECT worker_id, suggestion_type, reason, priority, 'pending'
+        FROM UNNEST(
+          ${workerIdsArr}::uuid[],
+          ${typesArr}::text[],
+          ${reasonsArr}::text[],
+          ${prioritiesArr}::int[]
+        ) AS t(worker_id, suggestion_type, reason, priority)
+        ON CONFLICT (worker_id, suggestion_type, status) WHERE status = 'pending' DO NOTHING
+      `);
+    }
+
+    // For critical workers: one query to find existing cases, then bulk-insert missing ones (1 query)
+    const criticalSet = evaluated.filter(({ result }) =>
+      result.riskLevel === "CRITICAL" ||
+      result.legalStatus === "EXPIRED_NOT_PROTECTED" ||
+      result.legalStatus === "NO_PERMIT"
+    );
+    if (criticalSet.length > 0) {
+      const criticalIds = criticalSet.map(({ w }) => w.id);
+      const existing = await db.execute(sql`
+        SELECT worker_id FROM legal_cases
+        WHERE worker_id = ANY(${criticalIds}::uuid[]) AND status NOT IN ('resolved','closed')
+      `);
+      const existingWorkerIds = new Set((existing.rows as any[]).map(r => r.worker_id));
+      const toInsert = criticalSet.filter(({ w }) => !existingWorkerIds.has(w.id));
+      for (const { w, result } of toInsert) {
+        await db.execute(sql`
+          INSERT INTO legal_cases (worker_id, case_type, severity, title, description, status, priority_score, tenant_id)
+          VALUES (${w.id}, 'compliance_critical', 'critical',
+            ${`URGENT: ${w.name} — ${result.legalStatus}`},
+            ${result.warnings.join("; ")},
+            'open', 95, ${w.tenant_id ?? 'production'})
         `);
-        if (existingCase.rows.length === 0) {
-          await db.execute(sql`
-            INSERT INTO legal_cases (worker_id, case_type, severity, title, description, status, priority_score, tenant_id)
-            VALUES (${w.id}, 'compliance_critical', 'critical',
-              ${`URGENT: ${w.name} — ${result.legalStatus}`},
-              ${result.warnings.join("; ")},
-              'open', 95, ${w.tenant_id ?? 'production'})
-          `);
-        }
       }
+    }
 
+    for (const { w, result } of evaluated) {
       results.push({ workerId: w.id, name: w.name, status: result.legalStatus, risk: result.riskLevel });
     }
     results.sort((a, b) => riskOrder(a.risk) - riskOrder(b.risk));
@@ -357,9 +398,8 @@ router.patch("/legal/documents/:id/approve", authenticateToken, async (req, res)
 
 // ══ PART 8: AUTO-SUGGEST ════════════════════════════════════════════════════
 
-async function generateSuggestions(workerId: string, result: any) {
+function buildSuggestions(result: any): { type: string; reason: string; priority: number }[] {
   const suggestions: { type: string; reason: string; priority: number }[] = [];
-
   if (result.legalStatus === "EXPIRING_SOON") {
     suggestions.push({ type: "file_trc_application", reason: "Work authorization expiring soon — file TRC before expiry for Art. 108 protection", priority: 90 });
   }
@@ -375,7 +415,11 @@ async function generateSuggestions(workerId: string, result: any) {
   if (result.requiredActions.some((a: string) => a.includes("medical") || a.includes("badania"))) {
     suggestions.push({ type: "schedule_medical", reason: "Medical examination expired or expiring", priority: 70 });
   }
+  return suggestions;
+}
 
+async function generateSuggestions(workerId: string, result: any) {
+  const suggestions = buildSuggestions(result);
   for (const s of suggestions) {
     await db.execute(sql`
       INSERT INTO legal_suggestions (worker_id, suggestion_type, reason, priority, status)

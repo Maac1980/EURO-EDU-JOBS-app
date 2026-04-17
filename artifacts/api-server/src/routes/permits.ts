@@ -2,7 +2,6 @@ import { Router } from "express";
 import { db, schema } from "../db/index.js";
 import { eq, desc } from "drizzle-orm";
 import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
-import { appendAuditEntry } from "./audit.js";
 
 const router = Router();
 
@@ -65,17 +64,23 @@ const CHECKLISTS: Record<string, Array<{ name: string; required: boolean }>> = {
 // GET /api/permits — list all work permit applications
 router.get("/permits", authenticateToken, async (req, res) => {
   try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
     const permits = await db.select({
       permit: schema.workPermitApplications,
       worker: schema.workers,
     }).from(schema.workPermitApplications)
       .innerJoin(schema.workers, eq(schema.workPermitApplications.workerId, schema.workers.id))
-      .orderBy(desc(schema.workPermitApplications.createdAt));
+      .orderBy(desc(schema.workPermitApplications.createdAt))
+      .limit(limit)
+      .offset(offset);
     return res.json({
       permits: permits.map(p => ({
         ...p.permit,
         worker: { id: p.worker.id, name: p.worker.name, nationality: p.worker.nationality },
       })),
+      limit,
+      offset,
     });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load permits" });
@@ -95,18 +100,33 @@ router.post("/permits", authenticateToken, requireCoordinatorOrAdmin, async (req
     const reportingDeadline = new Date();
     reportingDeadline.setDate(reportingDeadline.getDate() + 7);
 
-    const [permit] = await db.insert(schema.workPermitApplications).values({
-      workerId,
-      permitType,
-      applicationNumber: applicationNumber || null,
-      portal: portal || "mos",
-      documents: checklist,
-      governmentFee: fee.toString(),
-      reportingDeadline: reportingDeadline.toISOString().slice(0, 10),
-      notes: notes || null,
-    }).returning();
+    const actor = req.user?.email ?? "admin";
 
-    appendAuditEntry({ workerId, actor: req.user?.email ?? "admin", field: "WORK_PERMIT", newValue: { permitType, id: permit.id }, action: "permit_created" });
+    const permit = await db.transaction(async (tx) => {
+      const [p] = await tx.insert(schema.workPermitApplications).values({
+        workerId,
+        permitType,
+        applicationNumber: applicationNumber || null,
+        portal: portal || "mos",
+        documents: checklist,
+        governmentFee: fee.toString(),
+        reportingDeadline: reportingDeadline.toISOString().slice(0, 10),
+        notes: notes || null,
+      }).returning();
+
+      await tx.insert(schema.auditEntries).values({
+        workerId,
+        workerName: null,
+        actor,
+        field: "WORK_PERMIT",
+        oldValue: null,
+        newValue: { permitType, id: p.id },
+        action: "permit_created",
+      });
+
+      return p;
+    });
+
     return res.status(201).json({ permit });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to create permit" });

@@ -17,13 +17,17 @@ function generateInvoiceNumber(): string {
 // GET /api/invoices
 router.get("/invoices", authenticateToken, async (req, res) => {
   try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
     const invoices = await db.select({
       invoice: schema.invoices,
       client: schema.clients,
     }).from(schema.invoices)
       .innerJoin(schema.clients, eq(schema.invoices.clientId, schema.clients.id))
-      .orderBy(desc(schema.invoices.createdAt));
-    return res.json({ invoices: invoices.map(i => ({ ...i.invoice, client: i.client })) });
+      .orderBy(desc(schema.invoices.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return res.json({ invoices: invoices.map(i => ({ ...i.invoice, client: i.client })), limit, offset });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load invoices" });
   }

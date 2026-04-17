@@ -34,11 +34,14 @@ router.post("/gps/checkin", authenticateToken, async (req, res) => {
 // GET /api/gps/checkins/:workerId — worker check-in history
 router.get("/gps/checkins/:workerId", authenticateToken, async (req, res) => {
   try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
     const checkins = await db.select().from(schema.gpsCheckins)
       .where(eq(schema.gpsCheckins.workerId, String(req.params.workerId)))
       .orderBy(desc(schema.gpsCheckins.timestamp))
-      .limit(100);
-    return res.json({ checkins });
+      .limit(limit)
+      .offset(offset);
+    return res.json({ checkins, limit, offset });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load check-ins" });
   }
@@ -47,8 +50,11 @@ router.get("/gps/checkins/:workerId", authenticateToken, async (req, res) => {
 // GET /api/gps/latest — latest check-in for all workers (for map view)
 router.get("/gps/latest", authenticateToken, async (req, res) => {
   try {
-    // Get the most recent check-in per worker using a subquery
-    const allCheckins = await db.select().from(schema.gpsCheckins).orderBy(desc(schema.gpsCheckins.timestamp));
+    // Scan recent check-ins only (bounded) to avoid full-table scan as history grows.
+    const scanCap = Math.min(parseInt(String(req.query.scan ?? "2000"), 10) || 2000, 10000);
+    const allCheckins = await db.select().from(schema.gpsCheckins)
+      .orderBy(desc(schema.gpsCheckins.timestamp))
+      .limit(scanCap);
 
     // Group by worker, take latest
     const latestByWorker = new Map<string, typeof allCheckins[0]>();

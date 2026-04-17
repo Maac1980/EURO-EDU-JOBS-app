@@ -38,6 +38,12 @@ async function start() {
         import("./services/enhanced-daily-scan.js").then(m => m.runEnhancedScan()).catch(console.error);
       });
       console.log("[cron] Daily legal scan scheduled: 7:00 AM");
+
+      // Weekly retention sweep — Sunday 3am by default
+      cron.default.schedule(process.env.RETENTION_CRON ?? "0 3 * * 0", () => {
+        import("./services/retention.js").then(m => m.runRetentionSweep()).catch(console.error);
+      });
+      console.log("[cron] Weekly retention sweep scheduled: Sunday 3:00 AM");
     }).catch(() => console.warn("[cron] node-cron not available"));
   });
 }

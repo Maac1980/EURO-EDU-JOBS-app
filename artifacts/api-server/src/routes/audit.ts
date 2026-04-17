@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, schema } from "../db/index.js";
-import { desc, eq, sql } from "drizzle-orm";
-import { JWT_SECRET, authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
+import { desc } from "drizzle-orm";
+import { authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
 
 const router = Router();
 
@@ -31,22 +31,18 @@ export function appendAuditEntry(entry: Omit<AuditEntry, "timestamp">) {
 
 router.get("/audit", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
     const entries = await db.select().from(schema.auditEntries)
       .orderBy(desc(schema.auditEntries.timestamp))
-      .limit(2000);
-    return res.json({ entries, total: entries.length });
+      .limit(limit)
+      .offset(offset);
+    return res.json({ entries, total: entries.length, limit, offset });
   } catch {
     return res.status(500).json({ error: "Failed to read audit log." });
   }
 });
 
-router.delete("/audit", authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    await db.delete(schema.auditEntries);
-    return res.json({ ok: true });
-  } catch {
-    return res.status(500).json({ error: "Failed to clear audit log." });
-  }
-});
+// Audit entries are immutable — no DELETE endpoint by design (compliance requirement).
 
 export default router;

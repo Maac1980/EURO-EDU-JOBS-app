@@ -336,14 +336,17 @@ Rules:
 router.get("/regulatory/updates", authenticateToken, async (req, res) => {
   try {
     const { category, severity, unreadOnly } = req.query as Record<string, string>;
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
     let updates = await db.select().from(schema.regulatoryUpdates)
       .orderBy(desc(schema.regulatoryUpdates.fetchedAt))
-      .limit(200);
+      .limit(limit)
+      .offset(offset);
     if (category) updates = updates.filter(u => u.category === category);
     if (severity) updates = updates.filter(u => u.severity === severity);
     if (unreadOnly === "true") updates = updates.filter(u => !u.readByAdmin);
 
-    return res.json({ updates, total: updates.length });
+    return res.json({ updates, total: updates.length, limit, offset });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load updates" });
   }

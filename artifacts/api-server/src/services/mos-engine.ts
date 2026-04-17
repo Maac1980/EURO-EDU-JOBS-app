@@ -96,7 +96,7 @@ router.patch("/mos/:id/status", authenticateToken, async (req, res) => {
     const { newStatus, mosReference, submissionTimestamp, correctionDetails } = req.body as any;
     if (!newStatus) return res.status(400).json({ error: "newStatus required" });
 
-    const [doc] = await db.select().from(schema.legalDocuments).where(eq(schema.legalDocuments.id, req.params.id));
+    const [doc] = await db.select().from(schema.legalDocuments).where(eq(schema.legalDocuments.id, String(req.params.id)));
     if (!doc || doc.docType !== "mos_submission") return res.status(404).json({ error: "MOS submission not found" });
 
     const current = JSON.parse(doc.content as string ?? "{}");
@@ -119,7 +119,7 @@ router.patch("/mos/:id/status", authenticateToken, async (req, res) => {
       content: JSON.stringify(current),
       status: newStatus === "ACCEPTED" ? "approved" : newStatus === "SUBMITTED" ? "sent" : "draft",
       updatedAt: new Date(),
-    }).where(eq(schema.legalDocuments.id, req.params.id));
+    }).where(eq(schema.legalDocuments.id, String(req.params.id)));
 
     // If SUBMITTED — record submission timestamp as filing date for Art. 108
     if (newStatus === "SUBMITTED" && doc.workerId) {
@@ -167,7 +167,7 @@ router.patch("/mos/:id/checklist", authenticateToken, async (req, res) => {
     const { itemId, completed } = req.body as { itemId: string; completed: boolean };
     if (!itemId) return res.status(400).json({ error: "itemId required" });
 
-    const [doc] = await db.select().from(schema.legalDocuments).where(eq(schema.legalDocuments.id, req.params.id));
+    const [doc] = await db.select().from(schema.legalDocuments).where(eq(schema.legalDocuments.id, String(req.params.id)));
     if (!doc || doc.docType !== "mos_submission") return res.status(404).json({ error: "MOS submission not found" });
 
     const current = JSON.parse(doc.content as string ?? "{}");
@@ -177,7 +177,7 @@ router.patch("/mos/:id/checklist", authenticateToken, async (req, res) => {
 
     await db.update(schema.legalDocuments).set({
       content: JSON.stringify(current), updatedAt: new Date(),
-    }).where(eq(schema.legalDocuments.id, req.params.id));
+    }).where(eq(schema.legalDocuments.id, String(req.params.id)));
 
     const requiredDone = current.checklist.filter((c: any) => c.required && c.completed).length;
     const requiredTotal = current.checklist.filter((c: any) => c.required).length;
@@ -186,7 +186,7 @@ router.patch("/mos/:id/checklist", authenticateToken, async (req, res) => {
     // Auto-transition to READY_TO_SUBMIT if all required items done
     if (allRequiredDone && current.mosStatus === "DRAFT") {
       current.mosStatus = "READY_TO_SUBMIT";
-      await db.update(schema.legalDocuments).set({ content: JSON.stringify(current) }).where(eq(schema.legalDocuments.id, req.params.id));
+      await db.update(schema.legalDocuments).set({ content: JSON.stringify(current) }).where(eq(schema.legalDocuments.id, String(req.params.id)));
     }
 
     return res.json({

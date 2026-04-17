@@ -59,7 +59,7 @@ router.get("/legal/scan", authenticateToken, async (_req, res) => {
         assigned_site, pipeline_stage
       FROM workers WHERE pipeline_stage IN ('Active','Placed','Screening')
     `);
-    const workers = result.rows as WorkerDoc[];
+    const workers = result.rows as unknown as WorkerDoc[];
     const now = new Date();
 
     const scanResults: any[] = [];
@@ -122,7 +122,7 @@ router.post("/legal/scan-with-ai", authenticateToken, async (req, res) => {
     `);
     if (result.rows.length === 0) return res.status(404).json({ error: "Worker not found" });
 
-    const w = result.rows[0] as WorkerDoc;
+    const w = result.rows[0] as unknown as WorkerDoc;
     const issueTexts: string[] = [];
     const checks = [
       { field: "trc_expiry", label: "TRC" }, { field: "work_permit_expiry", label: "Work Permit" },

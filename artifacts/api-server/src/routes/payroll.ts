@@ -74,10 +74,10 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
     const newRecords: any[] = [];
 
     for (const w of rows) {
-      const totalHours = w.totalHours ?? 0;
-      const hourlyRate = w.hourlyNettoRate ?? 0;
-      const advancesDeducted = w.advancePayment ?? 0;
-      const penaltiesDeducted = w.penalties ?? 0;
+      const totalHours = Number(w.totalHours ?? 0);
+      const hourlyRate = Number(w.hourlyNettoRate ?? 0);
+      const advancesDeducted = Number(w.advancePayment ?? 0);
+      const penaltiesDeducted = Number(w.penalties ?? 0);
       const grossPay = totalHours * hourlyRate;
       const finalNettoPayout = grossPay - advancesDeducted - penaltiesDeducted;
 
@@ -85,14 +85,19 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
         workerId: w.id,
         workerName: w.name,
         monthYear,
-        totalHours, hourlyRate, advancesDeducted, penaltiesDeducted,
-        grossPay, finalNettoPayout, zusBaseSalary: grossPay,
+        totalHours: totalHours.toString(),
+        hourlyRate: hourlyRate.toString(),
+        advancesDeducted: advancesDeducted.toString(),
+        penaltiesDeducted: penaltiesDeducted.toString(),
+        grossPay: grossPay.toString(),
+        finalNettoPayout: finalNettoPayout.toString(),
+        zusBaseSalary: grossPay.toString(),
         siteLocation: w.assignedSite,
       }).returning();
       newRecords.push({ ...record, __email: w.email });
 
       await db.update(schema.workers).set({
-        totalHours: 0, advancePayment: 0, penalties: 0, updatedAt: new Date(),
+        totalHours: "0", advancePayment: "0", penalties: "0", updatedAt: new Date(),
       }).where(eq(schema.workers.id, w.id));
     }
 
@@ -112,13 +117,13 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
 
     appendAuditEntry({
       workerId: "ALL", actor: req.user?.email ?? "admin", field: "PAYROLL",
-      newValue: { monthYear, recordsCreated: newRecords.length, totalPayout: newRecords.reduce((s: number, r: any) => s + r.finalNettoPayout, 0) },
+      newValue: { monthYear, recordsCreated: newRecords.length, totalPayout: newRecords.reduce((s: number, r: any) => s + Number(r.finalNettoPayout), 0) },
       action: "PAYROLL_COMMIT",
     });
 
     return res.json({
       success: true, monthYear, recordsCreated: newRecords.length,
-      totalPayout: newRecords.reduce((s: number, r: any) => s + r.finalNettoPayout, 0),
+      totalPayout: newRecords.reduce((s: number, r: any) => s + Number(r.finalNettoPayout), 0),
     });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Close month failed" });
@@ -151,14 +156,17 @@ router.patch("/payroll/records/:id", authenticateToken, requireCoordinatorOrAdmi
     if (!existing) return res.status(404).json({ error: "Record not found" });
 
     const { totalHours, hourlyRate, advancesDeducted, siteLocation } = req.body as any;
-    const rec = { ...existing };
-    if (totalHours !== undefined) rec.totalHours = totalHours;
-    if (hourlyRate !== undefined) rec.hourlyRate = hourlyRate;
-    if (advancesDeducted !== undefined) rec.advancesDeducted = advancesDeducted;
+    const rec: any = { ...existing };
+    if (totalHours !== undefined) rec.totalHours = String(totalHours);
+    if (hourlyRate !== undefined) rec.hourlyRate = String(hourlyRate);
+    if (advancesDeducted !== undefined) rec.advancesDeducted = String(advancesDeducted);
     if (siteLocation !== undefined) rec.siteLocation = siteLocation;
-    rec.grossPay = rec.totalHours * rec.hourlyRate;
-    rec.zusBaseSalary = rec.grossPay * ZUS_RATE;
-    rec.finalNettoPayout = rec.grossPay - rec.zusBaseSalary - (rec.advancesDeducted ?? 0) - (rec.penaltiesDeducted ?? 0);
+    const grossPayNum = Number(rec.totalHours) * Number(rec.hourlyRate);
+    rec.grossPay = grossPayNum.toString();
+    const zusBaseNum = grossPayNum * ZUS_RATE;
+    rec.zusBaseSalary = zusBaseNum.toString();
+    const finalNettoNum = grossPayNum - zusBaseNum - Number(rec.advancesDeducted ?? 0) - Number(rec.penaltiesDeducted ?? 0);
+    rec.finalNettoPayout = finalNettoNum.toString();
 
     await db.update(schema.payrollRecords).set(rec).where(eq(schema.payrollRecords.id, String(req.params.id)));
     return res.json({ success: true, record: rec });
@@ -252,7 +260,7 @@ router.get("/payroll/bank-export", authenticateToken, requireAdmin, async (req, 
     const header = "Numer konta (IBAN);Nazwa odbiorcy;Kwota (PLN);Tytul przelewu";
     const lines = records.map(r => {
       const iban = (workerMap.get(r.workerId) ?? "").replace(/\s/g, "");
-      const amount = r.finalNettoPayout.toFixed(2).replace(".", ",");
+      const amount = Number(r.finalNettoPayout).toFixed(2).replace(".", ",");
       return `${iban};${r.workerName};${amount};Wynagrodzenie ${r.monthYear} - ${r.workerName}`;
     });
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -270,8 +278,8 @@ router.get("/payroll/trend", authenticateToken, requireCoordinatorOrAdmin, async
     const grouped: Record<string, { totalGross: number; totalNetto: number; count: number }> = {};
     for (const r of all) {
       if (!grouped[r.monthYear]) grouped[r.monthYear] = { totalGross: 0, totalNetto: 0, count: 0 };
-      grouped[r.monthYear].totalGross += r.grossPay;
-      grouped[r.monthYear].totalNetto += r.finalNettoPayout;
+      grouped[r.monthYear].totalGross += Number(r.grossPay);
+      grouped[r.monthYear].totalNetto += Number(r.finalNettoPayout);
       grouped[r.monthYear].count += 1;
     }
     const sorted = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).slice(-months).map(([monthYear, v]) => ({ monthYear, ...v }));

@@ -435,7 +435,8 @@ When showing lists, use clear formatting with names and key details.`;
       const toolUseBlocks = currentResponse.content.filter((b: any) => b.type === "tool_use");
       const toolResultBlocks: any[] = [];
 
-      for (const toolBlock of toolUseBlocks) {
+      for (const toolBlockRaw of toolUseBlocks) {
+        const toolBlock = toolBlockRaw as any;
         try {
           const result = await executeTool(toolBlock.name, toolBlock.input);
           toolResults.push({ tool: toolBlock.name, input: toolBlock.input, result });

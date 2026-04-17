@@ -161,7 +161,7 @@ router.post("/apply", applyLimiter, upload.fields([
           jobId,
           workerId: newWorker.id,
           stage: "New",
-          matchScore: 0,
+          matchScore: "0",
           matchReasons: [],
         });
       } catch (appErr) {

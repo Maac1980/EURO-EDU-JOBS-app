@@ -20,7 +20,7 @@ router.post("/clients", authenticateToken, requireCoordinatorOrAdmin, async (req
     phone: (phone ?? "").trim(),
     address: (address ?? "").trim(),
     nip: (nip ?? "").trim(),
-    billingRate: typeof billingRate === "number" ? billingRate : null,
+    billingRate: typeof billingRate === "number" ? billingRate.toString() : null,
     notes: (notes ?? "").trim(),
   }).returning();
   return res.status(201).json(newClient);

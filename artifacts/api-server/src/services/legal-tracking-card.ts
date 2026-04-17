@@ -20,7 +20,7 @@ router.get("/legal-card/:workerId", authenticateToken, async (req, res) => {
 
     // Get latest snapshot
     const snapRows = await db.select().from(schema.legalSnapshots)
-      .where(eq(schema.legalSnapshots.workerId, req.params.workerId))
+      .where(eq(schema.legalSnapshots.workerId, String(req.params.workerId)))
       .orderBy(desc(schema.legalSnapshots.createdAt)).limit(1);
 
     // Get active case

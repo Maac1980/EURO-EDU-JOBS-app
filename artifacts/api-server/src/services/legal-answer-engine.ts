@@ -307,7 +307,7 @@ ${schengenData ? `\nSCHENGEN 90/180 STATUS:\nDays Used: ${schengenData.daysUsed}
     plain_answer: `Worker ${w.name} current legal status: ${legalOutput.legalStatus}. Risk level: ${legalOutput.riskLevel}. ${legalOutput.warnings[0] ?? "No immediate warnings."}`,
     legal_basis: fallbackArticles,
     applicability: `Applies to ${w.nationality ?? "non-EU"} nationals working in Poland under ${w.visa_type ?? "standard"} authorization.`,
-    required_docs: legalOutput.requiredActions.filter(a => a.toLowerCase().includes("file") || a.toLowerCase().includes("obtain") || a.toLowerCase().includes("submit")),
+    required_docs: legalOutput.requiredActions.filter((a: string) => a.toLowerCase().includes("file") || a.toLowerCase().includes("obtain") || a.toLowerCase().includes("submit")),
     deadlines: legalOutput.expiryDays.permit !== null
       ? `Permit expires in ${legalOutput.expiryDays.permit} days`
       : "No permit deadline on file",

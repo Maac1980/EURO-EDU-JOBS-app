@@ -74,7 +74,7 @@ router.post("/portal/hours", async (req, res) => {
     // Recalculate total hours
     const allLogs = await db.select().from(schema.portalDailyLogs).where(eq(schema.portalDailyLogs.workerId, workerId));
     const totalHours = allLogs.reduce((sum, e) => sum + e.hours, 0);
-    await db.update(schema.workers).set({ totalHours: Math.round(totalHours * 10) / 10, updatedAt: new Date() }).where(eq(schema.workers.id, workerId));
+    await db.update(schema.workers).set({ totalHours: (Math.round(totalHours * 10) / 10).toString(), updatedAt: new Date() }).where(eq(schema.workers.id, workerId));
 
     appendAuditEntry({ workerId, actor: "candidate-portal", field: "TOTAL HOURS (daily)", newValue: `${hoursNum}h on ${date}`, action: "daily-hours" });
     return res.json({ ok: true, totalHours });

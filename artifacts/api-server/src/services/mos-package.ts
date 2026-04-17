@@ -433,7 +433,7 @@ router.get("/mos/package/:workerId/strategy-pdf", authenticateToken, async (req,
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="EEJ_STRATEGY_${name}_${new Date().toISOString().slice(0, 10)}.pdf"`);
-    res.send(pdf);
+    return res.send(pdf);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -450,7 +450,7 @@ router.get("/mos/package/:workerId/playbook", authenticateToken, async (req, res
 
     res.setHeader("Content-Type", "text/markdown; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="EEJ_PLAYBOOK_${name}_${new Date().toISOString().slice(0, 10)}.md"`);
-    res.send(md);
+    return res.send(md);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

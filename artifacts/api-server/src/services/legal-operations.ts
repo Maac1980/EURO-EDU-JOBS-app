@@ -46,7 +46,7 @@ router.post("/legal/snapshot/:workerId", authenticateToken, async (req, res) => 
     const result = evaluateLegalStatus(input);
 
     const [snapshot] = await db.insert(schema.legalSnapshots).values({
-      workerId: req.params.workerId,
+      workerId: String(req.params.workerId),
       legalStatus: result.legalStatus,
       legalBasis: result.legalBasis,
       riskLevel: result.riskLevel,
@@ -64,7 +64,7 @@ router.post("/legal/snapshot/:workerId", authenticateToken, async (req, res) => 
     }).returning();
 
     // Auto-generate suggestions
-    await generateSuggestions(req.params.workerId, result);
+    await generateSuggestions(String(req.params.workerId), result);
 
     return res.json({ snapshot, legalResult: result });
   } catch (err: any) {
@@ -76,7 +76,7 @@ router.post("/legal/snapshot/:workerId", authenticateToken, async (req, res) => 
 router.get("/legal/snapshot/:workerId", authenticateToken, async (req, res) => {
   try {
     const rows = await db.select().from(schema.legalSnapshots)
-      .where(eq(schema.legalSnapshots.workerId, req.params.workerId))
+      .where(eq(schema.legalSnapshots.workerId, String(req.params.workerId)))
       .orderBy(desc(schema.legalSnapshots.createdAt))
       .limit(1);
     if (rows.length === 0) return res.status(404).json({ error: "No snapshot found" });
@@ -185,10 +185,10 @@ router.post("/legal/evidence/:id/ocr", authenticateToken, async (req, res) => {
       extractedFilingDate: ocrResult.fields?.filing_date?.value ?? null,
       extractedReference: ocrResult.fields?.reference_number?.value ?? null,
       extractedAuthority: ocrResult.fields?.authority_name?.value ?? null,
-    }).where(eq(schema.legalEvidence.id, req.params.id));
+    }).where(eq(schema.legalEvidence.id, String(req.params.id)));
 
     // Check mismatches with manual data
-    const [ev] = await db.select().from(schema.legalEvidence).where(eq(schema.legalEvidence.id, req.params.id));
+    const [ev] = await db.select().from(schema.legalEvidence).where(eq(schema.legalEvidence.id, String(req.params.id)));
     let mismatches: any = null;
     if (ev?.manualData && ocrResult.fields) {
       mismatches = {};
@@ -199,7 +199,7 @@ router.post("/legal/evidence/:id/ocr", authenticateToken, async (req, res) => {
         }
       }
       if (Object.keys(mismatches).length > 0) {
-        await db.update(schema.legalEvidence).set({ mismatchFlags: mismatches }).where(eq(schema.legalEvidence.id, req.params.id));
+        await db.update(schema.legalEvidence).set({ mismatchFlags: mismatches }).where(eq(schema.legalEvidence.id, String(req.params.id)));
       }
     }
 
@@ -213,7 +213,7 @@ router.post("/legal/evidence/:id/ocr", authenticateToken, async (req, res) => {
 router.get("/legal/evidence/:workerId", authenticateToken, async (req, res) => {
   try {
     const rows = await db.select().from(schema.legalEvidence)
-      .where(eq(schema.legalEvidence.workerId, req.params.workerId))
+      .where(eq(schema.legalEvidence.workerId, String(req.params.workerId)))
       .orderBy(desc(schema.legalEvidence.uploadedAt));
     return res.json({ evidence: rows });
   } catch (err: any) {
@@ -343,7 +343,7 @@ router.patch("/legal/documents/:id/approve", authenticateToken, async (req, res)
   try {
     await db.update(schema.legalDocuments).set({
       status: "approved", approvedBy: (req as any).user?.email ?? "admin", approvedAt: new Date(), updatedAt: new Date(),
-    }).where(eq(schema.legalDocuments.id, req.params.id));
+    }).where(eq(schema.legalDocuments.id, String(req.params.id)));
 
     await db.execute(sql`
       UPDATE legal_approvals SET status = 'approved', approved_by = ${(req as any).user?.email ?? "admin"}, approved_at = NOW()
@@ -403,10 +403,10 @@ router.patch("/legal/suggestions/:id", authenticateToken, async (req, res) => {
     const { action } = req.body as { action: "dismiss" | "act" };
     if (action === "dismiss") {
       await db.update(schema.legalSuggestions).set({ status: "dismissed", dismissedBy: (req as any).user?.email ?? "admin", dismissedAt: new Date() })
-        .where(eq(schema.legalSuggestions.id, req.params.id));
+        .where(eq(schema.legalSuggestions.id, String(req.params.id)));
     } else {
       await db.update(schema.legalSuggestions).set({ status: "acted", actedOnAt: new Date() })
-        .where(eq(schema.legalSuggestions.id, req.params.id));
+        .where(eq(schema.legalSuggestions.id, String(req.params.id)));
     }
     return res.json({ success: true });
   } catch (err: any) {
@@ -540,7 +540,7 @@ router.patch("/legal/approvals/:id", authenticateToken, async (req, res) => {
     const { status, notes } = req.body as { status: "approved" | "rejected"; notes?: string };
     await db.update(schema.legalApprovals).set({
       status, approvedBy: (req as any).user?.email ?? "admin", approvedAt: new Date(), notes: notes ?? null,
-    }).where(eq(schema.legalApprovals.id, req.params.id));
+    }).where(eq(schema.legalApprovals.id, String(req.params.id)));
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

@@ -161,7 +161,7 @@ router.post("/jobs/:id/apply", async (req, res) => {
       jobId,
       workerId,
       stage: "New",
-      matchScore: Math.min(matchScore, 100),
+      matchScore: Math.min(matchScore, 100).toString(),
       matchReasons: matchReasons,
       notes: notes || null,
     }).returning();

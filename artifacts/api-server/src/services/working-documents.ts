@@ -21,7 +21,7 @@ const DOCUMENT_TYPES = [
 router.get("/worker-docs/:workerId", authenticateToken, async (req, res) => {
   try {
     const rows = await db.select().from(schema.legalEvidence)
-      .where(eq(schema.legalEvidence.workerId, req.params.workerId))
+      .where(eq(schema.legalEvidence.workerId, String(req.params.workerId)))
       .orderBy(desc(schema.legalEvidence.uploadedAt));
 
     const docs = rows.map(r => ({
@@ -82,7 +82,7 @@ router.patch("/worker-docs/:id/link", authenticateToken, async (req, res) => {
 
     await db.update(schema.legalEvidence)
       .set({ caseId })
-      .where(eq(schema.legalEvidence.id, req.params.id));
+      .where(eq(schema.legalEvidence.id, String(req.params.id)));
 
     return res.json({ success: true, linkedTo: caseId });
   } catch (err: any) {
@@ -109,7 +109,7 @@ router.patch("/worker-docs/:id/notes", authenticateToken, async (req, res) => {
 // ── DELETE /api/worker-docs/:id — delete document ───────────────────────
 router.delete("/worker-docs/:id", authenticateToken, async (req, res) => {
   try {
-    await db.delete(schema.legalEvidence).where(eq(schema.legalEvidence.id, req.params.id));
+    await db.delete(schema.legalEvidence).where(eq(schema.legalEvidence.id, String(req.params.id)));
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

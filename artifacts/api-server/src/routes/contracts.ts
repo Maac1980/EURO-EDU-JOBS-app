@@ -68,7 +68,7 @@ router.get("/contracts/generate/:workerId", authenticateToken, requireCoordinato
     doc.moveDown(0.5);
     doc.font("Helvetica").fontSize(10);
     if (worker.hourlyNettoRate) {
-      doc.text(`Stawka godzinowa netto / Hourly rate (net): ${worker.hourlyNettoRate.toFixed(2)} PLN`);
+      doc.text(`Stawka godzinowa netto / Hourly rate (net): ${Number(worker.hourlyNettoRate).toFixed(2)} PLN`);
     }
     doc.text(`Typ umowy / Contract type: ${contractType.replace(/_/g, " ")}`);
     if (worker.iban) doc.text(`Wyplata na konto / Payment to: ${worker.iban}`);

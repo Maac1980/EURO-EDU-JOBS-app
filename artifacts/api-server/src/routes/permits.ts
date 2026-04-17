@@ -101,7 +101,7 @@ router.post("/permits", authenticateToken, requireCoordinatorOrAdmin, async (req
       applicationNumber: applicationNumber || null,
       portal: portal || "mos",
       documents: checklist,
-      governmentFee: fee,
+      governmentFee: fee.toString(),
       reportingDeadline: reportingDeadline.toISOString().slice(0, 10),
       notes: notes || null,
     }).returning();

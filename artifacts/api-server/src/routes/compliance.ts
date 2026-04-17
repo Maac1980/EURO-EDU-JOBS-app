@@ -297,7 +297,7 @@ router.get("/compliance/zus-export", authenticateToken, async (_req, res) => {
     const workers = await getAllWorkers();
     const rows = ["Imi\u0119 i Nazwisko,PESEL,NIP,Typ Umowy,Stawka (z\u0142),Godziny,Brutto (z\u0142),ZUS Status,Lokacja"];
     for (const w of workers) {
-      const brutto = (w.hourlyNettoRate ?? 0) * (w.totalHours ?? 0);
+      const brutto = Number(w.hourlyNettoRate ?? 0) * Number(w.totalHours ?? 0);
       rows.push([w.name, w.pesel ?? "", w.nip ?? "", w.contractType ?? "", w.hourlyNettoRate ?? "", w.totalHours ?? "", brutto.toFixed(2), w.zusStatus ?? "", w.assignedSite ?? ""].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     }
     res.setHeader("Content-Type", "text/csv; charset=utf-8");

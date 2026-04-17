@@ -194,8 +194,8 @@ router.post("/legal-intelligence/research", authenticateToken, async (req, res) 
         ${JSON.stringify(perp.sources)}::jsonb, ${summary}, ${linkedWorkerId ?? null})
       RETURNING *
     `);
-    res.json({ memo: rows.rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ memo: rows.rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 router.get("/legal-intelligence/research", authenticateToken, async (_req, res) => {
@@ -279,8 +279,8 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
         ${lawyerNote}, ${JSON.stringify(providerStatus)}::jsonb)
       RETURNING *
     `);
-    res.json({ output: rows.rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ output: rows.rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // --- POA Generator ---
@@ -311,8 +311,8 @@ router.post("/legal-intelligence/poa", authenticateToken, async (req, res) => {
       VALUES (${workerId}, ${caseId ?? null}, ${poaType ?? "GENERAL"}, ${content}, ${representativeName})
       RETURNING *
     `);
-    res.json({ poa: rows.rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ poa: rows.rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // --- Authority Drafting ---
@@ -340,8 +340,8 @@ router.post("/legal-intelligence/authority-draft", authenticateToken, async (req
       VALUES (${workerId}, ${caseId ?? null}, ${draftType ?? "CLARIFICATION"}, ${contentPl}, ${contentEn})
       RETURNING *
     `);
-    res.json({ draft: rows.rows[0] });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ draft: rows.rows[0] });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // --- Worker Intelligence (Next Action + Risk) ---
@@ -382,7 +382,7 @@ router.get("/legal-intelligence/worker/:workerId", authenticateToken, async (req
     }
     if (!w.passport_expiry) nextActions.push({ action: "Upload passport", priority: "high" });
 
-    res.json({
+    return res.json({
       intelligence: {
         workerId: w.id, workerName: w.name,
         riskLevel, deadlines, alerts, nextActions: nextActions.slice(0, 8),
@@ -393,7 +393,7 @@ router.get("/legal-intelligence/worker/:workerId", authenticateToken, async (req
         },
       },
     });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // --- Fleet Signals (cached 60s) ---
@@ -427,8 +427,8 @@ router.get("/legal-intelligence/fleet-signals", authenticateToken, async (_req, 
       },
     };
     fleetCache = { data: response, ts: Date.now() };
-    res.json(response);
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json(response);
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // --- Legal References ---
@@ -453,8 +453,8 @@ router.post("/legal-intelligence/copilot", authenticateToken, async (req, res) =
       "You are a Polish immigration case assistant. Use ONLY provided data. Never fabricate. DRAFT output."
     );
 
-    res.json({ answer, source: answer.startsWith("[AI") ? "fallback" : "ai", requiresReview: true });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ answer, source: answer.startsWith("[AI") ? "fallback" : "ai", requiresReview: true });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 // --- Approve (parameterized — no sql.raw) ---
@@ -483,8 +483,8 @@ router.post("/legal-intelligence/approve", authenticateToken, async (req, res) =
       default:
         return res.status(400).json({ error: `Unknown entityType: ${entityType}` });
     }
-    res.json({ success: true, status: "approved" });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+    return res.json({ success: true, status: "approved" });
+  } catch (err: any) { return res.status(500).json({ error: err.message }); }
 });
 
 export default router;

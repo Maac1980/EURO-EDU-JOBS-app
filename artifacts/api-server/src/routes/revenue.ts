@@ -37,7 +37,7 @@ router.get("/revenue/forecast", authenticateToken, async (_req, res) => {
       SELECT id, name, hourly_netto_rate, assigned_site, contract_end_date, pipeline_stage
       FROM workers WHERE pipeline_stage IN ('Active', 'Placed')
     `);
-    const activeWorkers = workers.rows as WorkerRow[];
+    const activeWorkers = workers.rows as unknown as WorkerRow[];
 
     const now = new Date();
     const months: { month: number; year: number; label: string; projected: number; workers: number; atRisk: number }[] = [];
@@ -150,7 +150,7 @@ router.get("/revenue/summary", authenticateToken, async (_req, res) => {
       SELECT id, name, hourly_netto_rate, assigned_site, contract_end_date, pipeline_stage
       FROM workers WHERE pipeline_stage IN ('Active', 'Placed') AND hourly_netto_rate > 0
     `);
-    const active = workers.rows as WorkerRow[];
+    const active = workers.rows as unknown as WorkerRow[];
 
     const now = new Date();
     const currentMonth = active.reduce((s, w) => s + (w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);

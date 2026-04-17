@@ -298,7 +298,7 @@ router.post("/consistency/refresh/:workerId", authenticateToken, async (req, res
     const result = evaluateLegalStatus(input);
 
     const [snapshot] = await db.insert(schema.legalSnapshots).values({
-      workerId: req.params.workerId,
+      workerId: String(req.params.workerId),
       legalStatus: result.legalStatus,
       legalBasis: result.legalBasis,
       riskLevel: result.riskLevel,

@@ -44,10 +44,10 @@ router.post("/invoices", authenticateToken, requireCoordinatorOrAdmin, async (re
       clientId: body.clientId,
       monthYear: body.monthYear,
       items: body.items,
-      subtotal,
-      vatRate,
-      vatAmount,
-      total,
+      subtotal: subtotal.toString(),
+      vatRate: vatRate.toString(),
+      vatAmount: vatAmount.toString(),
+      total: total.toString(),
       dueDate: body.dueDate,
       notes: body.notes,
     }).returning();
@@ -121,7 +121,7 @@ router.get("/invoices/:id/pdf", authenticateToken, async (req, res) => {
     doc.moveDown();
 
     doc.font("Helvetica").fontSize(9);
-    const vatRateVal = invoice.vatRate ?? 0.23;
+    const vatRateVal = Number(invoice.vatRate ?? 0.23);
     for (const item of items) {
       x = 40;
       const y = doc.y;
@@ -135,9 +135,9 @@ router.get("/invoices/:id/pdf", authenticateToken, async (req, res) => {
 
     doc.moveDown();
     doc.font("Helvetica-Bold").fontSize(11);
-    doc.text(`Netto: ${invoice.subtotal.toFixed(2)} zl`, { align: "right" });
-    doc.text(`VAT (${(vatRateVal * 100).toFixed(0)}%): ${invoice.vatAmount.toFixed(2)} zl`, { align: "right" });
-    doc.fontSize(14).text(`RAZEM BRUTTO: ${invoice.total.toFixed(2)} zl`, { align: "right" });
+    doc.text(`Netto: ${Number(invoice.subtotal).toFixed(2)} zl`, { align: "right" });
+    doc.text(`VAT (${(vatRateVal * 100).toFixed(0)}%): ${Number(invoice.vatAmount).toFixed(2)} zl`, { align: "right" });
+    doc.fontSize(14).text(`RAZEM BRUTTO: ${Number(invoice.total).toFixed(2)} zl`, { align: "right" });
 
     if (invoice.notes) {
       doc.moveDown();

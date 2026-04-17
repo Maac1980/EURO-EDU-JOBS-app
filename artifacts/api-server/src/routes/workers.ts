@@ -6,6 +6,26 @@ import { eq, sql, ilike, and } from "drizzle-orm";
 import { appendAuditEntry } from "./audit.js";
 import { toWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
+import { encryptIfPresent, decrypt, maskSensitive } from "../lib/encryption.js";
+
+const PRIVILEGED_ROLES = new Set(["admin", "coordinator", "T1", "T2", "executive", "legal"]);
+function canSeeFullPII(role: string | undefined): boolean {
+  return !!role && PRIVILEGED_ROLES.has(role);
+}
+
+function projectWorkerPII<T extends { pesel?: string | null; iban?: string | null }>(row: T, role: string | undefined): T {
+  const full = canSeeFullPII(role);
+  const out = { ...row } as T;
+  if (full) {
+    if (row.pesel) out.pesel = decrypt(row.pesel) ?? row.pesel;
+    if (row.iban) out.iban = decrypt(row.iban) ?? row.iban;
+  } else {
+    out.pesel = row.pesel ? maskSensitive(row.pesel) : row.pesel;
+    out.iban = row.iban ? maskSensitive(row.iban) : row.iban;
+  }
+  return out;
+}
 
 interface ScannedPassport {
   type: "passport";
@@ -329,7 +349,8 @@ router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name) return res.status(400).json({ error: "Worker name is required." });
 
-    const fields: any = { name };
+    const tenantId = requireTenant(req);
+    const fields: any = { name, tenantId };
     if (body.specialization) fields.jobRole = body.specialization;
     if (body.email) fields.email = body.email;
     if (body.phone) fields.phone = body.phone;
@@ -338,17 +359,17 @@ router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req
     if (body.trcExpiry) fields.trcExpiry = body.trcExpiry;
     if (body.workPermitExpiry) fields.workPermitExpiry = body.workPermitExpiry;
     if (body.contractEndDate) fields.contractEndDate = body.contractEndDate;
-    if (body.iban) fields.iban = String(body.iban).toUpperCase();
+    if (body.iban) fields.iban = encryptIfPresent(String(body.iban).toUpperCase());
     if (body.nationality) fields.nationality = body.nationality;
     if (body.visaType) fields.visaType = body.visaType;
-    if (body.pesel) fields.pesel = body.pesel;
+    if (body.pesel) fields.pesel = encryptIfPresent(String(body.pesel));
     if (body.bhpExpiry) fields.bhpStatus = body.bhpExpiry;
     if (body.medicalExpiry) fields.badaniaLekExpiry = body.medicalExpiry;
     if (body.pipelineStage) fields.pipelineStage = body.pipelineStage;
 
     const [newRecord] = await db.insert(schema.workers).values(fields).returning();
-    const worker = toWorker(newRecord);
-    appendAuditEntry({ workerId: newRecord.id, actor: req.user?.email ?? "admin", field: "ALL", newValue: fields, action: "create" });
+    const worker = projectWorkerPII(toWorker(newRecord), req.user?.role);
+    appendAuditEntry({ workerId: newRecord.id, actor: req.user?.email ?? "admin", field: "ALL", newValue: { ...fields, pesel: fields.pesel ? "[encrypted]" : undefined, iban: fields.iban ? "[encrypted]" : undefined }, action: "create" });
     return res.status(201).json({ worker });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to create worker." });
@@ -359,7 +380,10 @@ router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req
 router.get("/workers", authenticateToken, async (req, res) => {
   try {
     const { search, specialization, status } = req.query as Record<string, string>;
-    const rows = await db.select().from(schema.workers).orderBy(schema.workers.name);
+    const tenantId = requireTenant(req);
+    const rows = await db.select().from(schema.workers)
+      .where(eq(schema.workers.tenantId, tenantId))
+      .orderBy(schema.workers.name);
     let allWorkers = rows.filter(w => w.name && w.name.trim() !== "").map(r => toWorker(r));
 
     let filtered = filterWorkers(allWorkers, search, specialization, status);
@@ -375,7 +399,7 @@ router.get("/workers", authenticateToken, async (req, res) => {
     const offset = Math.max(parseInt((req.query as any).offset ?? "0", 10) || 0, 0);
     const rawLimit = parseInt((req.query as any).limit ?? "100", 10);
     const limit = Math.min(isNaN(rawLimit) || rawLimit <= 0 ? 100 : rawLimit, 500);
-    const paginated = filtered.slice(offset, offset + limit);
+    const paginated = filtered.slice(offset, offset + limit).map(w => projectWorkerPII(w, req.user?.role));
 
     res.json({ workers: paginated, total, offset, limit });
   } catch (err) {
@@ -468,9 +492,12 @@ router.get("/workers/report", authenticateToken, async (_req, res) => {
 // GET /workers/:id
 router.get("/workers/:id", authenticateToken, async (req, res) => {
   try {
-    const [row] = await db.select().from(schema.workers).where(eq(schema.workers.id, String(req.params.id)));
+    const tenantId = requireTenant(req);
+    const [row] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, String(req.params.id)), eq(schema.workers.tenantId, tenantId))
+    );
     if (!row) return res.status(404).json({ error: "Worker not found" });
-    return res.json(toWorker(row));
+    return res.json(projectWorkerPII(toWorker(row), req.user?.role));
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
@@ -496,7 +523,14 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
     };
 
     for (const [key, dbCol] of Object.entries(fieldMap)) {
-      if (body[key] !== undefined) updates[dbCol] = body[key] || null;
+      if (body[key] !== undefined) {
+        const val = body[key];
+        if ((dbCol === "pesel" || dbCol === "iban") && val) {
+          updates[dbCol] = encryptIfPresent(String(val));
+        } else {
+          updates[dbCol] = val || null;
+        }
+      }
     }
 
     // Numeric fields
@@ -507,17 +541,23 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
       }
     }
 
-    const [updated] = await db.update(schema.workers).set(updates).where(eq(schema.workers.id, String(req.params.id))).returning();
+    const tenantId = requireTenant(req);
+    const [updated] = await db.update(schema.workers).set(updates).where(
+      and(eq(schema.workers.id, String(req.params.id)), eq(schema.workers.tenantId, tenantId))
+    ).returning();
     if (!updated) return res.status(404).json({ error: "Worker not found" });
 
+    const auditValue = { ...updates } as Record<string, unknown>;
+    if (auditValue.pesel) auditValue.pesel = "[encrypted]";
+    if (auditValue.iban) auditValue.iban = "[encrypted]";
     appendAuditEntry({
       workerId: String(req.params.id),
       actor: req.user?.email ?? "admin",
       field: Object.keys(updates).filter(k => k !== "updatedAt").join(", "),
-      newValue: updates,
+      newValue: auditValue,
       action: "update",
     });
-    return res.json(toWorker(updated));
+    return res.json(projectWorkerPII(toWorker(updated), req.user?.role));
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
@@ -526,7 +566,10 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
 // DELETE /workers/:id
 router.delete("/workers/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const [deleted] = await db.delete(schema.workers).where(eq(schema.workers.id, String(req.params.id))).returning();
+    const tenantId = requireTenant(req);
+    const [deleted] = await db.delete(schema.workers).where(
+      and(eq(schema.workers.id, String(req.params.id)), eq(schema.workers.tenantId, tenantId))
+    ).returning();
     if (!deleted) return res.status(404).json({ error: "Worker not found" });
     appendAuditEntry({ workerId: String(req.params.id), actor: req.user?.email ?? "admin", field: "ALL", action: "delete" });
     return res.json({ success: true });

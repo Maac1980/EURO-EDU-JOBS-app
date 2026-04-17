@@ -1,8 +1,9 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { db, schema } from "../db/index.js";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 
 const router = Router();
 
@@ -19,11 +20,13 @@ router.get("/invoices", authenticateToken, async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+    const tenantId = requireTenant(req);
     const invoices = await db.select({
       invoice: schema.invoices,
       client: schema.clients,
     }).from(schema.invoices)
       .innerJoin(schema.clients, eq(schema.invoices.clientId, schema.clients.id))
+      .where(eq(schema.invoices.tenantId, tenantId))
       .orderBy(desc(schema.invoices.createdAt))
       .limit(limit)
       .offset(offset);
@@ -43,6 +46,7 @@ router.post("/invoices", authenticateToken, requireCoordinatorOrAdmin, async (re
     const vatAmount = subtotal * vatRate;
     const total = subtotal + vatAmount;
 
+    const tenantId = requireTenant(req);
     const [invoice] = await db.insert(schema.invoices).values({
       invoiceNumber: generateInvoiceNumber(),
       clientId: body.clientId,
@@ -54,6 +58,7 @@ router.post("/invoices", authenticateToken, requireCoordinatorOrAdmin, async (re
       total: total.toString(),
       dueDate: body.dueDate,
       notes: body.notes,
+      tenantId,
     }).returning();
 
     return res.status(201).json({ invoice });
@@ -69,8 +74,9 @@ router.patch("/invoices/:id/status", authenticateToken, async (req, res) => {
     const updates: Record<string, unknown> = { status, updatedAt: new Date() };
     if (status === "paid") updates.paidAt = new Date();
 
+    const tenantId = requireTenant(req);
     const [updated] = await db.update(schema.invoices).set(updates)
-      .where(eq(schema.invoices.id, String(req.params.id))).returning();
+      .where(and(eq(schema.invoices.id, String(req.params.id)), eq(schema.invoices.tenantId, tenantId))).returning();
     if (!updated) return res.status(404).json({ error: "Invoice not found" });
     return res.json({ invoice: updated });
   } catch (err) {
@@ -81,7 +87,10 @@ router.patch("/invoices/:id/status", authenticateToken, async (req, res) => {
 // GET /api/invoices/:id/pdf — generate Polish invoice PDF (Faktura VAT)
 router.get("/invoices/:id/pdf", authenticateToken, async (req, res) => {
   try {
-    const [invoice] = await db.select().from(schema.invoices).where(eq(schema.invoices.id, String(req.params.id)));
+    const tenantId = requireTenant(req);
+    const [invoice] = await db.select().from(schema.invoices).where(
+      and(eq(schema.invoices.id, String(req.params.id)), eq(schema.invoices.tenantId, tenantId))
+    );
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
 
     const [client] = await db.select().from(schema.clients).where(eq(schema.clients.id, invoice.clientId));
@@ -159,7 +168,10 @@ router.get("/invoices/:id/pdf", authenticateToken, async (req, res) => {
 // DELETE /api/invoices/:id
 router.delete("/invoices/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    await db.delete(schema.invoices).where(eq(schema.invoices.id, String(req.params.id)));
+    const tenantId = requireTenant(req);
+    await db.delete(schema.invoices).where(
+      and(eq(schema.invoices.id, String(req.params.id)), eq(schema.invoices.tenantId, tenantId))
+    );
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to delete invoice" });

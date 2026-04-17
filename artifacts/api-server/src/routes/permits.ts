@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db, schema } from "../db/index.js";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 
 const router = Router();
 
@@ -66,11 +67,13 @@ router.get("/permits", authenticateToken, async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+    const tenantId = requireTenant(req);
     const permits = await db.select({
       permit: schema.workPermitApplications,
       worker: schema.workers,
     }).from(schema.workPermitApplications)
       .innerJoin(schema.workers, eq(schema.workPermitApplications.workerId, schema.workers.id))
+      .where(eq(schema.workPermitApplications.tenantId, tenantId))
       .orderBy(desc(schema.workPermitApplications.createdAt))
       .limit(limit)
       .offset(offset);
@@ -101,6 +104,7 @@ router.post("/permits", authenticateToken, requireCoordinatorOrAdmin, async (req
     reportingDeadline.setDate(reportingDeadline.getDate() + 7);
 
     const actor = req.user?.email ?? "admin";
+    const tenantId = requireTenant(req);
 
     const permit = await db.transaction(async (tx) => {
       const [p] = await tx.insert(schema.workPermitApplications).values({
@@ -112,6 +116,7 @@ router.post("/permits", authenticateToken, requireCoordinatorOrAdmin, async (req
         governmentFee: fee.toString(),
         reportingDeadline: reportingDeadline.toISOString().slice(0, 10),
         notes: notes || null,
+        tenantId,
       }).returning();
 
       await tx.insert(schema.auditEntries).values({
@@ -147,8 +152,9 @@ router.patch("/permits/:id", authenticateToken, async (req, res) => {
     if (body.notes !== undefined) updates.notes = body.notes;
     if (body.reportingDeadline) updates.reportingDeadline = body.reportingDeadline;
 
+    const tenantId = requireTenant(req);
     const [updated] = await db.update(schema.workPermitApplications).set(updates)
-      .where(eq(schema.workPermitApplications.id, String(req.params.id))).returning();
+      .where(and(eq(schema.workPermitApplications.id, String(req.params.id)), eq(schema.workPermitApplications.tenantId, tenantId))).returning();
     if (!updated) return res.status(404).json({ error: "Permit not found" });
     return res.json({ permit: updated });
   } catch (err) {
@@ -157,16 +163,18 @@ router.patch("/permits/:id", authenticateToken, async (req, res) => {
 });
 
 // GET /api/permits/deadlines — upcoming deadlines (7-day reporting, renewals)
-router.get("/permits/deadlines", authenticateToken, async (_req, res) => {
+router.get("/permits/deadlines", authenticateToken, async (req, res) => {
   try {
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
+    const tenantId = requireTenant(req);
     const permits = await db.select({
       permit: schema.workPermitApplications,
       worker: schema.workers,
     }).from(schema.workPermitApplications)
-      .innerJoin(schema.workers, eq(schema.workPermitApplications.workerId, schema.workers.id));
+      .innerJoin(schema.workers, eq(schema.workPermitApplications.workerId, schema.workers.id))
+      .where(eq(schema.workPermitApplications.tenantId, tenantId));
 
     const deadlines = permits
       .filter(p => {
@@ -209,7 +217,10 @@ router.get("/permits/checklist/:permitType", (req, res) => {
 
 // DELETE /api/permits/:id
 router.delete("/permits/:id", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
-  await db.delete(schema.workPermitApplications).where(eq(schema.workPermitApplications.id, String(req.params.id)));
+  const tenantId = requireTenant(req);
+  await db.delete(schema.workPermitApplications).where(
+    and(eq(schema.workPermitApplications.id, String(req.params.id)), eq(schema.workPermitApplications.tenantId, tenantId))
+  );
   return res.json({ success: true });
 });
 

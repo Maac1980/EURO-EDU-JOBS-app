@@ -102,6 +102,7 @@ router.post("/auth/login", loginLimiter, async (req, res) => {
     name: found.name,
     role: found.role as AuthUser["role"],
     site: found.site ?? null,
+    tenantId: (found as { tenantId?: string | null }).tenantId ?? "production",
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });

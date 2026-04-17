@@ -7,6 +7,7 @@ import { toWorker } from "../lib/compliance.js";
 import { appendAuditEntry } from "./audit.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
 import { sendPayslipEmail } from "../lib/alerter.js";
+import { requireTenant } from "../lib/tenancy.js";
 
 const router = Router();
 const ZUS_RATE = 0.1126;
@@ -15,7 +16,10 @@ router.get("/payroll/workers", authenticateToken, requireCoordinatorOrAdmin, asy
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
-    const rows = await db.select().from(schema.workers).limit(limit).offset(offset);
+    const tenantId = requireTenant(req);
+    const rows = await db.select().from(schema.workers)
+      .where(eq(schema.workers.tenantId, tenantId))
+      .limit(limit).offset(offset);
     const workers = rows.map(w => ({
       id: w.id, name: w.name, specialization: w.jobRole, siteLocation: w.assignedSite,
       hourlyNettoRate: w.hourlyNettoRate ?? 0, totalHours: w.totalHours ?? 0,
@@ -32,8 +36,14 @@ router.patch("/payroll/workers/:id/iban", authenticateToken, requireCoordinatorO
   try {
     const { iban } = req.body as { iban?: string };
     if (iban === undefined) return res.status(400).json({ error: "iban field required" });
-    await db.update(schema.workers).set({ iban: iban.trim(), updatedAt: new Date() }).where(eq(schema.workers.id, String(req.params.id)));
-    return res.json({ success: true, iban: iban.trim() });
+    const { encryptIfPresent } = await import("../lib/encryption.js");
+    const tenantId = requireTenant(req);
+    const trimmed = iban.trim();
+    const stored = trimmed ? (encryptIfPresent(trimmed) ?? trimmed) : trimmed;
+    await db.update(schema.workers).set({ iban: stored, updatedAt: new Date() }).where(
+      and(eq(schema.workers.id, String(req.params.id)), eq(schema.workers.tenantId, tenantId))
+    );
+    return res.json({ success: true, iban: trimmed });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "IBAN update failed" });
   }
@@ -69,11 +79,14 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
     const { monthYear } = req.body as { monthYear?: string };
     if (!monthYear) return res.status(400).json({ error: "monthYear is required" });
 
-    const existing = await db.select().from(schema.payrollRecords).where(eq(schema.payrollRecords.monthYear, monthYear)).limit(1);
+    const tenantId = requireTenant(req);
+    const existing = await db.select().from(schema.payrollRecords).where(
+      and(eq(schema.payrollRecords.monthYear, monthYear), eq(schema.payrollRecords.tenantId, tenantId))
+    ).limit(1);
     if (existing.length > 0) return res.status(409).json({ error: `Month ${monthYear} already closed.` });
 
     const newRecords: any[] = await db.transaction(async (tx) => {
-      const rows = await tx.select().from(schema.workers);
+      const rows = await tx.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
       if (rows.length === 0) return [];
 
       const valuesToInsert = rows.map(w => {
@@ -95,6 +108,7 @@ router.post("/payroll/close-month", authenticateToken, requireAdmin, async (req,
           finalNettoPayout: finalNettoPayout.toString(),
           zusBaseSalary: grossPay.toString(),
           siteLocation: w.assignedSite,
+          tenantId,
         };
       });
 
@@ -142,8 +156,12 @@ router.get("/payroll/history/:workerId", authenticateToken, async (req, res) => 
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+    const tenantId = requireTenant(req);
     const history = await db.select().from(schema.payrollRecords)
-      .where(eq(schema.payrollRecords.workerId, String(req.params.workerId)))
+      .where(and(
+        eq(schema.payrollRecords.workerId, String(req.params.workerId)),
+        eq(schema.payrollRecords.tenantId, tenantId),
+      ))
       .orderBy(desc(schema.payrollRecords.monthYear))
       .limit(limit)
       .offset(offset);
@@ -157,7 +175,9 @@ router.get("/payroll/summary", authenticateToken, requireCoordinatorOrAdmin, asy
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+    const tenantId = requireTenant(req);
     const records = await db.select().from(schema.payrollRecords)
+      .where(eq(schema.payrollRecords.tenantId, tenantId))
       .orderBy(desc(schema.payrollRecords.createdAt))
       .limit(limit)
       .offset(offset);
@@ -267,11 +287,15 @@ router.get("/payroll/bank-export", authenticateToken, requireAdmin, async (req, 
   try {
     const { monthYear } = req.query as { monthYear?: string };
     if (!monthYear) return res.status(400).json({ error: "monthYear query param required" });
-    const records = await db.select().from(schema.payrollRecords).where(eq(schema.payrollRecords.monthYear, monthYear));
+    const tenantId = requireTenant(req);
+    const records = await db.select().from(schema.payrollRecords).where(
+      and(eq(schema.payrollRecords.monthYear, monthYear), eq(schema.payrollRecords.tenantId, tenantId))
+    );
     if (records.length === 0) return res.status(404).json({ error: `No payroll records for ${monthYear}` });
 
-    const workerRows = await db.select().from(schema.workers);
-    const workerMap = new Map(workerRows.map(w => [w.id, w.iban ?? ""]));
+    const { decrypt } = await import("../lib/encryption.js");
+    const workerRows = await db.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
+    const workerMap = new Map(workerRows.map(w => [w.id, decrypt(w.iban ?? null) ?? ""]));
 
     const BOM = "\uFEFF";
     const header = "Numer konta (IBAN);Nazwa odbiorcy;Kwota (PLN);Tytul przelewu";
@@ -291,7 +315,8 @@ router.get("/payroll/bank-export", authenticateToken, requireAdmin, async (req, 
 router.get("/payroll/trend", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const months = Math.min(parseInt(String(req.query.months ?? "6"), 10), 24);
-    const all = await db.select().from(schema.payrollRecords);
+    const tenantId = requireTenant(req);
+    const all = await db.select().from(schema.payrollRecords).where(eq(schema.payrollRecords.tenantId, tenantId));
     const grouped: Record<string, { totalGross: number; totalNetto: number; count: number }> = {};
     for (const r of all) {
       if (!grouped[r.monthYear]) grouped[r.monthYear] = { totalGross: 0, totalNetto: 0, count: 0 };

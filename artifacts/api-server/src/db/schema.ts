@@ -75,6 +75,9 @@ export const workers = pgTable("workers", {
   gdprDataExportedAt: timestamp("gdpr_data_exported_at"),
   gdprErasureRequestedAt: timestamp("gdpr_erasure_requested_at"),
   gdprErasedAt: timestamp("gdpr_erased_at"),
+
+  // Multi-tenant isolation
+  tenantId: text("tenant_id").notNull().default("production"),
 });
 
 // ── Dashboard Users (replaces users.json) ─────────────────────────────────────
@@ -87,6 +90,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   twoFactorSecret: text("two_factor_secret"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  tenantId: text("tenant_id").notNull().default("production"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -114,6 +118,7 @@ export const clients = pgTable("clients", {
   nip: text("nip"),
   billingRate: numeric("billing_rate", { precision: 10, scale: 2 }),
   notes: text("notes"),
+  tenantId: text("tenant_id").notNull().default("production"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -145,6 +150,7 @@ export const payrollRecords = pgTable("payroll_records", {
   finalNettoPayout: numeric("final_netto_payout", { precision: 10, scale: 2 }).notNull().default("0"),
   zusBaseSalary: numeric("zus_base_salary", { precision: 10, scale: 2 }).default("0"),
   siteLocation: text("site_location"),
+  tenantId: text("tenant_id").notNull().default("production"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -271,6 +277,7 @@ export const invoices = pgTable("invoices", {
   dueDate: date("due_date"),
   paidAt: timestamp("paid_at"),
   notes: text("notes"),
+  tenantId: text("tenant_id").notNull().default("production"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -290,6 +297,7 @@ export const workPermitApplications = pgTable("work_permit_applications", {
   decisionDate: date("decision_date"),
   expiryDate: date("expiry_date"),
   notes: text("notes"),
+  tenantId: text("tenant_id").notNull().default("production"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

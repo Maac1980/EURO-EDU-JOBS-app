@@ -60,7 +60,7 @@ router.post("/eej/auth/login", loginLimiter, async (req, res) => {
     if (!(await verifyPassword(password, user.passwordHash))) return res.status(401).json({ error: "Invalid email or password." });
 
     const { appRole, tier, shortName } = roleToMobile(user.role);
-    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name, role: appRole, tier, designation: user.designation, shortName }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    const token = jwt.sign({ sub: user.id, id: user.id, email: user.email, name: user.name, role: appRole, tier, designation: user.designation, shortName, tenantId: "production", site: null }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
     return res.json({ token, user: { name: user.name, email: user.email, role: appRole, tier, designation: user.designation, shortName } });
   } catch (err) {
     return res.status(500).json({ error: "Authentication service unavailable." });
@@ -77,7 +77,7 @@ router.post("/eej/auth/refresh", async (req, res) => {
     if (!user) return res.status(401).json({ error: "User not found" });
 
     const { appRole, tier, shortName } = roleToMobile(user.role);
-    const token = jwt.sign({ sub: user.id, email: user.email, name: user.name, role: appRole, tier, designation: user.designation, shortName }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    const token = jwt.sign({ sub: user.id, id: user.id, email: user.email, name: user.name, role: appRole, tier, designation: user.designation, shortName, tenantId: "production", site: null }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
     return res.json({ token });
   } catch {
     return res.status(500).json({ error: "Refresh failed" });

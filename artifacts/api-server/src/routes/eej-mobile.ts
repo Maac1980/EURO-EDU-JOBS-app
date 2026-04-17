@@ -4,6 +4,12 @@ import { eq } from "drizzle-orm";
 import { toWorker, type Worker } from "../lib/compliance.js";
 import { authenticateToken } from "../lib/authMiddleware.js";
 import { validatePesel, validateNip, validateIban, validateEmail, safeError } from "../lib/security.js";
+import { encryptIfPresent, decrypt, maskSensitive } from "../lib/encryption.js";
+
+const PRIVILEGED_MOBILE_ROLES = new Set(["admin", "executive", "legal", "T1", "T2"]);
+function canSeeFullMobilePII(role: string | undefined): boolean {
+  return !!role && PRIVILEGED_MOBILE_ROLES.has(role);
+}
 
 const router = Router();
 
@@ -27,7 +33,10 @@ function nationalityToFlag(nationality: string | null): string {
   return "";
 }
 
-function workerToCandidate(worker: Worker) {
+function workerToCandidate(worker: Worker, viewerRole?: string) {
+  const full = canSeeFullMobilePII(viewerRole);
+  const peselView = worker.pesel ? (full ? decrypt(worker.pesel) : maskSensitive(worker.pesel)) : undefined;
+  const ibanView = worker.iban ? (full ? decrypt(worker.iban) : maskSensitive(worker.iban)) : undefined;
   const statusMap = {
     critical: { status: "expiring" as const, label: "Expiring Soon" },
     warning: { status: "expiring" as const, label: "Review Needed" },
@@ -66,8 +75,8 @@ function workerToCandidate(worker: Worker) {
     documents, siteLocation: worker.assignedSite ?? undefined,
     contractType: worker.contractType ?? undefined, contractEndDate: worker.contractEndDate ?? undefined,
     pipelineStage: worker.pipelineStage ?? undefined, yearsOfExperience: worker.experience ?? undefined,
-    visaType: worker.visaType ?? undefined, pesel: worker.pesel ?? undefined, nip: worker.nip ?? undefined,
-    iban: worker.iban ?? undefined, rodoConsentDate: worker.rodoConsentDate ?? undefined,
+    visaType: worker.visaType ?? undefined, pesel: peselView ?? undefined, nip: worker.nip ?? undefined,
+    iban: ibanView ?? undefined, rodoConsentDate: worker.rodoConsentDate ?? undefined,
     trcExpiry: worker.trcExpiry ?? undefined, workPermitExpiry: worker.workPermitExpiry ?? undefined,
     bhpExpiry: bhpDate ?? undefined, badaniaLekExpiry: worker.badaniaLekExpiry ?? undefined,
     oswiadczenieExpiry: worker.oswiadczenieExpiry ?? undefined, udtCertExpiry: worker.udtCertExpiry ?? undefined,
@@ -76,11 +85,13 @@ function workerToCandidate(worker: Worker) {
   };
 }
 
-router.get("/eej/candidates", authenticateToken, async (_req, res) => {
+router.get("/eej/candidates", authenticateToken, async (req, res) => {
   try {
+    // TODO(tenancy): scope by tenantId once EEJ mobile JWT carries it consistently
     const rows = await db.select().from(schema.workers);
     const workers = rows.filter(w => w.name && w.name.trim() !== "").map(r => toWorker(r));
-    return res.json({ candidates: workers.map(workerToCandidate), total: workers.length });
+    const role = req.user?.role;
+    return res.json({ candidates: workers.map(w => workerToCandidate(w, role)), total: workers.length });
   } catch (err) {
     return safeError(res, err);
   }
@@ -108,7 +119,7 @@ router.post("/eej/candidates", authenticateToken, async (req, res) => {
     if (body.trcExpiry) fields.trcExpiry = body.trcExpiry;
     if (body.workPermitExpiry) fields.workPermitExpiry = body.workPermitExpiry;
     if (body.contractEndDate) fields.contractEndDate = body.contractEndDate;
-    if (body.pesel) fields.pesel = body.pesel;
+    if (body.pesel) fields.pesel = encryptIfPresent(String(body.pesel));
     if (body.nip) fields.nip = body.nip;
     if (body.visaType) fields.visaType = body.visaType;
     if (body.zusStatus) fields.zusStatus = body.zusStatus;
@@ -117,9 +128,10 @@ router.post("/eej/candidates", authenticateToken, async (req, res) => {
     if (body.udtCertExpiry) fields.udtCertExpiry = body.udtCertExpiry;
     if (body.rodoConsentDate) fields.rodoConsentDate = body.rodoConsentDate;
     if (body.hourlyNettoRate != null) fields.hourlyNettoRate = Number(body.hourlyNettoRate);
+    if (body.iban) fields.iban = encryptIfPresent(String(body.iban).toUpperCase());
 
     const [record] = await db.insert(schema.workers).values(fields).returning();
-    return res.status(201).json({ candidate: workerToCandidate(toWorker(record)) });
+    return res.status(201).json({ candidate: workerToCandidate(toWorker(record), req.user?.role) });
   } catch (err) {
     return safeError(res, err);
   }
@@ -140,14 +152,15 @@ router.patch("/eej/candidates/:id", authenticateToken, async (req, res) => {
     if (body.udtCertExpiry) fields.udtCertExpiry = body.udtCertExpiry;
     if (body.visaType) fields.visaType = body.visaType;
     if (body.zusStatus) fields.zusStatus = body.zusStatus;
-    if (body.pesel) fields.pesel = body.pesel;
+    if (body.pesel) fields.pesel = encryptIfPresent(String(body.pesel));
     if (body.nip) fields.nip = body.nip;
+    if (body.iban) fields.iban = encryptIfPresent(String(body.iban).toUpperCase());
     if (body.hourlyNettoRate != null) fields.hourlyNettoRate = Number(body.hourlyNettoRate);
     if (Object.keys(fields).length <= 1) return res.status(400).json({ error: "No updatable fields." });
 
     const [record] = await db.update(schema.workers).set(fields).where(eq(schema.workers.id, String(req.params.id))).returning();
     if (!record) return res.status(404).json({ error: "Worker not found." });
-    return res.json({ candidate: workerToCandidate(toWorker(record)) });
+    return res.json({ candidate: workerToCandidate(toWorker(record), req.user?.role) });
   } catch (err) {
     return safeError(res, err);
   }

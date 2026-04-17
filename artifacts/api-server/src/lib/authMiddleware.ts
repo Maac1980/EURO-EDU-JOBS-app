@@ -16,6 +16,7 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   site: string | null;
+  tenantId: string;
 }
 
 declare global {
@@ -35,7 +36,8 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
   const token = authHeader.slice(7);
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
-    req.user = decoded;
+    // Legacy tokens minted before multi-tenant rollout default to production tenant.
+    req.user = { ...decoded, tenantId: decoded.tenantId ?? "production" };
     next();
   } catch {
     res.status(401).json({ error: "Invalid or expired token." });

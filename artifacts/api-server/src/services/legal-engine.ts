@@ -15,6 +15,7 @@ interface WorkerDoc {
   bhp_status: string | null; badania_lek_expiry: string | null;
   contract_end_date: string | null; oswiadczenie_expiry: string | null;
   assigned_site: string | null; pipeline_stage: string | null;
+  [key: string]: unknown;
 }
 
 function daysUntil(dateStr: string | null): number | null {
@@ -53,13 +54,13 @@ async function getClaudeRecommendation(workerName: string, issues: string[]): Pr
 // ── GET /api/legal/scan — run compliance scan ────────────────────────────
 router.get("/legal/scan", authenticateToken, async (_req, res) => {
   try {
-    const result = await db.execute(sql`
+    const result = await db.execute<WorkerDoc>(sql`
       SELECT id, name, trc_expiry, work_permit_expiry, bhp_status,
         badania_lek_expiry, contract_end_date, oswiadczenie_expiry,
         assigned_site, pipeline_stage
       FROM workers WHERE pipeline_stage IN ('Active','Placed','Screening')
     `);
-    const workers = result.rows as unknown as WorkerDoc[];
+    const workers: WorkerDoc[] = result.rows;
     const now = new Date();
 
     const scanResults: any[] = [];
@@ -115,14 +116,14 @@ router.post("/legal/scan-with-ai", authenticateToken, async (req, res) => {
     const { workerId } = req.body as { workerId?: string };
     if (!workerId) return res.status(400).json({ error: "workerId required" });
 
-    const result = await db.execute(sql`
+    const result = await db.execute<WorkerDoc>(sql`
       SELECT id, name, trc_expiry, work_permit_expiry, bhp_status,
         badania_lek_expiry, contract_end_date, oswiadczenie_expiry
       FROM workers WHERE id = ${workerId}
     `);
     if (result.rows.length === 0) return res.status(404).json({ error: "Worker not found" });
 
-    const w = result.rows[0] as unknown as WorkerDoc;
+    const w: WorkerDoc = result.rows[0];
     const issueTexts: string[] = [];
     const checks = [
       { field: "trc_expiry", label: "TRC" }, { field: "work_permit_expiry", label: "Work Permit" },

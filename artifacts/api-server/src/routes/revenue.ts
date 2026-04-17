@@ -9,21 +9,18 @@ const HOURS_PER_MONTH = 160;
 interface WorkerRow {
   id: string;
   name: string;
-  hourly_netto_rate: number | null;
+  hourly_netto_rate: number | string | null;
   assigned_site: string | null;
   contract_end_date: string | null;
   pipeline_stage: string | null;
+  [key: string]: unknown;
 }
 
 interface InvoiceRow {
-  total: number;
+  total: number | string;
   status: string;
   month_year: string;
-}
-
-interface ClientRevRow {
-  name: string;
-  total: number;
+  [key: string]: unknown;
 }
 
 function monthsBetween(from: Date, to: Date): number {
@@ -33,11 +30,11 @@ function monthsBetween(from: Date, to: Date): number {
 // ── GET /api/revenue/forecast — 6 month forward projection ───────────────
 router.get("/revenue/forecast", authenticateToken, async (_req, res) => {
   try {
-    const workers = await db.execute(sql`
+    const workers = await db.execute<WorkerRow>(sql`
       SELECT id, name, hourly_netto_rate, assigned_site, contract_end_date, pipeline_stage
       FROM workers WHERE pipeline_stage IN ('Active', 'Placed')
     `);
-    const activeWorkers = workers.rows as unknown as WorkerRow[];
+    const activeWorkers: WorkerRow[] = workers.rows;
 
     const now = new Date();
     const months: { month: number; year: number; label: string; projected: number; workers: number; atRisk: number }[] = [];
@@ -52,7 +49,7 @@ router.get("/revenue/forecast", authenticateToken, async (_req, res) => {
       let atRisk = 0;
 
       for (const w of activeWorkers) {
-        const rate = w.hourly_netto_rate ?? 0;
+        const rate = Number(w.hourly_netto_rate ?? 0);
         if (rate <= 0) continue;
 
         // Check if contract still active in this month
@@ -82,7 +79,7 @@ router.get("/revenue/forecast", authenticateToken, async (_req, res) => {
     const benchCount = activeWorkers.filter(w => !w.assigned_site || w.assigned_site === "Available").length;
     const benchRevenueGap = activeWorkers
       .filter(w => !w.assigned_site || w.assigned_site === "Available")
-      .reduce((sum, w) => sum + (w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
+      .reduce((sum, w) => sum + Number(w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
 
     return res.json({
       forecast: months,
@@ -100,7 +97,7 @@ router.get("/revenue/forecast", authenticateToken, async (_req, res) => {
 router.get("/revenue/actual", authenticateToken, async (_req, res) => {
   try {
     // Get invoices grouped by month
-    const invoices = await db.execute(sql`
+    const invoices = await db.execute<InvoiceRow>(sql`
       SELECT month_year, status,
         SUM(total) as total
       FROM invoices
@@ -110,7 +107,7 @@ router.get("/revenue/actual", authenticateToken, async (_req, res) => {
     `);
 
     const byMonth: Record<string, { invoiced: number; paid: number; outstanding: number }> = {};
-    for (const row of invoices.rows as any[]) {
+    for (const row of invoices.rows) {
       const key = row.month_year;
       if (!byMonth[key]) byMonth[key] = { invoiced: 0, paid: 0, outstanding: 0 };
       const total = Number(row.total) || 0;
@@ -120,11 +117,11 @@ router.get("/revenue/actual", authenticateToken, async (_req, res) => {
     }
 
     // Get worker-based projected revenue for same months
-    const workers = await db.execute(sql`
+    const workers = await db.execute<{ hourly_netto_rate: number | string | null; [key: string]: unknown }>(sql`
       SELECT hourly_netto_rate FROM workers
       WHERE pipeline_stage IN ('Active', 'Placed') AND hourly_netto_rate > 0
     `);
-    const monthlyProjected = (workers.rows as any[]).reduce(
+    const monthlyProjected = workers.rows.reduce(
       (sum, w) => sum + (Number(w.hourly_netto_rate) || 0) * HOURS_PER_MONTH, 0
     );
 
@@ -146,14 +143,14 @@ router.get("/revenue/actual", authenticateToken, async (_req, res) => {
 // ── GET /api/revenue/summary — current month, next month, 6 month total ──
 router.get("/revenue/summary", authenticateToken, async (_req, res) => {
   try {
-    const workers = await db.execute(sql`
+    const workers = await db.execute<WorkerRow>(sql`
       SELECT id, name, hourly_netto_rate, assigned_site, contract_end_date, pipeline_stage
       FROM workers WHERE pipeline_stage IN ('Active', 'Placed') AND hourly_netto_rate > 0
     `);
-    const active = workers.rows as unknown as WorkerRow[];
+    const active: WorkerRow[] = workers.rows;
 
     const now = new Date();
-    const currentMonth = active.reduce((s, w) => s + (w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
+    const currentMonth = active.reduce((s, w) => s + Number(w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
 
     // Next month: exclude workers whose contracts end this month
     const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -161,7 +158,7 @@ router.get("/revenue/summary", authenticateToken, async (_req, res) => {
       if (!w.contract_end_date) return true;
       return new Date(w.contract_end_date) >= nextMonthDate;
     });
-    const nextMonth = nextMonthWorkers.reduce((s, w) => s + (w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
+    const nextMonth = nextMonthWorkers.reduce((s, w) => s + Number(w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
 
     // 6 month total
     let sixMonthTotal = 0;
@@ -169,7 +166,7 @@ router.get("/revenue/summary", authenticateToken, async (_req, res) => {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       for (const w of active) {
         if (w.contract_end_date && new Date(w.contract_end_date) < d) continue;
-        sixMonthTotal += (w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH;
+        sixMonthTotal += Number(w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH;
       }
     }
 
@@ -178,13 +175,13 @@ router.get("/revenue/summary", authenticateToken, async (_req, res) => {
     const endingSoon = active.filter(w =>
       w.contract_end_date && new Date(w.contract_end_date) <= thirtyDaysOut && new Date(w.contract_end_date) >= now
     );
-    const revenueAtRisk = endingSoon.reduce((s, w) => s + (w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
+    const revenueAtRisk = endingSoon.reduce((s, w) => s + Number(w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH, 0);
 
     // Top 5 clients by worker revenue
     const clientRevenue: Record<string, number> = {};
     for (const w of active) {
       const site = w.assigned_site ?? "Unassigned";
-      clientRevenue[site] = (clientRevenue[site] ?? 0) + (w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH;
+      clientRevenue[site] = (clientRevenue[site] ?? 0) + Number(w.hourly_netto_rate ?? 0) * HOURS_PER_MONTH;
     }
     const topClients = Object.entries(clientRevenue)
       .map(([name, total]) => ({ name, total: Math.round(total * 100) / 100 }))
@@ -192,7 +189,7 @@ router.get("/revenue/summary", authenticateToken, async (_req, res) => {
       .slice(0, 5);
 
     const avgRate = active.length > 0
-      ? active.reduce((s, w) => s + (w.hourly_netto_rate ?? 0), 0) / active.length
+      ? active.reduce((s, w) => s + Number(w.hourly_netto_rate ?? 0), 0) / active.length
       : 0;
 
     return res.json({

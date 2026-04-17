@@ -533,13 +533,23 @@ export async function runMigrations(): Promise<void> {
 
     -- Add tenant_id for test data isolation
     DO $$ BEGIN
-      ALTER TABLE workers ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
-      ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
+      ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
+      ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
+      ALTER TABLE work_permit_applications ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS next_action TEXT;
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS blockers JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS linked_evidence_count INTEGER DEFAULT 0;
     END $$;
+    CREATE INDEX IF NOT EXISTS idx_workers_tenant ON workers(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_clients_tenant ON clients(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_payroll_records_tenant ON payroll_records(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_permits_tenant ON work_permit_applications(tenant_id);
 
     -- Worker onboarding checklist
     CREATE TABLE IF NOT EXISTS onboarding_checklists (

@@ -161,10 +161,10 @@ export async function calculatePIPReadiness(tenantId: string): Promise<PIPReadin
 
   // 3. Check A1 certificates
   try {
-    const a1result = await db.execute(sql`
+    const a1result = await db.execute<{ worker_name: string; host_country: string }>(sql`
       SELECT worker_name, host_country FROM a1_certificates WHERE tenant_id = ${tenantId} AND status = 'expired'
     `);
-    const a1expired = a1result.rows as unknown as { worker_name: string; host_country: string }[];
+    const a1expired = a1result.rows;
     for (const a of a1expired) {
       counts.expired++;
       score -= WEIGHTS.expiredA1;

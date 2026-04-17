@@ -1,0 +1,59 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsx *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git log *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(~/.fly/bin/flyctl deploy *)",
+      "Bash(curl *)",
+      "Bash(wc *)",
+      "Bash(ls *)",
+      "Bash(chmod *)",
+      "Bash(cd *)",
+      "Bash(cat *)",
+      "Bash(mkdir *)",
+      "Bash(du *)",
+      "Bash(node *)",
+      "Bash(echo *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(sed *)",
+      "Bash(sort *)",
+      "Bash(pnpm --filter @workspace/api-server run build)",
+      "Bash(pnpm --filter @workspace/apatris-dashboard run build)",
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.mcpserverspot.com)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git reset --hard *)",
+      "Edit(**/.env*)"
+    ]
+  },
+  "autoMemoryEnabled": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'EEJ RULES: Use pnpm not npm. Always test→build→push→deploy. ZUS benchmark: 160h×31.40=3929.05. Never DROP TABLE. Push to master. Deploy: ~/.fly/bin/flyctl deploy -a eej-jobs-api. org_context: EEJ. No Apatris data. Blue #3B82F6 only.'"
+          }
+        ]
+      }
+    ]
+  }
+}

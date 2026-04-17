@@ -887,27 +887,32 @@ export async function runMigrations(): Promise<void> {
     ["communication_outputs", "sent_at"],
     ["document_action_log", "created_at"],
   ];
+  const IDENT_RE = /^[a-z_][a-z0-9_]*$/;
+  let tzConverted = 0, tzSkipped = 0, tzErrors = 0;
   for (const [table, col] of TIMESTAMP_COLS) {
+    if (!IDENT_RE.test(table) || !IDENT_RE.test(col)) {
+      console.warn(`[db] skipping TZ migration — unsafe identifier: ${table}.${col}`);
+      continue;
+    }
     try {
-      await db.execute(sql`
-        DO $$
-        BEGIN
-          IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = ${table} AND column_name = ${col}
-              AND data_type = 'timestamp without time zone'
-          ) THEN
-            EXECUTE format(
-              'ALTER TABLE %I ALTER COLUMN %I TYPE TIMESTAMPTZ USING %I AT TIME ZONE ''Europe/Warsaw''',
-              ${table}, ${col}, ${col}
-            );
-          END IF;
-        EXCEPTION WHEN others THEN NULL;
-        END $$;
+      const check = await db.execute(sql`
+        SELECT data_type FROM information_schema.columns
+        WHERE table_name = ${table} AND column_name = ${col}
       `);
+      const dataType = (check.rows[0] as { data_type?: string } | undefined)?.data_type;
+      if (!dataType) { tzSkipped++; continue; }
+      if (dataType !== "timestamp without time zone") { tzSkipped++; continue; }
+      await db.execute(sql.raw(
+        `ALTER TABLE "${table}" ALTER COLUMN "${col}" TYPE TIMESTAMPTZ USING "${col}" AT TIME ZONE 'Europe/Warsaw'`
+      ));
+      tzConverted++;
     } catch (e) {
+      tzErrors++;
       console.warn(`[db] TIMESTAMPTZ migration failed for ${table}.${col}:`, e instanceof Error ? e.message : e);
     }
+  }
+  if (tzConverted > 0 || tzErrors > 0) {
+    console.log(`[db] TIMESTAMPTZ migration: ${tzConverted} converted, ${tzSkipped} already TZ / not present, ${tzErrors} errors`);
   }
 
   // ═══ Stage 4: PII backfill (plaintext PESEL/IBAN → AES-GCM) ═══

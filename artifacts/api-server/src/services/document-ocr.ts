@@ -92,30 +92,20 @@ router.post("/documents/ocr-apply", authenticateToken, async (req, res) => {
     };
     if (!workerId) return res.status(400).json({ error: "workerId required" });
 
-    const sets: string[] = [];
-    const vals: any[] = [];
-    let idx = 1;
+    const cf = confirmedFields as any;
+    const wid = String(workerId);
+    let fieldsUpdated = 0;
 
-    const fieldMap: Record<string, string> = {
-      name: "name", pesel: "pesel",
-      trcExpiry: "trc_expiry", workPermitExpiry: "work_permit_expiry",
-      bhpExpiry: "bhp_status", medicalExamExpiry: "badania_lek_expiry",
-      visaType: "visa_type",
-    };
+    // Individual parameterized updates from whitelisted fields only
+    if (cf.name) { await db.execute(sql`UPDATE workers SET name = ${cf.name}, updated_at = NOW() WHERE id = ${wid}`); fieldsUpdated++; }
+    if (cf.pesel) { await db.execute(sql`UPDATE workers SET pesel = ${cf.pesel}, updated_at = NOW() WHERE id = ${wid}`); fieldsUpdated++; }
+    if (cf.trcExpiry) { await db.execute(sql`UPDATE workers SET trc_expiry = ${cf.trcExpiry}, updated_at = NOW() WHERE id = ${wid}`); fieldsUpdated++; }
+    if (cf.workPermitExpiry) { await db.execute(sql`UPDATE workers SET work_permit_expiry = ${cf.workPermitExpiry}, updated_at = NOW() WHERE id = ${wid}`); fieldsUpdated++; }
+    if (cf.bhpExpiry) { await db.execute(sql`UPDATE workers SET bhp_status = ${cf.bhpExpiry}, updated_at = NOW() WHERE id = ${wid}`); fieldsUpdated++; }
+    if (cf.medicalExamExpiry) { await db.execute(sql`UPDATE workers SET badania_lek_expiry = ${cf.medicalExamExpiry}, updated_at = NOW() WHERE id = ${wid}`); fieldsUpdated++; }
+    if (cf.visaType) { await db.execute(sql`UPDATE workers SET visa_type = ${cf.visaType}, updated_at = NOW() WHERE id = ${wid}`); fieldsUpdated++; }
 
-    for (const [key, col] of Object.entries(fieldMap)) {
-      const val = (confirmedFields as any)[key];
-      if (val !== undefined && val !== null) {
-        sets.push(`${col} = $${idx}`);
-        vals.push(val);
-        idx++;
-      }
-    }
-
-    if (sets.length === 0) return res.status(400).json({ error: "No fields to update" });
-
-    vals.push(workerId);
-    await db.execute(sql.raw(`UPDATE workers SET ${sets.join(", ")}, updated_at = NOW() WHERE id = $${idx}`, vals));
+    if (fieldsUpdated === 0) return res.status(400).json({ error: "No fields to update" });
 
     return res.json({ success: true, updatedFields: Object.keys(confirmedFields), workerId });
   } catch (err: any) {

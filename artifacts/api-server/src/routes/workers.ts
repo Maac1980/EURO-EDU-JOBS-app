@@ -71,7 +71,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 const router: IRouter = Router();
 
 // POST /apply — Public candidate application (website integration)
-router.post("/apply", upload.fields([
+// Rate limited: 5 requests per hour per IP to prevent spam
+import { applyLimiter } from "../lib/security.js";
+router.post("/apply", applyLimiter, upload.fields([
   { name: "cv", maxCount: 1 },
   { name: "documents", maxCount: 5 },
 ]), async (req, res) => {
@@ -381,7 +383,7 @@ router.get("/workers", authenticateToken, async (req, res) => {
 });
 
 // GET /workers/stats
-router.get("/workers/stats", async (_req, res) => {
+router.get("/workers/stats", authenticateToken, async (_req, res) => {
   try {
     const rows = await db.select().from(schema.workers);
     const workers = rows.map(r => toWorker(r));
@@ -398,7 +400,7 @@ router.get("/workers/stats", async (_req, res) => {
 });
 
 // GET /workers/report
-router.get("/workers/report", async (_req, res) => {
+router.get("/workers/report", authenticateToken, async (_req, res) => {
   try {
     const rows = await db.select().from(schema.workers);
     const workers = rows.map(r => toWorker(r));
@@ -463,7 +465,7 @@ router.get("/workers/report", async (_req, res) => {
 });
 
 // GET /workers/:id
-router.get("/workers/:id", async (req, res) => {
+router.get("/workers/:id", authenticateToken, async (req, res) => {
   try {
     const [row] = await db.select().from(schema.workers).where(eq(schema.workers.id, String(req.params.id)));
     if (!row) return res.status(404).json({ error: "Worker not found" });

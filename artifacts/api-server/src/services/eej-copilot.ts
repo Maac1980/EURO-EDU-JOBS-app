@@ -175,20 +175,20 @@ const COPILOT_TOOLS: any[] = [
 async function executeTool(toolName: string, toolInput: any): Promise<any> {
   switch (toolName) {
     case "search_workers": {
-      const conditions: string[] = ["1=1"];
-      const params: any[] = [];
-      let paramIdx = 1;
+      // Safe parameterized search — no sql.raw()
+      const search = toolInput.search ? `%${toolInput.search}%` : "%";
+      const nat = toolInput.nationality ? `%${toolInput.nationality}%` : "%";
+      const site = toolInput.site ? `%${toolInput.site}%` : "%";
+      const voiv = toolInput.voivodeship ? `%${toolInput.voivodeship}%` : "%";
 
-      if (toolInput.search) { conditions.push(`name ILIKE $${paramIdx}`); params.push(`%${toolInput.search}%`); paramIdx++; }
-      if (toolInput.nationality) { conditions.push(`nationality ILIKE $${paramIdx}`); params.push(`%${toolInput.nationality}%`); paramIdx++; }
-      if (toolInput.site) { conditions.push(`assigned_site ILIKE $${paramIdx}`); params.push(`%${toolInput.site}%`); paramIdx++; }
-      if (toolInput.voivodeship) { conditions.push(`voivodeship ILIKE $${paramIdx}`); params.push(`%${toolInput.voivodeship}%`); paramIdx++; }
-
-      const rows = await db.execute(sql.raw(
-        `SELECT id, name, nationality, job_role, assigned_site, voivodeship, pipeline_stage,
-                trc_expiry, work_permit_expiry, bhp_status, badania_lek_expiry, contract_end_date, contract_type
-         FROM workers WHERE ${conditions.join(" AND ")} ORDER BY name ASC LIMIT 20`
-      ));
+      const rows = await db.execute(sql`
+        SELECT id, name, nationality, job_role, assigned_site, voivodeship, pipeline_stage,
+               trc_expiry, work_permit_expiry, bhp_status, badania_lek_expiry, contract_end_date, contract_type
+        FROM workers
+        WHERE name ILIKE ${search} AND nationality ILIKE ${nat}
+          AND COALESCE(assigned_site, '') ILIKE ${site} AND COALESCE(voivodeship, '') ILIKE ${voiv}
+        ORDER BY name ASC LIMIT 20
+      `);
 
       return (rows.rows as any[]).map(w => {
         const permit = w.trc_expiry ?? w.work_permit_expiry;
@@ -203,39 +203,37 @@ async function executeTool(toolName: string, toolInput: any): Promise<any> {
     }
 
     case "check_expiring_documents": {
+      // Safe parameterized queries — separate query per doc type, no string concat
       const days = toolInput.days ?? 7;
       const cutoff = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
-
       const docType = toolInput.document_type;
-      let query = "";
+      const results: any[] = [];
 
       if (docType === "bhp" || docType === "all") {
-        query = `SELECT id, name, 'BHP' as doc_type, bhp_status as expiry_date FROM workers WHERE bhp_status IS NOT NULL AND bhp_status <= '${cutoff}' AND pipeline_stage IN ('Placed','Active','New')`;
+        const r = await db.execute(sql`SELECT id, name, 'BHP' as doc_type, bhp_status as expiry_date FROM workers WHERE bhp_status IS NOT NULL AND bhp_status <= ${cutoff}::DATE AND pipeline_stage IN ('Placed','Active','New')`);
+        results.push(...r.rows);
       }
       if (docType === "medical" || docType === "all") {
-        const q = `SELECT id, name, 'Medical' as doc_type, badania_lek_expiry as expiry_date FROM workers WHERE badania_lek_expiry IS NOT NULL AND badania_lek_expiry <= '${cutoff}' AND pipeline_stage IN ('Placed','Active','New')`;
-        query = query ? `${query} UNION ALL ${q}` : q;
+        const r = await db.execute(sql`SELECT id, name, 'Medical' as doc_type, badania_lek_expiry as expiry_date FROM workers WHERE badania_lek_expiry IS NOT NULL AND badania_lek_expiry <= ${cutoff}::DATE AND pipeline_stage IN ('Placed','Active','New')`);
+        results.push(...r.rows);
       }
       if (docType === "permit" || docType === "all") {
-        const q = `SELECT id, name, 'Permit' as doc_type, COALESCE(trc_expiry, work_permit_expiry) as expiry_date FROM workers WHERE COALESCE(trc_expiry, work_permit_expiry) IS NOT NULL AND COALESCE(trc_expiry, work_permit_expiry) <= '${cutoff}' AND pipeline_stage IN ('Placed','Active','New')`;
-        query = query ? `${query} UNION ALL ${q}` : q;
+        const r = await db.execute(sql`SELECT id, name, 'Permit' as doc_type, COALESCE(trc_expiry, work_permit_expiry) as expiry_date FROM workers WHERE COALESCE(trc_expiry, work_permit_expiry) IS NOT NULL AND COALESCE(trc_expiry, work_permit_expiry) <= ${cutoff}::DATE AND pipeline_stage IN ('Placed','Active','New')`);
+        results.push(...r.rows);
       }
       if (docType === "passport" || docType === "all") {
-        const q = `SELECT id, name, 'Passport' as doc_type, passport_expiry as expiry_date FROM workers WHERE passport_expiry IS NOT NULL AND passport_expiry <= '${cutoff}' AND pipeline_stage IN ('Placed','Active','New')`;
-        query = query ? `${query} UNION ALL ${q}` : q;
+        const r = await db.execute(sql`SELECT id, name, 'Passport' as doc_type, passport_expiry as expiry_date FROM workers WHERE passport_expiry IS NOT NULL AND passport_expiry <= ${cutoff}::DATE AND pipeline_stage IN ('Placed','Active','New')`);
+        results.push(...r.rows);
       }
       if (docType === "contract" || docType === "all") {
-        const q = `SELECT id, name, 'Contract' as doc_type, contract_end_date as expiry_date FROM workers WHERE contract_end_date IS NOT NULL AND contract_end_date <= '${cutoff}' AND pipeline_stage IN ('Placed','Active','New')`;
-        query = query ? `${query} UNION ALL ${q}` : q;
+        const r = await db.execute(sql`SELECT id, name, 'Contract' as doc_type, contract_end_date as expiry_date FROM workers WHERE contract_end_date IS NOT NULL AND contract_end_date <= ${cutoff}::DATE AND pipeline_stage IN ('Placed','Active','New')`);
+        results.push(...r.rows);
       }
 
-      if (!query) return [];
-      const rows = await db.execute(sql.raw(`${query} ORDER BY expiry_date ASC`));
-      return (rows.rows as any[]).map(r => {
+      return results.map((r: any) => {
         const daysLeft = Math.ceil((new Date(r.expiry_date).getTime() - Date.now()) / 86400000);
         return { ...r, daysLeft, expired: daysLeft < 0 };
-      });
+      }).sort((a: any, b: any) => (a.expiry_date > b.expiry_date ? 1 : -1));
     }
 
     case "get_legal_cases_queue": {
@@ -389,7 +387,8 @@ async function executeTool(toolName: string, toolInput: any): Promise<any> {
 
 // ═══ COPILOT ENDPOINT ═══════════════════════════════════════════════════════
 
-router.post("/ai/copilot", authenticateToken, async (req, res) => {
+import { aiLimiter } from "../lib/security.js";
+router.post("/ai/copilot", authenticateToken, aiLimiter, async (req, res) => {
   try {
     const { question } = req.body as { question: string };
     if (!question?.trim()) return res.status(400).json({ error: "question required" });

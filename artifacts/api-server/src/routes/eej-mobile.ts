@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, schema } from "../db/index.js";
 import { eq } from "drizzle-orm";
 import { toWorker, type Worker } from "../lib/compliance.js";
+import { authenticateToken } from "../lib/authMiddleware.js";
 
 const router = Router();
 
@@ -74,7 +75,7 @@ function workerToCandidate(worker: Worker) {
   };
 }
 
-router.get("/eej/candidates", async (_req, res) => {
+router.get("/eej/candidates", authenticateToken, async (_req, res) => {
   try {
     const rows = await db.select().from(schema.workers);
     const workers = rows.filter(w => w.name && w.name.trim() !== "").map(r => toWorker(r));
@@ -84,7 +85,7 @@ router.get("/eej/candidates", async (_req, res) => {
   }
 });
 
-router.post("/eej/candidates", async (req, res) => {
+router.post("/eej/candidates", authenticateToken, async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -114,7 +115,7 @@ router.post("/eej/candidates", async (req, res) => {
   }
 });
 
-router.patch("/eej/candidates/:id", async (req, res) => {
+router.patch("/eej/candidates/:id", authenticateToken, async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const fields: any = { updatedAt: new Date() };

@@ -243,19 +243,17 @@ router.post("/legal/cases-new", authenticateToken, async (req, res) => {
 router.patch("/legal/cases/:id/status", authenticateToken, async (req, res) => {
   try {
     const { status, lawyerNotes, lawyerDecision, appealDeadline } = req.body as any;
-    const updates: string[] = ["updated_at = NOW()"];
-    if (status) updates.push(`status = '${status}'`);
-    if (lawyerNotes) updates.push(`lawyer_notes = '${lawyerNotes.replace(/'/g, "''")}'`);
-    if (lawyerDecision) updates.push(`lawyer_decision = '${lawyerDecision}'`);
-    if (appealDeadline) updates.push(`appeal_deadline = '${appealDeadline}'`);
-    if (status === "REJECTED") {
-      // Auto-calculate 14-day appeal deadline
-      updates.push(`appeal_deadline = COALESCE(appeal_deadline, (NOW() + INTERVAL '14 days')::date)`);
-    }
-    if (status === "APPROVED" || status === "REJECTED") {
-      updates.push(`decided_at = NOW()`);
-    }
-    await db.execute(sql.raw(`UPDATE legal_cases SET ${updates.join(", ")} WHERE id = '${req.params.id}'`));
+    const caseId = String(req.params.id);
+    await db.execute(sql`
+      UPDATE legal_cases SET
+        status = COALESCE(${status ?? null}, status),
+        lawyer_notes = COALESCE(${lawyerNotes ?? null}, lawyer_notes),
+        lawyer_decision = COALESCE(${lawyerDecision ?? null}, lawyer_decision),
+        appeal_deadline = COALESCE(${appealDeadline ?? null}::DATE, CASE WHEN ${status ?? null} = 'REJECTED' THEN (NOW() + INTERVAL '14 days')::date ELSE appeal_deadline END),
+        decided_at = CASE WHEN ${status ?? null} IN ('APPROVED', 'REJECTED') THEN NOW() ELSE decided_at END,
+        updated_at = NOW()
+      WHERE id = ${caseId}
+    `);
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

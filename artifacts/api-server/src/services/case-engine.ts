@@ -148,22 +148,19 @@ router.patch("/cases/:id/transition", authenticateToken, async (req, res) => {
     const blockers = detectBlockers(w, c.case_type);
     const nextAction = determineNextAction(newStatus, c.case_type, blockers);
 
-    const updates: string[] = [
-      `status = '${newStatus}'`,
-      `next_action = '${nextAction.replace(/'/g, "''")}'`,
-      `blockers = '${JSON.stringify(blockers)}'::jsonb`,
-      `updated_at = NOW()`,
-    ];
-    if (notes) updates.push(`lawyer_notes = '${notes.replace(/'/g, "''")}'`);
-    if (filingDate) updates.push(`decided_at = '${filingDate}'`);
-    if (decisionDate) updates.push(`decided_at = '${decisionDate}'`);
-    if (newStatus === "REJECTED") {
-      updates.push(`appeal_deadline = (NOW() + INTERVAL '14 days')::date`);
-      updates.push(`severity = 'critical'`);
-    }
-    if (newStatus === "APPROVED") updates.push(`severity = 'low'`);
-
-    await db.execute(sql.raw(`UPDATE legal_cases SET ${updates.join(", ")} WHERE id = '${req.params.id}'`));
+    const caseId = String(req.params.id);
+    await db.execute(sql`
+      UPDATE legal_cases SET
+        status = ${newStatus},
+        next_action = ${nextAction},
+        blockers = ${JSON.stringify(blockers)}::jsonb,
+        lawyer_notes = COALESCE(${notes ?? null}, lawyer_notes),
+        decided_at = COALESCE(${decisionDate ?? filingDate ?? null}::DATE, decided_at),
+        appeal_deadline = CASE WHEN ${newStatus} = 'REJECTED' THEN (NOW() + INTERVAL '14 days')::date ELSE appeal_deadline END,
+        severity = CASE WHEN ${newStatus} = 'REJECTED' THEN 'critical' WHEN ${newStatus} = 'APPROVED' THEN 'low' ELSE severity END,
+        updated_at = NOW()
+      WHERE id = ${caseId}
+    `);
 
     return res.json({
       success: true,

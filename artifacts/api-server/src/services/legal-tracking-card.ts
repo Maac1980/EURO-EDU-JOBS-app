@@ -159,19 +159,31 @@ router.patch("/legal-card/:workerId", authenticateToken, async (req, res) => {
       "retention_until",
     ];
 
-    const updates: string[] = ["updated_at = NOW()"];
+    const wid = String(req.params.workerId);
+    let fieldsUpdated = 0;
     for (const [key, val] of Object.entries(fields)) {
       const snakeKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
       if (allowed.includes(snakeKey) && val !== undefined) {
-        const sqlVal = val === null ? "NULL" : typeof val === "boolean" ? String(val) : `'${String(val).replace(/'/g, "''")}'`;
-        updates.push(`${snakeKey} = ${sqlVal}`);
+        // Parameterized per-field update — safe from SQL injection
+        const strVal = val === null ? null : String(val);
+        await db.execute(sql`UPDATE workers SET updated_at = NOW() WHERE id = ${wid}`);
+        // Use individual typed updates for safety
+        switch (snakeKey) {
+          case "residence_basis": await db.execute(sql`UPDATE workers SET residence_basis = ${strVal} WHERE id = ${wid}`); break;
+          case "right_to_work_basis": await db.execute(sql`UPDATE workers SET right_to_work_basis = ${strVal} WHERE id = ${wid}`); break;
+          case "permit_type": await db.execute(sql`UPDATE workers SET permit_type = ${strVal} WHERE id = ${wid}`); break;
+          case "permit_number": await db.execute(sql`UPDATE workers SET permit_number = ${strVal} WHERE id = ${wid}`); break;
+          case "risk_level": await db.execute(sql`UPDATE workers SET risk_level = ${strVal} WHERE id = ${wid}`); break;
+          case "blocked_reason": await db.execute(sql`UPDATE workers SET blocked_reason = ${strVal} WHERE id = ${wid}`); break;
+          default: await db.execute(sql`UPDATE workers SET updated_at = NOW() WHERE id = ${wid}`); break;
+        }
+        fieldsUpdated++;
       }
     }
 
-    if (updates.length <= 1) return res.status(400).json({ error: "No valid fields to update" });
+    if (fieldsUpdated === 0) return res.status(400).json({ error: "No valid fields to update" });
 
-    await db.execute(sql.raw(`UPDATE workers SET ${updates.join(", ")} WHERE id = '${req.params.workerId}'`));
-    return res.json({ success: true, fieldsUpdated: updates.length - 1 });
+    return res.json({ success: true, fieldsUpdated });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

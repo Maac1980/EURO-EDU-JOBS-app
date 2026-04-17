@@ -49,7 +49,8 @@ function verifyEejToken(authHeader: string | undefined): { email: string; role: 
   } catch { return null; }
 }
 
-router.post("/eej/auth/login", async (req, res) => {
+import { loginLimiter } from "../lib/security.js";
+router.post("/eej/auth/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body as { email?: string; password?: string };
   if (!email?.trim() || !password) return res.status(400).json({ error: "Email and password are required." });
 

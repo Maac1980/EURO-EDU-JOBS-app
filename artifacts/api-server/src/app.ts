@@ -8,6 +8,8 @@ import router from "./routes/index.js";
 
 const app: Express = express();
 
+app.set("trust proxy", 1);
+
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 

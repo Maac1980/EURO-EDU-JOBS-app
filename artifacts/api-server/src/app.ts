@@ -10,9 +10,19 @@ const app: Express = express();
 
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true }));
+
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "https://eej-jobs-api.fly.dev,https://eej-jobs.app,https://admin.eej-jobs.app,http://localhost:5173,http://localhost:3000")
+  .split(",").map(o => o.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // same-origin / server-to-server
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Rate limiting
 const limiter = rateLimit({

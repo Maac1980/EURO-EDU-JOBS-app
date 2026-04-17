@@ -74,17 +74,22 @@ router.post("/webhooks/stripe", async (req, res) => {
   try {
     await ensureBillingTable();
 
-    const secret = process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_dev_local_testing_secret";
+    const secret = process.env.STRIPE_WEBHOOK_SECRET;
     const signature = req.headers["stripe-signature"] as string | undefined;
     const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
 
-    // Signature verification (skip in dev if no secret configured)
-    if (process.env.STRIPE_WEBHOOK_SECRET && signature) {
-      const valid = verifyStripeSignature(rawBody, signature, secret);
-      if (!valid) {
-        console.warn("[EEJ Stripe] Invalid webhook signature");
-        return res.status(400).json({ error: "Invalid signature" });
-      }
+    if (!secret) {
+      console.error("[EEJ Stripe] STRIPE_WEBHOOK_SECRET not configured — rejecting webhook");
+      return res.status(503).json({ error: "Webhook receiver not configured" });
+    }
+    if (!signature) {
+      console.warn("[EEJ Stripe] Webhook missing stripe-signature header");
+      return res.status(400).json({ error: "Missing signature" });
+    }
+    const valid = verifyStripeSignature(rawBody, signature, secret);
+    if (!valid) {
+      console.warn("[EEJ Stripe] Invalid webhook signature");
+      return res.status(400).json({ error: "Invalid signature" });
     }
 
     // Parse event

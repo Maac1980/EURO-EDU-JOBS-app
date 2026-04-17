@@ -4,6 +4,7 @@ import { scrypt, timingSafeEqual } from "crypto";
 import { db, schema } from "../db/index.js";
 import { eq, sql } from "drizzle-orm";
 import { JWT_SECRET, authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
+import { loginLimiter } from "../lib/security.js";
 import { verify2FAToken, user2FAEnabled } from "./twofa.js";
 import { appendAuditEntry } from "./audit.js";
 import { sendLoginNotification } from "../lib/alerter.js";
@@ -41,7 +42,7 @@ function getAdminEmail(): string {
   return (process.env.EEJ_ADMIN_EMAIL ?? "anna.b@edu-jobs.eu").trim().toLowerCase();
 }
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body as { email?: string; password?: string };
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
@@ -66,7 +67,11 @@ router.post("/auth/login", async (req, res) => {
     if (emailLower !== adminEmail) {
       return res.status(403).json({ error: "Access Denied: Contact Administrator." });
     }
-    const adminPassword = process.env.EEJ_ADMIN_PASSWORD ?? "EEJ2026!";
+    const adminPassword = process.env.EEJ_ADMIN_PASSWORD;
+    if (!adminPassword) {
+      console.error("[auth] EEJ_ADMIN_PASSWORD not configured — admin login disabled");
+      return res.status(503).json({ error: "Admin login not configured. Contact Administrator." });
+    }
     passwordOk = password === adminPassword;
   } else {
     if (!found.passwordHash) {

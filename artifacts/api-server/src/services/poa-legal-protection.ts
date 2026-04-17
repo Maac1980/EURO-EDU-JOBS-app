@@ -21,6 +21,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -141,7 +142,7 @@ router.post("/v1/legal/poa/generate", authenticateToken, async (req, res) => {
 
     return res.json({ poa: rows.rows[0], document: poaDocument, org_context: "EEJ" });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -153,7 +154,7 @@ router.get("/v1/legal/poa/:workerId", authenticateToken, async (req, res) => {
     const rows = await db.execute(sql`SELECT * FROM eej_poa_registry WHERE worker_id = ${wid} AND org_context = 'EEJ' ORDER BY created_at DESC`);
     return res.json({ poas: rows.rows, total: rows.rows.length, disclaimers: DISCLAIMERS });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -188,7 +189,7 @@ router.post("/v1/legal/rodo-consent", authenticateToken, async (req, res) => {
 
     return res.json({ consent: rows.rows[0], org_context: "EEJ" });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -220,7 +221,7 @@ router.get("/v1/legal/rodo-consent/:workerId", authenticateToken, async (req, re
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -257,7 +258,7 @@ router.get("/v1/legal/escalation-check/:caseId", authenticateToken, async (req, 
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -319,7 +320,7 @@ router.post("/v1/workers/:id/setup-identity", authenticateToken, async (req, res
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -350,7 +351,7 @@ router.get("/v1/workers/:id/identity", authenticateToken, async (req, res) => {
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

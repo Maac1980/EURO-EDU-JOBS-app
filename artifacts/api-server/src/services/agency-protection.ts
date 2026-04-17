@@ -23,6 +23,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError, publicLimiter } from "../lib/security.js";
 import { sendStatusPush, sendEmailAlert } from "./notification-engine.js";
 
 const router = Router();
@@ -34,7 +35,7 @@ const router = Router();
 // No sensitive PII (no PESEL, no IBAN). Public endpoint (no auth).
 // ═══════════════════════════════════════════════════════════════════════════
 
-router.get("/pass/:workerId", async (req, res) => {
+router.get("/pass/:workerId", publicLimiter, async (req, res) => {
   try {
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
 
@@ -92,7 +93,7 @@ router.get("/pass/:workerId", async (req, res) => {
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -154,7 +155,7 @@ router.post("/v1/agency/deadlines/auto-escalate", authenticateToken, async (req,
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -219,7 +220,7 @@ router.get("/v1/agency/annex1-tracker", authenticateToken, async (req, res) => {
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -274,7 +275,7 @@ router.post("/v1/agency/validate-contract", authenticateToken, async (req, res) 
 
     return res.json({ valid: true, contractType, permitType, allowedContracts: allowed, org_context: "EEJ" });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -363,7 +364,7 @@ router.get("/v1/agency/ukrainian-tracker", authenticateToken, async (req, res) =
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -446,7 +447,7 @@ router.get("/v1/agency/compliance-certificate", authenticateToken, async (req, r
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -502,7 +503,7 @@ router.get("/v1/agency/pip-pack/site/:siteName", authenticateToken, async (req, 
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -561,7 +562,7 @@ router.post("/v1/agency/placement-check", authenticateToken, async (req, res) =>
 
     return res.json({ cleared: true, blocked: false, workerName: w.name, blockers: [], org_context: "EEJ" });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -617,7 +618,7 @@ router.post("/v1/agency/defect-escalation", authenticateToken, async (req, res) 
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

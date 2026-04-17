@@ -3,6 +3,7 @@ import { db, schema } from "../db/index.js";
 import { eq } from "drizzle-orm";
 import { toWorker, type Worker } from "../lib/compliance.js";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { validatePesel, validateNip, validateIban, validateEmail, safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -81,7 +82,7 @@ router.get("/eej/candidates", authenticateToken, async (_req, res) => {
     const workers = rows.filter(w => w.name && w.name.trim() !== "").map(r => toWorker(r));
     return res.json({ candidates: workers.map(workerToCandidate), total: workers.length });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load candidates" });
+    return safeError(res, err);
   }
 });
 
@@ -90,6 +91,15 @@ router.post("/eej/candidates", authenticateToken, async (req, res) => {
     const body = req.body as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
     if (!name) return res.status(400).json({ error: "Name is required." });
+
+    // Input validation
+    const peselCheck = validatePesel(body.pesel as string);
+    if (!peselCheck.valid) return res.status(400).json({ error: peselCheck.error });
+    const nipCheck = validateNip(body.nip as string);
+    if (!nipCheck.valid) return res.status(400).json({ error: nipCheck.error });
+    const emailCheck = validateEmail(body.email as string);
+    if (!emailCheck.valid) return res.status(400).json({ error: emailCheck.error });
+
     const fields: any = { name };
     if (body.role) fields.jobRole = body.role;
     if (body.email) fields.email = body.email;
@@ -111,7 +121,7 @@ router.post("/eej/candidates", authenticateToken, async (req, res) => {
     const [record] = await db.insert(schema.workers).values(fields).returning();
     return res.status(201).json({ candidate: workerToCandidate(toWorker(record)) });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    return safeError(res, err);
   }
 });
 
@@ -139,7 +149,7 @@ router.patch("/eej/candidates/:id", authenticateToken, async (req, res) => {
     if (!record) return res.status(404).json({ error: "Worker not found." });
     return res.json({ candidate: workerToCandidate(toWorker(record)) });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    return safeError(res, err);
   }
 });
 

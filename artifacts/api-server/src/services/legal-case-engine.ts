@@ -12,6 +12,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -220,7 +221,7 @@ router.get("/v1/legal/cases", authenticateToken, async (req, res) => {
 
     return res.json({ cases: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -257,7 +258,7 @@ router.get("/v1/legal/cases/queue", authenticateToken, async (req, res) => {
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -290,7 +291,7 @@ router.post("/v1/legal/cases", authenticateToken, async (req, res) => {
 
     return res.json({ case: newCase });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -359,7 +360,7 @@ router.patch("/v1/legal/cases/:id", authenticateToken, async (req, res) => {
     const updated = await db.execute(sql`SELECT * FROM eej_legal_cases WHERE id = ${caseId}`);
     return res.json({ case: updated.rows[0] });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -373,7 +374,7 @@ router.get("/v1/legal/cases/:id/docs", authenticateToken, async (req, res) => {
     const rows = await db.execute(sql`SELECT * FROM eej_case_generated_docs WHERE case_id = ${caseId} AND org_context = 'EEJ' ORDER BY created_at DESC`);
     return res.json({ docs: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -390,7 +391,7 @@ router.get("/v1/legal/docs/review-queue", authenticateToken, async (req, res) =>
     `);
     return res.json({ queue: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -417,7 +418,7 @@ router.patch("/v1/legal/docs/:id/review", authenticateToken, async (req, res) =>
 
     return res.json({ success: true, status });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -433,7 +434,7 @@ router.get("/v1/legal/cases/:id/notebook", authenticateToken, async (req, res) =
     `);
     return res.json({ entries: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -450,7 +451,7 @@ router.post("/v1/legal/cases/:id/notebook", authenticateToken, async (req, res) 
 
     return res.json({ success: true });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -473,7 +474,7 @@ router.get("/v1/legal/notebook/search", authenticateToken, async (req, res) => {
 
     return res.json({ results: rows.rows, total: rows.rows.length, query: q });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

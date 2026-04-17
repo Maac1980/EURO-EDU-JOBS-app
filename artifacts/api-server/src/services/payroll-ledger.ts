@@ -11,6 +11,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -114,7 +115,7 @@ router.get("/v1/payroll/ledger", authenticateToken, async (req, res) => {
 
     return res.json({ records: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -155,7 +156,7 @@ router.post("/v1/payroll/ledger", authenticateToken, async (req, res) => {
 
     return res.json({ record: rows.rows[0] });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -185,7 +186,7 @@ router.get("/v1/payroll/export/bank-csv", authenticateToken, async (req, res) =>
     res.setHeader("Content-Disposition", `attachment; filename=eej-bank-${month}.csv`);
     return res.send(lines.join("\n"));
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -243,7 +244,7 @@ router.get("/v1/payroll/export/accounting-csv", authenticateToken, async (req, r
     res.setHeader("Content-Disposition", `attachment; filename=eej-accounting-${month}.csv`);
     return res.send([header, ...dataLines].join("\n"));
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -303,7 +304,7 @@ router.post("/v1/payroll/send-payslip", authenticateToken, async (req, res) => {
       return res.json({ success: false, error: "Email delivery failed — payslip logged but not sent", sentTo: email });
     }
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

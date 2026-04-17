@@ -12,6 +12,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError, publicLimiter } from "../lib/security.js";
 import { evaluateLegalStatus, type LegalInput, type LegalOutput } from "./legal-decision-engine.js";
 import { syncToGraph } from "./knowledge-graph.js";
 
@@ -242,7 +243,7 @@ router.get("/first-contact/ingest-audit", authenticateToken, async (_req, res) =
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -518,7 +519,7 @@ router.get("/first-contact/stress-test", authenticateToken, async (_req, res) =>
       profiles: results,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -589,7 +590,7 @@ router.post("/first-contact/ocr-feedback", authenticateToken, async (req, res) =
       message: "OCR feedback logged — will be used for prompt tuning in next model iteration",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -643,7 +644,7 @@ router.get("/first-contact/ocr-feedback", authenticateToken, async (req, res) =>
       })),
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -656,7 +657,7 @@ router.patch("/first-contact/ocr-feedback/:id/resolve", authenticateToken, async
     `);
     return res.json({ success: true });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -710,7 +711,7 @@ router.get("/first-contact/status", authenticateToken, async (_req, res) => {
       allReady: ingestReady && engineReady && feedbackReady,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -721,7 +722,7 @@ router.get("/first-contact/status", authenticateToken, async (_req, res) => {
 // Rate-limited by the global express-rate-limit middleware.
 // ═══════════════════════════════════════════════════════════════════════════
 
-router.get("/verify/:workerId", async (req, res) => {
+router.get("/verify/:workerId", publicLimiter, async (req, res) => {
   try {
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
 
@@ -785,7 +786,7 @@ router.get("/verify/:workerId", async (req, res) => {
       disclaimer: "This is an automated compliance indicator, not a legal opinion.",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -795,7 +796,7 @@ router.get("/verify/:workerId", async (req, res) => {
 // Hides: passport, PESEL, phone, email, IBAN — no PII exposed.
 // ═══════════════════════════════════════════════════════════════════════════
 
-router.get("/client/:employerName", async (req, res) => {
+router.get("/client/:employerName", publicLimiter, async (req, res) => {
   try {
     const employer = decodeURIComponent(
       Array.isArray(req.params.employerName) ? req.params.employerName[0] : req.params.employerName
@@ -858,7 +859,7 @@ router.get("/client/:employerName", async (req, res) => {
       disclaimer: "This is an automated compliance overview, not a legal opinion. Contact EEJ for details.",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -868,7 +869,7 @@ router.get("/client/:employerName", async (req, res) => {
 // Routes through Smart Ingest → appends to their Verification_Log.
 // ═══════════════════════════════════════════════════════════════════════════
 
-router.post("/worker/:workerId/upload", async (req, res) => {
+router.post("/worker/:workerId/upload", publicLimiter, async (req, res) => {
   try {
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const { image, mimeType, fileName } = req.body as {
@@ -932,7 +933,7 @@ router.post("/worker/:workerId/upload", async (req, res) => {
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

@@ -17,6 +17,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -489,7 +490,7 @@ When showing lists, use clear formatting with names and key details.`;
         org_context: "EEJ",
       });
     }
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

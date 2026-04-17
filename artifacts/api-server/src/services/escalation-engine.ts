@@ -17,6 +17,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 import { sendStatusPush, sendEmailAlert } from "./notification-engine.js";
 
 const router = Router();
@@ -167,7 +168,7 @@ router.post("/cron/daily-escalation", authenticateToken, async (req, res) => {
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -329,7 +330,7 @@ router.post("/cron/weekly-digest", authenticateToken, async (req, res) => {
       note: "MOCK MODE — email HTML generated and logged, not sent externally",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -347,7 +348,7 @@ router.get("/escalation/history", authenticateToken, async (req, res) => {
 
     return res.json({ escalations: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

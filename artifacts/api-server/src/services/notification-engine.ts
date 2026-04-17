@@ -19,6 +19,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -272,7 +273,7 @@ router.get("/notifications/eej-log", authenticateToken, async (req, res) => {
 
     return res.json({ notifications: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -290,7 +291,7 @@ router.post("/notifications/trigger-scan", authenticateToken, async (req, res) =
       note: "MOCK MODE — notifications logged internally, not sent externally",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

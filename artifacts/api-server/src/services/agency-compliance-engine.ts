@@ -32,6 +32,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -200,7 +201,7 @@ router.post("/v1/agency/assignments", authenticateToken, async (req, res) => {
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -229,7 +230,7 @@ router.get("/v1/agency/assignments/check", authenticateToken, async (req, res) =
       fine_risk: totalMonths >= 18 ? "1,000-30,000 PLN" : null,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -272,7 +273,7 @@ router.get("/v1/agency/assignments/scan", authenticateToken, async (req, res) =>
       legal_basis: "Art. 20 Ustawa o zatrudnianiu pracowników tymczasowych",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -303,7 +304,7 @@ router.post("/v1/agency/kraz", authenticateToken, async (req, res) => {
 
     return res.json({ kraz: rows.rows[0] });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -330,7 +331,7 @@ router.get("/v1/agency/kraz", authenticateToken, async (req, res) => {
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -391,7 +392,7 @@ router.get("/v1/agency/marshal-report", authenticateToken, async (req, res) => {
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -439,7 +440,7 @@ router.post("/v1/agency/notifications/generate", authenticateToken, async (req, 
 
     return res.json({ generated: deadlines.length, deadlines });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -474,7 +475,7 @@ router.get("/v1/agency/deadlines", authenticateToken, async (req, res) => {
       },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -489,7 +490,7 @@ router.patch("/v1/agency/deadlines/:id/complete", authenticateToken, async (req,
     `);
     return res.json({ success: true });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -534,7 +535,7 @@ router.post("/v1/agency/retention", authenticateToken, async (req, res) => {
 
     return res.json({ retention: rows.rows[0] });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -548,7 +549,7 @@ router.get("/v1/agency/retention/due", authenticateToken, async (req, res) => {
     `);
     return res.json({ dueForDeletion: rows.rows, total: rows.rows.length });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -624,7 +625,7 @@ router.get("/v1/agency/pip-pack/:workerId", authenticateToken, async (req, res) 
       generatedAt: new Date().toISOString(),
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -687,7 +688,7 @@ router.get("/v1/agency/reclassification-scan", authenticateToken, async (req, re
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

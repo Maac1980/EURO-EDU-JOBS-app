@@ -13,6 +13,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { safeError } from "../lib/security.js";
 
 const router = Router();
 
@@ -173,7 +174,7 @@ router.post("/webhooks/stripe", async (req, res) => {
     return res.json({ received: true, eventType, status });
   } catch (err: any) {
     console.error("[EEJ Stripe] Webhook error:", err.message);
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 
@@ -203,7 +204,7 @@ router.get("/billing/events", authenticateToken, async (req, res) => {
       org_context: "EEJ",
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return safeError(res, err);
   }
 });
 

@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { randomUUID } from "crypto";
 import { db, schema } from "../db/index.js";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 import { scrypt, randomBytes } from "crypto";
 
 const router = Router();
@@ -53,15 +53,16 @@ router.patch("/admin/profile", authenticateToken, requireAdmin, async (req, res)
 
 // ── Team / User Management ────────────────────────────────────────────────────
 
-router.get("/admin/users", authenticateToken, requireAdmin, async (_req, res) => {
+router.get("/admin/users", authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const tenantId = requireTenant(req);
     const users = await db.select({
       id: schema.users.id,
       email: schema.users.email,
       name: schema.users.name,
       role: schema.users.role,
       site: schema.users.site,
-    }).from(schema.users);
+    }).from(schema.users).where(eq(schema.users.tenantId, tenantId));
     return res.json({ users });
   } catch {
     return res.status(500).json({ error: "Could not load users." });
@@ -77,6 +78,7 @@ router.post("/admin/users", authenticateToken, requireAdmin, async (req, res) =>
       return res.status(400).json({ error: "email, name, role, and password are required." });
     }
 
+    const tenantId = requireTenant(req);
     const [existing] = await db.select().from(schema.users).where(
       sql`LOWER(${schema.users.email}) = ${email.toLowerCase()}`
     );
@@ -91,6 +93,7 @@ router.post("/admin/users", authenticateToken, requireAdmin, async (req, res) =>
       role,
       site: site ?? null,
       passwordHash,
+      tenantId,
     }).returning();
 
     return res.status(201).json({
@@ -108,7 +111,10 @@ router.post("/admin/users", authenticateToken, requireAdmin, async (req, res) =>
 router.patch("/admin/users/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const [user] = await db.select().from(schema.users).where(eq(schema.users.id, String(id)));
+    const tenantId = requireTenant(req);
+    const [user] = await db.select().from(schema.users).where(
+      and(eq(schema.users.id, String(id)), eq(schema.users.tenantId, tenantId))
+    );
     if (!user) return res.status(404).json({ error: "User not found." });
 
     const { email, name, role, site, password } = req.body as {
@@ -126,14 +132,18 @@ router.patch("/admin/users/:id", authenticateToken, requireAdmin, async (req, re
     if (site !== undefined) updates.site = site ?? null;
     if (password !== undefined && password !== "") updates.passwordHash = await hashPassword(password);
 
-    await db.update(schema.users).set(updates).where(eq(schema.users.id, String(id)));
+    await db.update(schema.users).set(updates).where(
+      and(eq(schema.users.id, String(id)), eq(schema.users.tenantId, tenantId))
+    );
     const [updated] = await db.select({
       id: schema.users.id,
       email: schema.users.email,
       name: schema.users.name,
       role: schema.users.role,
       site: schema.users.site,
-    }).from(schema.users).where(eq(schema.users.id, String(id)));
+    }).from(schema.users).where(
+      and(eq(schema.users.id, String(id)), eq(schema.users.tenantId, tenantId))
+    );
     return res.json(updated);
   } catch {
     return res.status(500).json({ error: "Could not update user." });
@@ -143,12 +153,17 @@ router.patch("/admin/users/:id", authenticateToken, requireAdmin, async (req, re
 router.delete("/admin/users/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const [target] = await db.select().from(schema.users).where(eq(schema.users.id, String(id)));
+    const tenantId = requireTenant(req);
+    const [target] = await db.select().from(schema.users).where(
+      and(eq(schema.users.id, String(id)), eq(schema.users.tenantId, tenantId))
+    );
     if (!target) return res.status(404).json({ error: "User not found." });
     if (target.role === "admin") {
       return res.status(400).json({ error: "Cannot delete the admin account." });
     }
-    await db.delete(schema.users).where(eq(schema.users.id, String(id)));
+    await db.delete(schema.users).where(
+      and(eq(schema.users.id, String(id)), eq(schema.users.tenantId, tenantId))
+    );
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: "Could not delete user." });

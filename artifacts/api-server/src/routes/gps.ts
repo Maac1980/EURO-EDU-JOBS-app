@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db, schema } from "../db/index.js";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 
 const router = Router();
 
@@ -15,6 +16,13 @@ router.post("/gps/checkin", authenticateToken, async (req, res) => {
     if (!workerId || latitude === undefined || longitude === undefined) {
       return res.status(400).json({ error: "workerId, latitude, and longitude are required" });
     }
+
+    // Confirm the worker belongs to the acting tenant before recording a check-in.
+    const tenantId = requireTenant(req);
+    const [worker] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, workerId), eq(schema.workers.tenantId, tenantId))
+    );
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
 
     const [checkin] = await db.insert(schema.gpsCheckins).values({
       workerId,
@@ -34,10 +42,18 @@ router.post("/gps/checkin", authenticateToken, async (req, res) => {
 // GET /api/gps/checkins/:workerId — worker check-in history
 router.get("/gps/checkins/:workerId", authenticateToken, async (req, res) => {
   try {
+    const tenantId = requireTenant(req);
+    const workerId = String(req.params.workerId);
+    // Confirm tenant ownership before exposing history.
+    const [worker] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, workerId), eq(schema.workers.tenantId, tenantId))
+    );
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
+
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
     const checkins = await db.select().from(schema.gpsCheckins)
-      .where(eq(schema.gpsCheckins.workerId, String(req.params.workerId)))
+      .where(eq(schema.gpsCheckins.workerId, workerId))
       .orderBy(desc(schema.gpsCheckins.timestamp))
       .limit(limit)
       .offset(offset);
@@ -50,22 +66,26 @@ router.get("/gps/checkins/:workerId", authenticateToken, async (req, res) => {
 // GET /api/gps/latest — latest check-in for all workers (for map view)
 router.get("/gps/latest", authenticateToken, async (req, res) => {
   try {
+    const tenantId = requireTenant(req);
     // Scan recent check-ins only (bounded) to avoid full-table scan as history grows.
     const scanCap = Math.min(parseInt(String(req.query.scan ?? "2000"), 10) || 2000, 10000);
+
+    // Enrich with worker names — scope workers to the acting tenant and only
+    // surface GPS positions for workers owned by that tenant.
+    const workers = await db.select({ id: schema.workers.id, name: schema.workers.name, assignedSite: schema.workers.assignedSite })
+      .from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
+    const workerMap = new Map(workers.map(w => [w.id, w]));
+
     const allCheckins = await db.select().from(schema.gpsCheckins)
       .orderBy(desc(schema.gpsCheckins.timestamp))
       .limit(scanCap);
 
-    // Group by worker, take latest
+    // Group by worker, take latest — filter to current tenant's workers.
     const latestByWorker = new Map<string, typeof allCheckins[0]>();
     for (const c of allCheckins) {
+      if (!workerMap.has(c.workerId)) continue;
       if (!latestByWorker.has(c.workerId)) latestByWorker.set(c.workerId, c);
     }
-
-    // Enrich with worker names
-    const workers = await db.select({ id: schema.workers.id, name: schema.workers.name, assignedSite: schema.workers.assignedSite })
-      .from(schema.workers);
-    const workerMap = new Map(workers.map(w => [w.id, w]));
 
     const locations = Array.from(latestByWorker.values()).map(c => ({
       ...c,

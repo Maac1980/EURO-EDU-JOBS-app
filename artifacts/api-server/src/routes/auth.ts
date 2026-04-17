@@ -96,13 +96,15 @@ router.post("/auth/login", loginLimiter, async (req, res) => {
     }
   }
 
+  // Tenant slug: persisted on users.tenant_id (FK to tenants.slug). Falls back
+  // to production for legacy admin rows created before the column existed.
   const payload: AuthUser = {
     id: found.id,
     email: found.email,
     name: found.name,
     role: found.role as AuthUser["role"],
     site: found.site ?? null,
-    tenantId: (found as { tenantId?: string | null }).tenantId ?? "production",
+    tenantId: ((found as { tenantId?: string | null }).tenantId ?? "production") || "production",
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });

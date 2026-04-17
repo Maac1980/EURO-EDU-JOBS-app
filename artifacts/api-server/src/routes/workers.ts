@@ -408,9 +408,10 @@ router.get("/workers", authenticateToken, async (req, res) => {
 });
 
 // GET /workers/stats
-router.get("/workers/stats", authenticateToken, async (_req, res) => {
+router.get("/workers/stats", authenticateToken, async (req, res) => {
   try {
-    const rows = await db.select().from(schema.workers);
+    const tenantId = requireTenant(req);
+    const rows = await db.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
     const workers = rows.map(r => toWorker(r));
     res.json({
       total: workers.length,
@@ -425,9 +426,10 @@ router.get("/workers/stats", authenticateToken, async (_req, res) => {
 });
 
 // GET /workers/report
-router.get("/workers/report", authenticateToken, async (_req, res) => {
+router.get("/workers/report", authenticateToken, async (req, res) => {
   try {
-    const rows = await db.select().from(schema.workers);
+    const tenantId = requireTenant(req);
+    const rows = await db.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
     const workers = rows.map(r => toWorker(r));
     const now = new Date();
     const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -584,8 +586,11 @@ router.post("/workers/:id/upload", authenticateToken, upload.single("file"), asy
     const id = String(req.params.id);
     const docType = req.body?.docType as string ?? "passport";
 
-    // Verify worker exists
-    const [worker] = await db.select().from(schema.workers).where(eq(schema.workers.id, id));
+    // Verify worker exists and belongs to the acting tenant.
+    const tenantId = requireTenant(req);
+    const [worker] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, id), eq(schema.workers.tenantId, tenantId))
+    );
     if (!worker) return res.status(404).json({ error: "Worker not found" });
 
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -614,7 +619,9 @@ router.post("/workers/:id/upload", authenticateToken, upload.single("file"), asy
           if (scanned.contractEndDate) autoUpdates.contractEndDate = scanned.contractEndDate;
         }
         if (Object.keys(autoUpdates).length > 0) {
-          await db.update(schema.workers).set({ ...autoUpdates, updatedAt: new Date() }).where(eq(schema.workers.id, id));
+          await db.update(schema.workers).set({ ...autoUpdates, updatedAt: new Date() }).where(
+            and(eq(schema.workers.id, id), eq(schema.workers.tenantId, tenantId))
+          );
         }
       }
     } else if (docType === "cv") {
@@ -624,7 +631,9 @@ router.post("/workers/:id/upload", authenticateToken, upload.single("file"), asy
         if (cvData.yearsOfExperience) autoUpdates.experience = cvData.yearsOfExperience;
         if (cvData.highestQualification) autoUpdates.qualification = cvData.highestQualification;
         if (Object.keys(autoUpdates).length > 0) {
-          await db.update(schema.workers).set({ ...autoUpdates, updatedAt: new Date() }).where(eq(schema.workers.id, id));
+          await db.update(schema.workers).set({ ...autoUpdates, updatedAt: new Date() }).where(
+            and(eq(schema.workers.id, id), eq(schema.workers.tenantId, tenantId))
+          );
         }
         scanned = cvData;
       }

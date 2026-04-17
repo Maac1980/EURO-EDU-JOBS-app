@@ -7,11 +7,13 @@ EEJ is a Polish labor compliance, recruitment, and workforce management platform
 `Maac1980/EURO-EDU-JOBS-app`
 
 ## Deployment
-- **Primary:** Replit (autoscale deployment)
+- **Primary:** Fly.io app `eej-jobs-api` (region `ams`, 2 machines)
+- **Deploy command:** `~/.fly/bin/flyctl deploy -a eej-jobs-api`
 - **Build:** `pnpm build` (builds api-server + eej-mobile + apatris-dashboard)
 - **Run:** `node artifacts/api-server/dist/index.cjs`
-- **Health Check:** `GET /api/healthz`
-- **Port:** 8080 internal → 80 external
+- **Health Check:** `GET /api/healthz` → https://eej-jobs-api.fly.dev/api/healthz
+- **Port:** 8080 internal → 443 external (HTTPS via Fly, force_https = true)
+- **Secrets:** set via `flyctl secrets set -a eej-jobs-api KEY=value` (see Environment Variables)
 
 ## Tech Stack
 
@@ -188,14 +190,30 @@ REGULATORY_CRON=0 7 * * *
 - Always use pnpm not npm
 - Always build dist before pushing
 - Always test ZUS formula: 160h × 31.40 = 3929.05 net
-- Never use DROP TABLE — only CREATE TABLE IF NOT EXISTS
+- Never use DROP TABLE or DROP COLUMN — only CREATE TABLE IF NOT EXISTS / ALTER TABLE ... IF EXISTS
 - Never break existing features
 - Use DATABASE_URL for EEJ database connection
 - Push to `master` branch for EEJ
 - After every change: build dist → copy to artifacts → commit → push
-- Replit deploy: `git fetch origin master && git reset --hard origin/master`
+- Deploy: `~/.fly/bin/flyctl deploy -a eej-jobs-api` (Fly.io, region `ams`)
 - Vite base must be "/" not "/eej-mobile/"
 - .gitignore must NOT contain "dist" — frontend dist must stay tracked
+
+## STAGE 4 SECURITY STANDARDS (MUST FOLLOW)
+- All PESEL / IBAN writes pass through `lib/encryption.ts` (`encrypt()`) — AES-256-GCM, format `enc:v1:<iv>:<tag>:<ciphertext>`
+- Reads use `decrypt()` which tolerates legacy plaintext (backward compat)
+- Role masking: T1/T2 see plaintext; T3/T4 see `***-****-NNNN` via `projectWorkerPII()` or `workerToCandidate(row, viewerRole)`
+- Audit log never stores raw PII — use `"[encrypted]"` sentinel on changes
+- All queries to tenanted tables (workers, users, clients, payroll_records, invoices, work_permit_applications) MUST filter by `tenant_id`
+- Use `requireTenant(req)` + `scopedWhere(tenantId, col)` from `lib/tenancy.ts`
+- Tenants table is authoritative — `tenant_id` columns are FK to `tenants(slug)`
+- Audit log is INSERT-ONLY — do NOT add DELETE or UPDATE endpoints on `audit_entries`
+- Money columns must be `NUMERIC(10,2)` — never REAL or FLOAT
+- All timestamp columns must be `TIMESTAMPTZ` — convert via `AT TIME ZONE 'Europe/Warsaw'`
+- No hardcoded passwords anywhere — use env vars (`EEJ_ADMIN_PASSWORD`, `EEJ_SEED_PASSWORD`, `EEJ_ENCRYPTION_KEY`)
+- Stripe webhooks require `STRIPE_WEBHOOK_SECRET` — reject without signature
+- CORS allowlist via `ALLOWED_ORIGINS` env — no wildcards
+- Required Fly secrets: JWT_SECRET, DATABASE_URL, EEJ_ADMIN_PASSWORD, EEJ_ENCRYPTION_KEY, ANTHROPIC_API_KEY, PERPLEXITY_API_KEY, BREVO_SMTP_USER, BREVO_SMTP_PASS
 
 ## DECISION MAKING (MUST FOLLOW)
 - Never ask "shall I proceed?" or "which option do you prefer?"

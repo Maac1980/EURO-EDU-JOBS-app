@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db, schema } from "../db/index.js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { toWorker, type Worker } from "../lib/compliance.js";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 import { validatePesel, validateNip, validateIban, validateEmail, safeError } from "../lib/security.js";
 import { encryptIfPresent, decrypt, maskSensitive } from "../lib/encryption.js";
 
@@ -87,8 +88,8 @@ function workerToCandidate(worker: Worker, viewerRole?: string) {
 
 router.get("/eej/candidates", authenticateToken, async (req, res) => {
   try {
-    // TODO(tenancy): scope by tenantId once EEJ mobile JWT carries it consistently
-    const rows = await db.select().from(schema.workers);
+    const tenantId = requireTenant(req);
+    const rows = await db.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
     const workers = rows.filter(w => w.name && w.name.trim() !== "").map(r => toWorker(r));
     const role = req.user?.role;
     return res.json({ candidates: workers.map(w => workerToCandidate(w, role)), total: workers.length });
@@ -111,7 +112,8 @@ router.post("/eej/candidates", authenticateToken, async (req, res) => {
     const emailCheck = validateEmail(body.email as string);
     if (!emailCheck.valid) return res.status(400).json({ error: emailCheck.error });
 
-    const fields: any = { name };
+    const tenantId = requireTenant(req);
+    const fields: any = { name, tenantId };
     if (body.role) fields.jobRole = body.role;
     if (body.email) fields.email = body.email;
     if (body.phone) fields.phone = body.phone;
@@ -158,7 +160,10 @@ router.patch("/eej/candidates/:id", authenticateToken, async (req, res) => {
     if (body.hourlyNettoRate != null) fields.hourlyNettoRate = Number(body.hourlyNettoRate);
     if (Object.keys(fields).length <= 1) return res.status(400).json({ error: "No updatable fields." });
 
-    const [record] = await db.update(schema.workers).set(fields).where(eq(schema.workers.id, String(req.params.id))).returning();
+    const tenantId = requireTenant(req);
+    const [record] = await db.update(schema.workers).set(fields).where(
+      and(eq(schema.workers.id, String(req.params.id)), eq(schema.workers.tenantId, tenantId))
+    ).returning();
     if (!record) return res.status(404).json({ error: "Worker not found." });
     return res.json({ candidate: workerToCandidate(toWorker(record), req.user?.role) });
   } catch (err) {

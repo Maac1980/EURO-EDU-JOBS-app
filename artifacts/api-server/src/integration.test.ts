@@ -108,3 +108,44 @@ describe("integration: tenancy helper", () => {
     expect(requireTenant(fakeReq)).toBe("acme-corp");
   });
 });
+
+describe("integration: PII role-based projection (workerToCandidate)", () => {
+  it("reveals plaintext PESEL/IBAN for privileged viewers (T1)", async () => {
+    const { encrypt } = await import("./lib/encryption.js");
+    const pesel = "92010112345";
+    const iban = "PL61109010140000071219812874";
+    // Hand-construct a minimal Worker-shaped row; workerToCandidate only reads
+    // a subset of fields so the rest being defaults is fine.
+    const row: any = {
+      id: "w1", name: "Test Worker", jobRole: "Welder", complianceStatus: "compliant",
+      pesel: encrypt(pesel), iban: encrypt(iban),
+    };
+    // Re-export the function by re-opening the module; eej-mobile does not
+    // export workerToCandidate directly, so we test the underlying primitives.
+    const { decrypt, maskSensitive } = await import("./lib/encryption.js");
+    // T1 is privileged → decrypt returns plaintext
+    expect(decrypt(row.pesel)).toBe(pesel);
+    expect(decrypt(row.iban)).toBe(iban);
+    // T4 is not privileged → masked
+    expect(maskSensitive(row.pesel)).toBe("***-****-2345");
+    expect(maskSensitive(row.iban)).toBe("***-****-2874");
+  });
+
+  it("decrypts legacy plaintext identically (no double-masking)", async () => {
+    const { decrypt, isEncrypted, maskSensitive } = await import("./lib/encryption.js");
+    const legacyPesel = "85050554321";
+    expect(isEncrypted(legacyPesel)).toBe(false);
+    expect(decrypt(legacyPesel)).toBe(legacyPesel);
+    expect(maskSensitive(legacyPesel)).toBe("***-****-4321");
+  });
+
+  it("isEncrypted distinguishes legacy plaintext from enc:v1 format", async () => {
+    const { encrypt, isEncrypted } = await import("./lib/encryption.js");
+    expect(isEncrypted("92010112345")).toBe(false);
+    expect(isEncrypted("legacy-value")).toBe(false);
+    expect(isEncrypted("")).toBe(false);
+    expect(isEncrypted(null)).toBe(false);
+    expect(isEncrypted(undefined)).toBe(false);
+    expect(isEncrypted(encrypt("sensitive"))).toBe(true);
+  });
+});

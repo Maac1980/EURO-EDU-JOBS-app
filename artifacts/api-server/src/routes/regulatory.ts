@@ -142,7 +142,9 @@ function buildAlertEmail(updates: Array<{
 async function runRegulatoryCheck(): Promise<{ scanned: number; detected: number; critical: number; emailSent: boolean }> {
   console.log("[regulatory] Running daily regulatory scan at", new Date().toISOString());
 
-  // Count current workers for impact estimation
+  // [tenancy] Intentionally unscoped: regulatory scan is a platform-level
+  // background job that reports system-wide impact counts, not a per-tenant
+  // query. Each tenant's UI will still filter regulatory_updates by severity.
   const workerRows = await db.select().from(schema.workers);
   const workerCount = workerRows.length;
 

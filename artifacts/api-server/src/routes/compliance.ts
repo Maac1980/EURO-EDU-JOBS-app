@@ -1,9 +1,11 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import PDFDocument from "pdfkit";
 import { db, schema } from "../db/index.js";
+import { eq } from "drizzle-orm";
 import { toWorker, type Worker } from "../lib/compliance.js";
 import { checkAndAlert, sendWorkerExpiryReminders, getLastAlertStatus } from "../lib/alerter.js";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 
 const router = Router();
 
@@ -34,14 +36,15 @@ function toZone(days: number): "green" | "yellow" | "red" | "expired" {
   return "green";
 }
 
-async function getAllWorkers(): Promise<Worker[]> {
-  const rows = await db.select().from(schema.workers);
+async function getAllWorkers(req: Request): Promise<Worker[]> {
+  const tenantId = requireTenant(req);
+  const rows = await db.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
   return rows.map(r => toWorker(r));
 }
 
-router.get("/compliance/documents", authenticateToken, async (_req, res) => {
+router.get("/compliance/documents", authenticateToken, async (req, res) => {
   try {
-    const workers = await getAllWorkers();
+    const workers = await getAllWorkers(req);
     const documents: DocumentRecord[] = [];
     let idCounter = 0;
 
@@ -89,9 +92,9 @@ router.get("/compliance/documents", authenticateToken, async (_req, res) => {
   }
 });
 
-router.get("/compliance/trend", authenticateToken, async (_req, res) => {
+router.get("/compliance/trend", authenticateToken, async (req, res) => {
   try {
-    const workers = await getAllWorkers();
+    const workers = await getAllWorkers(req);
     const WEEKS = 8;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -170,7 +173,7 @@ function daysLabel(days: number | null): string {
 
 router.get("/compliance/report/pdf", authenticateToken, async (req, res) => {
   try {
-    let workers = await getAllWorkers();
+    let workers = await getAllWorkers(req);
     const siteFilter = typeof req.query.site === "string" && req.query.site ? req.query.site : null;
     if (siteFilter) workers = workers.filter(w => w.assignedSite?.toLowerCase() === siteFilter.toLowerCase());
 
@@ -292,9 +295,9 @@ router.get("/compliance/report/pdf", authenticateToken, async (req, res) => {
 });
 
 // ZUS export
-router.get("/compliance/zus-export", authenticateToken, async (_req, res) => {
+router.get("/compliance/zus-export", authenticateToken, async (req, res) => {
   try {
-    const workers = await getAllWorkers();
+    const workers = await getAllWorkers(req);
     const rows = ["Imi\u0119 i Nazwisko,PESEL,NIP,Typ Umowy,Stawka (z\u0142),Godziny,Brutto (z\u0142),ZUS Status,Lokacja"];
     for (const w of workers) {
       const brutto = Number(w.hourlyNettoRate ?? 0) * Number(w.totalHours ?? 0);

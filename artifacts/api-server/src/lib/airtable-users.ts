@@ -170,17 +170,6 @@ export async function deleteSystemUser(recordId: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
 }
 
-// ── Update a user's password hash in Airtable ──────────────────────────────
-
-async function updatePasswordHash(recordId: string, passwordHash: string): Promise<void> {
-  if (!BASE_ID || !AIRTABLE_API_KEY) return;
-  await fetch(`${BASE_URL}/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${recordId}`, {
-    method: "PATCH",
-    headers: authHeaders(),
-    body: JSON.stringify({ fields: { Password_Hash: passwordHash } }),
-  });
-}
-
 // ── Startup: ensure table exists and upsert all seed users ─────────────────
 
 const INITIAL_USERS = [
@@ -189,8 +178,6 @@ const INITIAL_USERS = [
   { name: "Marta Wiśniewska", email: "legal@euro-edu-jobs.eu", role: "T2" as const, designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance" },
   { name: "Piotr Nowak",      email: "ops@euro-edu-jobs.eu",   role: "T3" as const, designation: "Workforce & Commercial Operations", shortName: "Operations" },
 ];
-
-const INITIAL_PASSWORD = "EEJ2026!";
 
 export async function ensureSystemUsersTable(): Promise<void> {
   try {
@@ -205,21 +192,29 @@ export async function ensureSystemUsersTable(): Promise<void> {
       console.log("[auth] System_Users table created");
     }
 
-    // Always upsert every seed user — create if missing, reset password hash if exists.
-    // This guarantees logins work in production regardless of prior state.
+    // Seeding is gated on EEJ_SEED_PASSWORD: only runs when explicitly bootstrapping.
+    // Never resets existing users' password hashes — that would override legitimate
+    // user-chosen passwords with a shared seed value.
+    const seedPassword = process.env.EEJ_SEED_PASSWORD;
+    if (!seedPassword) {
+      console.warn("[auth] EEJ_SEED_PASSWORD not set — skipping Airtable seed upsert");
+      const all = await listAllUsers();
+      console.log(`[auth] System_Users ready — ${all.length} user(s) in table`);
+      return;
+    }
+
+    // When seed password IS set, only create missing users (never overwrite existing hashes).
     for (const u of INITIAL_USERS) {
       try {
         const existing = await findUserByEmail(u.email);
-        const freshHash = await hashPassword(INITIAL_PASSWORD);
         if (existing) {
-          await updatePasswordHash(existing.id, freshHash);
-          console.log(`[auth] ✓ Password synced: ${u.email}`);
+          console.log(`[auth] ✓ User exists (skipping reset): ${u.email}`);
         } else {
-          await createSystemUser(u.name, u.email, INITIAL_PASSWORD, u.role, u.designation, u.shortName);
+          await createSystemUser(u.name, u.email, seedPassword, u.role, u.designation, u.shortName);
           console.log(`[auth] ✓ Seeded user: ${u.email} (${u.role})`);
         }
       } catch (e) {
-        console.warn(`[auth] Upsert failed for ${u.email}:`, (e as Error).message);
+        console.warn(`[auth] Seed failed for ${u.email}:`, (e as Error).message);
       }
     }
 

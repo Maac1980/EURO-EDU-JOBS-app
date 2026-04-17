@@ -1,11 +1,11 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { db, schema } from "../db/index.js";
-import { eq, and, sql, asc } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { toWorker } from "../lib/compliance.js";
 import { appendAuditEntry } from "./audit.js";
 import { sendWhatsAppMessage } from "../lib/alerter.js";
-import { JWT_SECRET } from "../lib/authMiddleware.js";
+import { JWT_SECRET, type AuthUser } from "../lib/authMiddleware.js";
 
 const router = Router();
 const PORTAL_TOKEN_EXPIRY = "30d";
@@ -23,8 +23,15 @@ function verifyPortalToken(token: string): { workerId: string } {
 router.get("/portal/token/:recordId", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
-  try { jwt.verify(authHeader.slice(7), JWT_SECRET); } catch { return res.status(401).json({ error: "Invalid admin token" }); }
+  let decoded: AuthUser;
+  try { decoded = jwt.verify(authHeader.slice(7), JWT_SECRET) as AuthUser; } catch { return res.status(401).json({ error: "Invalid admin token" }); }
   const { recordId } = req.params;
+  const tenantId = decoded.tenantId ?? "production";
+  // Confirm the worker belongs to the admin's tenant before minting a portal token.
+  const [row] = await db.select().from(schema.workers).where(
+    and(eq(schema.workers.id, recordId), eq(schema.workers.tenantId, tenantId))
+  );
+  if (!row) return res.status(404).json({ error: "Worker not found" });
   const token = signPortalToken(recordId);
   return res.json({ token, expiresIn: PORTAL_TOKEN_EXPIRY });
 });
@@ -36,6 +43,9 @@ router.get("/portal/me", async (req, res) => {
   try { ({ workerId } = verifyPortalToken(token)); } catch { return res.status(401).json({ error: "Invalid or expired portal link." }); }
 
   try {
+    // [tenancy] Scoping implicit: portal tokens are minted after the admin-side
+    // /portal/token/:recordId tenant check, so the workerId is already bound
+    // to a single tenant. The worker_id UUID is itself globally unique.
     const [row] = await db.select().from(schema.workers).where(eq(schema.workers.id, workerId));
     if (!row) return res.status(404).json({ error: "Worker not found." });
     const w = toWorker(row);
@@ -86,15 +96,19 @@ router.post("/portal/hours", async (req, res) => {
 router.post("/portal/send-whatsapp/:recordId", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
-  try { jwt.verify(authHeader.slice(7), JWT_SECRET); } catch { return res.status(401).json({ error: "Invalid admin token" }); }
+  let decoded: AuthUser;
+  try { decoded = jwt.verify(authHeader.slice(7), JWT_SECRET) as AuthUser; } catch { return res.status(401).json({ error: "Invalid admin token" }); }
   const { recordId } = req.params;
+  const tenantId = decoded.tenantId ?? "production";
 
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
     return res.status(503).json({ error: "WhatsApp not configured." });
   }
 
   try {
-    const [row] = await db.select().from(schema.workers).where(eq(schema.workers.id, recordId));
+    const [row] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, recordId), eq(schema.workers.tenantId, tenantId))
+    );
     if (!row) return res.status(404).json({ error: "Worker not found." });
     if (!row.phone) return res.status(400).json({ error: "Worker has no phone number." });
 

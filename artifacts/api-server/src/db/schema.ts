@@ -1,5 +1,17 @@
 import { pgTable, text, integer, real, numeric, timestamp, boolean, uuid, pgEnum, date, jsonb } from "drizzle-orm/pg-core";
 
+// ── Tenants (multi-tenant root) ─────────────────────────────────────────────
+export const tenants = pgTable("tenants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("active"),
+  contactEmail: text("contact_email"),
+  countryCode: text("country_code").default("PL"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Enums ────────────────────────────────────────────────────────────────────
 export const complianceStatusEnum = pgEnum("compliance_status", ["critical", "warning", "compliant", "non-compliant"]);
 export const userRoleEnum = pgEnum("user_role", ["admin", "coordinator", "manager"]);
@@ -77,7 +89,7 @@ export const workers = pgTable("workers", {
   gdprErasedAt: timestamp("gdpr_erased_at"),
 
   // Multi-tenant isolation
-  tenantId: text("tenant_id").notNull().default("production"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
 });
 
 // ── Dashboard Users (replaces users.json) ─────────────────────────────────────
@@ -90,7 +102,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   twoFactorSecret: text("two_factor_secret"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
-  tenantId: text("tenant_id").notNull().default("production"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -118,7 +130,7 @@ export const clients = pgTable("clients", {
   nip: text("nip"),
   billingRate: numeric("billing_rate", { precision: 10, scale: 2 }),
   notes: text("notes"),
-  tenantId: text("tenant_id").notNull().default("production"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -150,7 +162,7 @@ export const payrollRecords = pgTable("payroll_records", {
   finalNettoPayout: numeric("final_netto_payout", { precision: 10, scale: 2 }).notNull().default("0"),
   zusBaseSalary: numeric("zus_base_salary", { precision: 10, scale: 2 }).default("0"),
   siteLocation: text("site_location"),
-  tenantId: text("tenant_id").notNull().default("production"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -277,7 +289,7 @@ export const invoices = pgTable("invoices", {
   dueDate: date("due_date"),
   paidAt: timestamp("paid_at"),
   notes: text("notes"),
-  tenantId: text("tenant_id").notNull().default("production"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -297,7 +309,7 @@ export const workPermitApplications = pgTable("work_permit_applications", {
   decisionDate: date("decision_date"),
   expiryDate: date("expiry_date"),
   notes: text("notes"),
-  tenantId: text("tenant_id").notNull().default("production"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

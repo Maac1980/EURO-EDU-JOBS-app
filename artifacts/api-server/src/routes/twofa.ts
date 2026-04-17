@@ -7,6 +7,9 @@ import { authenticateToken, type AuthUser } from "../lib/authMiddleware.js";
 
 const router = Router();
 
+// [tenancy] 2FA routes key on req.user.id (globally unique UUID) that was
+// already resolved via the authenticated JWT. The user's tenantId is
+// intrinsic to the row they're modifying — no extra tenant filter needed.
 router.post("/2fa/setup", authenticateToken, async (req, res) => {
   const user = req.user!;
   const secret = speakeasy.generateSecret({ name: `EEJ Portal (${user.email})`, length: 20 });

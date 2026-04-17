@@ -1,16 +1,25 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { db, schema } from "../db/index.js";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
+import { decrypt } from "../lib/encryption.js";
 
 const router = Router();
 
 // GET /api/contracts/generate/:workerId — generate contract PDF
 router.get("/contracts/generate/:workerId", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
-    const [worker] = await db.select().from(schema.workers).where(eq(schema.workers.id, String(req.params.workerId)));
+    const tenantId = requireTenant(req);
+    const [worker] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, String(req.params.workerId)), eq(schema.workers.tenantId, tenantId))
+    );
     if (!worker) return res.status(404).json({ error: "Worker not found" });
+
+    // Privileged (coordinator/admin) contract PDF — decrypt PESEL/IBAN for the document itself.
+    const peselPlain = worker.pesel ? (decrypt(worker.pesel) ?? worker.pesel) : null;
+    const ibanPlain = worker.iban ? (decrypt(worker.iban) ?? worker.iban) : null;
 
     const contractType = (req.query.type as string) || worker.contractType || "umowa_zlecenie";
     const startDate = (req.query.startDate as string) || new Date().toISOString().slice(0, 10);
@@ -45,12 +54,12 @@ router.get("/contracts/generate/:workerId", authenticateToken, requireCoordinato
     doc.moveDown(0.5);
     doc.text("Zleceniobiorca / Employee:");
     doc.text(`Imie i Nazwisko / Name: ${worker.name}`);
-    if (worker.pesel) doc.text(`PESEL: ${worker.pesel}`);
+    if (peselPlain) doc.text(`PESEL: ${peselPlain}`);
     if (worker.nip) doc.text(`NIP: ${worker.nip}`);
     if (worker.nationality) doc.text(`Obywatelstwo / Nationality: ${worker.nationality}`);
     if (worker.email) doc.text(`Email: ${worker.email}`);
     if (worker.phone) doc.text(`Telefon / Phone: ${worker.phone}`);
-    if (worker.iban) doc.text(`IBAN: ${worker.iban}`);
+    if (ibanPlain) doc.text(`IBAN: ${ibanPlain}`);
     doc.moveDown();
 
     // Terms
@@ -71,7 +80,7 @@ router.get("/contracts/generate/:workerId", authenticateToken, requireCoordinato
       doc.text(`Stawka godzinowa netto / Hourly rate (net): ${Number(worker.hourlyNettoRate).toFixed(2)} PLN`);
     }
     doc.text(`Typ umowy / Contract type: ${contractType.replace(/_/g, " ")}`);
-    if (worker.iban) doc.text(`Wyplata na konto / Payment to: ${worker.iban}`);
+    if (ibanPlain) doc.text(`Wyplata na konto / Payment to: ${ibanPlain}`);
     doc.moveDown();
 
     // ZUS

@@ -761,6 +761,174 @@ export async function runMigrations(): Promise<void> {
     END $$;
   `);
 
+  // ═══ Stage 4: Formal tenants table + FK integrity ═══
+  // Slug-based FKs preserve every existing `WHERE tenant_id = 'production'` query
+  // while giving a canonical catalog of tenants and referential integrity.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS tenants (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      contact_email TEXT,
+      country_code TEXT DEFAULT 'PL',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
+  `);
+
+  await db.execute(sql`
+    INSERT INTO tenants (slug, name, contact_email)
+    VALUES ('production', 'Euro Edu Jobs Production', 'anna.b@edu-jobs.eu')
+    ON CONFLICT (slug) DO NOTHING;
+
+    INSERT INTO tenants (slug, name, status, contact_email)
+    VALUES ('test', 'Test Data (Isolated)', 'active', NULL)
+    ON CONFLICT (slug) DO NOTHING;
+  `);
+
+  // Add FK constraints idempotently: tenant_id (TEXT) -> tenants(slug).
+  // Each DO block is guarded on pg_constraint to be re-runnable.
+  await db.execute(sql`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workers_tenant_slug_fk') THEN
+        ALTER TABLE workers
+          ADD CONSTRAINT workers_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_tenant_slug_fk') THEN
+        ALTER TABLE users
+          ADD CONSTRAINT users_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clients_tenant_slug_fk') THEN
+        ALTER TABLE clients
+          ADD CONSTRAINT clients_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'payroll_records_tenant_slug_fk') THEN
+        ALTER TABLE payroll_records
+          ADD CONSTRAINT payroll_records_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invoices_tenant_slug_fk') THEN
+        ALTER TABLE invoices
+          ADD CONSTRAINT invoices_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'work_permit_applications_tenant_slug_fk') THEN
+        ALTER TABLE work_permit_applications
+          ADD CONSTRAINT work_permit_applications_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+  `);
+
+  // ═══ Stage 4: TIMESTAMP → TIMESTAMPTZ uniformity ═══
+  // Convert existing naive timestamps to UTC using Europe/Warsaw as the source
+  // zone. Idempotent: only converts columns currently 'timestamp without time zone'.
+  const TIMESTAMP_COLS: [string, string][] = [
+    ["workers", "created_at"], ["workers", "updated_at"],
+    ["workers", "gdpr_consent_date"], ["workers", "gdpr_data_exported_at"],
+    ["workers", "gdpr_erasure_requested_at"], ["workers", "gdpr_erased_at"],
+    ["users", "created_at"], ["users", "updated_at"],
+    ["system_users", "created_at"],
+    ["clients", "created_at"], ["clients", "updated_at"],
+    ["audit_entries", "timestamp"],
+    ["payroll_records", "created_at"],
+    ["notifications", "sent_at"],
+    ["worker_notes", "updated_at"],
+    ["portal_daily_logs", "submitted_at"],
+    ["file_attachments", "uploaded_at"],
+    ["alert_results", "ran_at"],
+    ["job_postings", "created_at"], ["job_postings", "updated_at"],
+    ["job_applications", "applied_at"], ["job_applications", "updated_at"],
+    ["interviews", "scheduled_at"], ["interviews", "created_at"], ["interviews", "updated_at"],
+    ["invoices", "paid_at"], ["invoices", "created_at"], ["invoices", "updated_at"],
+    ["gdpr_requests", "requested_at"], ["gdpr_requests", "completed_at"],
+    ["work_permit_applications", "submitted_at"],
+    ["work_permit_applications", "created_at"], ["work_permit_applications", "updated_at"],
+    ["regulatory_updates", "fetched_at"],
+    ["immigration_searches", "searched_at"],
+    ["agencies", "trial_ends_at"], ["agencies", "created_at"], ["agencies", "updated_at"],
+    ["gps_checkins", "timestamp"],
+    ["legal_cases", "decided_at"], ["legal_cases", "created_at"], ["legal_cases", "updated_at"],
+    ["legal_articles", "last_verified"], ["legal_articles", "created_at"],
+    ["contract_templates", "created_at"], ["contract_templates", "updated_at"],
+    ["otp_sessions", "expires_at"],
+    ["onboarding_checklists", "completed_at"], ["onboarding_checklists", "created_at"],
+    ["crm_deals", "created_at"], ["crm_deals", "updated_at"],
+    ["geofence_sites", "created_at"],
+    ["legal_snapshots", "created_at"],
+    ["legal_evidence", "verified_at"], ["legal_evidence", "uploaded_at"],
+    ["legal_documents", "approved_at"], ["legal_documents", "sent_at"],
+    ["legal_documents", "created_at"], ["legal_documents", "updated_at"],
+    ["legal_suggestions", "dismissed_at"], ["legal_suggestions", "acted_on_at"],
+    ["legal_suggestions", "created_at"],
+    ["legal_approvals", "approved_at"], ["legal_approvals", "created_at"],
+    ["legal_notifications", "sent_at"], ["legal_notifications", "created_at"],
+    ["communication_outputs", "approved_at"], ["communication_outputs", "generated_at"],
+    ["communication_outputs", "sent_at"],
+    ["document_action_log", "created_at"],
+  ];
+  for (const [table, col] of TIMESTAMP_COLS) {
+    try {
+      await db.execute(sql`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = ${table} AND column_name = ${col}
+              AND data_type = 'timestamp without time zone'
+          ) THEN
+            EXECUTE format(
+              'ALTER TABLE %I ALTER COLUMN %I TYPE TIMESTAMPTZ USING %I AT TIME ZONE ''Europe/Warsaw''',
+              ${table}, ${col}, ${col}
+            );
+          END IF;
+        EXCEPTION WHEN others THEN NULL;
+        END $$;
+      `);
+    } catch (e) {
+      console.warn(`[db] TIMESTAMPTZ migration failed for ${table}.${col}:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  // ═══ Stage 4: PII backfill (plaintext PESEL/IBAN → AES-GCM) ═══
+  // One-shot backfill for legacy rows written before the encryption layer.
+  try {
+    const { rows: legacyRows } = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt FROM workers
+      WHERE (pesel IS NOT NULL AND pesel NOT LIKE 'enc:v1:%')
+         OR (iban IS NOT NULL AND iban NOT LIKE 'enc:v1:%')
+    `);
+    const pending = (legacyRows[0] as { cnt: number } | undefined)?.cnt ?? 0;
+    if (pending > 0) {
+      console.warn(`[db] Found ${pending} worker row(s) with plaintext PII — running backfill`);
+      const { backfillPII } = await import("../lib/pii-backfill.js");
+      const result = await backfillPII();
+      console.log(`[db] PII backfill: scanned=${result.scanned}, encrypted=${result.encrypted}, skipped=${result.skipped}, errors=${result.errors}`);
+    }
+  } catch (e) {
+    console.warn("[db] PII backfill skipped:", e instanceof Error ? e.message : e);
+  }
+
   console.log("[db] Tables created successfully");
 }
 
@@ -795,30 +963,36 @@ export async function seedInitialData(): Promise<void> {
     console.log("[db] Seeded admin profile");
   }
 
-  // Seed system users (EEJ mobile) if not exist
-  const INITIAL_PASSWORD = "EEJ2026!";
-  const seedUsers = [
-    { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
-    { name: "Anna Bondarenko", email: "ceo@euro-edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
-    { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance" },
-    { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations" },
-  ];
+  // Seed system users (EEJ mobile) only when EEJ_SEED_PASSWORD is set.
+  // Never hardcode credentials — production systems must bootstrap via env var,
+  // then rotate user passwords through the in-app change-password flow.
+  const INITIAL_PASSWORD = process.env.EEJ_SEED_PASSWORD;
+  if (!INITIAL_PASSWORD) {
+    console.warn("[db] EEJ_SEED_PASSWORD not set — skipping system user seed (set this env var once to bootstrap)");
+  } else {
+    const seedUsers = [
+      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
+      { name: "Anna Bondarenko", email: "ceo@euro-edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
+      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance" },
+      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations" },
+    ];
 
-  for (const u of seedUsers) {
-    const existing = await db.select().from(schema.systemUsers).where(
-      sql`${schema.systemUsers.email} = ${u.email}`
-    );
-    if (existing.length === 0) {
-      const hash = await hashPassword(INITIAL_PASSWORD);
-      await db.insert(schema.systemUsers).values({
-        name: u.name,
-        email: u.email,
-        passwordHash: hash,
-        role: u.role,
-        designation: u.designation,
-        shortName: u.shortName,
-      });
-      console.log(`[db] Seeded system user: ${u.email} (${u.role})`);
+    for (const u of seedUsers) {
+      const existing = await db.select().from(schema.systemUsers).where(
+        sql`${schema.systemUsers.email} = ${u.email}`
+      );
+      if (existing.length === 0) {
+        const hash = await hashPassword(INITIAL_PASSWORD);
+        await db.insert(schema.systemUsers).values({
+          name: u.name,
+          email: u.email,
+          passwordHash: hash,
+          role: u.role,
+          designation: u.designation,
+          shortName: u.shortName,
+        });
+        console.log(`[db] Seeded system user: ${u.email} (${u.role})`);
+      }
     }
   }
 

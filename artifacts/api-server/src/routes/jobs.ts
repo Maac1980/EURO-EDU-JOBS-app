@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db, schema } from "../db/index.js";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 import { appendAuditEntry } from "./audit.js";
 
 const router = Router();
@@ -246,7 +247,8 @@ router.get("/jobs/:id/matches", authenticateToken, async (req, res) => {
     const [job] = await db.select().from(schema.jobPostings).where(eq(schema.jobPostings.id, String(req.params.id)));
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    const workers = await db.select().from(schema.workers);
+    const tenantId = requireTenant(req);
+    const workers = await db.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
 
     const matches = workers.map(w => {
       let score = 0;

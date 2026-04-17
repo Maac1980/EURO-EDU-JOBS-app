@@ -186,6 +186,10 @@ export async function checkAndAlert(testMode = false): Promise<AlertResult> {
   const YELLOW_THRESHOLD = testMode ? 9999 : 60;
 
   try {
+    // [tenancy] Intentionally unscoped: checkAndAlert is a cron-driven
+    // compliance scan that must cover every tenant. Per-tenant alerts are
+    // routed via each row's tenantId if/when split-notification fan-out
+    // is added.
     const rows = await db.select().from(schema.workers);
     const workers = rows.map(r => toWorker(r));
     result.scanned = workers.length;
@@ -322,6 +326,9 @@ export async function sendWorkerExpiryReminders(): Promise<{ sent: number; skipp
 
   let workers: Worker[];
   try {
+    // [tenancy] Intentionally unscoped: sendWorkerExpiryReminders is a
+    // platform-wide reminder pass that dispatches per-worker messages.
+    // Filtering is done per-worker (phone present, email present, role).
     const rows = await db.select().from(schema.workers);
     workers = rows.map(r => toWorker(r));
   } catch (err) {

@@ -2,8 +2,6 @@ packages:
   - '.'
   - 'artifacts/apatris-dashboard'
   - 'artifacts/api-server'
-  - 'artifacts/mockup-sandbox'
-  - '.cache/typescript/5.9'
   - 'eej-mobile-HIDDEN'
   - 'lib/api-client-react'
   - 'lib/api-spec'

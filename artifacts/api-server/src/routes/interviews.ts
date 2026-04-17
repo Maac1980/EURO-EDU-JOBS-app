@@ -1,13 +1,15 @@
 import { Router } from "express";
 import { db, schema } from "../db/index.js";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { requireTenant } from "../lib/tenancy.js";
 
 const router = Router();
 
-// GET /api/interviews — list all interviews
+// GET /api/interviews — list all interviews (scoped via worker tenant)
 router.get("/interviews", authenticateToken, async (req, res) => {
   try {
+    const tenantId = requireTenant(req);
     const interviews = await db.select({
       interview: schema.interviews,
       worker: schema.workers,
@@ -15,6 +17,7 @@ router.get("/interviews", authenticateToken, async (req, res) => {
     }).from(schema.interviews)
       .innerJoin(schema.workers, eq(schema.interviews.workerId, schema.workers.id))
       .innerJoin(schema.jobPostings, eq(schema.interviews.jobId, schema.jobPostings.id))
+      .where(eq(schema.workers.tenantId, tenantId))
       .orderBy(desc(schema.interviews.scheduledAt));
 
     return res.json({
@@ -33,6 +36,12 @@ router.get("/interviews", authenticateToken, async (req, res) => {
 router.post("/interviews", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const body = req.body;
+    const tenantId = requireTenant(req);
+    const [worker] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, body.workerId), eq(schema.workers.tenantId, tenantId))
+    );
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
+
     const [interview] = await db.insert(schema.interviews).values({
       applicationId: body.applicationId,
       workerId: body.workerId,

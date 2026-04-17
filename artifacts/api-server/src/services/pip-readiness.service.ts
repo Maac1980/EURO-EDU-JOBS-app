@@ -18,7 +18,7 @@
  */
 
 import { db, schema } from "../db/index.js";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 interface Worker {
   id: string;
@@ -79,8 +79,8 @@ export async function calculatePIPReadiness(tenantId: string): Promise<PIPReadin
   let score = 100;
   const counts = { expired: 0, critical: 0, warning: 0, missing: 0 };
 
-  // 1. Fetch all workers with compliance status
-  const rows = await db.select().from(schema.workers);
+  // 1. Fetch all workers with compliance status (scoped to tenant)
+  const rows = await db.select().from(schema.workers).where(eq(schema.workers.tenantId, tenantId));
   const workers: Worker[] = rows.map((r: any) => ({
     id: r.id, name: r.name,
     trcExpiry: r.trcExpiry, passportExpiry: r.passportExpiry,

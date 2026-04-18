@@ -29,6 +29,19 @@ export const interviewStatusEnum = pgEnum("interview_status", ["scheduled", "com
 export const clientStageEnum = pgEnum("client_stage", ["LEAD", "NEGOTIATING", "SIGNED", "STALE", "LOST"]);
 export const dealCurrencyEnum = pgEnum("deal_currency", ["PLN", "EUR"]);
 export const dealStageEnum = pgEnum("deal_stage", ["OPEN", "WON", "LOST"]);
+export const whatsappDirectionEnum = pgEnum("whatsapp_direction", ["inbound", "outbound"]);
+export const whatsappStatusEnum = pgEnum("whatsapp_status", [
+  "DRAFT", "APPROVED", "SENT", "FAILED", "RECEIVED", "DISCARDED",
+]);
+export const whatsappTriggerEventEnum = pgEnum("whatsapp_trigger_event", [
+  "application_received",
+  "permit_update",
+  "payment_reminder",
+  "expiry_nudge",
+  "manual",
+  "inbound_reply",
+  "system",
+]);
 
 // ── Workers (replaces Airtable main table) ───────────────────────────────────
 export const workers = pgTable("workers", {
@@ -165,6 +178,58 @@ export const clientDeals = pgTable("client_deals", {
   stage: dealStageEnum("stage").notNull().default("OPEN"),
   invoiceId: uuid("invoice_id"),
   tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── WhatsApp Templates (Twilio content-SID catalog per tenant) ───────────────
+// Index definitions (including UNIQUE(tenant_id, name)) live in migrate.ts per
+// EEJ convention. DB CHECK on variables JSONB shape also added in Task C.
+export const whatsappTemplates = pgTable("whatsapp_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  name: text("name").notNull(),
+  contentSid: text("content_sid"),
+  language: text("language").notNull().default("pl"),
+  bodyPreview: text("body_preview").notNull(),
+  // variables is expected to be string[] of variable names ("workerName" etc.).
+  // Enforced at DB level by CHECK (jsonb_typeof='array') in migrate.ts;
+  // runtime validation by Zod in route handlers (Step 3b).
+  variables: jsonb("variables").$type<string[]>().notNull().default([]),
+  active: boolean("active").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Callers must set updatedAt manually on PATCH — no $onUpdate in EEJ convention
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── WhatsApp Messages (inbound + outbound; DRAFT → APPROVED → SENT) ──────────
+// Indexes + CHECK (outbound requires recipient) live in migrate.ts.
+// Partial unique index on twilio_message_sid (for inbound idempotency) in
+// migrate.ts. approvedBy intentionally has no FK — actor identity is
+// snapshotted so user deletion doesn't cascade-null approval trails
+// (matches clientActivities.userId pattern).
+export const whatsappMessages = pgTable("whatsapp_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  direction: whatsappDirectionEnum("direction").notNull(),
+  status: whatsappStatusEnum("status").notNull().default("DRAFT"),
+  workerId: uuid("worker_id").references(() => workers.id, { onDelete: "set null" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  // TODO(pii-encryption): phone is PII. Align with workers.phone / clients.phone
+  // encryption strategy (tracked in STEP3-FOLLOWUPS.md).
+  phone: text("phone").notNull(),
+  body: text("body").notNull(),
+  templateId: uuid("template_id").references(() => whatsappTemplates.id, { onDelete: "set null" }),
+  templateVariables: jsonb("template_variables"),
+  twilioMessageSid: text("twilio_message_sid"),
+  triggerEvent: whatsappTriggerEventEnum("trigger_event"),
+  isTestLabel: boolean("is_test_label").notNull().default(false),
+  approvedBy: uuid("approved_by"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  receivedAt: timestamp("received_at", { withTimezone: true }),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  failedReason: text("failed_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

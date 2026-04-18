@@ -36,6 +36,13 @@ export default function ExecutiveHome({ onNavigate }: Props) {
   // Live stats state (falls back to EXEC_STATS defaults)
   const [stats, setStats] = useState(EXEC_STATS);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsMeta, setStatsMeta] = useState<{
+    newApplicationsToday: number;
+    schengenAlerts: number;
+    schengenTrackingEnabled: boolean;
+    stripeConfigured: boolean;
+    stripeMonthlyRevenue: string;
+  } | null>(null);
 
   // Regulatory Intelligence widget state
   const [regSummary, setRegSummary] = useState<any>(null);
@@ -75,6 +82,13 @@ export default function ExecutiveHome({ onNavigate }: Props) {
           monthlyRevenue: data.monthlyRevenue ?? EXEC_STATS.monthlyRevenue,
           zusLiability: data.zusLiability ?? EXEC_STATS.zusLiability,
           b2bContracts: data.b2bContracts ?? EXEC_STATS.b2bContracts,
+        });
+        setStatsMeta({
+          newApplicationsToday: data.newApplicationsToday ?? 0,
+          schengenAlerts: data.schengenAlerts ?? 0,
+          schengenTrackingEnabled: data.schengenTrackingEnabled ?? false,
+          stripeConfigured: data.stripeConfigured ?? false,
+          stripeMonthlyRevenue: data.stripeMonthlyRevenue ?? "0.00",
         });
       })
       .catch(() => {/* keep defaults */})
@@ -390,6 +404,42 @@ export default function ExecutiveHome({ onNavigate }: Props) {
           <div className="zus-label">Rate (Zlecenie)</div>
           <div className="zus-value">11.26%</div>
           <div className="zus-sub">Social + pension</div>
+        </div>
+      </div>
+
+      {/* Schengen 90/180 Tracker */}
+      <div className="section-label">
+        Schengen 90/180 Tracker
+        <span className="access-badge access-t1">Tier 1 Only</span>
+      </div>
+      <div style={{
+        background: statsMeta?.schengenTrackingEnabled ? "#fff" : "#F9FAFB",
+        border: `1.5px solid ${statsMeta?.schengenTrackingEnabled ? "#E5E7EB" : "#D1D5DB"}`,
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Plane size={16} color={statsMeta?.schengenTrackingEnabled ? "#DC2626" : "#9CA3AF"} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>
+                {statsMeta?.schengenTrackingEnabled
+                  ? `${statsMeta.schengenAlerts} workers near 90-day limit`
+                  : "Tracking not configured"}
+              </div>
+              <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
+                {statsMeta?.schengenTrackingEnabled
+                  ? "Non-EU workers approaching 90/180 Schengen cap"
+                  : "Connect a border-crossing data source to enable"}
+              </div>
+            </div>
+          </div>
+          {!statsMeta?.schengenTrackingEnabled && (
+            <span style={{ background: "#F3F4F6", color: "#6B7280", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 600 }}>
+              Phase 2
+            </span>
+          )}
         </div>
       </div>
 

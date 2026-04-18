@@ -170,6 +170,99 @@ router.delete("/admin/users/:id", authenticateToken, requireAdmin, async (req, r
   }
 });
 
+// ── T1 Executive Dashboard Aggregator ─────────────────────────────────────────
+// Returns all home-screen KPIs in one call. Tenant-scoped. Admin/T1 only.
+router.get("/admin/stats", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+
+    const [counts] = await db.execute<{
+      total_candidates: string;
+      active_deployments: string;
+      b2b_contracts: string;
+      new_today: string;
+    }>(sql`
+      SELECT
+        COUNT(*)                                                AS total_candidates,
+        COUNT(*) FILTER (WHERE pipeline_stage IN ('Placed','Active')) AS active_deployments,
+        COUNT(*) FILTER (WHERE contract_type = 'B2B')           AS b2b_contracts,
+        COUNT(*) FILTER (WHERE created_at >= (NOW() AT TIME ZONE 'Europe/Warsaw')::date) AS new_today
+      FROM workers
+      WHERE tenant_id = ${tenantId}
+    `).then(r => r.rows);
+
+    const totalCandidates   = Number(counts?.total_candidates   ?? 0);
+    const activeDeployments = Number(counts?.active_deployments ?? 0);
+    const b2bContracts      = Number(counts?.b2b_contracts      ?? 0);
+    const newToday          = Number(counts?.new_today          ?? 0);
+    const placementPct      = totalCandidates > 0
+      ? Math.round((activeDeployments / totalCandidates) * 100)
+      : 0;
+
+    const [permitCounts] = await db.execute<{ pending: string }>(sql`
+      SELECT COUNT(*) AS pending
+      FROM work_permit_applications
+      WHERE tenant_id = ${tenantId}
+        AND status IN ('submitted', 'under_review', 'preparing')
+    `).then(r => r.rows);
+    const pendingReviews = Number(permitCounts?.pending ?? 0);
+
+    const [revenue] = await db.execute<{ paid_total: string | null }>(sql`
+      SELECT COALESCE(SUM(total), 0) AS paid_total
+      FROM invoices
+      WHERE tenant_id = ${tenantId}
+        AND status = 'paid'
+        AND paid_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Warsaw')
+        AND paid_at <  date_trunc('month', NOW() AT TIME ZONE 'Europe/Warsaw') + INTERVAL '1 month'
+    `).then(r => r.rows);
+    const monthlyRevenue = Number(revenue?.paid_total ?? 0);
+
+    const [zus] = await db.execute<{ total_gross: string | null }>(sql`
+      SELECT COALESCE(SUM(gross_pay), 0) AS total_gross
+      FROM payroll_records
+      WHERE tenant_id = ${tenantId}
+        AND month_year = to_char(NOW() AT TIME ZONE 'Europe/Warsaw', 'YYYY-MM')
+    `).then(r => r.rows);
+    const payrollGross = Number(zus?.total_gross ?? 0);
+    const zusLiability = payrollGross > 0
+      ? payrollGross * 0.1881
+      : activeDeployments * 160 * 31.40 * 0.1881;
+
+    const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY);
+    let stripeMonthlyRevenue = 0;
+    if (stripeConfigured) {
+      const [stripe] = await db.execute<{ stripe_total: string | null }>(sql`
+        SELECT COALESCE(SUM(amount), 0) AS stripe_total
+        FROM eej_billing_events
+        WHERE org_context = 'EEJ'
+          AND event_type = 'invoice.paid'
+          AND processed_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Warsaw')
+      `).then(r => r.rows);
+      stripeMonthlyRevenue = Number(stripe?.stripe_total ?? 0);
+    }
+
+    return res.json({
+      totalCandidates,
+      placementPct,
+      pendingReviews,
+      activeDeployments,
+      monthlyRevenue: monthlyRevenue.toFixed(2),
+      zusLiability: zusLiability.toFixed(2),
+      b2bContracts,
+      newApplicationsToday: newToday,
+      schengenAlerts: 0,
+      schengenTrackingEnabled: false,
+      stripeConfigured,
+      stripeMonthlyRevenue: stripeMonthlyRevenue.toFixed(2),
+      currency: "PLN",
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("[admin/stats]", err);
+    return res.status(500).json({ error: "Could not load executive stats." });
+  }
+});
+
 router.get("/admin/system-status", authenticateToken, requireAdmin, (_req, res) => {
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;

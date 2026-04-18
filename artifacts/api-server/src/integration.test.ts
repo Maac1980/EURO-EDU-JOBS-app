@@ -109,6 +109,39 @@ describe("integration: tenancy helper", () => {
   });
 });
 
+describe("integration: CRM auth gate", () => {
+  it("GET /api/crm/pipeline without auth returns 401", async () => {
+    const res = await request(app).get("/api/crm/pipeline");
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/crm/pipeline with T3 (operations) role returns 403", async () => {
+    const jwt = await import("jsonwebtoken");
+    const token = jwt.default.sign(
+      { id: "00000000-0000-0000-0000-000000000003", email: "ops@test.local", name: "Ops",
+        role: "operations", tier: 3, tenantId: "test", site: null },
+      process.env.JWT_SECRET!,
+      { expiresIn: "5m" }
+    );
+    const res = await request(app).get("/api/crm/pipeline").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/crm/activity with T4 (candidate) role returns 403", async () => {
+    const jwt = await import("jsonwebtoken");
+    const token = jwt.default.sign(
+      { id: "00000000-0000-0000-0000-000000000004", email: "worker@test.local", name: "Worker",
+        role: "candidate", tier: 4, tenantId: "test", site: null },
+      process.env.JWT_SECRET!,
+      { expiresIn: "5m" }
+    );
+    const res = await request(app).post("/api/crm/activity")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ clientId: "00000000-0000-0000-0000-000000000000", content: "test" });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe("integration: PII role-based projection (workerToCandidate)", () => {
   it("reveals plaintext PESEL/IBAN for privileged viewers (T1)", async () => {
     const { encrypt } = await import("./lib/encryption.js");

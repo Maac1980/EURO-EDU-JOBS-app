@@ -840,6 +840,88 @@ export async function runMigrations(): Promise<void> {
     EXCEPTION WHEN others THEN NULL; END $$;
   `);
 
+  // ═══ Step 2: CRM enhancements (clients.stage, activities, deals, invoice currency) ═══
+  // Enums — CREATE TYPE has no IF NOT EXISTS; use DO-block exception pattern.
+  await db.execute(sql`
+    DO $$ BEGIN
+      CREATE TYPE client_stage AS ENUM ('LEAD', 'NEGOTIATING', 'SIGNED', 'STALE', 'LOST');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+    DO $$ BEGIN
+      CREATE TYPE deal_currency AS ENUM ('PLN', 'EUR');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+    DO $$ BEGIN
+      CREATE TYPE deal_stage AS ENUM ('OPEN', 'WON', 'LOST');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `);
+
+  // clients: add stage + source (idempotent)
+  await db.execute(sql`
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS stage client_stage NOT NULL DEFAULT 'LEAD';
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS source TEXT;
+  `);
+
+  // invoices.currency — JS-side existence check (matches Stage 4 TZ pattern)
+  try {
+    const invCurrencyCheck = await db.execute(sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'invoices' AND column_name = 'currency'
+    `);
+    if (invCurrencyCheck.rows.length === 0) {
+      await db.execute(sql`ALTER TABLE invoices ADD COLUMN currency TEXT NOT NULL DEFAULT 'PLN'`);
+      console.log("[db] Added invoices.currency (default PLN)");
+    }
+  } catch (e) {
+    console.warn("[db] invoices.currency migration skipped:", e instanceof Error ? e.message : e);
+  }
+
+  // client_activities (append-only)
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS client_activities (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      user_id UUID,
+      actor_name TEXT,
+      kind TEXT NOT NULL DEFAULT 'note',
+      content TEXT NOT NULL,
+      metadata JSONB,
+      tenant_id TEXT NOT NULL DEFAULT 'production' REFERENCES tenants(slug) ON DELETE RESTRICT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_activities_client_created ON client_activities(client_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_client_activities_tenant ON client_activities(tenant_id);
+  `);
+
+  // client_deals
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS client_deals (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      estimated_value NUMERIC(12, 2) NOT NULL DEFAULT 0,
+      currency deal_currency NOT NULL DEFAULT 'PLN',
+      probability_pct INTEGER NOT NULL DEFAULT 50,
+      expected_close_date DATE,
+      stage deal_stage NOT NULL DEFAULT 'OPEN',
+      invoice_id UUID,
+      tenant_id TEXT NOT NULL DEFAULT 'production' REFERENCES tenants(slug) ON DELETE RESTRICT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_deals_tenant_client ON client_deals(tenant_id, client_id);
+    CREATE INDEX IF NOT EXISTS idx_client_deals_tenant_stage ON client_deals(tenant_id, stage);
+    CREATE INDEX IF NOT EXISTS idx_client_deals_tenant_expected_close ON client_deals(tenant_id, expected_close_date);
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'client_deals_invoice_fk') THEN
+        ALTER TABLE client_deals
+          ADD CONSTRAINT client_deals_invoice_fk
+          FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE SET NULL;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+  `);
+
   // ═══ Stage 4: TIMESTAMP → TIMESTAMPTZ uniformity ═══
   // Convert existing naive timestamps to UTC using Europe/Warsaw as the source
   // zone. Idempotent: only converts columns currently 'timestamp without time zone'.

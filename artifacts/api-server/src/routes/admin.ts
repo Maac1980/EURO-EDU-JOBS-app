@@ -207,15 +207,25 @@ router.get("/admin/stats", authenticateToken, requireAdmin, async (req, res) => 
     `).then(r => r.rows);
     const pendingReviews = Number(permitCounts?.pending ?? 0);
 
-    const [revenue] = await db.execute<{ paid_total: string | null }>(sql`
-      SELECT COALESCE(SUM(total), 0) AS paid_total
+    // Monthly paid revenue grouped by currency. Legacy NULL currency → PLN.
+    const revenueRows = await db.execute<{ currency: string | null; paid_total: string | null }>(sql`
+      SELECT COALESCE(currency, 'PLN') AS currency,
+             COALESCE(SUM(total), 0)   AS paid_total
       FROM invoices
       WHERE tenant_id = ${tenantId}
         AND status = 'paid'
         AND paid_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Warsaw')
         AND paid_at <  date_trunc('month', NOW() AT TIME ZONE 'Europe/Warsaw') + INTERVAL '1 month'
+      GROUP BY COALESCE(currency, 'PLN')
     `).then(r => r.rows);
-    const monthlyRevenue = Number(revenue?.paid_total ?? 0);
+    const monthlyRevenueByCurrency: Record<"PLN" | "EUR", string> = { PLN: "0.00", EUR: "0.00" };
+    for (const row of revenueRows) {
+      const cur = (row.currency ?? "PLN").toUpperCase();
+      if (cur === "PLN" || cur === "EUR") {
+        monthlyRevenueByCurrency[cur as "PLN" | "EUR"] = Number(row.paid_total ?? 0).toFixed(2);
+      }
+    }
+    const monthlyRevenue = Number(monthlyRevenueByCurrency.PLN);
 
     const [zus] = await db.execute<{ total_gross: string | null }>(sql`
       SELECT COALESCE(SUM(gross_pay), 0) AS total_gross
@@ -227,6 +237,44 @@ router.get("/admin/stats", authenticateToken, requireAdmin, async (req, res) => 
     const zusLiability = payrollGross > 0
       ? payrollGross * 0.1881
       : activeDeployments * 160 * 31.40 * 0.1881;
+
+    // Weighted pipeline (open deals) per currency + stagnant leads + stage counts
+    const weightedRows = await db.execute<{ currency: string; weighted: string | null }>(sql`
+      SELECT currency, COALESCE(SUM(estimated_value * probability_pct / 100.0), 0)::numeric(14,2) AS weighted
+      FROM client_deals
+      WHERE tenant_id = ${tenantId} AND stage = 'OPEN'
+      GROUP BY currency
+    `).then(r => r.rows);
+    const weightedPipeline: Record<"PLN" | "EUR", string> = { PLN: "0.00", EUR: "0.00" };
+    for (const row of weightedRows) {
+      const cur = (row.currency ?? "PLN").toUpperCase();
+      if (cur === "PLN" || cur === "EUR") {
+        weightedPipeline[cur as "PLN" | "EUR"] = Number(row.weighted ?? 0).toFixed(2);
+      }
+    }
+
+    const [stagnantRow] = await db.execute<{ cnt: string }>(sql`
+      SELECT COUNT(*)::text AS cnt FROM clients c
+      WHERE c.tenant_id = ${tenantId}
+        AND c.stage NOT IN ('SIGNED', 'LOST')
+        AND COALESCE(
+              (SELECT MAX(created_at) FROM client_activities a
+                WHERE a.client_id = c.id AND a.tenant_id = ${tenantId}),
+              c.created_at
+            ) < (NOW() - INTERVAL '7 days')
+    `).then(r => r.rows);
+    const stagnantLeads = Number(stagnantRow?.cnt ?? 0);
+
+    const stageRows = await db.execute<{ stage: string; count: string }>(sql`
+      SELECT stage, COUNT(*)::text AS count
+      FROM clients
+      WHERE tenant_id = ${tenantId}
+      GROUP BY stage
+    `).then(r => r.rows);
+    const pipelineCount: Record<string, number> = { LEAD: 0, NEGOTIATING: 0, SIGNED: 0, STALE: 0, LOST: 0 };
+    for (const row of stageRows) {
+      if (row.stage in pipelineCount) pipelineCount[row.stage] = Number(row.count);
+    }
 
     const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY);
     let stripeMonthlyRevenue = 0;
@@ -247,6 +295,10 @@ router.get("/admin/stats", authenticateToken, requireAdmin, async (req, res) => 
       pendingReviews,
       activeDeployments,
       monthlyRevenue: monthlyRevenue.toFixed(2),
+      monthlyRevenueByCurrency,
+      weightedPipeline,
+      stagnantLeads,
+      pipelineCount,
       zusLiability: zusLiability.toFixed(2),
       b2bContracts,
       newApplicationsToday: newToday,

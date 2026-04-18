@@ -42,6 +42,9 @@ export default function ExecutiveHome({ onNavigate }: Props) {
     schengenTrackingEnabled: boolean;
     stripeConfigured: boolean;
     stripeMonthlyRevenue: string;
+    monthlyRevenueByCurrency: { PLN: string; EUR: string };
+    weightedPipeline: { PLN: string; EUR: string };
+    stagnantLeads: number;
   } | null>(null);
 
   // Regulatory Intelligence widget state
@@ -89,6 +92,15 @@ export default function ExecutiveHome({ onNavigate }: Props) {
           schengenTrackingEnabled: data.schengenTrackingEnabled ?? false,
           stripeConfigured: data.stripeConfigured ?? false,
           stripeMonthlyRevenue: data.stripeMonthlyRevenue ?? "0.00",
+          monthlyRevenueByCurrency: {
+            PLN: data.monthlyRevenueByCurrency?.PLN ?? data.monthlyRevenue ?? "0.00",
+            EUR: data.monthlyRevenueByCurrency?.EUR ?? "0.00",
+          },
+          weightedPipeline: {
+            PLN: data.weightedPipeline?.PLN ?? "0.00",
+            EUR: data.weightedPipeline?.EUR ?? "0.00",
+          },
+          stagnantLeads: data.stagnantLeads ?? 0,
         });
       })
       .catch(() => {/* keep defaults */})
@@ -381,14 +393,82 @@ export default function ExecutiveHome({ onNavigate }: Props) {
       </div>
       <div className="revenue-card">
         <div className="revenue-left">
-          <div className="revenue-amount">zl {stats.monthlyRevenue}</div>
-          <div className="revenue-sub">March 2026 · Projected</div>
+          <div className="revenue-amount">
+            zl {statsMeta?.monthlyRevenueByCurrency?.PLN ?? stats.monthlyRevenue}
+          </div>
+          <div className="revenue-sub">March 2026 · Paid Invoices</div>
+          {statsMeta?.monthlyRevenueByCurrency && Number(statsMeta.monthlyRevenueByCurrency.EUR) > 0 && (
+            <div style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
+              + EUR {statsMeta.monthlyRevenueByCurrency.EUR}
+            </div>
+          )}
         </div>
         <div className="revenue-badge">
           <ArrowUpRight size={12} />
           <span>12%</span>
         </div>
       </div>
+
+      {/* Weighted Pipeline — Tier 1 Only */}
+      <div className="section-label">
+        Weighted Pipeline
+        <span className="access-badge access-t1">Tier 1 Only</span>
+      </div>
+      <div style={{
+        background: "#fff",
+        border: "1.5px solid #E5E7EB",
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+        display: "flex",
+        gap: 12,
+      }}>
+        <div style={{ flex: 1, background: "#F0F4FF", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ fontSize: 11, color: "#1B2A4A", fontWeight: 700, opacity: 0.7 }}>PLN · weighted</div>
+          <div style={{ fontSize: 20, color: "#1B2A4A", fontWeight: 800, marginTop: 2 }}>
+            zl {statsMeta?.weightedPipeline?.PLN ?? "0.00"}
+          </div>
+          <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>Open deals × probability</div>
+        </div>
+        <div style={{ flex: 1, background: "#FFF8DC", borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ fontSize: 11, color: "#1B2A4A", fontWeight: 700, opacity: 0.7 }}>EUR · weighted</div>
+          <div style={{ fontSize: 20, color: "#1B2A4A", fontWeight: 800, marginTop: 2 }}>
+            EUR {statsMeta?.weightedPipeline?.EUR ?? "0.00"}
+          </div>
+          <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>Open deals × probability</div>
+        </div>
+      </div>
+
+      {/* Stagnant Leads alert */}
+      {statsMeta && statsMeta.stagnantLeads > 0 && (
+        <button
+          onClick={() => onNavigate?.("crm")}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "#FFFBEB",
+            border: "1.5px solid #FCD34D",
+            borderRadius: 12,
+            padding: "10px 12px",
+            marginBottom: 12,
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <AlertTriangle size={16} color="#D97706" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>
+              {statsMeta.stagnantLeads} lead{statsMeta.stagnantLeads === 1 ? "" : "s"} idle ≥7 days — needs follow-up
+            </div>
+            <div style={{ fontSize: 11, color: "#92400E", opacity: 0.8, marginTop: 2 }}>
+              Open CRM pipeline
+            </div>
+          </div>
+          <ChevronRight size={14} color="#D97706" />
+        </button>
+      )}
 
       <div className="section-label">
         ZUS & Payroll Exposure

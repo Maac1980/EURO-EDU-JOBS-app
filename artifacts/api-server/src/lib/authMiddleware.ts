@@ -67,3 +67,16 @@ export function requireRole(...roles: string[]) {
     next();
   };
 }
+
+// T1 or T2 gate — accepts both the mobile-app role names (executive/legal) and
+// legacy admin/T1/T2 labels so it works across every auth path in the project.
+export function requireT1T2(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
+  const role = req.user.role as string;
+  const allowed = ["admin", "executive", "legal", "T1", "T2"];
+  if (!allowed.includes(role)) {
+    res.status(403).json({ error: "Insufficient permissions. T1 or T2 required." });
+    return;
+  }
+  next();
+}

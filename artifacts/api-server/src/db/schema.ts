@@ -26,6 +26,9 @@ export const documentZoneEnum = pgEnum("document_zone", ["green", "yellow", "red
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "whatsapp", "sms"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "sent", "paid", "overdue", "cancelled"]);
 export const interviewStatusEnum = pgEnum("interview_status", ["scheduled", "completed", "cancelled", "no_show"]);
+export const clientStageEnum = pgEnum("client_stage", ["LEAD", "NEGOTIATING", "SIGNED", "STALE", "LOST"]);
+export const dealCurrencyEnum = pgEnum("deal_currency", ["PLN", "EUR"]);
+export const dealStageEnum = pgEnum("deal_stage", ["OPEN", "WON", "LOST"]);
 
 // ── Workers (replaces Airtable main table) ───────────────────────────────────
 export const workers = pgTable("workers", {
@@ -130,9 +133,40 @@ export const clients = pgTable("clients", {
   nip: text("nip"),
   billingRate: numeric("billing_rate", { precision: 10, scale: 2 }),
   notes: text("notes"),
+  stage: clientStageEnum("stage").notNull().default("LEAD"),
+  source: text("source"),
   tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ── Client Activities (CRM interaction log) ──────────────────────────────────
+export const clientActivities = pgTable("client_activities", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  userId: uuid("user_id"),
+  actorName: text("actor_name"),
+  kind: text("kind").notNull().default("note"),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Client Deals (CRM pipeline, per-currency) ────────────────────────────────
+export const clientDeals = pgTable("client_deals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  estimatedValue: numeric("estimated_value", { precision: 12, scale: 2 }).notNull().default("0"),
+  currency: dealCurrencyEnum("currency").notNull().default("PLN"),
+  probabilityPct: integer("probability_pct").notNull().default(50),
+  expectedCloseDate: date("expected_close_date"),
+  stage: dealStageEnum("stage").notNull().default("OPEN"),
+  invoiceId: uuid("invoice_id"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ── Audit Trail (replaces audit.json) ─────────────────────────────────────────
@@ -285,6 +319,7 @@ export const invoices = pgTable("invoices", {
   vatRate: numeric("vat_rate", { precision: 4, scale: 2 }).default("0.23"),
   vatAmount: numeric("vat_amount", { precision: 12, scale: 2 }).notNull(),
   total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("PLN"),
   status: text("status").default("draft"), // draft, sent, paid, overdue, cancelled
   dueDate: date("due_date"),
   paidAt: timestamp("paid_at"),

@@ -922,6 +922,112 @@ export async function runMigrations(): Promise<void> {
     EXCEPTION WHEN others THEN NULL; END $$;
   `);
 
+  // ── WhatsApp: enum types (idempotent) ────────────────────────────────────────
+  await db.execute(sql`
+    DO $$ BEGIN
+      CREATE TYPE whatsapp_direction AS ENUM ('inbound', 'outbound');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `);
+  await db.execute(sql`
+    DO $$ BEGIN
+      CREATE TYPE whatsapp_status AS ENUM ('DRAFT', 'APPROVED', 'SENT', 'FAILED', 'RECEIVED', 'DISCARDED');
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `);
+  await db.execute(sql`
+    DO $$ BEGIN
+      CREATE TYPE whatsapp_trigger_event AS ENUM (
+        'application_received',
+        'permit_update',
+        'payment_reminder',
+        'expiry_nudge',
+        'manual',
+        'inbound_reply',
+        'system'
+      );
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `);
+
+  // ── WhatsApp: templates (Twilio content-SID catalog, per tenant) ─────────────
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS whatsapp_templates (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id TEXT NOT NULL DEFAULT 'production' REFERENCES tenants(slug) ON DELETE RESTRICT,
+      name TEXT NOT NULL,
+      content_sid TEXT,
+      language TEXT NOT NULL DEFAULT 'pl',
+      body_preview TEXT NOT NULL,
+      variables JSONB NOT NULL DEFAULT '[]'::jsonb,
+      active BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT whatsapp_templates_variables_is_array
+        CHECK (jsonb_typeof(variables) = 'array')
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_templates_tenant_name
+      ON whatsapp_templates(tenant_id, name);
+  `);
+
+  // ── WhatsApp: messages (inbound + outbound; DRAFT → APPROVED → SENT state) ───
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS whatsapp_messages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id TEXT NOT NULL DEFAULT 'production' REFERENCES tenants(slug) ON DELETE RESTRICT,
+      direction whatsapp_direction NOT NULL,
+      status whatsapp_status NOT NULL DEFAULT 'DRAFT',
+      worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
+      client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+      phone TEXT NOT NULL,
+      body TEXT NOT NULL,
+      template_id UUID REFERENCES whatsapp_templates(id) ON DELETE SET NULL,
+      template_variables JSONB,
+      twilio_message_sid TEXT,
+      trigger_event whatsapp_trigger_event,
+      is_test_label BOOLEAN NOT NULL DEFAULT FALSE,
+      approved_by UUID,
+      approved_at TIMESTAMPTZ,
+      sent_at TIMESTAMPTZ,
+      received_at TIMESTAMPTZ,
+      read_at TIMESTAMPTZ,
+      failed_reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT whatsapp_messages_outbound_requires_recipient
+        CHECK (direction = 'inbound' OR worker_id IS NOT NULL OR client_id IS NOT NULL)
+    );
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_tenant_status_created
+      ON whatsapp_messages(tenant_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_tenant_direction_unread
+      ON whatsapp_messages(tenant_id, direction, read_at)
+      WHERE read_at IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_messages_twilio_sid
+      ON whatsapp_messages(twilio_message_sid)
+      WHERE twilio_message_sid IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_phone
+      ON whatsapp_messages(phone);
+  `);
+
+  // NOTE: Template body updates should go through the Twilio console, not by
+  // modifying this seed. ON CONFLICT DO NOTHING means re-running migrations
+  // will NOT overwrite existing template text. Twilio content SIDs become the
+  // source of truth once provisioned.
+  // Scope note: seed targets only the 'production' tenant. The 'test' tenant
+  // (seeded at lines 786-788) intentionally has no WhatsApp templates — test
+  // workers are blocked from external communication per CLAUDE.md.
+  await db.execute(sql`
+    INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
+    VALUES
+      ('production', 'application_received', 'pl',
+        'Dziekujemy za aplikacje, {{workerName}}. Skontaktujemy sie w ciagu 48h.',
+        '["workerName"]'::jsonb, FALSE),
+      ('production', 'permit_status_update', 'pl',
+        'Status Twojego zezwolenia: {{permitStatus}}. Data: {{updateDate}}.',
+        '["permitStatus","updateDate"]'::jsonb, FALSE),
+      ('production', 'payment_reminder', 'pl',
+        'Przypominamy o fakturze {{invoiceNumber}} na kwote {{amount}} {{currency}}. Termin: {{dueDate}}.',
+        '["invoiceNumber","amount","currency","dueDate"]'::jsonb, FALSE)
+    ON CONFLICT (tenant_id, name) DO NOTHING;
+  `);
+
   // ═══ Stage 4: TIMESTAMP → TIMESTAMPTZ uniformity ═══
   // Convert existing naive timestamps to UTC using Europe/Warsaw as the source
   // zone. Idempotent: only converts columns currently 'timestamp without time zone'.

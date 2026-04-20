@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import type { Pool } from "pg";
 
 // Required env vars for app module to load. Set BEFORE importing app.
 process.env.JWT_SECRET ??= "test-jwt-secret-for-integration-tests-64-bytes-long-padding-xyz";
@@ -182,3 +183,87 @@ describe("integration: PII role-based projection (workerToCandidate)", () => {
     expect(isEncrypted(encrypt("sensitive"))).toBe(true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WhatsApp schema integrity — DB-backed. Requires TEST_DATABASE_URL pointing at
+// a database where runMigrations() has already been applied. Never aim this at
+// production; tests intentionally attempt constraint violations.
+// When TEST_DATABASE_URL is unset, this entire block is skipped.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: whatsapp schema integrity (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("S1 rejects INSERT with invalid status='BOGUS' (whatsapp_status enum)", async () => {
+      await expect(
+        pool.query(`
+          INSERT INTO whatsapp_messages (tenant_id, direction, status, phone, body, worker_id)
+          VALUES ('production', 'inbound', 'BOGUS', '+48123456789', 'x', gen_random_uuid())
+        `)
+      ).rejects.toThrow(/invalid input value for enum whatsapp_status/i);
+    });
+
+    it("S2 rejects INSERT with invalid direction='sideways' (whatsapp_direction enum)", async () => {
+      await expect(
+        pool.query(`
+          INSERT INTO whatsapp_messages (tenant_id, direction, phone, body)
+          VALUES ('production', 'sideways', '+48123456789', 'x')
+        `)
+      ).rejects.toThrow(/invalid input value for enum whatsapp_direction/i);
+    });
+
+    it("S3a rejects INSERT referencing nonexistent tenant slug (FK violation)", async () => {
+      await expect(
+        pool.query(`
+          INSERT INTO whatsapp_messages (tenant_id, direction, phone, body)
+          VALUES ('totally-fake-tenant', 'inbound', '+48123456789', 'x')
+        `)
+      ).rejects.toThrow(/violates foreign key constraint/i);
+    });
+
+    it("S3b rejects outbound message with no worker_id AND no client_id (CHECK)", async () => {
+      await expect(
+        pool.query(`
+          INSERT INTO whatsapp_messages (tenant_id, direction, phone, body)
+          VALUES ('production', 'outbound', '+48123456789', 'x')
+        `)
+      ).rejects.toThrow(/whatsapp_messages_outbound_requires_recipient/);
+    });
+
+    it("Sd1 migrations seeded >= 3 production templates", async () => {
+      const { rows } = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM whatsapp_templates WHERE tenant_id = 'production'`
+      );
+      expect(rows[0].c).toBeGreaterThanOrEqual(3);
+    });
+
+    it("Sd2 ON CONFLICT DO NOTHING prevents duplication on re-seed", async () => {
+      const { rows: beforeRows } = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM whatsapp_templates WHERE tenant_id = 'production'`
+      );
+      await pool.query(`
+        INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
+        VALUES
+          ('production', 'application_received', 'pl', 'test-reseed', '[]'::jsonb, FALSE),
+          ('production', 'permit_status_update', 'pl', 'test-reseed', '[]'::jsonb, FALSE),
+          ('production', 'payment_reminder',     'pl', 'test-reseed', '[]'::jsonb, FALSE)
+        ON CONFLICT (tenant_id, name) DO NOTHING
+      `);
+      const { rows: afterRows } = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM whatsapp_templates WHERE tenant_id = 'production'`
+      );
+      expect(afterRows[0].c).toBe(beforeRows[0].c);
+    });
+  }
+);

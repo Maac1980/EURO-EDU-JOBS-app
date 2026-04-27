@@ -462,3 +462,258 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WhatsApp inbound webhook — DB-backed end-to-end via supertest.
+// Signature verification uses fixed X-Forwarded-{Proto,Host} so the URL is
+// deterministic regardless of the ephemeral supertest port.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: whatsapp inbound webhook (requires TEST_DATABASE_URL)",
+  () => {
+    const TWILIO_TEST_TOKEN = "test-twilio-auth-token-32-chars-padding-ok";
+    const FWD_PROTO = "https";
+    const FWD_HOST = "eej-jobs-api.fly.dev";
+    const WEBHOOK_PATH = "/api/webhooks/whatsapp";
+    const WEBHOOK_URL = `${FWD_PROTO}://${FWD_HOST}${WEBHOOK_PATH}`;
+
+    let pool: Pool;
+    let originalAuthToken: string | undefined;
+    let webhookWorkerId: string;
+    let webhookWorkerPhone: string;
+    let webhookClientId: string;
+    let webhookClientPhone: string;
+    let computeSig: (params: Record<string, string>, urlOverride?: string) => string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      originalAuthToken = process.env.TWILIO_AUTH_TOKEN;
+      process.env.TWILIO_AUTH_TOKEN = TWILIO_TEST_TOKEN;
+
+      const crypto = await import("node:crypto");
+      computeSig = (params: Record<string, string>, urlOverride?: string): string => {
+        const url = urlOverride ?? WEBHOOK_URL;
+        const canonical = url + Object.keys(params).sort()
+          .reduce((acc, k) => acc + k + params[k], "");
+        return crypto.default.createHmac("sha1", TWILIO_TEST_TOKEN).update(canonical).digest("base64");
+      };
+
+      webhookWorkerPhone = "+48501777111";
+      const w = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('Webhook Worker', $1, 'production') RETURNING id`,
+        [webhookWorkerPhone],
+      );
+      webhookWorkerId = w.rows[0].id;
+
+      webhookClientPhone = "+48501777222";
+      const c = await pool.query<{ id: string }>(
+        `INSERT INTO clients (name, phone, tenant_id) VALUES ('Webhook Client', $1, 'production') RETURNING id`,
+        [webhookClientPhone],
+      );
+      webhookClientId = c.rows[0].id;
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM whatsapp_messages WHERE worker_id = $1 OR client_id = $2 OR phone IN ($3, $4, '+48501777999')`,
+          [webhookWorkerId, webhookClientId, webhookWorkerPhone, webhookClientPhone]);
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [webhookWorkerId]);
+        await pool.query(`DELETE FROM clients WHERE id = $1`, [webhookClientId]);
+      } finally {
+        if (originalAuthToken === undefined) delete process.env.TWILIO_AUTH_TOKEN;
+        else process.env.TWILIO_AUTH_TOKEN = originalAuthToken;
+        await pool.end();
+      }
+    });
+
+    function makeBody(messageSid: string, fromPhoneE164: string, body = "hello"): Record<string, string> {
+      return {
+        MessageSid: messageSid,
+        From: `whatsapp:${fromPhoneE164}`,
+        To: "whatsapp:+14155238886",
+        Body: body,
+      };
+    }
+
+    it("L1 valid signature + known worker phone → inserts with worker_id, status RECEIVED", async () => {
+      const sid = `SM${"a".repeat(32)}`;
+      const params = makeBody(sid, webhookWorkerPhone);
+      const sig = computeSig(params);
+
+      const res = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .set("X-Twilio-Signature", sig)
+        .type("form")
+        .send(params);
+
+      expect(res.status).toBe(200);
+
+      const inserted = await pool.query<{
+        worker_id: string | null; client_id: string | null;
+        status: string; direction: string; phone: string; body: string; trigger_event: string;
+      }>(`SELECT worker_id, client_id, status, direction, phone, body, trigger_event
+          FROM whatsapp_messages WHERE twilio_message_sid = $1`, [sid]);
+      expect(inserted.rows.length).toBe(1);
+      expect(inserted.rows[0].worker_id).toBe(webhookWorkerId);
+      expect(inserted.rows[0].client_id).toBeNull();
+      expect(inserted.rows[0].status).toBe("RECEIVED");
+      expect(inserted.rows[0].direction).toBe("inbound");
+      expect(inserted.rows[0].phone).toBe(webhookWorkerPhone);
+      expect(inserted.rows[0].trigger_event).toBe("inbound_reply");
+    });
+
+    it("L2 valid signature + client phone (no worker) → inserts with client_id", async () => {
+      const sid = `SM${"b".repeat(32)}`;
+      const params = makeBody(sid, webhookClientPhone);
+      const sig = computeSig(params);
+
+      const res = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .set("X-Twilio-Signature", sig)
+        .type("form")
+        .send(params);
+
+      expect(res.status).toBe(200);
+
+      const inserted = await pool.query<{ worker_id: string | null; client_id: string | null }>(
+        `SELECT worker_id, client_id FROM whatsapp_messages WHERE twilio_message_sid = $1`, [sid]);
+      expect(inserted.rows.length).toBe(1);
+      expect(inserted.rows[0].worker_id).toBeNull();
+      expect(inserted.rows[0].client_id).toBe(webhookClientId);
+    });
+
+    it("L3 valid signature + unknown phone → orphan insert (both ids null)", async () => {
+      const sid = `SM${"c".repeat(32)}`;
+      const params = makeBody(sid, "+48501777999");
+      const sig = computeSig(params);
+
+      const res = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .set("X-Twilio-Signature", sig)
+        .type("form")
+        .send(params);
+
+      expect(res.status).toBe(200);
+
+      const inserted = await pool.query<{ worker_id: string | null; client_id: string | null; tenant_id: string }>(
+        `SELECT worker_id, client_id, tenant_id FROM whatsapp_messages WHERE twilio_message_sid = $1`, [sid]);
+      expect(inserted.rows.length).toBe(1);
+      expect(inserted.rows[0].worker_id).toBeNull();
+      expect(inserted.rows[0].client_id).toBeNull();
+      expect(inserted.rows[0].tenant_id).toBe("production");
+    });
+
+    it("L4 same MessageSid posted twice → second post 200, no new row (idempotent)", async () => {
+      const sid = `SM${"d".repeat(32)}`;
+      const params = makeBody(sid, webhookWorkerPhone);
+      const sig = computeSig(params);
+
+      const first = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .set("X-Twilio-Signature", sig)
+        .type("form")
+        .send(params);
+      expect(first.status).toBe(200);
+
+      const second = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .set("X-Twilio-Signature", sig)
+        .type("form")
+        .send(params);
+      expect(second.status).toBe(200);
+
+      const count = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM whatsapp_messages WHERE twilio_message_sid = $1`, [sid]);
+      expect(count.rows[0].c).toBe(1);
+    });
+
+    it("L5 invalid signature → 403, no row inserted", async () => {
+      const sid = `SM${"e".repeat(32)}`;
+      const params = makeBody(sid, webhookWorkerPhone);
+      const goodSig = computeSig(params);
+      const badSig = goodSig.slice(0, -2) + "ZZ";
+
+      const res = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .set("X-Twilio-Signature", badSig)
+        .type("form")
+        .send(params);
+
+      expect(res.status).toBe(403);
+
+      const count = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM whatsapp_messages WHERE twilio_message_sid = $1`, [sid]);
+      expect(count.rows[0].c).toBe(0);
+    });
+
+    it("L6 missing X-Twilio-Signature header → 403", async () => {
+      const sid = `SM${"f".repeat(32)}`;
+      const params = makeBody(sid, webhookWorkerPhone);
+
+      const res = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .type("form")
+        .send(params);
+
+      expect(res.status).toBe(403);
+    });
+
+    it("L7 TWILIO_AUTH_TOKEN unset → 503 (fail-closed)", async () => {
+      const saved = process.env.TWILIO_AUTH_TOKEN;
+      delete process.env.TWILIO_AUTH_TOKEN;
+      try {
+        const sid = `SM${"g".repeat(32)}`;
+        const params = makeBody(sid, webhookWorkerPhone);
+        const res = await request(app)
+          .post(WEBHOOK_PATH)
+          .set("X-Forwarded-Proto", FWD_PROTO)
+          .set("X-Forwarded-Host", FWD_HOST)
+          .set("X-Twilio-Signature", "anything")
+          .type("form")
+          .send(params);
+        expect(res.status).toBe(503);
+      } finally {
+        process.env.TWILIO_AUTH_TOKEN = saved;
+      }
+    });
+
+    it("L8 valid signature + missing MessageSid → 200, no row inserted (do-not-error-to-Twilio)", async () => {
+      const params: Record<string, string> = {
+        From: `whatsapp:${webhookWorkerPhone}`,
+        To: "whatsapp:+14155238886",
+        Body: "missing-sid",
+      };
+      const sig = computeSig(params);
+      const before = await pool.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM whatsapp_messages`);
+
+      const res = await request(app)
+        .post(WEBHOOK_PATH)
+        .set("X-Forwarded-Proto", FWD_PROTO)
+        .set("X-Forwarded-Host", FWD_HOST)
+        .set("X-Twilio-Signature", sig)
+        .type("form")
+        .send(params);
+
+      expect(res.status).toBe(200);
+      const after = await pool.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM whatsapp_messages`);
+      expect(after.rows[0].c).toBe(before.rows[0].c);
+    });
+  }
+);

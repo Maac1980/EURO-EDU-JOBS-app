@@ -5,7 +5,8 @@ import type { Pool } from "pg";
 
 // Required env vars for app module to load. Set BEFORE importing app.
 process.env.JWT_SECRET ??= "test-jwt-secret-for-integration-tests-64-bytes-long-padding-xyz";
-process.env.DATABASE_URL ??= "postgres://test:test@127.0.0.1:5432/test_does_not_connect";
+// Use TEST_DATABASE_URL for integration tests against a real DB; fall back to stub when unset (skipIf gates DB-touching tests in stub case)
+process.env.DATABASE_URL ??= process.env.TEST_DATABASE_URL ?? "postgres://test:test@127.0.0.1:5432/test_does_not_connect";
 process.env.EEJ_ADMIN_EMAIL ??= "anna.b@edu-jobs.eu";
 
 let app: Express;

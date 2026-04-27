@@ -717,3 +717,226 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Step 3d Task P — approve, send, read, list, dashboard counters end-to-end.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: whatsapp lifecycle (approve / read / counters) (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let activeTemplateName: string;
+    let inactiveTemplateName: string;
+    let realWorkerId: string;
+    let testWorkerId: string;
+    let lifecycleClientId: string;
+    let t1Token: string;
+    let adminToken: string;
+    const t1UserId = "00000000-0000-0000-0000-0000000000c1";
+    const adminUserId = "00000000-0000-0000-0000-0000000000c0";
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      activeTemplateName = `lifecycle_active_${Date.now()}`;
+      inactiveTemplateName = `lifecycle_inactive_${Date.now()}`;
+      await pool.query(
+        `INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
+         VALUES ('production', $1, 'pl', 'Witaj {{workerName}}.', '["workerName"]'::jsonb, TRUE),
+                ('production', $2, 'pl', 'Inaktywny {{workerName}}.', '["workerName"]'::jsonb, FALSE)`,
+        [activeTemplateName, inactiveTemplateName],
+      );
+
+      const wReal = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('Lifecycle Real', '+48 502 111 222', 'production') RETURNING id`,
+      );
+      realWorkerId = wReal.rows[0].id;
+
+      const wTest = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('Lifecycle Test', '+48000000444', 'production') RETURNING id`,
+      );
+      testWorkerId = wTest.rows[0].id;
+
+      const c = await pool.query<{ id: string }>(
+        `INSERT INTO clients (name, phone, tenant_id) VALUES ('Lifecycle Client', '+48 502 111 333', 'production') RETURNING id`,
+      );
+      lifecycleClientId = c.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      t1Token = jwt.default.sign(
+        { id: t1UserId, email: "lifecycle-t1@test.local", name: "Lifecycle T1",
+          role: "executive", tier: 1, tenantId: "production", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+      adminToken = jwt.default.sign(
+        { id: adminUserId, email: "lifecycle-admin@test.local", name: "Lifecycle Admin",
+          role: "admin", tier: 1, tenantId: "production", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM client_activities WHERE client_id = $1`, [lifecycleClientId]);
+        await pool.query(`DELETE FROM whatsapp_messages WHERE worker_id = ANY($1::uuid[]) OR client_id = $2`,
+          [[realWorkerId, testWorkerId], lifecycleClientId]);
+        await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [[realWorkerId, testWorkerId]]);
+        await pool.query(`DELETE FROM clients WHERE id = $1`, [lifecycleClientId]);
+        await pool.query(`DELETE FROM whatsapp_templates WHERE tenant_id = 'production' AND name IN ($1, $2)`,
+          [activeTemplateName, inactiveTemplateName]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    async function createDraftViaApi(args: {
+      templateName: string; workerId?: string; clientId?: string;
+      variables?: Record<string, string>;
+    }): Promise<string> {
+      const res = await request(app)
+        .post("/api/whatsapp/drafts")
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({
+          templateName: args.templateName,
+          workerId: args.workerId,
+          clientId: args.clientId,
+          variables: args.variables ?? { workerName: "Subject" },
+          triggerEvent: "manual",
+        });
+      expect(res.status).toBe(201);
+      return res.body.id as string;
+    }
+
+    it("A1 T1 creates client-linked draft, approves → APPROVED + client_activities row written", async () => {
+      const draftId = await createDraftViaApi({
+        templateName: activeTemplateName,
+        clientId: lifecycleClientId,
+        variables: { workerName: "Adam" },
+      });
+
+      const res = await request(app)
+        .patch(`/api/whatsapp/drafts/${draftId}/approve`)
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("APPROVED");
+      expect(res.body.approvedBy).toBe(t1UserId);
+      expect(res.body.approvedAt).toBeTruthy();
+
+      const activity = await pool.query<{ kind: string; user_id: string | null; metadata: Record<string, unknown> }>(
+        `SELECT kind, user_id, metadata FROM client_activities
+         WHERE client_id = $1 AND kind = 'whatsapp_approval'
+         ORDER BY created_at DESC LIMIT 1`,
+        [lifecycleClientId],
+      );
+      expect(activity.rows.length).toBe(1);
+      expect(activity.rows[0].kind).toBe("whatsapp_approval");
+      expect(activity.rows[0].user_id).toBe(t1UserId);
+      expect((activity.rows[0].metadata as { messageId?: string }).messageId).toBe(draftId);
+    });
+
+    it("A2 sendImmediately + non-test worker + inactive template → 409 inactive-template; row stays APPROVED", async () => {
+      const draftId = await createDraftViaApi({
+        templateName: activeTemplateName,
+        workerId: realWorkerId,
+      });
+      // Swap the row's template_id to point at the inactive template so we
+      // exercise the "inactive at send time" path without affecting the active
+      // template's seed state.
+      await pool.query(
+        `UPDATE whatsapp_messages SET template_id = (SELECT id FROM whatsapp_templates WHERE name = $1 AND tenant_id = 'production')
+         WHERE id = $2`,
+        [inactiveTemplateName, draftId],
+      );
+
+      const res = await request(app)
+        .patch(`/api/whatsapp/drafts/${draftId}/approve`)
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({ sendImmediately: true });
+      expect(res.status).toBe(409);
+      expect(typeof res.body.error).toBe("string");
+      expect(res.body.error.toLowerCase()).toContain("inactive");
+
+      const verify = await pool.query<{ status: string }>(
+        `SELECT status FROM whatsapp_messages WHERE id = $1`, [draftId]);
+      expect(verify.rows[0].status).toBe("APPROVED");
+    });
+
+    it("A3 sendImmediately + test worker → 409 test-worker; row stays APPROVED", async () => {
+      const draftId = await createDraftViaApi({
+        templateName: activeTemplateName,
+        workerId: testWorkerId,
+        variables: { workerName: "TestSubject" },
+      });
+
+      const res = await request(app)
+        .patch(`/api/whatsapp/drafts/${draftId}/approve`)
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({ sendImmediately: true });
+      expect(res.status).toBe(409);
+      expect(res.body.error.toLowerCase()).toContain("test worker");
+
+      const verify = await pool.query<{ status: string }>(
+        `SELECT status FROM whatsapp_messages WHERE id = $1`, [draftId]);
+      expect(verify.rows[0].status).toBe("APPROVED");
+    });
+
+    it("A4 PATCH /messages/:id/read sets read_at; second PATCH is idempotent", async () => {
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO whatsapp_messages (tenant_id, direction, status, worker_id, phone, body, twilio_message_sid)
+         VALUES ('production', 'inbound', 'RECEIVED', $1, '+48502111222', 'inbound test', $2)
+         RETURNING id`,
+        [realWorkerId, `SM${"x".repeat(32)}`],
+      );
+      const msgId = ins.rows[0].id;
+
+      const first = await request(app)
+        .patch(`/api/whatsapp/messages/${msgId}/read`)
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({});
+      expect(first.status).toBe(200);
+      expect(first.body.readAt).toBeTruthy();
+      const firstReadAt = first.body.readAt;
+
+      const second = await request(app)
+        .patch(`/api/whatsapp/messages/${msgId}/read`)
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({});
+      expect(second.status).toBe(200);
+      expect(second.body.readAt).toBe(firstReadAt);
+    });
+
+    it("A5 /admin/stats reports unreadWhatsApp and whatsappPendingApproval correctly", async () => {
+      // Snapshot pre-existing tenant-scoped counts (other tests may have left rows in either state)
+      const baseline = await pool.query<{ unread: number; pending: number }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE direction = 'inbound' AND read_at IS NULL)::int AS unread,
+           COUNT(*) FILTER (WHERE direction = 'outbound' AND status = 'APPROVED')::int AS pending
+         FROM whatsapp_messages WHERE tenant_id = 'production'`,
+      );
+      const baseUnread = baseline.rows[0].unread;
+      const basePending = baseline.rows[0].pending;
+
+      // Insert one inbound (read_at NULL) and one outbound APPROVED.
+      await pool.query(
+        `INSERT INTO whatsapp_messages (tenant_id, direction, status, worker_id, phone, body, twilio_message_sid)
+         VALUES ('production', 'inbound', 'RECEIVED', $1, '+48502111999', 'a5-inbound', $2),
+                ('production', 'outbound', 'APPROVED', $1, '+48502111999', 'a5-pending-approval', $3)`,
+        [realWorkerId, `SM${"y".repeat(32)}`, `SM${"z".repeat(32)}`],
+      );
+
+      const res = await request(app)
+        .get("/api/admin/stats")
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.unreadWhatsApp).toBe("number");
+      expect(typeof res.body.whatsappPendingApproval).toBe("number");
+      expect(res.body.unreadWhatsApp).toBe(baseUnread + 1);
+      expect(res.body.whatsappPendingApproval).toBe(basePending + 1);
+    });
+  }
+);

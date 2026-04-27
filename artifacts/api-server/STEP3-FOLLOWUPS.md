@@ -56,3 +56,10 @@ The Step 3a + Step 3b joint deploy used Path 2 verification (local Docker Postgr
   - Audit work: grep all test files (`**/*.test.ts`) for `process.env.DATABASE_URL ??=` and confirm each one consults `TEST_DATABASE_URL` before falling back. Update any that don't.
   - When: independent hygiene pass.
   - Verification: every file that sets DATABASE_URL via `??=` should have the `TEST_DATABASE_URL ?? stub` precedence chain.
+
+## Discovered during Step 3c deploy (2026-04-27)
+
+- [ ] **Twilio console webhook URL configuration:** after Step 3c deploy at v98, the inbound webhook is live at `https://eej-jobs-api.fly.dev/api/webhooks/whatsapp`. To activate inbound message receipt, configure the Twilio Messaging Service or Phone Number webhook URL in the Twilio console to point to this URL with HTTP POST. This is a manual ops step; not blocking any code work. Document the Twilio Messaging Service ID and the webhook configuration once completed.
+  - Current state at v98 deploy: `TWILIO_AUTH_TOKEN` is NOT set on Fly secrets. The webhook returns 503 fail-closed for every request until the secret is configured. This is the designed steady state.
+  - When ready to activate: set `TWILIO_AUTH_TOKEN` on Fly via `flyctl secrets set TWILIO_AUTH_TOKEN=<token> -a eej-jobs-api`, then configure the webhook URL in the Twilio console.
+  - Verification on completion: send a hand-signed test request to the production URL (computed with the same authToken) and confirm 200 + row inserted in `whatsapp_messages` with `status='RECEIVED'`, `direction='inbound'`.

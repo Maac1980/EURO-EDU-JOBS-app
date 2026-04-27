@@ -267,3 +267,197 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WhatsApp manual draft endpoints — DB-backed, end-to-end via supertest.
+// Requires TEST_DATABASE_URL pointing at a database with Step 3a migrations.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: whatsapp manual draft endpoints (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let activeTemplateName: string;
+    let realWorkerId: string;
+    let t1Token: string;
+    let t3Token: string;
+    let crossTenantT1Token: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      activeTemplateName = `endpoint_test_${Date.now()}`;
+      await pool.query(
+        `INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
+         VALUES ('production', $1, 'pl', 'Witaj {{workerName}}.', '["workerName"]'::jsonb, TRUE)`,
+        [activeTemplateName],
+      );
+
+      const { rows } = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('Endpoint Real', '+48 501 999 888', 'production') RETURNING id`,
+      );
+      realWorkerId = rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      t1Token = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000a1", email: "anna@test.local", name: "Anna",
+          role: "executive", tier: 1, tenantId: "production", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+      t3Token = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000a3", email: "ops@test.local", name: "Ops",
+          role: "operations", tier: 3, tenantId: "production", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+      crossTenantT1Token = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000b1", email: "anna@other.local", name: "Anna B",
+          role: "executive", tier: 1, tenantId: "test", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM whatsapp_messages WHERE worker_id = $1`, [realWorkerId]);
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [realWorkerId]);
+        await pool.query(`DELETE FROM whatsapp_templates WHERE tenant_id = 'production' AND name = $1`, [activeTemplateName]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("W1 T1 creates a draft via POST and the list endpoint includes it", async () => {
+      const create = await request(app)
+        .post("/api/whatsapp/drafts")
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({
+          templateName: activeTemplateName,
+          workerId: realWorkerId,
+          variables: { workerName: "Adam" },
+          triggerEvent: "manual",
+        });
+      expect(create.status).toBe(201);
+      expect(create.body.status).toBe("DRAFT");
+      expect(create.body.direction).toBe("outbound");
+      expect(create.body.body).toBe("Witaj Adam.");
+      const draftId = create.body.id as string;
+
+      const list = await request(app)
+        .get("/api/whatsapp/drafts?status=DRAFT&limit=200")
+        .set("Authorization", `Bearer ${t1Token}`);
+      expect(list.status).toBe(200);
+      const ids = (list.body.drafts as Array<{ id: string }>).map(d => d.id);
+      expect(ids).toContain(draftId);
+    });
+
+    it("W2 T1 discards a DRAFT via DELETE; row transitions to DISCARDED, not deleted", async () => {
+      const create = await request(app)
+        .post("/api/whatsapp/drafts")
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({
+          templateName: activeTemplateName,
+          workerId: realWorkerId,
+          variables: { workerName: "Discard" },
+          triggerEvent: "manual",
+        });
+      expect(create.status).toBe(201);
+      const draftId = create.body.id as string;
+
+      const del = await request(app)
+        .delete(`/api/whatsapp/drafts/${draftId}`)
+        .set("Authorization", `Bearer ${t1Token}`);
+      expect(del.status).toBe(200);
+      expect(del.body.status).toBe("DISCARDED");
+
+      const verify = await pool.query<{ status: string }>(
+        `SELECT status FROM whatsapp_messages WHERE id = $1`,
+        [draftId],
+      );
+      expect(verify.rows.length).toBe(1);
+      expect(verify.rows[0].status).toBe("DISCARDED");
+    });
+
+    it("W3 unauthenticated POST returns 401", async () => {
+      const res = await request(app)
+        .post("/api/whatsapp/drafts")
+        .send({
+          templateName: activeTemplateName,
+          workerId: realWorkerId,
+          variables: { workerName: "x" },
+          triggerEvent: "manual",
+        });
+      expect(res.status).toBe(401);
+    });
+
+    it("W4 T3 (operations) POST returns 403", async () => {
+      const res = await request(app)
+        .post("/api/whatsapp/drafts")
+        .set("Authorization", `Bearer ${t3Token}`)
+        .send({
+          templateName: activeTemplateName,
+          workerId: realWorkerId,
+          variables: { workerName: "x" },
+          triggerEvent: "manual",
+        });
+      expect(res.status).toBe(403);
+    });
+
+    it("W5 cross-tenant: T1 of tenant 'test' GETs a 'production' draft → 404", async () => {
+      const create = await request(app)
+        .post("/api/whatsapp/drafts")
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({
+          templateName: activeTemplateName,
+          workerId: realWorkerId,
+          variables: { workerName: "CrossTest" },
+          triggerEvent: "manual",
+        });
+      expect(create.status).toBe(201);
+      const draftId = create.body.id as string;
+
+      const res = await request(app)
+        .get(`/api/whatsapp/drafts/${draftId}`)
+        .set("Authorization", `Bearer ${crossTenantT1Token}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("W6 DELETE on a non-DRAFT (status='SENT') returns 409 and does not mutate", async () => {
+      const insertSent = await pool.query<{ id: string }>(
+        `INSERT INTO whatsapp_messages (tenant_id, direction, status, worker_id, phone, body)
+         VALUES ('production', 'outbound', 'SENT', $1, '+48501999888', 'preexisting sent') RETURNING id`,
+        [realWorkerId],
+      );
+      const sentId = insertSent.rows[0].id;
+
+      const res = await request(app)
+        .delete(`/api/whatsapp/drafts/${sentId}`)
+        .set("Authorization", `Bearer ${t1Token}`);
+      expect(res.status).toBe(409);
+
+      const verify = await pool.query<{ status: string }>(
+        `SELECT status FROM whatsapp_messages WHERE id = $1`,
+        [sentId],
+      );
+      expect(verify.rows[0].status).toBe("SENT");
+    });
+
+    it("W7 POST with no templateName and no workerId/clientId returns 400 and inserts no row", async () => {
+      const before = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM whatsapp_messages WHERE tenant_id = 'production'`,
+      );
+      const res = await request(app)
+        .post("/api/whatsapp/drafts")
+        .set("Authorization", `Bearer ${t1Token}`)
+        .send({});
+      expect(res.status).toBe(400);
+      const after = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM whatsapp_messages WHERE tenant_id = 'production'`,
+      );
+      expect(after.rows[0].c).toBe(before.rows[0].c);
+    });
+  }
+);

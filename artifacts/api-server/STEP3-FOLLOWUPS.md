@@ -63,3 +63,22 @@ The Step 3a + Step 3b joint deploy used Path 2 verification (local Docker Postgr
   - Current state at v98 deploy: `TWILIO_AUTH_TOKEN` is NOT set on Fly secrets. The webhook returns 503 fail-closed for every request until the secret is configured. This is the designed steady state.
   - When ready to activate: set `TWILIO_AUTH_TOKEN` on Fly via `flyctl secrets set TWILIO_AUTH_TOKEN=<token> -a eej-jobs-api`, then configure the webhook URL in the Twilio console.
   - Verification on completion: send a hand-signed test request to the production URL (computed with the same authToken) and confirm 200 + row inserted in `whatsapp_messages` with `status='RECEIVED'`, `direction='inbound'`.
+
+## Step 3 closure (2026-04-27)
+
+Step 3 fully shipped on production at v99 (2026-04-27). All four sub-phases live:
+- **3a** schema (whatsapp_templates, whatsapp_messages, 3 enums, 5 indexes, 2 CHECK constraints, 3-row template seed) — committed across `141b7c9` / `dd2a9a7` / `d980802` / `710c5f6`, deployed at v97
+- **3b** drafter service + feature flag + manual draft endpoints (POST/GET/DELETE /api/whatsapp/drafts) — committed across `bf3b8de` / `fbe1227` / `3034f64` / `0e5358a` (+ test fix `295d229`), deployed at v97
+- **3c** inbound webhook (POST /api/webhooks/whatsapp) with Twilio signature verification and idempotent insert — committed across `a225130` / `9415c26` / `9b4a4b6`, deployed at v98
+- **3d** approve/send + read/list + dashboard counters + audit (PATCH /drafts/:id/approve, PATCH /messages/:id/read, GET /messages, /admin/stats counters, client_activities + notifications audit rows) — committed across `903fe56` / `f35c8e8` / `628d221` / `9886575`, deployed at v99
+
+Operational activation pending (manual ops steps, not blocking any code work):
+- `TWILIO_AUTH_TOKEN` and `TWILIO_ACCOUNT_SID` secrets provisioning on Fly
+- Twilio console webhook URL configuration (inbound receipt) and outbound Messaging Service setup
+- Template `content_sid` provisioning per template (currently 3 inactive seeds: `application_received`, `permit_status_update`, `payment_reminder`)
+
+Until these ops steps complete, the steady state is:
+- Webhook returns 503 fail-closed
+- Drafts can be created and approved (status DRAFT → APPROVED with audit) but `sendImmediately=true` returns 503
+- Templates remain inactive so the drafter rejects them at create time anyway
+- Legacy `lib/alerter.ts` direct-send path is unchanged and continues to operate in parallel

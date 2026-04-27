@@ -354,4 +354,116 @@ router.delete("/whatsapp/drafts/:id", authenticateToken, requireT1T2, async (req
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/whatsapp/messages/:id/read — set read_at on inbound row
+//
+// Step 3d Task N. Powers the dashboard unread counter. Outbound rows have no
+// read state — return 400 to surface the client confusion early.
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch("/whatsapp/messages/:id/read", authenticateToken, requireT1T2, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+    const id = String(req.params.id);
+
+    const [row] = await db.select().from(schema.whatsappMessages).where(
+      and(eq(schema.whatsappMessages.id, id), eq(schema.whatsappMessages.tenantId, tenantId)),
+    ).limit(1);
+    if (!row) return res.status(404).json({ error: "Message not found." });
+
+    if (row.direction !== "inbound") {
+      return res.status(400).json({ error: "Only inbound messages have read state; this message is outbound." });
+    }
+
+    if (row.readAt !== null && row.readAt !== undefined) {
+      return res.json(row); // idempotent
+    }
+
+    const [updated] = await db.update(schema.whatsappMessages).set({
+      readAt: new Date(),
+      updatedAt: new Date(),
+    }).where(
+      and(eq(schema.whatsappMessages.id, id), eq(schema.whatsappMessages.tenantId, tenantId)),
+    ).returning();
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("[whatsapp] PATCH /messages/:id/read failed:", err instanceof Error ? err.message : err);
+    return res.status(500).json({ error: "Could not mark message as read." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/whatsapp/messages — paginated list, tenant-scoped, multi-filter
+//
+// Step 3d Task N. Complements GET /api/whatsapp/drafts with a broader view.
+// Query: ?direction=inbound|outbound, ?status= (repeatable for multi-value),
+// ?unread=true (valid only when direction=inbound), ?limit (default 50, max
+// 200), ?offset (default 0).
+// ─────────────────────────────────────────────────────────────────────────────
+const DIRECTIONS = ["inbound", "outbound"] as const;
+type WhatsappDirection = typeof DIRECTIONS[number];
+
+router.get("/whatsapp/messages", authenticateToken, requireT1T2, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+    const { limit, offset } = parsePagination(req);
+
+    const rawDirection = req.query.direction;
+    let directionFilter: WhatsappDirection | null = null;
+    if (rawDirection !== undefined) {
+      if (typeof rawDirection !== "string" || !(DIRECTIONS as readonly string[]).includes(rawDirection)) {
+        return res.status(400).json({ error: `direction must be one of: ${DIRECTIONS.join(", ")}.` });
+      }
+      directionFilter = rawDirection as WhatsappDirection;
+    }
+
+    const rawStatus = req.query.status;
+    let statusFilter: WhatsappStatus[] = [];
+    if (rawStatus !== undefined) {
+      const candidates = Array.isArray(rawStatus) ? rawStatus : [rawStatus];
+      for (const v of candidates) {
+        if (typeof v !== "string" || !(STATUSES as readonly string[]).includes(v)) {
+          return res.status(400).json({ error: `status values must each be one of: ${STATUSES.join(", ")}.` });
+        }
+      }
+      statusFilter = candidates as WhatsappStatus[];
+    }
+
+    const rawUnread = req.query.unread;
+    let unreadFilter = false;
+    if (rawUnread !== undefined) {
+      if (rawUnread !== "true" && rawUnread !== "false") {
+        return res.status(400).json({ error: "unread must be 'true' or 'false'." });
+      }
+      unreadFilter = rawUnread === "true";
+      if (unreadFilter && directionFilter !== "inbound") {
+        return res.status(400).json({ error: "unread=true is only valid when direction=inbound." });
+      }
+    }
+
+    const conditions = [eq(schema.whatsappMessages.tenantId, tenantId)];
+    if (directionFilter) conditions.push(eq(schema.whatsappMessages.direction, directionFilter));
+    if (statusFilter.length > 0) conditions.push(inArray(schema.whatsappMessages.status, statusFilter));
+    if (unreadFilter) conditions.push(isNull(schema.whatsappMessages.readAt));
+
+    const rows = await db.select().from(schema.whatsappMessages)
+      .where(and(...conditions))
+      .orderBy(desc(schema.whatsappMessages.createdAt))
+      .limit(limit).offset(offset);
+
+    return res.json({
+      messages: rows,
+      pagination: { limit, offset, count: rows.length },
+      filter: {
+        direction: directionFilter,
+        status: statusFilter.length > 0 ? statusFilter : null,
+        unread: unreadFilter || null,
+      },
+    });
+  } catch (err) {
+    console.error("[whatsapp] GET /messages failed:", err instanceof Error ? err.message : err);
+    return res.status(500).json({ error: "Could not load WhatsApp messages." });
+  }
+});
+
 export default router;

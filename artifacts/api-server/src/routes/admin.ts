@@ -276,6 +276,23 @@ router.get("/admin/stats", authenticateToken, requireAdmin, async (req, res) => 
       if (row.stage in pipelineCount) pipelineCount[row.stage] = Number(row.count);
     }
 
+    // Step 3d Task O: WhatsApp counters — both tenant-scoped, both integers.
+    // Indexes used: idx_whatsapp_messages_tenant_direction_unread (partial,
+    // WHERE read_at IS NULL) for unreadWhatsApp; idx_whatsapp_messages_tenant_status_created
+    // for whatsappPendingApproval.
+    const [whatsappCounts] = await db.execute<{
+      unread_whatsapp: string;
+      whatsapp_pending_approval: string;
+    }>(sql`
+      SELECT
+        COUNT(*) FILTER (WHERE direction = 'inbound' AND read_at IS NULL) AS unread_whatsapp,
+        COUNT(*) FILTER (WHERE direction = 'outbound' AND status = 'APPROVED') AS whatsapp_pending_approval
+      FROM whatsapp_messages
+      WHERE tenant_id = ${tenantId}
+    `).then(r => r.rows);
+    const unreadWhatsApp = Number(whatsappCounts?.unread_whatsapp ?? 0);
+    const whatsappPendingApproval = Number(whatsappCounts?.whatsapp_pending_approval ?? 0);
+
     const stripeConfigured = Boolean(process.env.STRIPE_SECRET_KEY);
     let stripeMonthlyRevenue = 0;
     if (stripeConfigured) {
@@ -302,6 +319,8 @@ router.get("/admin/stats", authenticateToken, requireAdmin, async (req, res) => 
       zusLiability: zusLiability.toFixed(2),
       b2bContracts,
       newApplicationsToday: newToday,
+      unreadWhatsApp,
+      whatsappPendingApproval,
       schengenAlerts: 0,
       schengenTrackingEnabled: false,
       stripeConfigured,

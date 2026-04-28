@@ -59,6 +59,12 @@ async function ensureComplianceTables() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  // Gap 4: Art. 20 enforcement marker (TRUE for agency_leased, FALSE for direct_outsourcing)
+  await db.execute(sql`
+    DO $$ BEGIN
+      ALTER TABLE eej_assignments ADD COLUMN IF NOT EXISTS art_20_enforced BOOLEAN NOT NULL DEFAULT TRUE;
+    EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+  `);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_assign_worker ON eej_assignments(worker_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_assign_client ON eej_assignments(client_name)`);
 
@@ -131,6 +137,17 @@ async function ensureComplianceTables() {
 // Fine: 1,000-30,000 PLN per violation
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Gap 4: Look up worker's placement_type to gate Art. 20 / Art. 14a enforcement
+async function getWorkerPlacementType(workerId: string): Promise<string> {
+  try {
+    const r = await db.execute(sql`SELECT placement_type FROM workers WHERE id = ${workerId}::uuid LIMIT 1`);
+    const row = r.rows[0] as { placement_type?: string } | undefined;
+    return row?.placement_type ?? "agency_leased";
+  } catch {
+    return "agency_leased"; // safe default — worker lookup failure should not bypass Art. 20
+  }
+}
+
 // Calculate cumulative days for a worker-client pair in 36-month window
 async function getAssignmentDays(workerId: string, clientName: string): Promise<{ totalDays: number; assignments: any[] }> {
   const windowStart = new Date(Date.now() - 36 * 30 * 86400000).toISOString().slice(0, 10);
@@ -165,11 +182,15 @@ router.post("/v1/agency/assignments", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "workerId, clientName, and startDate required" });
     }
 
-    // Check 18/36 limit before creating
+    // Gap 4: only enforce Art. 20 18/36-month limit on agency-leased workers
+    const placementType = await getWorkerPlacementType(workerId);
+    const art20Enforced = placementType === "agency_leased";
+
+    // Check 18/36 limit before creating (only for agency_leased workers)
     const { totalDays } = await getAssignmentDays(workerId, clientName);
     const totalMonths = totalDays / 30;
 
-    if (totalMonths >= 18) {
+    if (art20Enforced && totalMonths >= 18) {
       return res.status(400).json({
         error: "PLACEMENT BLOCKED — 18-month limit reached",
         legal_basis: "Art. 20 Ustawa o zatrudnianiu pracowników tymczasowych",
@@ -183,9 +204,9 @@ router.post("/v1/agency/assignments", authenticateToken, async (req, res) => {
 
     const rows = await db.execute(sql`
       INSERT INTO eej_assignments (worker_id, worker_name, client_id, client_name, start_date, end_date, days_worked,
-        alert_15m, alert_17m, blocked_18m, org_context)
+        alert_15m, alert_17m, blocked_18m, org_context, art_20_enforced)
       VALUES (${workerId}, ${workerName ?? null}, ${clientId ?? null}, ${clientName}, ${startDate},
-        ${endDate ?? null}, 0, ${totalMonths >= 15}, ${totalMonths >= 17}, false, 'EEJ')
+        ${endDate ?? null}, 0, ${art20Enforced && totalMonths >= 15}, ${art20Enforced && totalMonths >= 17}, false, 'EEJ', ${art20Enforced})
       RETURNING *
     `);
 
@@ -196,8 +217,12 @@ router.post("/v1/agency/assignments", authenticateToken, async (req, res) => {
         totalMonths: Math.round(totalMonths * 10) / 10,
         limit: 18,
         remainingDays: Math.max(0, 18 * 30 - totalDays),
-        status: totalMonths >= 17 ? "CRITICAL" : totalMonths >= 15 ? "WARNING" : "OK",
+        status: !art20Enforced
+          ? "NOT_ENFORCED"
+          : totalMonths >= 17 ? "CRITICAL" : totalMonths >= 15 ? "WARNING" : "OK",
         legal_basis: "Art. 20 Ustawa o zatrudnianiu pracowników tymczasowych",
+        placementType,
+        art20Enforced,
       },
     });
   } catch (err: any) {
@@ -213,6 +238,9 @@ router.get("/v1/agency/assignments/check", authenticateToken, async (req, res) =
 
     if (!workerId || !clientName) return res.status(400).json({ error: "workerId and clientName required" });
 
+    const placementType = await getWorkerPlacementType(workerId);
+    const art20Enforced = placementType === "agency_leased";
+
     const { totalDays, assignments } = await getAssignmentDays(workerId, clientName);
     const totalMonths = totalDays / 30;
 
@@ -222,12 +250,16 @@ router.get("/v1/agency/assignments/check", authenticateToken, async (req, res) =
       limit: 18,
       remainingDays: Math.max(0, 18 * 30 - totalDays),
       remainingMonths: Math.round(Math.max(0, 18 - totalMonths) * 10) / 10,
-      status: totalMonths >= 18 ? "BLOCKED" : totalMonths >= 17 ? "CRITICAL" : totalMonths >= 15 ? "WARNING" : "OK",
-      blocked: totalMonths >= 18,
-      nextEligible: totalMonths >= 18 ? new Date(Date.now() + (36 * 30 - totalDays) * 86400000).toISOString().slice(0, 10) : null,
+      status: !art20Enforced
+        ? "NOT_ENFORCED"
+        : totalMonths >= 18 ? "BLOCKED" : totalMonths >= 17 ? "CRITICAL" : totalMonths >= 15 ? "WARNING" : "OK",
+      blocked: art20Enforced && totalMonths >= 18,
+      nextEligible: art20Enforced && totalMonths >= 18 ? new Date(Date.now() + (36 * 30 - totalDays) * 86400000).toISOString().slice(0, 10) : null,
       assignments,
       legal_basis: "Art. 20 Ustawa o zatrudnianiu pracowników tymczasowych",
-      fine_risk: totalMonths >= 18 ? "1,000-30,000 PLN" : null,
+      fine_risk: art20Enforced && totalMonths >= 18 ? "1,000-30,000 PLN" : null,
+      placementType,
+      art20Enforced,
     });
   } catch (err: any) {
     return safeError(res, err);
@@ -239,6 +271,7 @@ router.get("/v1/agency/assignments/scan", authenticateToken, async (req, res) =>
   try {
     await ensureComplianceTables();
 
+    // Gap 4: only include rows where Art. 20 is enforced (excludes direct_outsourcing assignments)
     const rows = await db.execute(sql`
       SELECT worker_id, worker_name, client_name,
         SUM(CASE WHEN end_date IS NOT NULL
@@ -246,7 +279,7 @@ router.get("/v1/agency/assignments/scan", authenticateToken, async (req, res) =>
           ELSE GREATEST(0, CURRENT_DATE - start_date)
         END)::INT as total_days
       FROM eej_assignments
-      WHERE org_context = 'EEJ' AND status = 'ACTIVE'
+      WHERE org_context = 'EEJ' AND status = 'ACTIVE' AND art_20_enforced = TRUE
       GROUP BY worker_id, worker_name, client_name
       HAVING SUM(CASE WHEN end_date IS NOT NULL
         THEN GREATEST(0, end_date - start_date)
@@ -523,6 +556,20 @@ router.post("/v1/agency/retention", authenticateToken, async (req, res) => {
 
     const rule = RETENTION_RULES[documentType];
     if (!rule) return res.status(400).json({ error: `Unknown document type. Valid: ${Object.keys(RETENTION_RULES).join(", ")}` });
+
+    // Gap 4: Art. 14a only applies to agency-leased workers. Skip ASSIGNMENT_RECORD retention for direct-outsourcing workers.
+    if (documentType === "ASSIGNMENT_RECORD" && workerId) {
+      const placementType = await getWorkerPlacementType(workerId);
+      if (placementType === "direct_outsourcing") {
+        return res.json({
+          retention: null,
+          skipped: true,
+          reason: "Art. 14a Ustawa o pracownikach tymczasowych does not apply to direct-outsourcing workers",
+          placementType,
+          legal_basis: rule.basis,
+        });
+      }
+    }
 
     const endDate = employmentEndDate ? new Date(employmentEndDate) : new Date();
     const deleteAfter = new Date(endDate.getTime() + rule.years * 365.25 * 86400000).toISOString().slice(0, 10);

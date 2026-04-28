@@ -9,6 +9,14 @@ import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../l
 import { requireTenant } from "../lib/tenancy.js";
 import { encryptIfPresent, decrypt, maskSensitive } from "../lib/encryption.js";
 
+const VALID_PLACEMENT_TYPES = new Set(["agency_leased", "direct_outsourcing"]);
+function validatePlacementType(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  const v = String(value);
+  if (!VALID_PLACEMENT_TYPES.has(v)) return "__invalid__";
+  return v;
+}
+
 const PRIVILEGED_ROLES = new Set(["admin", "coordinator", "T1", "T2", "executive", "legal"]);
 function canSeeFullPII(role: string | undefined): boolean {
   return !!role && PRIVILEGED_ROLES.has(role);
@@ -112,6 +120,13 @@ router.post("/apply", applyLimiter, upload.fields([
     if (phone?.trim()) fields.phone = phone.trim();
     if (nationality?.trim()) fields.nationality = nationality.trim();
     if (jobType?.trim()) fields.jobRole = jobType.trim();
+
+    const placementTypeRaw = (req.body as Record<string, unknown>).placementType;
+    const placementType = validatePlacementType(placementTypeRaw);
+    if (placementType === "__invalid__") {
+      return res.status(400).json({ error: "Invalid placementType. Must be 'agency_leased' or 'direct_outsourcing'." });
+    }
+    if (placementType) fields.placementType = placementType;
 
     // AI scan CV if provided
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
@@ -367,9 +382,23 @@ router.post("/workers", authenticateToken, requireCoordinatorOrAdmin, async (req
     if (body.medicalExpiry) fields.badaniaLekExpiry = body.medicalExpiry;
     if (body.pipelineStage) fields.pipelineStage = body.pipelineStage;
 
+    const adminPlacementType = validatePlacementType(body.placementType);
+    if (adminPlacementType === "__invalid__") {
+      return res.status(400).json({ error: "Invalid placementType. Must be 'agency_leased' or 'direct_outsourcing'." });
+    }
+    if (adminPlacementType) fields.placementType = adminPlacementType;
+
     const [newRecord] = await db.insert(schema.workers).values(fields).returning();
     const worker = projectWorkerPII(toWorker(newRecord), req.user?.role);
     appendAuditEntry({ workerId: newRecord.id, actor: req.user?.email ?? "admin", field: "ALL", newValue: { ...fields, pesel: fields.pesel ? "[encrypted]" : undefined, iban: fields.iban ? "[encrypted]" : undefined }, action: "create" });
+    appendAuditEntry({
+      workerId: newRecord.id,
+      actor: req.user?.email ?? "admin",
+      field: "PLACEMENT_TYPE",
+      oldValue: null,
+      newValue: newRecord.placementType,
+      action: "create",
+    });
     return res.status(201).json({ worker });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to create worker." });
@@ -535,6 +564,24 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
       }
     }
 
+    let placementTypeChange: { old: string | null; new: string } | null = null;
+    if (body.placementType !== undefined) {
+      const newPlacement = validatePlacementType(body.placementType);
+      if (newPlacement === "__invalid__") {
+        return res.status(400).json({ error: "Invalid placementType. Must be 'agency_leased' or 'direct_outsourcing'." });
+      }
+      if (newPlacement) {
+        const tenantIdForLookup = requireTenant(req);
+        const [existing] = await db.select({ placementType: schema.workers.placementType }).from(schema.workers).where(
+          and(eq(schema.workers.id, String(req.params.id)), eq(schema.workers.tenantId, tenantIdForLookup))
+        );
+        if (existing && existing.placementType !== newPlacement) {
+          placementTypeChange = { old: existing.placementType, new: newPlacement };
+          updates.placementType = newPlacement;
+        }
+      }
+    }
+
     // Numeric fields
     for (const numField of ["hourlyNettoRate", "advancePayment", "totalHours", "penalties"]) {
       if (body[numField] !== undefined) {
@@ -559,6 +606,16 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
       newValue: auditValue,
       action: "update",
     });
+    if (placementTypeChange) {
+      appendAuditEntry({
+        workerId: String(req.params.id),
+        actor: req.user?.email ?? "admin",
+        field: "PLACEMENT_TYPE",
+        oldValue: placementTypeChange.old,
+        newValue: placementTypeChange.new,
+        action: "update",
+      });
+    }
     return res.json(projectWorkerPII(toWorker(updated), req.user?.role));
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });

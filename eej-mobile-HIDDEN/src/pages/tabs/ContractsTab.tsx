@@ -10,6 +10,7 @@ interface Worker {
   contractEndDate?: string;
   assignedSite?: string;
   jobRole?: string;
+  placementType?: string;
 }
 
 export default function ContractsTab() {
@@ -94,16 +95,28 @@ export default function ContractsTab() {
                   {w.jobRole ?? "No role"} {w.assignedSite ? `· ${w.assignedSite}` : ""}
                 </div>
               </div>
-              <span style={{
-                fontSize: 11,
-                fontWeight: 600,
-                padding: "3px 8px",
-                borderRadius: 6,
-                background: w.contractType === "umowa_o_prace" ? "#ECFDF5" : "#EFF6FF",
-                color: w.contractType === "umowa_o_prace" ? "#059669" : "#3B82F6",
-              }}>
-                {w.contractType === "umowa_o_prace" ? "Umowa o Prace" : "Zlecenie"}
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  background: w.contractType === "umowa_o_prace" ? "#ECFDF5" : "#EFF6FF",
+                  color: w.contractType === "umowa_o_prace" ? "#059669" : "#3B82F6",
+                }}>
+                  {w.contractType === "umowa_o_prace" ? "Umowa o Prace" : "Zlecenie"}
+                </span>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: "2px 7px",
+                  borderRadius: 6,
+                  background: w.placementType === "direct_outsourcing" ? "#EFF6FF" : "#ECFDF5",
+                  color: w.placementType === "direct_outsourcing" ? "#3B82F6" : "#059669",
+                }}>
+                  {w.placementType === "direct_outsourcing" ? "Direct outsourcing" : "Agency-leased"}
+                </span>
+              </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>

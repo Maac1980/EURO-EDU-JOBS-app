@@ -82,3 +82,11 @@ Until these ops steps complete, the steady state is:
 - Drafts can be created and approved (status DRAFT → APPROVED with audit) but `sendImmediately=true` returns 503
 - Templates remain inactive so the drafter rejects them at create time anyway
 - Legacy `lib/alerter.ts` direct-send path is unchanged and continues to operate in parallel
+
+## Gap 4 closure (2026-04-28)
+
+Gap 4 fully shipped on production at v100 (2026-04-28). `placement_type` column live on `workers` table (NOT NULL, default `'agency_leased'`, CHECK constraint `placement_type IN ('agency_leased', 'direct_outsourcing')`). All 100 existing production workers default to `'agency_leased'` per migration default. Art. 20 18-month limit and Art. 14a retention gate on `placement_type='agency_leased'`. `eej_assignments.art_20_enforced` column added via idempotent ALTER inside `ensureComplianceTables()`; populated lazily on first agency-endpoint hit after deploy. Deferred follow-ups:
+
+- [ ] **D2 worker detail editable placementType field.** The mobile worker-edit form (`eej-mobile-HIDDEN/src/components/WorkerProfileSheet.tsx`) consumes the `Candidate` interface defined in `eej-mobile-HIDDEN/src/data/mockData.ts`. Adding the editable dropdown for placement_type requires extending the `Candidate` type. Estimated 30-45 minutes. Track as a Gap 4 cleanup item.
+- [ ] **Bulk worker creation endpoints dedicated PLACEMENT_TYPE audit entries.** `POST /workers/bulk-import` (`routes/workers.ts:295`) and `POST /workers/bulk-create` (`routes/workers.ts:676`) do not currently emit dedicated `field='PLACEMENT_TYPE'` audit entries on insert. Workers created via these paths inherit the schema default `'agency_leased'` correctly, but the dedicated audit row is not written. The existing `field='ALL'` audit entry on creation captures the placement value implicitly. Low priority.
+- [ ] **PIP inspection pack and reclassification scanner placement_type surfacing.** `agency-compliance-engine.ts:557-693` does not currently surface `placement_type` in its output. The PIP pack's checklist could differentiate "Art. 20 limit applied" vs "Art. 20 not enforced (direct_outsourcing)". The reclassification scanner could weight risk differently by placement_type (PIP reclassification primarily targets disguised direct hires).

@@ -940,3 +940,199 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gap 4 — placement_type schema, API, audit, and behavioral gating.
+// Requires TEST_DATABASE_URL pointing at a database with Gap 4 Task A migration applied.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: Gap 4 placement_type (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let coordToken: string;
+    const createdWorkerIds: string[] = [];
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      const jwt = await import("jsonwebtoken");
+      coordToken = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000c4", email: "coord@test.local", name: "Coord",
+          role: "coordinator", tier: 2, tenantId: "production", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        if (createdWorkerIds.length > 0) {
+          await pool.query(`DELETE FROM eej_assignments WHERE worker_id = ANY($1::text[])`, [createdWorkerIds]);
+          await pool.query(`DELETE FROM audit_entries WHERE worker_id = ANY($1::uuid[])`, [createdWorkerIds]);
+          await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [createdWorkerIds]);
+        }
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("E1 placement_type column exists on workers with default 'agency_leased' and CHECK constraint", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, column_default, is_nullable
+         FROM information_schema.columns
+         WHERE table_name = 'workers' AND column_name = 'placement_type'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].column_default).toMatch(/agency_leased/);
+      expect(colInfo.rows[0].is_nullable).toBe("NO");
+
+      // CHECK rejects bogus value
+      await expect(
+        pool.query(`INSERT INTO workers (name, placement_type, tenant_id) VALUES ('GAP4-bogus', 'fake_value', 'production')`)
+      ).rejects.toThrow(/workers_placement_type_check/);
+    });
+
+    it("E2 POST /api/apply with no placementType creates worker with default 'agency_leased'", async () => {
+      const res = await request(app)
+        .post("/api/apply")
+        .send({ name: `GAP4-default-${Date.now()}`, email: `gap4-default-${Date.now()}@test.local` });
+      expect(res.status).toBe(200);
+      const workerId = res.body.id as string;
+      expect(workerId).toBeTruthy();
+      createdWorkerIds.push(workerId);
+
+      const row = await pool.query(`SELECT placement_type FROM workers WHERE id = $1`, [workerId]);
+      expect(row.rows[0].placement_type).toBe("agency_leased");
+    });
+
+    it("E3 POST /api/apply with explicit placementType='direct_outsourcing' is honored", async () => {
+      const res = await request(app)
+        .post("/api/apply")
+        .send({
+          name: `GAP4-direct-${Date.now()}`,
+          email: `gap4-direct-${Date.now()}@test.local`,
+          placementType: "direct_outsourcing",
+        });
+      expect(res.status).toBe(200);
+      const workerId = res.body.id as string;
+      expect(workerId).toBeTruthy();
+      createdWorkerIds.push(workerId);
+
+      const row = await pool.query(`SELECT placement_type FROM workers WHERE id = $1`, [workerId]);
+      expect(row.rows[0].placement_type).toBe("direct_outsourcing");
+    });
+
+    it("E4 POST /api/apply with invalid placementType returns 400", async () => {
+      const res = await request(app)
+        .post("/api/apply")
+        .send({
+          name: `GAP4-invalid-${Date.now()}`,
+          email: `gap4-invalid-${Date.now()}@test.local`,
+          placementType: "something_else",
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/placementType/i);
+    });
+
+    it("E5 PATCH /api/workers/:id with placementType change writes PLACEMENT_TYPE audit row", async () => {
+      // Create via admin POST to get a worker we can PATCH
+      const create = await request(app)
+        .post("/api/workers")
+        .set("Authorization", `Bearer ${coordToken}`)
+        .send({ name: `GAP4-patch-${Date.now()}` });
+      expect(create.status).toBe(201);
+      const workerId = create.body.worker.id as string;
+      createdWorkerIds.push(workerId);
+
+      const patch = await request(app)
+        .patch(`/api/workers/${workerId}`)
+        .set("Authorization", `Bearer ${coordToken}`)
+        .send({ placementType: "direct_outsourcing" });
+      expect(patch.status).toBe(200);
+
+      // Audit log: PLACEMENT_TYPE entry should be present (fire-and-forget; small wait if needed)
+      await new Promise(r => setTimeout(r, 100));
+      const audit = await pool.query(
+        `SELECT field, old_value, new_value FROM audit_entries
+         WHERE worker_id = $1::uuid AND field = 'PLACEMENT_TYPE' ORDER BY timestamp DESC LIMIT 1`,
+        [workerId]
+      );
+      expect(audit.rowCount).toBeGreaterThanOrEqual(1);
+      expect(audit.rows[0].old_value).toBe("agency_leased");
+      expect(audit.rows[0].new_value).toBe("direct_outsourcing");
+    });
+
+    it("E6 art_20_enforced=TRUE on assignment insert for agency_leased worker", async () => {
+      const create = await request(app)
+        .post("/api/workers")
+        .set("Authorization", `Bearer ${coordToken}`)
+        .send({ name: `GAP4-agency-${Date.now()}` });
+      const workerId = create.body.worker.id as string;
+      createdWorkerIds.push(workerId);
+
+      const assign = await request(app)
+        .post("/api/v1/agency/assignments")
+        .set("Authorization", `Bearer ${coordToken}`)
+        .send({ workerId, clientName: "GAP4-Client", startDate: new Date().toISOString().slice(0, 10) });
+      expect(assign.status).toBe(200);
+      expect(assign.body.compliance.art20Enforced).toBe(true);
+      expect(assign.body.compliance.placementType).toBe("agency_leased");
+
+      const row = await pool.query(`SELECT art_20_enforced FROM eej_assignments WHERE worker_id = $1`, [workerId]);
+      expect(row.rows[0].art_20_enforced).toBe(true);
+    });
+
+    it("E7 art_20_enforced=FALSE for direct_outsourcing worker; 18-month block does not fire", async () => {
+      const create = await request(app)
+        .post("/api/workers")
+        .set("Authorization", `Bearer ${coordToken}`)
+        .send({ name: `GAP4-direct-asn-${Date.now()}`, placementType: "direct_outsourcing" });
+      const workerId = create.body.worker.id as string;
+      createdWorkerIds.push(workerId);
+
+      // Pre-seed eej_assignments with an assignment that already exceeds 18 months (560 days back) so
+      // an agency-leased worker would be blocked. Direct-outsourcing must NOT block.
+      const start600 = new Date(Date.now() - 600 * 86400000).toISOString().slice(0, 10);
+      await pool.query(
+        `INSERT INTO eej_assignments (worker_id, client_name, start_date, status, org_context, art_20_enforced)
+         VALUES ($1, 'GAP4-Client-Direct', $2, 'ACTIVE', 'EEJ', FALSE)`,
+        [workerId, start600]
+      );
+
+      const assign = await request(app)
+        .post("/api/v1/agency/assignments")
+        .set("Authorization", `Bearer ${coordToken}`)
+        .send({ workerId, clientName: "GAP4-Client-Direct", startDate: new Date().toISOString().slice(0, 10) });
+      // Should NOT be 400 PLACEMENT BLOCKED — direct_outsourcing is not bound by Art. 20
+      expect(assign.status).toBe(200);
+      expect(assign.body.compliance.art20Enforced).toBe(false);
+      expect(assign.body.compliance.placementType).toBe("direct_outsourcing");
+    });
+
+    it("E8 GET /api/v1/agency/assignments/scan excludes art_20_enforced=FALSE rows", async () => {
+      const create = await request(app)
+        .post("/api/workers")
+        .set("Authorization", `Bearer ${coordToken}`)
+        .send({ name: `GAP4-scan-direct-${Date.now()}`, placementType: "direct_outsourcing" });
+      const workerId = create.body.worker.id as string;
+      createdWorkerIds.push(workerId);
+
+      // Insert an assignment that would otherwise breach the 450-day threshold the scan filters on
+      const start500 = new Date(Date.now() - 500 * 86400000).toISOString().slice(0, 10);
+      await pool.query(
+        `INSERT INTO eej_assignments (worker_id, client_name, start_date, status, org_context, art_20_enforced)
+         VALUES ($1, 'GAP4-Scan-Direct', $2, 'ACTIVE', 'EEJ', FALSE)`,
+        [workerId, start500]
+      );
+
+      const scan = await request(app)
+        .get("/api/v1/agency/assignments/scan")
+        .set("Authorization", `Bearer ${coordToken}`);
+      expect(scan.status).toBe(200);
+      const alertWorkerIds = (scan.body.alerts as Array<{ worker_id: string }>).map(a => a.worker_id);
+      expect(alertWorkerIds).not.toContain(workerId);
+    });
+  }
+);

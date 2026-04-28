@@ -1,10 +1,12 @@
 # EEJ ↔ APATRIS Consolidation Audit
 
-**Date:** 2026-04-27
+**Date:** 2026-04-27 (v1) → 2026-04-28 (v2 revision)
 **Author:** EEJ Claude Code
 **Scope:** Compare current EEJ and APATRIS implementations of overlapping legal-immigration functionality, identify what consolidates to APATRIS, what stays in EEJ, what's hybrid, and produce the priority list for the EEJ side of the build.
 **Companion:** `docs/architecture-boundaries.md` (committed 2026-04-12, pre-Step-3) — this audit extends and updates that boundary doc.
-**Authorization:** Cross-repo read of APATRIS at `/Users/manishshetty/Desktop/Apatris-Compliance-Hub` was explicitly authorized for this audit purpose; reverts to the EEJ-only / APATRIS-only routine boundary after this audit closes.
+**v1 commit:** `2b67a5c` (preserved in git history).
+**v2 revision (this commit):** incorporates findings from 2026-04-28 — the matchScore usage audit (chat-only), the EU AI Act §4(a) Phase 1 scope at `docs/EU_AI_ACT_ANNEX_III_4A_RECRUITMENT_RESEARCH_SCOPE.md` (commit `305eb08`), the EEJ agency regulatory framework inventory at `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` (commit `014bea2`), the agency-versus-outsourcing legal-vehicle distinction (new Section 3.5), and the Q1/Q2/Q3 decisions answered as hybrid-architecture / counsel-validated low-risk / single-counsel engagement.
+**Authorization:** Cross-repo read of APATRIS at `/Users/manishshetty/Desktop/Apatris-Compliance-Hub` was explicitly authorized for this audit purpose (v1) and re-authorized for the v2 revision; reverts to the EEJ-only / APATRIS-only routine boundary after this v2 commit closes.
 
 ---
 
@@ -27,8 +29,9 @@ This is the EEJ-side of a planned two-document audit. The APATRIS-side response 
 ### Production
 
 - **Fly app:** `eej-jobs-api` (region `ams`, 2 machines healthy)
-- **Live version:** **v99** (deployed 2026-04-27, ~1 hour ago)
-- **Origin/master HEAD:** `3c0695c` (Step 3 closure documentation commit)
+- **Live version:** **v99** (deployed 2026-04-27)
+- **Origin/master HEAD at v1 audit:** `3c0695c` (Step 3 closure documentation commit)
+- **Origin/master HEAD at v2 revision:** `014bea2` (regulatory framework inventory, 2026-04-28). Three documentation commits since v1 of this audit: `305eb08` (EU AI Act §4(a) scope), `014bea2` (regulatory framework inventory). No code commits — production is still v99.
 - **Working tree:** clean
 
 ### Recent significant work (chronological)
@@ -57,6 +60,8 @@ Step 3 totals: ~1,800 LOC across 16 commits (4 sub-phases × 4 tasks each), 168 
 
 **EEJ-only domain (see Section 5):** recruitment/ATS, payroll/ZUS, CRM, client management, GPS tracking, agency compliance, billing/Stripe, workforce mobile portal, WhatsApp messaging (Step 3), AI copilot, T1 dashboard, auth/portal — covering ~30+ files across services and routes.
 
+**v2 update — agency-specific compliance encoding is more substantial than v1 captured.** The regulatory framework inventory at `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` (commit `014bea2`) catalogues **33 encoded compliance constraints** across `agency-protection.ts` (625 LOC), `agency-compliance-engine.ts` (695 LOC), `legal-decision-engine.ts`, `legal-intelligence.ts`, `legal-kb.service.ts`, `first-contact-verification.ts`, and `docs/knowledge-hub/workflows/status-dashboard.ts`. Highlights: 5 placement gates as hard blocks (BHP, medical, work auth, contract-permit type, 18-month assignment limit), 5 voivode-notification deadlines (Art. 88i ust. 1/2/7), KRAZ tracker (Art. 305-329, Ustawa o rynku pracy 2025), 10-rule retention table (incl. Art. 14a 36-month assignment retention), Specustawa/CUKR Ukrainian-worker tracker, BHP/risk-assessment templates including `Ryzyko zawodowe`. The inventory also flags 10 gaps; the top three by §4(a)-Phase-2 impact are Gap 5 (jobRole free-text taxonomy, 12-20 hr), Gap 4 (agency-vs-direct classifier, 4-6 hr), Gap 2 (position-specific permit binding, 8-14 hr). This refines Section 4 (consolidation candidates) and Section 5 (EEJ-only domain) below.
+
 ### Follow-up backlog (`STEP3-FOLLOWUPS.md`, 84 lines)
 
 - Legacy `lib/alerter.ts::normalizePhone` migration to strict `lib/phone.ts`
@@ -79,11 +84,12 @@ Read first-hand from `/Users/manishshetty/Desktop/Apatris-Compliance-Hub` and `f
 ### Production
 
 - **Fly app:** `apatris-api` (region `iad`, 2 machines healthy, 1/1 checks passing)
-- **Live version:** **v295** (deployed 2026-04-24, ~3 days ago)
-- **APATRIS git HEAD:** `edcdc76` (counsel packet contacts populated 2026-04-28)
-- **Production health:** `https://apatris-api.fly.dev/api/healthz` → HTTP 200 (300ms)
+- **Live version:** **v295** (deployed 2026-04-24, unchanged since v1 of this audit)
+- **APATRIS git HEAD at v1 audit:** `edcdc76` (counsel packet contacts populated 2026-04-28)
+- **APATRIS git HEAD at v2 revision:** `27ff161` (front-matter refinement). Four documentation-only commits since `edcdc76`: `27ff161`, `839db22`, `4e76e01`, `57d3b1d` — all counsel-packet refinements (front-matter, version line, Manish's role title, removal of obsolete subsections). No code commits.
+- **Production health:** `https://apatris-api.fly.dev/api/healthz` → HTTP 200
 
-Recent commits (`edcdc76` and 9 prior) are entirely **documentation work** on the counsel handoff packet — Section 8 verbatim seven questions, Section 11 engagement contacts, version cleanup. The most recent CODE deploy (v295) shipped Apr 24, three days before this audit.
+Recent commits (`27ff161` and 13 prior) are entirely **documentation work** on the counsel handoff packet — Section 8 verbatim seven questions, Section 11 engagement contacts, version cleanup. The most recent CODE deploy (v295) shipped Apr 24, four days before the v2 revision of this audit.
 
 ### The five-layer architecture (per `MASTER_PLAN.md` `f1c0152`)
 
@@ -158,11 +164,54 @@ The shapes overlap substantially with EEJ's `services/legal-*`, `mos-*`, `case-*
 
 ---
 
+## 3.5. Legal vehicle distinction (added in v2)
+
+The consolidation analysis depends on a structural distinction that v1 of this audit underweighted: **EEJ and APATRIS operate under different legal vehicles for placing foreign workers in Poland**, and that vehicle determines which obligations attach to each platform.
+
+### EEJ — agencja pracy tymczasowej (temporary work agency)
+
+EEJ operates as `agencja pracy tymczasowej` under **Ustawa z dnia 9 lipca 2003 r. o zatrudnianiu pracowników tymczasowych** (Temporary Employment Act). Workers are *leased* by EEJ to a *user-employer* (`pracodawca użytkownik`); the worker is EEJ's employee, the user-employer directs the work. The legal relationship is structurally tripartite (Art. 7).
+
+This vehicle imposes a specific set of obligations EEJ encodes today (Section 2 update; full inventory at `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md`):
+- **Work-type prohibitions (Art. 8 ust. 1)** — agency-leased workers cannot perform certain work, notably particularly dangerous work (`prace szczególnie niebezpieczne`) which by implementing regulation includes work at heights (`praca na wysokości`), and cannot replace striking workers or recently-dismissed permanent staff.
+- **Equal pay parity (Art. 15 + Art. 18³ᶜ KP)** — agency-leased workers must receive equivalent pay and conditions to user-employer permanent staff in the same role.
+- **18/36-month assignment limits (Art. 20)** — cumulative duration cap at any one user-employer.
+- **Voivode notification cadence (Art. 88i)** — 7/14/15-day reports of commencement, non-commencement, termination.
+- **KRAZ registration** — agency cannot operate without KRAZ entry; annual Marshal report under Art. 323.
+- **Tripartite document responsibilities** — BHP induction, risk-assessment information (`Ryzyko zawodowe`), medical referral, `Zakres obowiązków`.
+
+### APATRIS — outsourcing / legal services platform
+
+APATRIS does not place workers as agency-leased. Per the master plan and the EU AI Act §7 research at `bf4d92b`, APATRIS is "private applicant-side legal services" — it represents foreigners in their proceedings before authorities (TRC applications, work-permit submissions, appeals). When APATRIS handles an outsourced workforce engagement, the workers are typically *directly employed* by APATRIS (or an APATRIS-affiliated entity) and the engagement with the end-client is governed by a *services contract* (B2B), not a tripartite agency-leasing structure.
+
+Outsourcing under this structure does **not** trigger the Temporary Employment Act's Art. 8 prohibitions, Art. 15 equal-pay parity to a user-employer's staff, or Art. 20 18/36-month cap. It does still trigger general Kodeks Pracy obligations (Art. 229 medical, Art. 237³ BHP, Art. 22¹ contract requirements), Foreigners Act position-specific permits (Art. 88), and RODO. But the *agency-specific* layer that EEJ encodes is a different obligation set than the *outsourcing-with-legal-services* layer APATRIS encodes.
+
+### Why this distinction shapes consolidation
+
+The Urząd's questioning of APATRIS's legal vehicle (referenced in conversation; not yet documented in the APATRIS counsel packet beyond the §7 "by or on behalf of" qualifier analysis) presses on whether APATRIS can lawfully take on certain workforce engagements that an agencja pracy can. The answer matters here because:
+
+1. **Some EEJ functionality is legally agency-specific and cannot consolidate to APATRIS.** The Section 4 zones marked "agency-specific" in v2 stay in EEJ regardless of how mature APATRIS becomes — they encode obligations that only attach to EEJ's vehicle.
+2. **Some EEJ functionality is legal-domain-shared and can consolidate to APATRIS.** Recruitment-side document AI, regulatory-update ingest, immigration AI on TRC applications — these are jurisdictional knowledge work, not vehicle-specific obligations.
+3. **Some EEJ functionality is a candidate for shared infrastructure that both vehicles need.** Position-specific permit binding (Gap 2 in the regulatory framework inventory) is needed by both EEJ (to validate worker placement under the agency vehicle) and APATRIS (to assist worker permit-amendment workflow under the legal-services vehicle). Building it once in shared infrastructure serves both.
+
+### Implication for the audit's consolidation classification
+
+v1 of this audit used three labels for each Section 4 zone: "EEJ deprecates," "APATRIS owns," "Hybrid." v2 introduces a four-way classification that surfaces the legal-vehicle distinction explicitly:
+
+- **STAY IN EEJ** — encodes agency-specific (Temporary Employment Act) obligations; cannot consolidate without breaking compliance posture.
+- **MOVE TO APATRIS** — immigration legal-domain knowledge work that APATRIS structurally owns under the master plan.
+- **SHARED INFRASTRUCTURE** — both platforms benefit; build once and consume from both. Examples: position-permit binding, retention scheduler core (rules differ by vehicle but the scheduler engine is the same), document storage substrate.
+- **HYBRID** — parts move, parts stay. Examples: document handling (recruitment docs stay in EEJ; legal-evidence docs move to APATRIS); worker-facing mobile UI (UI surface stays in EEJ; legal-status data moves to APATRIS).
+
+Section 4 zones below are now labelled with this four-way classification.
+
+---
+
 ## 4. Conceptual overlap zones
 
-For each zone: what EEJ has, what APATRIS has, consolidation candidate.
+For each zone: what EEJ has, what APATRIS has, consolidation candidate. **v2** annotates each zone with the four-way label introduced in Section 3.5 (STAY IN EEJ / MOVE TO APATRIS / SHARED INFRASTRUCTURE / HYBRID).
 
-### 4.1 Legal case management
+### 4.1 Legal case management — **MOVE TO APATRIS**
 
 | | EEJ (`3c0695c`) | APATRIS (`edcdc76`) |
 |---|---|---|
@@ -172,7 +221,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | Lawyer gate | None structural — EEJ services produce text; mobile tabs show worker status | APATRIS principle 9: "AI completes; lawyer edits and sends. Boundary is structural, not preferential." Layer 0 v1 includes 5-layer structural prevention of AI-side send. |
 | **Consolidation candidate** | EEJ deprecates legal-case-engine + legal-engine + legal-operations once APATRIS Layer 0 v1 ships. EEJ's pure-function legal-decision-engine may survive as a checker but the AI-generating-text paths sunset. | APATRIS owns this domain |
 
-### 4.2 Immigration intelligence
+### 4.2 Immigration intelligence — **MOVE TO APATRIS**
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -181,7 +230,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | AI surface | EEJ uses Claude + Perplexity inline; no source linkage enforcement | APATRIS Layer 0 design enforces source linkage as schema constraint (4-layer: schema + prompt + validator + drift detection) |
 | **Consolidation candidate** | EEJ deprecates the immigration AI paths once APATRIS Layer 0 v1 ships. EEJ keeps `regulatory_updates` ingest as a feed for Apatris consumption (not as the AI brain). | APATRIS owns this domain |
 
-### 4.3 TRC service
+### 4.3 TRC service — **HYBRID** (data MOVES TO APATRIS; thin EEJ proxy may persist short-term)
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -189,7 +238,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | Schema | EEJ has `work_permit_applications` (with `tenant_id`, Stage 4-scoped) | APATRIS has `trc_cases` with `case_reference`, plus document linker logic in `document-intake.service.ts` |
 | **Consolidation candidate** | EEJ's TRC service is a thin route layer over `work_permit_applications`; could be retained as a passthrough that proxies to APATRIS, OR deprecated and replaced by APATRIS's case management surface accessible via SSO | Hybrid — EEJ may proxy in the short term |
 
-### 4.4 Work permits (Type A/B/C, Oświadczenie, Seasonal)
+### 4.4 Work permits (Type A/B/C, Oświadczenie, Seasonal) — **HYBRID** (position-binding is SHARED INFRASTRUCTURE candidate; agency-side enforcement STAYS IN EEJ)
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -197,7 +246,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | Behavior | EEJ has CRUD + 7-day deadline tracking + document checklists | APATRIS has document-intake linker + case-centered workflow |
 | **Consolidation candidate** | Hybrid: EEJ retains for non-TRC permit types not yet covered by APATRIS; APATRIS absorbs TRC-card permits as part of legal case management | Hybrid; redraw boundary when APATRIS Layer 1+ ships |
 
-### 4.5 MOS (Ministerstwo Spraw Zagranicznych) modules
+### 4.5 MOS (Ministerstwo Spraw Zagranicznych) modules — **HYBRID** (mos-2026 mandate STAYS IN EEJ; legacy mos-engine MOVES TO APATRIS)
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -205,7 +254,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | Branding | EEJ's `mos-2026-mandate.ts` declares EEJ-only and explicitly excludes Apatris data | APATRIS has parallel implementation |
 | **Consolidation candidate** | EEJ retains its `mos-2026-mandate.ts` (already explicitly EEJ-only); the legacy `mos-engine.ts` + `mos-package.ts` deprecate in favor of APATRIS's Layer 1+ once shipped | Mostly APATRIS, but EEJ keeps the MOS-2026 mandate-specific module |
 
-### 4.6 Document handling for legal documents
+### 4.6 Document handling for legal documents — **HYBRID** (recruitment docs STAY IN EEJ; legal-evidence docs MOVE TO APATRIS; storage substrate SHARED)
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -213,7 +262,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | Discipline | EEJ uses Claude Vision OCR + Knowledge Graph sync; no source linkage requirement | APATRIS Layer 1 calls for `linkDocument` to populate `linked_case_id` on every upload (currently 0/20 prod rows linked — broken-on-prod gap that Layer 1 fixes) |
 | **Consolidation candidate** | **HYBRID**: EEJ continues to ingest recruitment-domain documents (CVs, contracts, BHP certs); APATRIS owns legal-evidence-domain documents (TRC application packets, authority correspondence, court filings). Boundary at the document type. | Hybrid — see Section 7 |
 
-### 4.7 Lawyer review surfaces
+### 4.7 Lawyer review surfaces — **MOVE TO APATRIS** (EEJ has none; agency-side does not need one)
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -221,7 +270,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | Discipline | EEJ has no structural lawyer gate — drafts produced by AI services can flow to mobile worker tabs without lawyer approval | APATRIS principle 1: "Human review is the structural gate. AI output cannot reach a client or authority without lawyer approval." Layer 0 v1 includes structural send-prevention. |
 | **Consolidation candidate** | EEJ has no equivalent surface and shouldn't try to build one. APATRIS owns the lawyer review surface for legal-immigration domain. | APATRIS owns |
 
-### 4.8 Worker-facing legal status (mobile tabs)
+### 4.8 Worker-facing legal status (mobile tabs) — **HYBRID** (UI surface STAYS IN EEJ; legal-status data MOVES TO APATRIS)
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -229,7 +278,7 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | User flow | EEJ shows worker their own document expiries, work permit status, Schengen day count, upcoming TRC dates | APATRIS shows worker their case status (not yet documented in detail; would need Layer 4 consent loop to be meaningful) |
 | **Consolidation candidate** | Hybrid: EEJ retains the worker-facing mobile tabs as the "always-with-you" daily-driver UX (the tabs are wired into the EEJ portal and compliance flows). When APATRIS Layer 4 ships, those tabs may consume APATRIS data via API, but the surface stays EEJ-branded. | Hybrid — EEJ owns the surface; APATRIS owns the data once it's the source of truth |
 
-### 4.9 Regulatory updates as legal-domain content
+### 4.9 Regulatory updates as legal-domain content — **HYBRID** (defer; EEJ retains for compliance dashboards; APATRIS feeds legal_articles spine)
 
 | | EEJ | APATRIS |
 |---|---|---|
@@ -237,11 +286,19 @@ For each zone: what EEJ has, what APATRIS has, consolidation candidate.
 | Source | EEJ scrapes praca.gov.pl, ZUS, PIP, Sejm via Perplexity | APATRIS has its own daily scan service |
 | **Consolidation candidate** | EEJ retains the regulatory ingest for compliance dashboard purposes (T1 dashboard "Regulatory Intelligence" widget); APATRIS may consume the same feed or run its own. Defer decision; both sides currently have working code. | Defer — both keep their feeds for now |
 
+### 4.10 Agency-specific compliance gates — **STAY IN EEJ** (added in v2)
+
+| | EEJ (`014bea2`) | APATRIS |
+|---|---|---|
+| Files | `services/agency-protection.ts` (BHP/medical/permit hard blocks at `:531-549`, contract-permit cross-validation at `:228-280`, Annex 1 signature countdown, Specustawa/CUKR tracker, offline compliance card), `services/agency-compliance-engine.ts` (18/36-month limiter at `:172-181`, KRAZ tracker, Marshal annual report, voivode notifications at `:412-431`, retention scheduler at `:501-554`, PIP inspection pack, contract reclassification scanner) | None equivalent — APATRIS is outsourcing, not agency-leasing |
+| Regulatory basis | Ustawa o zatrudnianiu pracowników tymczasowych (Art. 8 prohibitions [not encoded — Gap 1], Art. 14a retention, Art. 15 equal-pay [not encoded — Gap 3], Art. 20 assignment limits), Ustawa o promocji zatrudnienia (Art. 87, 88, 88i, 88z), Ustawa o rynku pracy (Art. 305-329 KRAZ, Art. 323 Marshal report), Kodeks Pracy (Art. 229, 237³, 22¹), Foreigners Act (Art. 88, 108, 114, 118, 139a-f), Specustawa CUKR | Foreigners Act (Art. 88, 108, 114, 118), Kodeks Pracy (Art. 229, 237³); does NOT need Temporary Employment Act enforcement |
+| **Consolidation candidate** | **STAY IN EEJ.** This is the legal-vehicle-specific layer — agency obligations imposed by Temporary Employment Act do not apply to APATRIS as outsourcing. The 33-constraint inventory at `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` is structurally EEJ-domain. | n/a |
+
 ---
 
 ## 5. EEJ-only domain
 
-These remain entirely EEJ — not part of any consolidation:
+These remain entirely EEJ — not part of any consolidation. **v2 update:** the agency-compliance-ops row below is the operational surface for the 33 constraints catalogued in `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` (commit `014bea2`); see Section 4.10 for the explicit STAY-IN-EEJ rationale rooted in the legal-vehicle distinction (Section 3.5).
 
 | Domain | EEJ files | Why EEJ-only |
 |---|---|---|
@@ -310,6 +367,20 @@ Modules where the boundary is genuinely unclear or both platforms legitimately n
 - **Boundary:** EEJ's KG appears to be a recruitment-side abstraction; APATRIS's is the Layer 0 legal-articles spine. Different shapes despite the name.
 - **Consolidation:** rename EEJ's to disambiguate, OR sunset EEJ's once APATRIS Layer 0 v1 spine is the primary.
 
+### 7.5 Position-specific permit binding (added in v2 — SHARED INFRASTRUCTURE candidate)
+
+- **EEJ need:** Gap 2 in the regulatory framework inventory (`docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` Section 4.1, 4.2, Section 5 Gap 2). Art. 88 Ustawa o promocji zatrudnienia issues work permits for a specific position (`stanowisko`) and a specific user-employer. EEJ stores `workers.permit_type` and `workers.work_permit_expiry` but does NOT store `permit_position` or `permit_user_employer`. The matching logic at `routes/jobs.ts:152-157` checks expiry only — it does not validate that the permit was issued for the same position or user-employer as the job posting. Closing this gap is estimated at 8-14 hours.
+- **APATRIS need:** when handling foreigner permit-amendment workflows (the master plan's case-centered architecture), APATRIS needs to know what position the existing permit covers in order to determine whether an amendment or a new permit is required. Same data model (permit → position → user-employer) is needed.
+- **Boundary:** the data model and the position-vs-job cross-validation logic are common across both vehicles; the consumer-side decision (block placement at EEJ vs route-to-amendment-workflow at APATRIS) differs.
+- **Consolidation:** **build once.** Add `permit_position` and `permit_user_employer_id` columns on a shared schema (likely `work_permit_applications` extended), expose via API to both platforms. EEJ consumes for matching-time validation; APATRIS consumes for amendment-workflow routing. Defer until APATRIS Layer 1+ ships and the API contract is stable.
+
+### 7.6 Document retention scheduler (added in v2 — partial SHARED INFRASTRUCTURE candidate)
+
+- **EEJ has:** retention rules table at `services/agency-compliance-engine.ts:501-512` with 10 entries (Personnel file, Payroll, Foreign-worker docs, CV, Contract, BHP cert, Medical cert, **Assignment record (Art. 14a, 36 months — agency-specific)**, ZUS, Tax). Scheduler engine at `:514-554`.
+- **APATRIS need:** legal-evidence retention is its own concern (case files, authority correspondence, court filings have their own retention requirements under Polish administrative procedure rules). APATRIS likely needs an equivalent scheduler.
+- **Boundary:** the scheduler **engine** (compute delete-after date, surface due queue, mark-completed) is generic. The **rule set** is vehicle-specific: EEJ's Art. 14a 36-month assignment retention is agency-specific; APATRIS's case-evidence retention is legal-services-specific.
+- **Consolidation:** scheduler engine could be extracted to shared infrastructure; rule sets stay separate per vehicle. Lower priority than 7.5 because EEJ's scheduler is small (40 LOC) and the duplication cost is low.
+
 ---
 
 ## 8. Recommended consolidation paths
@@ -334,6 +405,17 @@ For each overlap zone (Section 4), my recommendation:
 - Don't grow the legal-* services in EEJ. Bug-fix only.
 - Add disclaimers to mobile tabs that surface AI-generated legal content ("informational, not legal advice").
 - Treat the existing legal-case-engine and immigration AI paths as deprecated-on-arrival once APATRIS Layer 0 v1 is committed.
+
+### v2 update — refinement based on legal vehicle distinction
+
+The v2 four-way classification (Section 3.5) refines v1's recommendations:
+
+- **STAY IN EEJ (Section 4.10, agency-specific compliance gates):** zero migration effort; this layer cannot consolidate without breaking compliance posture under Ustawa o zatrudnianiu pracowników tymczasowych. Continue to grow this layer per the gap list at `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` Section 5.
+- **MOVE TO APATRIS (zones 4.1, 4.2, 4.7):** unchanged from v1. ~6-8 engineering days when APATRIS Layer 0 v1 is live.
+- **HYBRID (zones 4.3, 4.4, 4.5, 4.6, 4.8, 4.9):** unchanged from v1.
+- **SHARED INFRASTRUCTURE (zones 7.5, 7.6 added in v2):** position-specific permit binding (Section 7.5) and document retention scheduler engine (Section 7.6) become candidates for shared build. Position binding intersects with EEJ's Gap 2 — implementation that serves both vehicles is more efficient than EEJ-alone implementation, IF APATRIS commits to consuming the same model. Decision deferred until APATRIS Layer 1+ API contract is stable.
+
+The aggregate effort estimate (~25-35 EEJ-side engineering days) does not change materially because the SHARED INFRASTRUCTURE work was implicit in v1's "Hybrid" zone treatment. The clarity gain is structural, not numeric.
 
 ---
 
@@ -367,43 +449,87 @@ If the matchScore algorithm is in fact high-risk under §4(a), EEJ inherits Arti
 - Counsel review: 5-15 hours of qualified counsel time (same range as APATRIS).
 - Architectural changes: potentially significant if classification confirms; 2-4 weeks of implementation depending on requirements.
 
+### v2 update — Phase 1 scope, matchScore audit findings, and Q1/Q2/Q3 decisions
+
+Three refinements landed on 2026-04-28:
+
+**1. Phase 1 §4(a) scope committed at `305eb08`.** `docs/EU_AI_ACT_ANNEX_III_4A_RECRUITMENT_RESEARCH_SCOPE.md` is the structural template for the §4(a) research, mirroring APATRIS's `bf4d92b` (14 H2 sections / 416 lines) adapted to recruitment. Phase 1 (this scoping doc) is committed; Phase 2 (research) is the priority for tomorrow's session (Section 10 Rank 2). Phase 2 + 3 refined estimate: ~22-25 hours total (10-12 hours research + 9 hours write); contracts toward 18-20 hours if Q1 hybrid is adopted before Phase 2 starts.
+
+**2. matchScore usage audit (chat-only, not committed) classified the algorithm as PARTIALLY USED.** Findings:
+- Defined inline at `routes/jobs.ts:127-159` (apply path) and `:244-280` (admin-pull /matches endpoint). Schema column at `db/schema.ts:351` (numeric(5,2)).
+- Surfaced in production: `eej-mobile-HIDDEN/src/pages/tabs/ApplicationsTab.tsx:143-152` and `ATSPipelineTab.tsx:135-144` as color-coded badges to authenticated recruiters.
+- Decision impact: **display-only / human-in-the-loop**. No auto-reject, no auto-advance, no candidate-facing exposure, no notifications, no audit trail.
+- Half-implemented: the public-application path at `routes/workers.ts:184` writes `matchScore: "0"` and never recomputes — half of EEJ's intake bypasses the scoring.
+- **Two strong protected-characteristics proxies identified for Article 10 data governance scrutiny:** `worker.trcExpiry` and `worker.workPermitExpiry` (compliance bonus +20). Both are structurally available only to non-EU candidates (TRC = third-country-national permit; work permit unnecessary for EU candidates). They function as legal-residency-status proxies that map to nationality. The +20 compliance bonus is unavailable to EU candidates by construction. Whether this is legally-required-checking versus discriminatory-ranking is the central §4(a) Phase 2 question.
+- One **age-proxy** identified: `worker.experience` parsed-as-int with a >=3-year cliff. Step-function disadvantage for younger candidates. Less central than the TRC/permit proxies but Article 10-relevant.
+- **Auth-gating gap surfaced as collateral finding:** `GET /api/jobs/:id` at `routes/jobs.ts:38` is NOT auth-gated and returns all `job_applications` joined with `workers` rows, including `matchScore` and worker PII. This is a separate access-control gap, not §4(a) scope, but flagged for separate fix (Section 10 Rank 3).
+
+**3. Q1/Q2/Q3 decisions answered.**
+- **Q1 (matchScore strategic vs vestigial) — answered HYBRID.** Sunset numeric ranking; retain rule evaluation as eligibility checklist; separate eligibility from ranking; present factual information (✅ TRC valid, ✅ Work permit valid, ⚠ Experience <3y) to recruiters without composite scores or color-coded badges. Rationale: the matchScore is decorative in current operations (no business outcome conditioned on it; half of intake bypasses it; not audited; not surfaced to candidates) — but the underlying rule evaluation has operational value as a compliance checklist that a recruiter can scan. Sunsetting only the *ranking* eliminates the §4(a) ranking surface while preserving the compliance utility.
+- **Q2 (risk tolerance for §4(a) classification) — answered Option C.** Hybrid validated through counsel as low-risk classification. The architectural intervention from Q1 (sunset ranking, eligibility-only filtering, factual presentation) is the basis for the low-risk argument. If counsel agrees the post-intervention architecture does not fall within Annex III §4(a)'s "analyse and filter job applications, evaluate candidates" scope, Articles 8-15 conformity work is not triggered. If counsel disagrees, the conformity work returns to the table.
+- **Q3 (counsel engagement strategy) — answered Option C.** Single counsel engagement with the same Polish counsel APATRIS will engage; escalate to specialist employment-law counsel only if the work demands it. Rationale: cost/time efficiency, single relationship covers both platforms' EU AI Act exposure, specialist escalation is available if §4(a) analysis reveals labor-law-specific complexity beyond the general counsel's depth.
+
+These decisions shape Phase 2's deliverable: rather than Phase 2 producing an open-ended classification analysis, it produces a counsel-ready argument that the post-intervention matchScore architecture is low-risk under §4(a), with the architectural intervention as Phase 2's recommended action and the Article 6(4) non-high-risk-assessment record as a Phase 3 deliverable.
+
 ---
 
 ## 10. EEJ priorities for tomorrow
 
-Ranked by impact and urgency.
+**v2 update — re-ranked based on 2026-04-28 work and Q1/Q2/Q3 decisions.**
 
-### Priority 1 — EEJ EU AI Act §4(a) research
+The v1 ranking placed the §4(a) research at Rank 1 with persistent test branch and migrate.ts fix following at Ranks 2 and 3. The v2 ranking inserts a new Rank 1 (close Gap 4 — agency-vs-direct classifier) and a new Rank 3 (close auth-gating gap at `GET /api/jobs/:id`) reflecting today's findings; the §4(a) research moves to Rank 2 because it requires Gap 4 closed first to scope correctly. The persistent test branch and migrate.ts fix shift to Ranks 4 and 5 — they remain valid follow-ups but are deferred behind §4(a) work because §4(a) is regulatory-deadline-sensitive.
 
-**Scope:** Produce `docs/EU_AI_ACT_ANNEX_III_4A_RECRUITMENT_RESEARCH.md` (or similar path) documenting the Annex III §4(a) classification analysis for `routes/jobs.ts` matchScore + the ATS pipeline. Mirror the structure of APATRIS's `EU_AI_ACT_ARTICLE_6_RESEARCH.md` (commit `bf4d92b`) — 13 sections including framework, Annex III categorical scan, classification verdict, architectural impact, MUST-RESOLVE items, RODO intersection, Polish-specific context, counsel review questions.
+### Priority 1 (v2 — new) — Close Gap 4 (agency-vs-direct classifier)
 
-**Unblocks:** EEJ can either confirm low-risk posture and document Article 6(4) assessment, or trigger conformity-assessment work. Without this, EEJ has unflagged regulatory exposure on its core recruitment surface.
+**Scope:** Add a `placement_type` enum column (`agency_leased` | `direct_hire`) to `workers` (or to `eej_assignments`), default `agency_leased`, surface in onboarding / assignment creation UI, gate Art. 8 / Art. 15 / Art. 20 enforcement on it.
 
-**Why this is #1:** APATRIS-side regulatory work is ahead. EEJ is sitting on a likely-high-risk surface (matchScore on natural-person candidates) without documented analysis. The audit process matters more than the verdict.
+**Unblocks:** §4(a) Phase 2 needs explicit `placement_type` to scope which placements the matchScore actually touches. Without this field, Phase 2 must either assume all placements are agency-leased (overscoping) or declare scope ambiguous. Cheapest of the five gaps in the regulatory framework inventory; closes a classification precondition.
 
-**Estimate:** 2-3 days for the research draft.
+**Why this is #1:** Smallest-effort high-impact item on the list. 4-6 hours of engineering vs Phase 2's 10-12 hours of research. Closing Gap 4 first reduces Phase 2's open variables.
 
-### Priority 2 — Persistent Neon test branch for EEJ
+**Estimate:** 4-6 hours (per `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` Section 5 Gap 4).
+
+### Priority 2 (v2 — was Priority 1) — EEJ EU AI Act §4(a) Phase 2 research
+
+**Scope:** Phase 2 of the §4(a) work scoped at `docs/EU_AI_ACT_ANNEX_III_4A_RECRUITMENT_RESEARCH_SCOPE.md` (commit `305eb08`). Produce the research document at the path that scope identifies, mirroring APATRIS's `EU_AI_ACT_ARTICLE_6_RESEARCH.md` (commit `bf4d92b`) structure adapted to recruitment §4(a). Cite the regulatory framework inventory (`014bea2`) and the matchScore audit findings (Section 9 v2 update). Build the counsel-ready argument that the post-Q1-hybrid-intervention architecture is low-risk under §4(a).
+
+**Unblocks:** Counsel engagement can proceed with a defensible low-risk classification argument. Article 6(4) non-high-risk-assessment record can be drafted as a Phase 3 deliverable. Architectural intervention (sunset ranking, eligibility-only filtering, factual presentation) becomes a scoped engineering task with a deadline pegged to counsel sign-off.
+
+**Why this is #2:** §4(a) regulatory exposure remains EEJ's largest unflagged regulatory item. Q1/Q2/Q3 decisions have narrowed the scope from "open classification analysis" to "build the low-risk argument with the hybrid intervention as the architectural anchor." Phase 2 can begin once Gap 4 (Priority 1) is closed.
+
+**Estimate:** Phase 2 research ~10-12 hours; Phase 3 write ~9 hours; total ~22-25 hours, contracting toward 18-20 hours given Q1 hybrid is decided before Phase 2 starts.
+
+### Priority 3 (v2 — new) — Close auth-gating gap at `GET /api/jobs/:id`
+
+**Scope:** The matchScore audit on 2026-04-28 surfaced that `GET /api/jobs/:id` at `routes/jobs.ts:38` is NOT auth-gated and returns all `job_applications` for the job joined with `workers` rows, including `matchScore` and worker PII (name, email, jobRole, nationality at minimum). Add `authenticateToken` middleware; restrict the application list to authenticated callers; consider whether the public-facing job board needs a separate non-applications-leaking view.
+
+**Unblocks:** Closes a privacy/PII exposure that is independent of §4(a) but adjacent. Reduces RODO Article 6 / Article 32 attack surface. Demonstrates compliance posture during counsel review.
+
+**Why this is #3:** Privacy concern surfaced as collateral finding during the matchScore audit. Small fix, high cleanup-value, easy to bundle with §4(a) Phase 2's eventual architectural changes. Could be done in parallel with Priority 1 by the same engineer; ranked #3 to preserve the sequencing intent.
+
+**Estimate:** 2-4 hours.
+
+### Priority 4 (v2 — was Priority 2) — Persistent Neon test branch for EEJ
 
 **Scope:** Provision a Neon test branch (child of EEJ production), document the connection string pattern in `STEP3-FOLLOWUPS.md` or a new `TEST-DATABASE-SETUP.md`, commit it, run the full vitest suite against it, document the result.
 
 **Unblocks:** Every future EEJ deploy can verify against a real DB without per-deploy ephemeral Docker setup. Eliminates the "Path 2a Docker workaround" recurring overhead. Aligns EEJ verification posture with APATRIS's.
 
-**Why this is #2:** Step 3 closure surfaced this gap explicitly. The Path 2a workaround works but is per-deploy friction. Persistent test infra is a low-cost durable improvement.
+**Why this was #2 in v1, now #4 in v2:** Step 3 closure surfaced this gap explicitly. The Path 2a workaround works but is per-deploy friction. Persistent test infra is a low-cost durable improvement. Deferred behind §4(a) work because §4(a) is regulatory-deadline-sensitive.
 
 **Estimate:** Half day to provision + 1 day to document + verify.
 
-### Priority 3 — Fix `migrate.ts` `legal_evidence` ordering bug
+### Priority 5 (v2 — was Priority 3) — Fix `migrate.ts` `legal_evidence` ordering bug
 
 **Scope:** Either move `CREATE TABLE IF NOT EXISTS legal_evidence` from line 634 to before the ALTER block at line 521, OR widen the DO `$$` block at line 520-524 with `EXCEPTION WHEN undefined_table THEN NULL;`. Add a Path 2a verification step that confirms migrations apply on a fresh DB without pre-seed.
 
 **Unblocks:** Path 2a setup becomes a single command, no manual pre-seed. Disaster recovery scenarios (new tenant on new Neon project; clean-room recreation) become viable. Tracked in `STEP3-FOLLOWUPS.md` since Step 3a deploy verification surfaced it.
 
-**Why this is #3:** Latent bug; production isn't affected (table already exists from prior deploys). But it's a real correctness issue and the fix is small.
+**Why this was #3 in v1, now #5 in v2:** Latent bug; production isn't affected (table already exists from prior deploys). But it's a real correctness issue and the fix is small. Deferred behind §4(a) work because §4(a) is regulatory-deadline-sensitive.
 
 **Estimate:** Half day for fix + verify.
 
-### Priority 4 — Audit and split EEJ document handling for legal vs recruitment docs
+### Priority 6 (v2 — was Priority 4) — Audit and split EEJ document handling for legal vs recruitment docs
 
 **Scope:** Read `working-documents.ts`, `first-contact-verification.ts` (939 LOC), `smart-ingest.ts` (588 LOC) and identify which code paths handle legal-evidence documents (TRC packets, authority correspondence) vs recruitment documents (CVs, contracts, BHP certs). Document the boundary in `docs/EEJ-APATRIS-CONSOLIDATION-AUDIT.md` Section 7. Tag legal-evidence paths as "deprecate when APATRIS Layer 1 ships."
 
@@ -413,7 +539,7 @@ Ranked by impact and urgency.
 
 **Estimate:** 2 days.
 
-### Priority 5 — Add Stage 4 / Step 1-3 update to `docs/architecture-boundaries.md`
+### Priority 7 (v2 — was Priority 5) — Add Stage 4 / Step 1-3 update to `docs/architecture-boundaries.md`
 
 **Scope:** The boundary doc was last updated 2026-04-12, before Stage 4 hardening, Step 1, Step 2, Step 3. Update Section 8 (Feature Ownership Matrix) and Section 9 (Deployment Architecture) to reflect: tenant isolation at FK level, PII encryption (workers PESEL/IBAN), Stripe billing, T1 dashboard, CRM dual-currency, WhatsApp drafter+webhook+approve. Reference this audit doc as the consolidation roadmap.
 
@@ -443,6 +569,14 @@ The APATRIS-side response document should validate or contest:
 
 8. **Counsel review release timing** — `COUNSEL_HANDOFF_PACKET.md` v1.0 is "internally complete, counsel-ready." When is it actually sent to counsel? Layer 0 v1 build is gated. Every downstream timeline depends on this.
 
+### Added in v2 — questions surfaced by the regulatory framework inventory and matchScore audit
+
+9. **Does APATRIS have an equivalent compliance-encoding inventory?** The EEJ regulatory framework inventory at `docs/EEJ_AGENCY_REGULATORY_FRAMEWORK.md` (commit `014bea2`) catalogues 33 encoded constraints across the agency-vehicle compliance layer. APATRIS likely has its own outsourcing-vehicle compliance encoding (Foreigners Act submissions, KPA procedural deadlines, RODO retention for case files). An APATRIS-side equivalent inventory would clarify which of the EEJ inventory items are vehicle-specific (and thus not consolidation candidates) versus generally applicable (potential SHARED INFRASTRUCTURE).
+
+10. **Does APATRIS handle position-specific permit binding for outsourced workers?** Section 7.5 (added in v2) flags position-permit binding as a SHARED INFRASTRUCTURE candidate. Does APATRIS already store `permit_position` and `permit_user_employer` in any of its case-management tables? If yes, EEJ should consume that schema rather than build its own. If no, EEJ should propose a shared schema before independently closing Gap 2.
+
+11. **Does APATRIS have a contract reclassification scanner equivalent to EEJ's?** EEJ's `services/agency-compliance-engine.ts:632-695` scans civil-contract workers for PIP-reclassification risk indicators (Zlecenie / Dzieło / B2B with patterns suggesting de facto employment relationship). The 2026 PIP empowerment to reclassify with 7-day appeal applies to outsourced workers as well as agency-leased ones. If APATRIS has built equivalent scanning, the algorithm could be shared; if not, this is an area where EEJ's encoding could be useful upstream.
+
 ---
 
 ## 12. Limitations and caveats
@@ -465,6 +599,12 @@ The APATRIS-side response document should validate or contest:
 - All Section 4 consolidation candidates marked "Hybrid" or "Defer."
 - Section 9 EU AI Act §4(a) research output — counsel review may produce architectural requirements that change the EEJ recruitment surface materially.
 - The actual sequencing: which EEJ deprecation happens first, who commits to which API contract by when.
+
+### v2 update — limitations specific to the v2 revision
+
+- The v2 four-way classification (STAY IN EEJ / MOVE TO APATRIS / SHARED INFRASTRUCTURE / HYBRID) is grounded in the legal-vehicle distinction (Section 3.5), but the *legal-vehicle distinction itself* has not yet been validated by counsel. The Urząd's questioning of APATRIS's legal vehicle (referenced in conversation) presses on this. If counsel concludes that APATRIS's legal vehicle is structurally adjacent to agencja pracy rather than distinct from it, the STAY-IN-EEJ classification of Section 4.10 may need revisiting.
+- The matchScore audit (Section 9 v2 update) was returned in chat and not committed to a separate document. Findings are summarized in this audit's Section 9 update; full audit transcript is in conversation history. A formal matchScore audit document was not produced because the findings shape Phase 2's research rather than constituting a deliverable in their own right.
+- The v2 priorities ranking inserts Gap 4 closure as Rank 1 with a 4-6 hour estimate. The estimate is from the regulatory framework inventory's gap list (`014bea2`); actual implementation may surface dependencies (UI surfaces, audit-log integration, migration ordering) that extend the estimate. The split structure (EEJ-side audit, future APATRIS-side response) still applies for the v2 revision.
 
 ### Self-affirming-audit risk
 

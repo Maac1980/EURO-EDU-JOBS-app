@@ -42,6 +42,7 @@ export const whatsappTriggerEventEnum = pgEnum("whatsapp_trigger_event", [
   "inbound_reply",
   "system",
 ]);
+export const placementTypeEnum = pgEnum("placement_type", ["agency_leased", "direct_outsourcing"]);
 
 // ── Workers (replaces Airtable main table) ───────────────────────────────────
 export const workers = pgTable("workers", {
@@ -91,6 +92,7 @@ export const workers = pgTable("workers", {
 
   // Contract & pipeline
   contractType: text("contract_type"),
+  placementType: text("placement_type").notNull().default("agency_leased"),
   pipelineStage: text("pipeline_stage").default("New"),
 
   // Timestamps

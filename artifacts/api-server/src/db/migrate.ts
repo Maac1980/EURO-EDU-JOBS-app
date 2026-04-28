@@ -470,7 +470,15 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS surname TEXT;
       -- Liza: Auto-generated company email (receive-only, forwards to team)
       ALTER TABLE workers ADD COLUMN IF NOT EXISTS company_email TEXT;
+      -- Gap 4: agency-vs-direct-outsourcing legal vehicle classifier
+      ALTER TABLE workers ADD COLUMN IF NOT EXISTS placement_type TEXT NOT NULL DEFAULT 'agency_leased';
     END $$;
+
+    -- Gap 4: CHECK constraint for placement_type (idempotent)
+    DO $$ BEGIN
+      ALTER TABLE workers ADD CONSTRAINT workers_placement_type_check
+        CHECK (placement_type IN ('agency_leased', 'direct_outsourcing'));
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
     -- Index for voivodeship filtering
     CREATE INDEX IF NOT EXISTS idx_workers_voivodeship ON workers(voivodeship);

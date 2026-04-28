@@ -970,7 +970,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       try {
         if (createdWorkerIds.length > 0) {
           await pool.query(`DELETE FROM eej_assignments WHERE worker_id = ANY($1::text[])`, [createdWorkerIds]);
-          await pool.query(`DELETE FROM audit_entries WHERE worker_id = ANY($1::uuid[])`, [createdWorkerIds]);
+          await pool.query(`DELETE FROM audit_entries WHERE worker_id = ANY($1::text[])`, [createdWorkerIds]);
           await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [createdWorkerIds]);
         }
       } finally {
@@ -1052,16 +1052,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         .send({ placementType: "direct_outsourcing" });
       expect(patch.status).toBe(200);
 
-      // Audit log: PLACEMENT_TYPE entry should be present (fire-and-forget; small wait if needed)
-      await new Promise(r => setTimeout(r, 100));
+      // Audit log: PLACEMENT_TYPE entry should be present (fire-and-forget; small wait)
+      await new Promise(r => setTimeout(r, 200));
       const audit = await pool.query(
-        `SELECT field, old_value, new_value FROM audit_entries
-         WHERE worker_id = $1::uuid AND field = 'PLACEMENT_TYPE' ORDER BY timestamp DESC LIMIT 1`,
+        `SELECT field, old_value #>> '{}' AS old_v, new_value #>> '{}' AS new_v FROM audit_entries
+         WHERE worker_id = $1 AND field = 'PLACEMENT_TYPE' ORDER BY timestamp DESC LIMIT 1`,
         [workerId]
       );
       expect(audit.rowCount).toBeGreaterThanOrEqual(1);
-      expect(audit.rows[0].old_value).toBe("agency_leased");
-      expect(audit.rows[0].new_value).toBe("direct_outsourcing");
+      expect(audit.rows[0].old_v).toBe("agency_leased");
+      expect(audit.rows[0].new_v).toBe("direct_outsourcing");
     });
 
     it("E6 art_20_enforced=TRUE on assignment insert for agency_leased worker", async () => {

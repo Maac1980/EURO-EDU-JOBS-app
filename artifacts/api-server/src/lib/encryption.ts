@@ -84,3 +84,26 @@ export function encryptIfPresent(value: unknown): string | undefined {
   if (!trimmed) return undefined;
   return encrypt(trimmed);
 }
+
+// ── PII projection by role ───────────────────────────────────────────────────
+// Privileged roles (T1/T2 etc.) see decrypted PESEL/IBAN; non-privileged roles
+// see masked values. Applied at the response boundary on any worker-shaped row.
+
+const PRIVILEGED_ROLES = new Set(["admin", "coordinator", "T1", "T2", "executive", "legal"]);
+
+function canSeeFullPII(role: string | undefined): boolean {
+  return !!role && PRIVILEGED_ROLES.has(role);
+}
+
+export function projectWorkerPII<T extends { pesel?: string | null; iban?: string | null }>(row: T, role: string | undefined): T {
+  const full = canSeeFullPII(role);
+  const out = { ...row } as T;
+  if (full) {
+    if (row.pesel) out.pesel = decrypt(row.pesel) ?? row.pesel;
+    if (row.iban) out.iban = decrypt(row.iban) ?? row.iban;
+  } else {
+    out.pesel = row.pesel ? maskSensitive(row.pesel) : row.pesel;
+    out.iban = row.iban ? maskSensitive(row.iban) : row.iban;
+  }
+  return out;
+}

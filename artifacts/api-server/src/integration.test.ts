@@ -1136,3 +1136,112 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth-gating closure: GET /api/jobs/:id — Stage 4.5 + Phase 3 Q8 commitment.
+// Endpoint was previously unauthenticated; now requires Bearer token, scopes by
+// tenant, projects worker PII per role, and strips tenantId from response.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "auth-gating closure: GET /api/jobs/:id (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let prodToken: string;
+    let testTenantToken: string;
+    let testJobId: string;
+    const createdIds: { jobIds: string[]; workerIds: string[]; appIds: string[] } = {
+      jobIds: [], workerIds: [], appIds: [],
+    };
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      // Insert a job in the production tenant for testing
+      const jobRows = await pool.query<{ id: string }>(
+        `INSERT INTO job_postings (title, tenant_id) VALUES ($1, 'production') RETURNING id`,
+        [`AUTH-GATE-test-${Date.now()}`]
+      );
+      testJobId = jobRows.rows[0].id;
+      createdIds.jobIds.push(testJobId);
+
+      // Insert a worker + application so the response payload has worker rows
+      const workerRows = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, tenant_id) VALUES ($1, 'production') RETURNING id`,
+        [`AUTH-GATE-worker-${Date.now()}`]
+      );
+      const workerId = workerRows.rows[0].id;
+      createdIds.workerIds.push(workerId);
+
+      const appRows = await pool.query<{ id: string }>(
+        `INSERT INTO job_applications (job_id, worker_id, tenant_id) VALUES ($1, $2, 'production') RETURNING id`,
+        [testJobId, workerId]
+      );
+      createdIds.appIds.push(appRows.rows[0].id);
+
+      const jwt = await import("jsonwebtoken");
+      prodToken = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000a8", email: "auth-gate@test.local", name: "AuthGate",
+          role: "coordinator", tier: 2, tenantId: "production", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+      testTenantToken = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000a9", email: "auth-gate-other@test.local", name: "AuthGateOther",
+          role: "coordinator", tier: 2, tenantId: "test", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        if (createdIds.appIds.length > 0) {
+          await pool.query(`DELETE FROM job_applications WHERE id = ANY($1::uuid[])`, [createdIds.appIds]);
+        }
+        if (createdIds.workerIds.length > 0) {
+          await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [createdIds.workerIds]);
+        }
+        if (createdIds.jobIds.length > 0) {
+          await pool.query(`DELETE FROM job_postings WHERE id = ANY($1::uuid[])`, [createdIds.jobIds]);
+        }
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("returns 401 when no auth header provided", async () => {
+      const res = await request(app).get(`/api/jobs/${testJobId}`);
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 401 when invalid token provided", async () => {
+      const res = await request(app)
+        .get(`/api/jobs/${testJobId}`)
+        .set("Authorization", "Bearer invalid-token");
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 200 with applications when authenticated user is in same tenant", async () => {
+      const res = await request(app)
+        .get(`/api/jobs/${testJobId}`)
+        .set("Authorization", `Bearer ${prodToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.job).toBeDefined();
+      expect(res.body.job.tenantId).toBeUndefined(); // Stripped
+      expect(res.body.applications).toBeInstanceOf(Array);
+      expect(res.body.applications.length).toBeGreaterThan(0);
+      const firstApp = res.body.applications[0];
+      expect(firstApp.worker).toBeDefined();
+      expect(firstApp.worker.tenantId).toBeUndefined(); // Stripped
+    });
+
+    it("returns 404 when authenticated user is in different tenant", async () => {
+      const res = await request(app)
+        .get(`/api/jobs/${testJobId}`)
+        .set("Authorization", `Bearer ${testTenantToken}`);
+      expect(res.status).toBe(404);
+    });
+  }
+);

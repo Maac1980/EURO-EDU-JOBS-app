@@ -7,7 +7,7 @@ import { appendAuditEntry } from "./audit.js";
 import { toWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
 import { requireTenant } from "../lib/tenancy.js";
-import { encryptIfPresent, decrypt, maskSensitive } from "../lib/encryption.js";
+import { encryptIfPresent, projectWorkerPII } from "../lib/encryption.js";
 
 const VALID_PLACEMENT_TYPES = new Set(["agency_leased", "direct_outsourcing"]);
 function validatePlacementType(value: unknown): string | null {
@@ -15,24 +15,6 @@ function validatePlacementType(value: unknown): string | null {
   const v = String(value);
   if (!VALID_PLACEMENT_TYPES.has(v)) return "__invalid__";
   return v;
-}
-
-const PRIVILEGED_ROLES = new Set(["admin", "coordinator", "T1", "T2", "executive", "legal"]);
-function canSeeFullPII(role: string | undefined): boolean {
-  return !!role && PRIVILEGED_ROLES.has(role);
-}
-
-function projectWorkerPII<T extends { pesel?: string | null; iban?: string | null }>(row: T, role: string | undefined): T {
-  const full = canSeeFullPII(role);
-  const out = { ...row } as T;
-  if (full) {
-    if (row.pesel) out.pesel = decrypt(row.pesel) ?? row.pesel;
-    if (row.iban) out.iban = decrypt(row.iban) ?? row.iban;
-  } else {
-    out.pesel = row.pesel ? maskSensitive(row.pesel) : row.pesel;
-    out.iban = row.iban ? maskSensitive(row.iban) : row.iban;
-  }
-  return out;
 }
 
 interface ScannedPassport {

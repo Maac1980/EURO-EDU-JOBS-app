@@ -3,6 +3,7 @@ import { db, schema } from "../db/index.js";
 import { eq, desc, and } from "drizzle-orm";
 import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
 import { requireTenant } from "../lib/tenancy.js";
+import { projectWorkerPII } from "../lib/encryption.js";
 import { appendAuditEntry } from "./audit.js";
 
 const router = Router();
@@ -34,21 +35,34 @@ router.get("/jobs/all", authenticateToken, async (req, res) => {
   }
 });
 
-// GET /api/jobs/:id — single job with applications
-router.get("/jobs/:id", async (req, res) => {
+// GET /api/jobs/:id — single job with applications (auth-gated, tenant-scoped, PII-projected)
+router.get("/jobs/:id", authenticateToken, async (req, res) => {
   try {
-    const [job] = await db.select().from(schema.jobPostings).where(eq(schema.jobPostings.id, String(req.params.id)));
+    const tenantId = requireTenant(req);
+    const id = String(req.params.id);
+
+    const [job] = await db.select().from(schema.jobPostings)
+      .where(and(eq(schema.jobPostings.id, id), eq(schema.jobPostings.tenantId, tenantId)));
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    // Get applications with worker details
+    // Get applications with worker details (job lookup above already enforces tenant scope)
     const applications = await db.select({
       application: schema.jobApplications,
       worker: schema.workers,
     }).from(schema.jobApplications)
       .innerJoin(schema.workers, eq(schema.jobApplications.workerId, schema.workers.id))
-      .where(eq(schema.jobApplications.jobId, String(req.params.id)));
+      .where(eq(schema.jobApplications.jobId, id));
 
-    return res.json({ job, applications: applications.map(a => ({ ...a.application, worker: a.worker })) });
+    // Strip tenantId from job; project worker PII per role and strip worker tenantId
+    const { tenantId: _jobTenantId, ...jobPublic } = job;
+    return res.json({
+      job: jobPublic,
+      applications: applications.map(a => {
+        const projectedWorker = projectWorkerPII(a.worker, req.user?.role);
+        const { tenantId: _workerTenantId, ...workerPublic } = projectedWorker;
+        return { ...a.application, worker: workerPublic };
+      }),
+    });
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load job" });
   }

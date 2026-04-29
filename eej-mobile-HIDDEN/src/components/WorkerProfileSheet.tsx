@@ -45,6 +45,7 @@ const JOB_ROLES = [
   "Teacher", "Nurse", "Engineer", "IT Specialist", "Logistics", "Other",
 ];
 const CONTRACT_TYPES = ["Umowa o pracę", "Umowa zlecenie", "B2B", "Umowa o dzieło"];
+const PLACEMENT_TYPES = ["agency_leased", "direct_outsourcing"];
 const VISA_TYPES = ["EU Citizen", "Temporary Residence", "Schengen Visa", "Refugee Status", "Work Visa", "Other"];
 const ZUS_STATUSES = ["Active — ZUS opłacony", "Pending registration", "Pending — docs incomplete", "Exempt", "Not applicable"];
 const PIPELINE_STAGES = ["New Applications", "Docs Submitted", "Under Review", "Cleared to Deploy", "On Assignment"];
@@ -166,6 +167,7 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
   const [contractType, setContractType] = useState(candidate.contractType || "");
   const [contractEndDate, setContractEndDate] = useState(candidate.contractEndDate || "");
   const [pipelineStage, setPipelineStage] = useState(candidate.pipelineStage || "");
+  const [placementType, setPlacementType] = useState<string>(candidate.placementType || "");
 
   const [trcExpiry, setTrcExpiry] = useState(candidate.trcExpiry || "");
   const [workPermitExpiry, setWorkPermitExpiry] = useState(candidate.workPermitExpiry || "");
@@ -190,7 +192,7 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
     const updated: Partial<Candidate> = {
       email, phone, nationality, pesel, nip, iban, rodoConsentDate: rodoDate,
       role, siteLocation, yearsOfExperience: experience, visaType,
-      contractType, contractEndDate, pipelineStage,
+      contractType, contractEndDate, pipelineStage, placementType,
       trcExpiry, workPermitExpiry, bhpExpiry, badaniaLekExpiry, oswiadczenieExpiry, udtCertExpiry,
       hourlyNettoRate: rateNum || undefined,
       totalHours: hoursNum || undefined,
@@ -225,6 +227,7 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
     setContractType(candidate.contractType || "");
     setContractEndDate(candidate.contractEndDate || "");
     setPipelineStage(candidate.pipelineStage || "");
+    setPlacementType(candidate.placementType || "");
     setTrcExpiry(candidate.trcExpiry || "");
     setWorkPermitExpiry(candidate.workPermitExpiry || "");
     setBhpExpiry(candidate.bhpExpiry || "");
@@ -374,10 +377,12 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
                 <EditSelect label="Contract Type"     value={contractType}    onChange={setContractType}    options={CONTRACT_TYPES}   />
                 <EditDate   label="Contract End Date" value={contractEndDate} onChange={setContractEndDate}                            />
                 <EditSelect label="Pipeline Stage"    value={pipelineStage}  onChange={setPipelineStage}   options={PIPELINE_STAGES}  />
+                <EditSelect label="Placement Type"    value={placementType}  onChange={setPlacementType}   options={PLACEMENT_TYPES}  />
               </> : <>
                 <ReadRow label="Contract Type"     value={contractType}          />
                 <ReadRow label="Contract End Date" value={fmt(contractEndDate)}  />
                 <ReadRow label="Pipeline Stage"    value={pipelineStage}         />
+                <ReadRow label="Placement Type"    value={placementType}         />
               </>}
             </div>
           )}

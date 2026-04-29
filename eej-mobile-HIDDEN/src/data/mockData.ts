@@ -27,6 +27,7 @@ export interface Candidate {
   contractType?: string;
   contractEndDate?: string;
   pipelineStage?: string;
+  placementType?: string;
   yearsOfExperience?: string;
   visaType?: string;
 

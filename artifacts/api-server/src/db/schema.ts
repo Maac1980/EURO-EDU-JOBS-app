@@ -340,6 +340,7 @@ export const jobPostings = pgTable("job_postings", {
   isPublished: boolean("is_published").default(false),
   closingDate: date("closing_date"),
   createdBy: uuid("created_by").references(() => users.id),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -353,6 +354,7 @@ export const jobApplications = pgTable("job_applications", {
   matchScore: numeric("match_score", { precision: 5, scale: 2 }),
   matchReasons: jsonb("match_reasons"),
   notes: text("notes"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   appliedAt: timestamp("applied_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

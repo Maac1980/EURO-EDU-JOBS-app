@@ -547,6 +547,9 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE payroll_records ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
       ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
       ALTER TABLE work_permit_applications ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
+      -- Stage 4.5: bring recruitment/ATS surface into tenant-isolation regime
+      ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
+      ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'production';
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'production';
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS next_action TEXT;
       ALTER TABLE legal_cases ADD COLUMN IF NOT EXISTS blockers JSONB DEFAULT '[]'::jsonb;
@@ -558,6 +561,8 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_payroll_records_tenant ON payroll_records(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_permits_tenant ON work_permit_applications(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_job_postings_tenant ON job_postings(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_job_applications_tenant ON job_applications(tenant_id);
 
     -- Worker onboarding checklist
     CREATE TABLE IF NOT EXISTS onboarding_checklists (
@@ -846,6 +851,32 @@ export async function runMigrations(): Promise<void> {
           FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
       END IF;
     EXCEPTION WHEN others THEN NULL; END $$;
+
+    -- Stage 4.5: FK constraints for recruitment/ATS surface
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'job_postings_tenant_slug_fk') THEN
+        ALTER TABLE job_postings
+          ADD CONSTRAINT job_postings_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'job_applications_tenant_slug_fk') THEN
+        ALTER TABLE job_applications
+          ADD CONSTRAINT job_applications_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+  `);
+
+  // Stage 4.5: defensive backfill — ensures any pre-existing rows (created before
+  // the column existed via ALTER ADD COLUMN with DEFAULT) are explicitly assigned.
+  // The DEFAULT 'production' clause already populates these rows on ALTER, but the
+  // explicit UPDATE is the canonical Stage 4 discipline.
+  await db.execute(sql`
+    UPDATE job_postings SET tenant_id = 'production' WHERE tenant_id IS NULL;
+    UPDATE job_applications SET tenant_id = 'production' WHERE tenant_id IS NULL;
   `);
 
   // ═══ Step 2: CRM enhancements (clients.stage, activities, deals, invoice currency) ═══

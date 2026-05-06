@@ -46,7 +46,7 @@ import MySchengenTab from "./tabs/MySchengenTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { fetchNotifications } from "@/lib/api";
-import { useI18n } from "@/lib/i18n";
+import { LangToggle } from "@/components/LangToggle";
 
 const ROLE_COLOR: Record<Role, string> = {
   executive:  "#1B2A4A",
@@ -142,7 +142,6 @@ export default function Dashboard() {
 function DashboardInner() {
   const { user, logout } = useAuth();
   const { candidates } = useCandidates();
-  const { language, setLanguage } = useI18n();
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
   const [notifCount, setNotifCount] = useState(0);
 
@@ -181,23 +180,7 @@ function DashboardInner() {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              onClick={() => setLanguage(language === "en" ? "pl" : "en")}
-              title="Toggle language"
-              style={{
-                background: "rgba(255,255,255,0.15)",
-                border: "1px solid rgba(255,255,255,0.3)",
-                borderRadius: 6,
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 700,
-                padding: "4px 8px",
-                cursor: "pointer",
-                letterSpacing: 0.5,
-              }}
-            >
-              {language === "en" ? "PL" : "EN"}
-            </button>
+            <LangToggle />
             <button
               onClick={() => setActiveTab("applications")}
               title="Notifications"

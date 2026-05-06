@@ -16,24 +16,24 @@ const translations: Record<string, Record<Language, string>> = {
   "nav.jobs": { en: "Jobs", pl: "Oferty" },
   "nav.alerts": { en: "Alerts", pl: "Alerty" },
   "nav.updates": { en: "Updates", pl: "Aktualizacje" },
-  "nav.more": { en: "More", pl: "Wiecej" },
+  "nav.more": { en: "More", pl: "Więcej" },
   "nav.mydocs": { en: "My Docs", pl: "Dokumenty" },
 
   // Common UI
-  "common.loading": { en: "Loading...", pl: "Ladowanie..." },
+  "common.loading": { en: "Loading...", pl: "Ładowanie..." },
   "common.search": { en: "Search", pl: "Szukaj" },
   "common.noData": { en: "No data found", pl: "Brak danych" },
-  "common.error": { en: "An error occurred", pl: "Wystapil blad" },
+  "common.error": { en: "An error occurred", pl: "Wystąpił błąd" },
   "common.save": { en: "Save", pl: "Zapisz" },
   "common.cancel": { en: "Cancel", pl: "Anuluj" },
-  "common.delete": { en: "Delete", pl: "Usun" },
+  "common.delete": { en: "Delete", pl: "Usuń" },
   "common.edit": { en: "Edit", pl: "Edytuj" },
   "common.close": { en: "Close", pl: "Zamknij" },
-  "common.confirm": { en: "Confirm", pl: "Potwierdz" },
+  "common.confirm": { en: "Confirm", pl: "Potwierdź" },
   "common.back": { en: "Back", pl: "Wstecz" },
   "common.next": { en: "Next", pl: "Dalej" },
-  "common.submit": { en: "Submit", pl: "Wyslij" },
-  "common.upload": { en: "Upload", pl: "Przeslij" },
+  "common.submit": { en: "Submit", pl: "Wyślij" },
+  "common.upload": { en: "Upload", pl: "Prześlij" },
   "common.download": { en: "Download", pl: "Pobierz" },
   "common.filter": { en: "Filter", pl: "Filtruj" },
   "common.all": { en: "All", pl: "Wszystkie" },
@@ -56,36 +56,45 @@ const translations: Record<string, Record<Language, string>> = {
   "page.interviews": { en: "Interviews", pl: "Rozmowy" },
   "page.contracts": { en: "Contracts", pl: "Umowy" },
   "page.immigration": { en: "Immigration Search", pl: "Wyszukiwarka imigracyjna" },
-  "page.gps": { en: "GPS Tracking", pl: "Sledzenie GPS" },
+  "page.gps": { en: "GPS Tracking", pl: "Śledzenie GPS" },
 
   // Key labels
-  "label.name": { en: "Name", pl: "Imie" },
+  "label.name": { en: "Name", pl: "Imię i nazwisko" },
   "label.email": { en: "Email", pl: "Email" },
   "label.phone": { en: "Phone", pl: "Telefon" },
   "label.role": { en: "Role", pl: "Rola" },
   "label.site": { en: "Site", pl: "Lokalizacja" },
-  "label.nationality": { en: "Nationality", pl: "Narodowosc" },
+  "label.nationality": { en: "Nationality", pl: "Narodowość" },
   "label.contract": { en: "Contract", pl: "Umowa" },
   "label.expiry": { en: "Expiry", pl: "Wygasa" },
   "label.compliant": { en: "Compliant", pl: "Zgodny" },
-  "label.warning": { en: "Warning", pl: "Ostrzezenie" },
+  "label.warning": { en: "Warning", pl: "Ostrzeżenie" },
   "label.critical": { en: "Critical", pl: "Krytyczny" },
   "label.approved": { en: "Approved", pl: "Zatwierdzony" },
-  "label.pending": { en: "Pending", pl: "Oczekujacy" },
+  "label.pending": { en: "Pending", pl: "Oczekujący" },
   "label.rejected": { en: "Rejected", pl: "Odrzucony" },
   "label.logout": { en: "Logout", pl: "Wyloguj" },
 
   // Auth
-  "auth.login": { en: "Login", pl: "Zaloguj sie" },
-  "auth.password": { en: "Password", pl: "Haslo" },
+  "auth.login": { en: "Login", pl: "Zaloguj się" },
+  "auth.password": { en: "Password", pl: "Hasło" },
   "auth.loginFailed": { en: "Login failed", pl: "Logowanie nieudane" },
+  "auth.emailPasswordRequired": { en: "Please enter your email and password.", pl: "Wprowadź adres e-mail i hasło." },
+  "auth.portalLabel": { en: "SECURE WORKFORCE PORTAL", pl: "BEZPIECZNY PORTAL PRACOWNICZY" },
+  "auth.brandSubtitle": { en: "Enterprise Workforce Platform", pl: "Platforma zarządzania kadrami" },
+  "auth.signInHeading": { en: "SIGN IN TO YOUR ACCOUNT", pl: "ZALOGUJ SIĘ DO KONTA" },
+  "auth.workEmailLabel": { en: "Work Email", pl: "Służbowy e-mail" },
+  "auth.passwordPlaceholder": { en: "Enter your password", pl: "Wprowadź hasło" },
+  "auth.signInButton": { en: "SIGN IN", pl: "ZALOGUJ SIĘ" },
+  "auth.forgotPassword": { en: "Forgot Password? Contact your administrator.", pl: "Zapomniałeś hasła? Skontaktuj się z administratorem." },
+  "auth.useBiometrics": { en: "Use Biometrics", pl: "Użyj biometrii" },
 
   // Candidate
   "candidate.portal": { en: "Candidate Portal", pl: "Portal kandydata" },
-  "candidate.myProfile": { en: "My Profile", pl: "Moj profil" },
+  "candidate.myProfile": { en: "My Profile", pl: "Mój profil" },
   "candidate.contactDetails": { en: "Contact Details", pl: "Dane kontaktowe" },
   "candidate.myDocuments": { en: "My Documents", pl: "Moje dokumenty" },
-  "candidate.uploadDocuments": { en: "Upload Documents", pl: "Przeslij dokumenty" },
+  "candidate.uploadDocuments": { en: "Upload Documents", pl: "Prześlij dokumenty" },
   "candidate.profileNotFound": { en: "Profile not found", pl: "Profil nie znaleziony" },
 };
 
@@ -100,6 +109,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     try {
       const stored = localStorage.getItem("eej_lang");
       if (stored === "en" || stored === "pl") return stored;
+    } catch {}
+    try {
+      const nav = (typeof navigator !== "undefined" ? navigator.language : "") || "";
+      if (nav.toLowerCase().startsWith("pl")) return "pl";
     } catch {}
     return "en";
   });

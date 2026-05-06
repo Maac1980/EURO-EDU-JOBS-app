@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { authHeaders, BASE } from "@/lib/api";
+import { PublicLangToggle } from "@/components/PublicLangToggle";
 import {
   Shield, AlertTriangle, Clock, FileText, ChevronRight, Loader2,
   Send, Zap, Radio, Activity, Users, Eye, CheckCircle2, XCircle,
@@ -201,6 +202,7 @@ export default function LegalCommandCenter() {
 
   return (
     <div className="h-screen bg-slate-950 text-slate-200 flex flex-col overflow-hidden">
+      <PublicLangToggle />
 
       {/* ═══ TOP BAR ═══ */}
       <div className="flex-shrink-0 h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
+import { LangToggle } from "@/components/LangToggle";
 import { Eye, EyeOff, Fingerprint, Wifi } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
+  const { t } = useI18n();
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [showPw,   setShowPw]   = useState(false);
@@ -13,7 +16,7 @@ export default function Login() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim() || !password) {
-      setError("Please enter your email and password.");
+      setError(t("auth.emailPasswordRequired"));
       return;
     }
     setError(null);
@@ -49,27 +52,30 @@ export default function Login() {
         </svg>
       </div>
 
-      <div className="g3-topbar">
+      <div className="g3-topbar" style={{ position: "relative" }}>
         <div className="g3-logo-block">
           <div className="g3-logo-box">
             <span className="g3-logo-eej">EEJ</span>
             <span className="g3-logo-sub">euro edu and jobs</span>
           </div>
         </div>
-        <span className="g3-portal-label">SECURE WORKFORCE PORTAL</span>
+        <span className="g3-portal-label">{t("auth.portalLabel")}</span>
+        <div style={{ position: "absolute", top: 12, right: 12 }}>
+          <LangToggle />
+        </div>
       </div>
 
       <div className="g3-card">
         <div className="g3-brand">
           <h1 className="g3-brand-name">EURO EDU JOBS</h1>
-          <p className="g3-brand-sub">Enterprise Workforce Platform</p>
+          <p className="g3-brand-sub">{t("auth.brandSubtitle")}</p>
         </div>
 
-        <div className="g3-heading">SIGN IN TO YOUR ACCOUNT</div>
+        <div className="g3-heading">{t("auth.signInHeading")}</div>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="g3-field">
-            <label className="g3-label">Work Email</label>
+            <label className="g3-label">{t("auth.workEmailLabel")}</label>
             <input
               className={"g3-input" + (error ? " g3-input--err" : "")}
               type="email"
@@ -83,14 +89,14 @@ export default function Login() {
           </div>
 
           <div className="g3-field">
-            <label className="g3-label">Password</label>
+            <label className="g3-label">{t("auth.password")}</label>
             <div className="g3-pw-wrap">
               <input
                 className={"g3-input g3-input--pw" + (error ? " g3-input--err" : "")}
                 type={showPw ? "text" : "password"}
                 name="password"
                 autoComplete="current-password"
-                placeholder="Enter your password"
+                placeholder={t("auth.passwordPlaceholder")}
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError(null); }}
                 disabled={loading}
@@ -104,15 +110,15 @@ export default function Login() {
           {error && <div className="g3-error">{error}</div>}
 
           <button type="submit" className="g3-signin-btn" disabled={loading}>
-            {loading ? <span className="g3-spinner" /> : "SIGN IN"}
+            {loading ? <span className="g3-spinner" /> : t("auth.signInButton")}
           </button>
         </form>
 
-        <div className="g3-forgot">Forgot Password? Contact your administrator.</div>
+        <div className="g3-forgot">{t("auth.forgotPassword")}</div>
 
         <div className="g3-bio">
           <Fingerprint size={20} className="g3-bio-icon" strokeWidth={1.5} />
-          <span>Use Biometrics</span>
+          <span>{t("auth.useBiometrics")}</span>
         </div>
       </div>
 

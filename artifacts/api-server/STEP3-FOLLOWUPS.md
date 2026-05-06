@@ -57,12 +57,9 @@ The Step 3a + Step 3b joint deploy used Path 2 verification (local Docker Postgr
   - When: independent hygiene pass.
   - Verification: every file that sets DATABASE_URL via `??=` should have the `TEST_DATABASE_URL ?? stub` precedence chain.
 
-## Discovered during Step 3c deploy (2026-04-27)
+## Discovered during Step 3c deploy (2026-04-27) — CLOSED 2026-05-06
 
-- [ ] **Twilio console webhook URL configuration:** after Step 3c deploy at v98, the inbound webhook is live at `https://eej-jobs-api.fly.dev/api/webhooks/whatsapp`. To activate inbound message receipt, configure the Twilio Messaging Service or Phone Number webhook URL in the Twilio console to point to this URL with HTTP POST. This is a manual ops step; not blocking any code work. Document the Twilio Messaging Service ID and the webhook configuration once completed.
-  - Current state at v98 deploy: `TWILIO_AUTH_TOKEN` is NOT set on Fly secrets. The webhook returns 503 fail-closed for every request until the secret is configured. This is the designed steady state.
-  - When ready to activate: set `TWILIO_AUTH_TOKEN` on Fly via `flyctl secrets set TWILIO_AUTH_TOKEN=<token> -a eej-jobs-api`, then configure the webhook URL in the Twilio console.
-  - Verification on completion: send a hand-signed test request to the production URL (computed with the same authToken) and confirm 200 + row inserted in `whatsapp_messages` with `status='RECEIVED'`, `direction='inbound'`.
+- [x] **Twilio console webhook URL configuration:** activated 2026-05-06. Sandbox webhook URL `https://eej-jobs-api.fly.dev/api/webhooks/whatsapp` (POST) configured in Twilio Console. `TWILIO_AUTH_TOKEN`, `TWILIO_ACCOUNT_SID`, `TWILIO_WHATSAPP_FROM` set on Fly via `flyctl secrets set -a eej-jobs-api`. End-to-end verified: outbound draft `5431277e-82ef-4dce-ac3e-f5165dcb70cb` sent via Twilio SID `MMdcacd33fb2b7c34242116643b62f132f` (status SENT, human-confirmed receipt on +48732777000); inbound reply persisted as `dbe932ff-bc59-415b-b03d-57c787b8d66f` with SID `SM5652e154cf328d75c2bfe5c3a8a563a0`, body `"Got it"`, status RECEIVED, auto-linked to worker `91d52d24-9bfa-461d-95f3-52eb9eda3667` via phone-match precedence.
 
 ## Step 3 closure (2026-04-27)
 
@@ -72,16 +69,18 @@ Step 3 fully shipped on production at v99 (2026-04-27). All four sub-phases live
 - **3c** inbound webhook (POST /api/webhooks/whatsapp) with Twilio signature verification and idempotent insert — committed across `a225130` / `9415c26` / `9b4a4b6`, deployed at v98
 - **3d** approve/send + read/list + dashboard counters + audit (PATCH /drafts/:id/approve, PATCH /messages/:id/read, GET /messages, /admin/stats counters, client_activities + notifications audit rows) — committed across `903fe56` / `f35c8e8` / `628d221` / `9886575`, deployed at v99
 
-Operational activation pending (manual ops steps, not blocking any code work):
-- `TWILIO_AUTH_TOKEN` and `TWILIO_ACCOUNT_SID` secrets provisioning on Fly
-- Twilio console webhook URL configuration (inbound receipt) and outbound Messaging Service setup
-- Template `content_sid` provisioning per template (currently 3 inactive seeds: `application_received`, `permit_status_update`, `payment_reminder`)
+Operational activation completed 2026-05-06 (Item 2.1 Phase B). All gates closed:
+- `TWILIO_AUTH_TOKEN`, `TWILIO_ACCOUNT_SID`, `TWILIO_WHATSAPP_FROM` provisioned on Fly secrets (Step 2)
+- 3 templates activated with Twilio Content API SIDs (Step 4): `application_received` → `HX304235861350d384434d3265aff3d15e`, `payment_reminder` → `HX4a8fb796baf2b043024f53f5ffc720c0`, `permit_status_update` → `HXc0df9b970f9f1cad4cc62ac731c735c4`. All three rows `active=TRUE` with English `body_preview` and named-placeholder `variables`
+- Twilio sandbox webhook URL configured by ops (Step 5)
+- Outbound dispatch verified end-to-end: draft → approve → Twilio → human-confirmed WhatsApp receipt (Step 6)
+- Inbound webhook verified end-to-end: WhatsApp reply → signature-verified POST → `whatsapp_messages` row with worker auto-link (Step 7)
 
-Until these ops steps complete, the steady state is:
-- Webhook returns 503 fail-closed
-- Drafts can be created and approved (status DRAFT → APPROVED with audit) but `sendImmediately=true` returns 503
-- Templates remain inactive so the drafter rejects them at create time anyway
-- Legacy `lib/alerter.ts` direct-send path is unchanged and continues to operate in parallel
+Live steady state (post-activation):
+- Webhook returns 200 on signature-verified Twilio POSTs, 403 on missing/invalid signature
+- `POST /api/whatsapp/drafts` + `PATCH /:id/approve {sendImmediately:true}` reaches Twilio and returns SENT with twilio_message_sid
+- Inbound replies persist with `status='RECEIVED'`, `direction='inbound'`, phone-matched to worker/client/orphan in that precedence
+- Legacy `lib/alerter.ts` direct-send path remains in parallel; migration to drafter pipeline is a separate follow-up
 
 ## Gap 4 closure (2026-04-28)
 

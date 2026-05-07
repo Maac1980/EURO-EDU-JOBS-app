@@ -66,25 +66,6 @@ function pushAlert(event: IntelligenceEvent) {
 
 // ═══ TABLE SETUP ════════════════════════════════════════════════════════════
 
-async function ensureAlertTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS intelligence_alerts (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      alert_type TEXT NOT NULL,
-      severity TEXT NOT NULL DEFAULT 'info',
-      worker_id TEXT,
-      worker_name TEXT,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      data JSONB DEFAULT '{}'::jsonb,
-      acknowledged BOOLEAN DEFAULT false,
-      acknowledged_by TEXT,
-      acknowledged_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-}
-
 // ═══ CORE: RECORD FACT — triggers reassessment pipeline ═════════════════════
 
 export async function recordFact(params: {
@@ -167,22 +148,20 @@ async function reassessWorkerRisk(workerId: string): Promise<{
   if (wRows.rows.length === 0) throw new Error("Worker not found");
   const w = wRows.rows[0] as any;
 
-  // Check for pending TRC applications from smart_documents
+  // Check for pending TRC applications from smart_documents (centralized in migrate.ts)
   let hasPendingTrc = false;
   let filingDate: string | null = null;
-  try {
-    const sdRows = await db.execute(sql`
-      SELECT doc_type, extracted_data FROM smart_documents
-      WHERE worker_id = ${workerId} AND status = 'verified'
-        AND doc_type IN ('TRC_APPLICATION', 'UPO_RECEIPT', 'MOS_CONFIRMATION')
-      ORDER BY created_at DESC LIMIT 1
-    `);
-    if (sdRows.rows.length > 0) {
-      hasPendingTrc = true;
-      const ext = (sdRows.rows[0] as any).extracted_data;
-      filingDate = ext?.issue_date ?? null;
-    }
-  } catch { /* smart_documents may not exist */ }
+  const sdRows = await db.execute(sql`
+    SELECT doc_type, extracted_data FROM smart_documents
+    WHERE worker_id = ${workerId} AND status = 'verified'
+      AND doc_type IN ('TRC_APPLICATION', 'UPO_RECEIPT', 'MOS_CONFIRMATION')
+    ORDER BY created_at DESC LIMIT 1
+  `);
+  if (sdRows.rows.length > 0) {
+    hasPendingTrc = true;
+    const ext = (sdRows.rows[0] as any).extracted_data;
+    filingDate = ext?.issue_date ?? null;
+  }
 
   // Check for rejections
   let hasFormalDefect = false;
@@ -326,7 +305,6 @@ async function detectHighRiskPatterns(workerId: string): Promise<IntelligenceEve
 
 async function persistAlert(event: IntelligenceEvent) {
   try {
-    await ensureAlertTable();
     await db.execute(sql`
       INSERT INTO intelligence_alerts (alert_type, severity, worker_id, worker_name, title, description, data)
       VALUES (
@@ -377,7 +355,6 @@ router.post("/intelligence/reassess/:workerId", authenticateToken, async (req, r
 // GET /api/intelligence/alerts — current active alerts
 router.get("/intelligence/alerts", authenticateToken, async (_req, res) => {
   try {
-    await ensureAlertTable();
 
     // DB alerts (persistent)
     const dbAlerts = await db.execute(sql`

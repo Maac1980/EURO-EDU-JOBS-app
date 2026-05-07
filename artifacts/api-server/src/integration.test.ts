@@ -1298,3 +1298,53 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pattern B centralization 3a — DB-backed schema integrity. 10 lazy tables
+// migrated from request-time helpers to migrate.ts. Skipped without TEST_DATABASE_URL.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: Pattern B centralization 3a (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("all 10 centralized tables exist after migrations", async () => {
+      const expected = [
+        "eej_payroll_ledger", "border_crossings", "smart_documents",
+        "eej_notification_log", "eej_billing_events", "eej_escalation_log",
+        "digital_safe", "intelligence_alerts", "ocr_feedback_log", "upo_vault",
+      ];
+      for (const t of expected) {
+        const e = await pool.query("SELECT to_regclass($1) AS r", [`public.${t}`]);
+        expect(e.rows[0].r, `Table ${t} should exist`).toBeTruthy();
+      }
+    });
+
+    it("CHECK constraint preserved on border_crossings.direction", async () => {
+      await expect(
+        pool.query(
+          `INSERT INTO border_crossings (worker_id, crossing_date, direction) VALUES ('test-w-${Date.now()}', '2026-01-01', 'sideways')`
+        )
+      ).rejects.toThrow(/check constraint/i);
+    });
+
+    it("UNIQUE index preserved on eej_payroll_ledger (worker_id, month_year)", async () => {
+      const wid = `test-payroll-${Date.now()}`;
+      await pool.query(`INSERT INTO eej_payroll_ledger (worker_id, month_year) VALUES ($1, '2099-01')`, [wid]);
+      await expect(
+        pool.query(`INSERT INTO eej_payroll_ledger (worker_id, month_year) VALUES ($1, '2099-01')`, [wid])
+      ).rejects.toThrow(/unique|duplicate/i);
+      await pool.query(`DELETE FROM eej_payroll_ledger WHERE worker_id = $1`, [wid]);
+    });
+  }
+);

@@ -47,30 +47,6 @@ export interface NotificationPayload {
 
 // ═══ TABLE SETUP ════════════════════════════════════════════════════════════
 
-async function ensureNotificationTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_notification_log (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      channel TEXT NOT NULL DEFAULT 'internal_log',
-      priority TEXT NOT NULL DEFAULT 'medium',
-      recipient TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      body TEXT NOT NULL,
-      trigger_type TEXT NOT NULL,
-      worker_id TEXT,
-      worker_name TEXT,
-      metadata JSONB DEFAULT '{}'::jsonb,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      sent BOOLEAN DEFAULT false,
-      sent_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_notif_worker ON eej_notification_log(worker_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_notif_trigger ON eej_notification_log(trigger_type)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_notif_priority ON eej_notification_log(priority)`);
-}
-
 // ═══ CORE SEND FUNCTIONS ════════════════════════════════════════════════════
 
 /**
@@ -87,7 +63,6 @@ export async function sendStatusPush(payload: {
   workerName?: string;
   metadata?: Record<string, any>;
 }): Promise<NotificationPayload> {
-  await ensureNotificationTable();
 
   const notification: NotificationPayload = {
     channel: "push",
@@ -136,7 +111,6 @@ export async function sendEmailAlert(payload: {
   workerName?: string;
   metadata?: Record<string, any>;
 }): Promise<NotificationPayload> {
-  await ensureNotificationTable();
 
   const notification: NotificationPayload = {
     channel: "email",
@@ -178,7 +152,6 @@ export async function sendEmailAlert(payload: {
 //
 
 export async function triggerSchengenAlerts(recipientEmail: string): Promise<NotificationPayload[]> {
-  await ensureNotificationTable();
   const alerts: NotificationPayload[] = [];
 
   try {
@@ -249,8 +222,7 @@ export async function triggerSchengenAlerts(recipientEmail: string): Promise<Not
 // GET — list notification log
 router.get("/notifications/eej-log", authenticateToken, async (req, res) => {
   try {
-    await ensureNotificationTable();
-    const { priority, trigger, limit: lim } = req.query as { priority?: string; trigger?: string; limit?: string };
+      const { priority, trigger, limit: lim } = req.query as { priority?: string; trigger?: string; limit?: string };
     const maxRows = Math.min(parseInt(lim ?? "50", 10), 200);
 
     let rows;

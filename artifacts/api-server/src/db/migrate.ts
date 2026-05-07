@@ -1102,6 +1102,207 @@ export async function runMigrations(): Promise<void> {
     ON CONFLICT (tenant_id, name) DO NOTHING;
   `);
 
+  // ═══ Pattern B centralization — Commit 3a (10 independent tables) ═══════════
+  // Tables previously created lazily by request-time helpers; centralized here
+  // for deterministic schema state across fresh-DB recreates and PITR restores.
+  // Per Item 2.3 Phase B Plan, Stage 4 tenant_id NOT added (Option B); existing
+  // org_context column preserved where present. Helpers + defensive catches
+  // removed in services/ files in the same commit.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS eej_payroll_ledger (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      worker_name TEXT,
+      month_year TEXT NOT NULL,
+      hours NUMERIC(8,2) NOT NULL DEFAULT 0,
+      hourly_rate NUMERIC(10,2) NOT NULL DEFAULT 0,
+      gross NUMERIC(10,2) NOT NULL DEFAULT 0,
+      employee_zus NUMERIC(10,2) NOT NULL DEFAULT 0,
+      health NUMERIC(10,2) NOT NULL DEFAULT 0,
+      pit NUMERIC(10,2) NOT NULL DEFAULT 0,
+      net NUMERIC(10,2) NOT NULL DEFAULT 0,
+      employer_zus NUMERIC(10,2) NOT NULL DEFAULT 0,
+      total_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
+      advances NUMERIC(10,2) NOT NULL DEFAULT 0,
+      penalties NUMERIC(10,2) NOT NULL DEFAULT 0,
+      final_payout NUMERIC(10,2) NOT NULL DEFAULT 0,
+      contract_type TEXT DEFAULT 'umowa_zlecenie',
+      iban TEXT,
+      locked BOOLEAN DEFAULT false,
+      locked_by TEXT,
+      locked_at TIMESTAMPTZ,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_payroll_worker ON eej_payroll_ledger(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_payroll_month ON eej_payroll_ledger(month_year);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_eej_payroll_dedup ON eej_payroll_ledger(worker_id, month_year);
+
+    CREATE TABLE IF NOT EXISTS border_crossings (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      crossing_date DATE NOT NULL,
+      direction TEXT NOT NULL CHECK (direction IN ('entry', 'exit')),
+      country TEXT DEFAULT 'PL',
+      notes TEXT,
+      entered_by TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS smart_documents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      doc_type TEXT NOT NULL DEFAULT 'UNKNOWN',
+      confidence REAL DEFAULT 0,
+      rationale TEXT DEFAULT '',
+      extracted_data JSONB DEFAULT '{}'::jsonb,
+      legal_articles JSONB DEFAULT '[]'::jsonb,
+      legal_impact JSONB DEFAULT '{}'::jsonb,
+      ai_context JSONB DEFAULT '{}'::jsonb,
+      draft_text TEXT,
+      draft_type TEXT,
+      draft_metadata JSONB DEFAULT '{}'::jsonb,
+      mos_relevant BOOLEAN DEFAULT false,
+      is_rejection BOOLEAN DEFAULT false,
+      is_application BOOLEAN DEFAULT false,
+      status TEXT DEFAULT 'analyzed',
+      analyzed_by TEXT DEFAULT 'claude',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS eej_notification_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      channel TEXT NOT NULL DEFAULT 'internal_log',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      recipient TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      trigger_type TEXT NOT NULL,
+      worker_id TEXT,
+      worker_name TEXT,
+      metadata JSONB DEFAULT '{}'::jsonb,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      sent BOOLEAN DEFAULT false,
+      sent_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_notif_worker ON eej_notification_log(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_notif_trigger ON eej_notification_log(trigger_type);
+    CREATE INDEX IF NOT EXISTS idx_eej_notif_priority ON eej_notification_log(priority);
+
+    CREATE TABLE IF NOT EXISTS eej_billing_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      stripe_event_id TEXT UNIQUE,
+      event_type TEXT NOT NULL,
+      employer_name TEXT,
+      employer_email TEXT,
+      amount INTEGER NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'pln',
+      status TEXT NOT NULL DEFAULT 'received',
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      stripe_invoice_id TEXT,
+      plan_name TEXT,
+      metadata JSONB DEFAULT '{}'::jsonb,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      processed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_billing_event_type ON eej_billing_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_billing_employer ON eej_billing_events(employer_name);
+    CREATE INDEX IF NOT EXISTS idx_billing_status ON eej_billing_events(status);
+    CREATE INDEX IF NOT EXISTS idx_billing_stripe_id ON eej_billing_events(stripe_event_id);
+
+    CREATE TABLE IF NOT EXISTS eej_escalation_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      worker_name TEXT,
+      threshold TEXT NOT NULL,
+      days_remaining INT,
+      previous_stage TEXT,
+      new_stage TEXT DEFAULT 'Action Required',
+      notification_id TEXT,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_esc_worker ON eej_escalation_log(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_esc_threshold ON eej_escalation_log(threshold);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_esc_dedup ON eej_escalation_log(worker_id, threshold);
+
+    CREATE TABLE IF NOT EXISTS digital_safe (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      case_id TEXT,
+      doc_category TEXT NOT NULL DEFAULT 'MOS_CERTIFICATE',
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INT DEFAULT 0,
+      description TEXT,
+      source TEXT DEFAULT 'manual_upload',
+      uploaded_by TEXT NOT NULL,
+      verified BOOLEAN DEFAULT false,
+      verified_by TEXT,
+      verified_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS intelligence_alerts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      alert_type TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'info',
+      worker_id TEXT,
+      worker_name TEXT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      data JSONB DEFAULT '{}'::jsonb,
+      acknowledged BOOLEAN DEFAULT false,
+      acknowledged_by TEXT,
+      acknowledged_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS ocr_feedback_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      document_id TEXT,
+      worker_id TEXT,
+      doc_type TEXT NOT NULL,
+      field_name TEXT NOT NULL,
+      ocr_value TEXT,
+      corrected_value TEXT NOT NULL,
+      error_type TEXT NOT NULL DEFAULT 'extraction_error',
+      severity TEXT NOT NULL DEFAULT 'medium',
+      notes TEXT,
+      logged_by TEXT NOT NULL DEFAULT 'anna',
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      resolved BOOLEAN DEFAULT false,
+      resolved_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_ocr_feedback_doc_type ON ocr_feedback_log(doc_type);
+    CREATE INDEX IF NOT EXISTS idx_ocr_feedback_field ON ocr_feedback_log(field_name);
+    CREATE INDEX IF NOT EXISTS idx_ocr_feedback_resolved ON ocr_feedback_log(resolved);
+    CREATE INDEX IF NOT EXISTS idx_ocr_feedback_org ON ocr_feedback_log(org_context);
+
+    CREATE TABLE IF NOT EXISTS upo_vault (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      submission_number TEXT NOT NULL,
+      submission_date DATE NOT NULL,
+      authority TEXT,
+      case_type TEXT DEFAULT 'TRC',
+      file_name TEXT,
+      art108_locked BOOLEAN DEFAULT false,
+      locked_at TIMESTAMPTZ,
+      locked_by TEXT,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
   // ═══ Stage 4: TIMESTAMP → TIMESTAMPTZ uniformity ═══
   // Convert existing naive timestamps to UTC using Europe/Warsaw as the source
   // zone. Idempotent: only converts columns currently 'timestamp without time zone'.

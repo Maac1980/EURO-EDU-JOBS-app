@@ -20,32 +20,6 @@ const router = Router();
 
 // ═══ TABLE SETUP ════════════════════════════════════════════════════════════
 
-async function ensureFeedbackTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS ocr_feedback_log (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      document_id TEXT,
-      worker_id TEXT,
-      doc_type TEXT NOT NULL,
-      field_name TEXT NOT NULL,
-      ocr_value TEXT,
-      corrected_value TEXT NOT NULL,
-      error_type TEXT NOT NULL DEFAULT 'extraction_error',
-      severity TEXT NOT NULL DEFAULT 'medium',
-      notes TEXT,
-      logged_by TEXT NOT NULL DEFAULT 'anna',
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      resolved BOOLEAN DEFAULT false,
-      resolved_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_doc_type ON ocr_feedback_log(doc_type)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_field ON ocr_feedback_log(field_name)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_resolved ON ocr_feedback_log(resolved)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ocr_feedback_org ON ocr_feedback_log(org_context)`);
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // TASK 1: SMART INGEST AUDIT
 // Validates OCR pipeline readiness for 5 document types Anna will upload.
@@ -109,12 +83,8 @@ router.get("/first-contact/ingest-audit", authenticateToken, async (_req, res) =
     for (const docDef of AUDIT_DOC_TYPES) {
       const issues: string[] = [];
 
-      // 1. Check smart_documents table exists
-      let tableExists = false;
-      try {
-        await db.execute(sql`SELECT 1 FROM smart_documents LIMIT 0`);
-        tableExists = true;
-      } catch { issues.push("smart_documents table not initialized — first upload will create it"); }
+      // 1. smart_documents centralized in migrate.ts (Commit 3a) — table guaranteed at boot.
+      const tableExists = true;
 
       // 2. Check if doc type is in the classification enum
       const classificationSupported = [
@@ -531,7 +501,6 @@ router.get("/first-contact/stress-test", authenticateToken, async (_req, res) =>
 // POST — log an OCR correction
 router.post("/first-contact/ocr-feedback", authenticateToken, async (req, res) => {
   try {
-    await ensureFeedbackTable();
 
     const { documentId, workerId, docType, fieldName, ocrValue, correctedValue, errorType, severity, notes } = req.body as {
       documentId?: string;
@@ -597,7 +566,6 @@ router.post("/first-contact/ocr-feedback", authenticateToken, async (req, res) =
 // GET — retrieve feedback log (for prompt tuning review)
 router.get("/first-contact/ocr-feedback", authenticateToken, async (req, res) => {
   try {
-    await ensureFeedbackTable();
 
     const { docType, resolved, limit: lim } = req.query as { docType?: string; resolved?: string; limit?: string };
     const maxRows = Math.min(parseInt(lim ?? "50", 10), 200);
@@ -689,16 +657,12 @@ router.get("/first-contact/status", authenticateToken, async (_req, res) => {
 
     // 3. Feedback table
     try {
-      await ensureFeedbackTable();
-      feedbackReady = true;
+        feedbackReady = true;
     } catch { /* */ }
 
-    // Unresolved feedback count
-    let unresolvedCount = 0;
-    try {
-      const countRows = await db.execute(sql`SELECT COUNT(*)::int as count FROM ocr_feedback_log WHERE resolved = false AND org_context = 'EEJ'`);
-      unresolvedCount = (countRows.rows[0] as any)?.count ?? 0;
-    } catch { /* table may not exist yet */ }
+    // Unresolved feedback count (ocr_feedback_log centralized in migrate.ts)
+    const countRows = await db.execute(sql`SELECT COUNT(*)::int as count FROM ocr_feedback_log WHERE resolved = false AND org_context = 'EEJ'`);
+    const unresolvedCount = (countRows.rows[0] as any)?.count ?? 0;
 
     return res.json({
       firstContact: "MONDAY_MORNING_VERIFICATION",

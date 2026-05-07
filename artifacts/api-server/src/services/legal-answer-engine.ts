@@ -127,18 +127,15 @@ async function buildWorkerContext(workerId: string) {
   if (wRows.rows.length === 0) return null;
   const w = wRows.rows[0] as any;
 
-  // Smart documents (AI context from ingestion)
-  let smartDocs: any[] = [];
-  try {
-    const sdRows = await db.execute(sql`
-      SELECT id, doc_type, confidence, rationale, extracted_data, legal_impact, ai_context,
-             mos_relevant, is_rejection, is_application, created_at
-      FROM smart_documents
-      WHERE worker_id = ${workerId}
-      ORDER BY created_at DESC LIMIT 10
-    `);
-    smartDocs = sdRows.rows as any[];
-  } catch { /* table may not exist yet */ }
+  // Smart documents (AI context from ingestion) — centralized in migrate.ts
+  const sdRows = await db.execute(sql`
+    SELECT id, doc_type, confidence, rationale, extracted_data, legal_impact, ai_context,
+           mos_relevant, is_rejection, is_application, created_at
+    FROM smart_documents
+    WHERE worker_id = ${workerId}
+    ORDER BY created_at DESC LIMIT 10
+  `);
+  const smartDocs = sdRows.rows as any[];
 
   // Legal decision engine evaluation
   const legalInput: LegalInput = {
@@ -174,22 +171,20 @@ async function buildWorkerContext(workerId: string) {
 
   const legalOutput: LegalOutput = evaluateLegalStatus(legalInput);
 
-  // Schengen 90/180 check
+  // Schengen 90/180 check (border_crossings centralized in migrate.ts)
   let schengenData: any = null;
-  try {
-    const crossingRows = await db.execute(sql`
-      SELECT crossing_date, direction FROM border_crossings
-      WHERE worker_id = ${workerId} ORDER BY crossing_date ASC
-    `);
-    if (crossingRows.rows.length > 0) {
-      const { calculateSchengen90180 } = await import("./schengen-calculator.js");
-      const crossings = (crossingRows.rows as any[]).map(r => ({
-        date: r.crossing_date?.toString().slice(0, 10) ?? "",
-        direction: r.direction as "entry" | "exit",
-      }));
-      schengenData = calculateSchengen90180(crossings, undefined, legalOutput.art108Applied);
-    }
-  } catch { /* border_crossings may not exist */ }
+  const crossingRows = await db.execute(sql`
+    SELECT crossing_date, direction FROM border_crossings
+    WHERE worker_id = ${workerId} ORDER BY crossing_date ASC
+  `);
+  if (crossingRows.rows.length > 0) {
+    const { calculateSchengen90180 } = await import("./schengen-calculator.js");
+    const crossings = (crossingRows.rows as any[]).map(r => ({
+      date: r.crossing_date?.toString().slice(0, 10) ?? "",
+      direction: r.direction as "entry" | "exit",
+    }));
+    schengenData = calculateSchengen90180(crossings, undefined, legalOutput.art108Applied);
+  }
 
   return { worker: w, smartDocs, legalInput, legalOutput, schengenData };
 }

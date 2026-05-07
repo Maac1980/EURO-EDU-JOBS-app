@@ -17,35 +17,6 @@ import { safeError } from "../lib/security.js";
 
 const router = Router();
 
-// ═══ TABLE SETUP ════════════════════════════════════════════════════════════
-
-async function ensureBillingTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_billing_events (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      stripe_event_id TEXT UNIQUE,
-      event_type TEXT NOT NULL,
-      employer_name TEXT,
-      employer_email TEXT,
-      amount INTEGER NOT NULL DEFAULT 0,
-      currency TEXT NOT NULL DEFAULT 'pln',
-      status TEXT NOT NULL DEFAULT 'received',
-      stripe_customer_id TEXT,
-      stripe_subscription_id TEXT,
-      stripe_invoice_id TEXT,
-      plan_name TEXT,
-      metadata JSONB DEFAULT '{}'::jsonb,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      processed_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_billing_event_type ON eej_billing_events(event_type)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_billing_employer ON eej_billing_events(employer_name)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_billing_status ON eej_billing_events(status)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_billing_stripe_id ON eej_billing_events(stripe_event_id)`);
-}
-
 // ═══ STRIPE SIGNATURE VERIFICATION ══════════════════════════════════════════
 
 function verifyStripeSignature(payload: string, signature: string, secret: string): boolean {
@@ -72,7 +43,6 @@ function verifyStripeSignature(payload: string, signature: string, secret: strin
 // Express must NOT parse JSON for this route — use express.raw() upstream.
 router.post("/webhooks/stripe", async (req, res) => {
   try {
-    await ensureBillingTable();
 
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     const signature = req.headers["stripe-signature"] as string | undefined;
@@ -187,7 +157,6 @@ router.post("/webhooks/stripe", async (req, res) => {
 
 router.get("/billing/events", authenticateToken, async (req, res) => {
   try {
-    await ensureBillingTable();
     const { status: filterStatus, limit: lim } = req.query as { status?: string; limit?: string };
     const maxRows = Math.min(parseInt(lim ?? "50", 10), 200);
 

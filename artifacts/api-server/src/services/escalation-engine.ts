@@ -24,32 +24,10 @@ const router = Router();
 
 // ═══ TABLE: ESCALATION LOG (dedup tracker) ══════════════════════════════════
 
-async function ensureEscalationTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_escalation_log (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      worker_name TEXT,
-      threshold TEXT NOT NULL,
-      days_remaining INT,
-      previous_stage TEXT,
-      new_stage TEXT DEFAULT 'Action Required',
-      notification_id TEXT,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_esc_worker ON eej_escalation_log(worker_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_esc_threshold ON eej_escalation_log(threshold)`);
-  // Unique constraint: one escalation per worker per threshold
-  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_esc_dedup ON eej_escalation_log(worker_id, threshold)`);
-}
-
 // ═══ TASK 1: DAILY ESCALATION ═══════════════════════════════════════════════
 
 router.post("/cron/daily-escalation", authenticateToken, async (req, res) => {
   try {
-    await ensureEscalationTable();
 
     const recipientEmail = (req as any).user?.email ?? process.env.ALERT_EMAIL_TO ?? "anna@edu-jobs.eu";
 
@@ -338,7 +316,6 @@ router.post("/cron/weekly-digest", authenticateToken, async (req, res) => {
 
 router.get("/escalation/history", authenticateToken, async (req, res) => {
   try {
-    await ensureEscalationTable();
     const { workerId, limit: lim } = req.query as { workerId?: string; limit?: string };
     const maxRows = Math.min(parseInt(lim ?? "50", 10), 200);
 

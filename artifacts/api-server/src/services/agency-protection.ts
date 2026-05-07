@@ -392,12 +392,9 @@ router.get("/v1/agency/compliance-certificate", authenticateToken, async (req, r
     const compliant = (compliantRows.rows[0] as any)?.count ?? 0;
     const complianceRate = totalWorkers > 0 ? Math.round((compliant / totalWorkers) * 100) : 100;
 
-    // Documents processed
-    let docsProcessed = 0;
-    try {
-      const docRows = await db.execute(sql`SELECT COUNT(*)::INT as count FROM smart_documents WHERE created_at >= ${dateFrom}::DATE`);
-      docsProcessed = (docRows.rows[0] as any)?.count ?? 0;
-    } catch { /* table may not exist */ }
+    // Documents processed (smart_documents centralized in migrate.ts)
+    const docRows = await db.execute(sql`SELECT COUNT(*)::INT as count FROM smart_documents WHERE created_at >= ${dateFrom}::DATE`);
+    const docsProcessed = (docRows.rows[0] as any)?.count ?? 0;
 
     // Average expiry buffer (how many days before expiry do we renew)
     const bufferRows = await db.execute(sql`

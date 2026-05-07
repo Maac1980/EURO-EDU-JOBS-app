@@ -38,22 +38,8 @@ async function ensureTables() {
     )
   `);
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS upo_vault (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      submission_number TEXT NOT NULL,
-      submission_date DATE NOT NULL,
-      authority TEXT,
-      case_type TEXT DEFAULT 'TRC',
-      file_name TEXT,
-      art108_locked BOOLEAN DEFAULT false,
-      locked_at TIMESTAMPTZ,
-      locked_by TEXT,
-      notes TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
+  // upo_vault centralized in migrate.ts (Commit 3a). employer_signature_links
+  // stays here pending Commit 3d centralization.
 }
 
 // ═══ TASK 1: MOS DATA EXPORTER ══════════════════════════════════════════════
@@ -356,31 +342,26 @@ router.get("/mos2026/recruitment-risk/:workerId", authenticateToken, async (req,
     if (wRows.rows.length === 0) return res.status(404).json({ error: "Worker not found" });
     const w = wRows.rows[0] as any;
 
-    // Get Schengen calculation
+    // Get Schengen calculation (border_crossings centralized in migrate.ts)
     let schengen = { daysUsed: 0, daysRemaining: 90, isOverstay: false, isWarning: false, latestLegalExitDate: "" };
-    try {
-      const crossingRows = await db.execute(sql`
-        SELECT crossing_date, direction FROM border_crossings
-        WHERE worker_id = ${wid} ORDER BY crossing_date ASC
-      `);
-      if (crossingRows.rows.length > 0) {
-        const crossings = (crossingRows.rows as any[]).map(r => ({
-          date: r.crossing_date?.toString().slice(0, 10) ?? "",
-          direction: r.direction as "entry" | "exit",
-        }));
-        schengen = calculateSchengen90180(crossings);
-      }
-    } catch { /* border_crossings may not exist */ }
+    const crossingRows = await db.execute(sql`
+      SELECT crossing_date, direction FROM border_crossings
+      WHERE worker_id = ${wid} ORDER BY crossing_date ASC
+    `);
+    if (crossingRows.rows.length > 0) {
+      const crossings = (crossingRows.rows as any[]).map(r => ({
+        date: r.crossing_date?.toString().slice(0, 10) ?? "",
+        direction: r.direction as "entry" | "exit",
+      }));
+      schengen = calculateSchengen90180(crossings);
+    }
 
-    // Check UPO (Art. 108 protection)
-    let hasUpo = false;
-    try {
-      const upoRows = await db.execute(sql`
-        SELECT COUNT(*)::int as count FROM upo_vault
-        WHERE worker_id = ${wid} AND art108_locked = true
-      `);
-      hasUpo = ((upoRows.rows[0] as any)?.count ?? 0) > 0;
-    } catch { /* upo_vault may not exist */ }
+    // Check UPO (Art. 108 protection) — upo_vault centralized in migrate.ts
+    const upoRows = await db.execute(sql`
+      SELECT COUNT(*)::int as count FROM upo_vault
+      WHERE worker_id = ${wid} AND art108_locked = true
+    `);
+    const hasUpo = ((upoRows.rows[0] as any)?.count ?? 0) > 0;
 
     // Risk scoring
     const risks: Array<{ level: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"; message: string }> = [];

@@ -21,23 +21,6 @@ import { authenticateToken } from "../lib/authMiddleware.js";
 
 const router = Router();
 
-// ═══ TABLE ══════════════════════════════════════════════════════════════════
-
-async function ensureTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS border_crossings (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      crossing_date DATE NOT NULL,
-      direction TEXT NOT NULL CHECK (direction IN ('entry', 'exit')),
-      country TEXT DEFAULT 'PL',
-      notes TEXT,
-      entered_by TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-}
-
 // ═══ 90/180 CALCULATION (pure, deterministic) ═══════════════════════════════
 
 interface Crossing {
@@ -158,7 +141,6 @@ router.post("/schengen/calculate", authenticateToken, (req, res) => {
 // POST /api/schengen/worker/:workerId/crossing — add a border crossing
 router.post("/schengen/worker/:workerId/crossing", authenticateToken, async (req, res) => {
   try {
-    await ensureTable();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const { date, direction, country, notes } = req.body as {
       date: string; direction: "entry" | "exit"; country?: string; notes?: string;
@@ -179,7 +161,6 @@ router.post("/schengen/worker/:workerId/crossing", authenticateToken, async (req
 // GET /api/schengen/worker/:workerId — get crossings + calculation
 router.get("/schengen/worker/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureTable();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
 
     const rows = await db.execute(sql`
@@ -193,15 +174,12 @@ router.get("/schengen/worker/:workerId", authenticateToken, async (req, res) => 
       direction: r.direction as "entry" | "exit",
     }));
 
-    // Check Art. 108 status
-    let art108 = false;
-    try {
-      const sdRows = await db.execute(sql`
-        SELECT COUNT(*)::int as count FROM smart_documents
-        WHERE worker_id = ${wid} AND doc_type IN ('TRC_APPLICATION', 'UPO_RECEIPT') AND status = 'verified'
-      `);
-      art108 = ((sdRows.rows[0] as any)?.count ?? 0) > 0;
-    } catch { /* smart_documents may not exist */ }
+    // Check Art. 108 status (smart_documents centralized in migrate.ts)
+    const sdRows = await db.execute(sql`
+      SELECT COUNT(*)::int as count FROM smart_documents
+      WHERE worker_id = ${wid} AND doc_type IN ('TRC_APPLICATION', 'UPO_RECEIPT') AND status = 'verified'
+    `);
+    const art108 = ((sdRows.rows[0] as any)?.count ?? 0) > 0;
 
     const result = calculateSchengen90180(crossings, undefined, art108);
 

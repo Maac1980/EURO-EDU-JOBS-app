@@ -132,41 +132,10 @@ RULES:
 - Include placeholder for date and signature
 - Reference actual Polish law articles only`;
 
-// ═══ TABLE SETUP ════════════════════════════════════════════════════════════
-
-async function ensureTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS smart_documents (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      file_name TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      doc_type TEXT NOT NULL DEFAULT 'UNKNOWN',
-      confidence REAL DEFAULT 0,
-      rationale TEXT DEFAULT '',
-      extracted_data JSONB DEFAULT '{}'::jsonb,
-      legal_articles JSONB DEFAULT '[]'::jsonb,
-      legal_impact JSONB DEFAULT '{}'::jsonb,
-      ai_context JSONB DEFAULT '{}'::jsonb,
-      draft_text TEXT,
-      draft_type TEXT,
-      draft_metadata JSONB DEFAULT '{}'::jsonb,
-      mos_relevant BOOLEAN DEFAULT false,
-      is_rejection BOOLEAN DEFAULT false,
-      is_application BOOLEAN DEFAULT false,
-      status TEXT DEFAULT 'analyzed',
-      analyzed_by TEXT DEFAULT 'claude',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-}
-
 // ═══ ROUTE: POST /api/documents/smart-ingest ════════════════════════════════
 
 router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
   try {
-    await ensureTable();
 
     const { image, mimeType, workerId, fileName } = req.body as {
       image?: string; mimeType?: string; workerId?: string; fileName?: string;
@@ -388,7 +357,6 @@ router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
 
 router.get("/documents/smart-ingest/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureTable();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const rows = await db.execute(sql`
       SELECT id, worker_id, file_name, doc_type, confidence, rationale,
@@ -409,7 +377,6 @@ router.get("/documents/smart-ingest/:workerId", authenticateToken, async (req, r
 
 router.get("/documents/smart-ingest/detail/:id", authenticateToken, async (req, res) => {
   try {
-    await ensureTable();
     const docId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const rows = await db.execute(sql`
       SELECT * FROM smart_documents WHERE id = ${docId}

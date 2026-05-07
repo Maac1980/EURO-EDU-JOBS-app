@@ -16,27 +16,6 @@ import { authenticateToken } from "../lib/authMiddleware.js";
 
 const router = Router();
 
-async function ensureTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS digital_safe (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      case_id TEXT,
-      doc_category TEXT NOT NULL DEFAULT 'MOS_CERTIFICATE',
-      file_name TEXT NOT NULL,
-      mime_type TEXT NOT NULL,
-      file_size INT DEFAULT 0,
-      description TEXT,
-      source TEXT DEFAULT 'manual_upload',
-      uploaded_by TEXT NOT NULL,
-      verified BOOLEAN DEFAULT false,
-      verified_by TEXT,
-      verified_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-}
-
 const SAFE_CATEGORIES = [
   "MOS_CERTIFICATE",
   "SUBMISSION_CONFIRMATION",
@@ -51,7 +30,6 @@ const SAFE_CATEGORIES = [
 // POST /api/safe/:workerId/upload
 router.post("/safe/:workerId/upload", authenticateToken, async (req, res) => {
   try {
-    await ensureTable();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const { fileName, mimeType, fileSize, category, description, caseId } = req.body as {
       fileName: string; mimeType?: string; fileSize?: number;
@@ -86,7 +64,6 @@ router.post("/safe/:workerId/upload", authenticateToken, async (req, res) => {
 // GET /api/safe/:workerId
 router.get("/safe/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureTable();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const rows = await db.execute(sql`
       SELECT * FROM digital_safe WHERE worker_id = ${wid} ORDER BY created_at DESC

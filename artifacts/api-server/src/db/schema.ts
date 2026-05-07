@@ -605,6 +605,188 @@ export const legalNotifications = pgTable("legal_notifications", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ── Pattern B centralized tables (Item 2.3 Commit 3a) ──────────────────────
+// Tables previously created lazily by request-time helpers; centralized in
+// migrate.ts as part of Commit 3a. Stage 4 tenant_id NOT applied (Option B);
+// existing org_context preserved where present. worker_id remains TEXT
+// (not UUID + FK) — deferred to Item 2.X follow-up.
+
+export const eejPayrollLedger = pgTable("eej_payroll_ledger", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  workerName: text("worker_name"),
+  monthYear: text("month_year").notNull(),
+  hours: numeric("hours", { precision: 8, scale: 2 }).notNull().default("0"),
+  hourlyRate: numeric("hourly_rate", { precision: 10, scale: 2 }).notNull().default("0"),
+  gross: numeric("gross", { precision: 10, scale: 2 }).notNull().default("0"),
+  employeeZus: numeric("employee_zus", { precision: 10, scale: 2 }).notNull().default("0"),
+  health: numeric("health", { precision: 10, scale: 2 }).notNull().default("0"),
+  pit: numeric("pit", { precision: 10, scale: 2 }).notNull().default("0"),
+  net: numeric("net", { precision: 10, scale: 2 }).notNull().default("0"),
+  employerZus: numeric("employer_zus", { precision: 10, scale: 2 }).notNull().default("0"),
+  totalCost: numeric("total_cost", { precision: 10, scale: 2 }).notNull().default("0"),
+  advances: numeric("advances", { precision: 10, scale: 2 }).notNull().default("0"),
+  penalties: numeric("penalties", { precision: 10, scale: 2 }).notNull().default("0"),
+  finalPayout: numeric("final_payout", { precision: 10, scale: 2 }).notNull().default("0"),
+  contractType: text("contract_type").default("umowa_zlecenie"),
+  iban: text("iban"),
+  locked: boolean("locked").default(false),
+  lockedBy: text("locked_by"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const borderCrossings = pgTable("border_crossings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  crossingDate: date("crossing_date").notNull(),
+  direction: text("direction").notNull(),
+  country: text("country").default("PL"),
+  notes: text("notes"),
+  enteredBy: text("entered_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const smartDocuments = pgTable("smart_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  docType: text("doc_type").notNull().default("UNKNOWN"),
+  confidence: real("confidence").default(0),
+  rationale: text("rationale").default(""),
+  extractedData: jsonb("extracted_data").default({}),
+  legalArticles: jsonb("legal_articles").default([]),
+  legalImpact: jsonb("legal_impact").default({}),
+  aiContext: jsonb("ai_context").default({}),
+  draftText: text("draft_text"),
+  draftType: text("draft_type"),
+  draftMetadata: jsonb("draft_metadata").default({}),
+  mosRelevant: boolean("mos_relevant").default(false),
+  isRejection: boolean("is_rejection").default(false),
+  isApplication: boolean("is_application").default(false),
+  status: text("status").default("analyzed"),
+  analyzedBy: text("analyzed_by").default("claude"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejNotificationLog = pgTable("eej_notification_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  channel: text("channel").notNull().default("internal_log"),
+  priority: text("priority").notNull().default("medium"),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  triggerType: text("trigger_type").notNull(),
+  workerId: text("worker_id"),
+  workerName: text("worker_name"),
+  metadata: jsonb("metadata").default({}),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  sent: boolean("sent").default(false),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejBillingEvents = pgTable("eej_billing_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  stripeEventId: text("stripe_event_id").unique(),
+  eventType: text("event_type").notNull(),
+  employerName: text("employer_name"),
+  employerEmail: text("employer_email"),
+  amount: integer("amount").notNull().default(0),
+  currency: text("currency").notNull().default("pln"),
+  status: text("status").notNull().default("received"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripeInvoiceId: text("stripe_invoice_id"),
+  planName: text("plan_name"),
+  metadata: jsonb("metadata").default({}),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejEscalationLog = pgTable("eej_escalation_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  workerName: text("worker_name"),
+  threshold: text("threshold").notNull(),
+  daysRemaining: integer("days_remaining"),
+  previousStage: text("previous_stage"),
+  newStage: text("new_stage").default("Action Required"),
+  notificationId: text("notification_id"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const digitalSafe = pgTable("digital_safe", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  caseId: text("case_id"),
+  docCategory: text("doc_category").notNull().default("MOS_CERTIFICATE"),
+  fileName: text("file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileSize: integer("file_size").default(0),
+  description: text("description"),
+  source: text("source").default("manual_upload"),
+  uploadedBy: text("uploaded_by").notNull(),
+  verified: boolean("verified").default(false),
+  verifiedBy: text("verified_by"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const intelligenceAlerts = pgTable("intelligence_alerts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  alertType: text("alert_type").notNull(),
+  severity: text("severity").notNull().default("info"),
+  workerId: text("worker_id"),
+  workerName: text("worker_name"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  data: jsonb("data").default({}),
+  acknowledged: boolean("acknowledged").default(false),
+  acknowledgedBy: text("acknowledged_by"),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const ocrFeedbackLog = pgTable("ocr_feedback_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentId: text("document_id"),
+  workerId: text("worker_id"),
+  docType: text("doc_type").notNull(),
+  fieldName: text("field_name").notNull(),
+  ocrValue: text("ocr_value"),
+  correctedValue: text("corrected_value").notNull(),
+  errorType: text("error_type").notNull().default("extraction_error"),
+  severity: text("severity").notNull().default("medium"),
+  notes: text("notes"),
+  loggedBy: text("logged_by").notNull().default("anna"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  resolved: boolean("resolved").default(false),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const upoVault = pgTable("upo_vault", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  submissionNumber: text("submission_number").notNull(),
+  submissionDate: date("submission_date").notNull(),
+  authority: text("authority"),
+  caseType: text("case_type").default("TRC"),
+  fileName: text("file_name"),
+  art108Locked: boolean("art108_locked").default(false),
+  lockedAt: timestamp("locked_at", { withTimezone: true }),
+  lockedBy: text("locked_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 // ── A1 certificates (EU social security documents for posted Polish workers) ──
 export const a1Certificates = pgTable("a1_certificates", {
   id: uuid("id").primaryKey().defaultRandom(),

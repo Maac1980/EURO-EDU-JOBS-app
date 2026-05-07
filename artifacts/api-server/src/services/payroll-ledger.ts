@@ -15,42 +15,6 @@ import { safeError } from "../lib/security.js";
 
 const router = Router();
 
-// ═══ TABLE SETUP ════════════════════════════════════════════════════════════
-
-async function ensurePayrollLedgerTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_payroll_ledger (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      worker_name TEXT,
-      month_year TEXT NOT NULL,
-      hours NUMERIC(8,2) NOT NULL DEFAULT 0,
-      hourly_rate NUMERIC(10,2) NOT NULL DEFAULT 0,
-      gross NUMERIC(10,2) NOT NULL DEFAULT 0,
-      employee_zus NUMERIC(10,2) NOT NULL DEFAULT 0,
-      health NUMERIC(10,2) NOT NULL DEFAULT 0,
-      pit NUMERIC(10,2) NOT NULL DEFAULT 0,
-      net NUMERIC(10,2) NOT NULL DEFAULT 0,
-      employer_zus NUMERIC(10,2) NOT NULL DEFAULT 0,
-      total_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
-      advances NUMERIC(10,2) NOT NULL DEFAULT 0,
-      penalties NUMERIC(10,2) NOT NULL DEFAULT 0,
-      final_payout NUMERIC(10,2) NOT NULL DEFAULT 0,
-      contract_type TEXT DEFAULT 'umowa_zlecenie',
-      iban TEXT,
-      locked BOOLEAN DEFAULT false,
-      locked_by TEXT,
-      locked_at TIMESTAMPTZ,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_payroll_worker ON eej_payroll_ledger(worker_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_payroll_month ON eej_payroll_ledger(month_year)`);
-  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_eej_payroll_dedup ON eej_payroll_ledger(worker_id, month_year)`);
-}
-
 // ═══ ZUS CALCULATION (Umowa Zlecenie) ═══════════════════════════════════════
 
 function calculateZUS(gross: number): {
@@ -101,7 +65,6 @@ function calculateZUS(gross: number): {
 // GET payroll records (by month or worker)
 router.get("/v1/payroll/ledger", authenticateToken, async (req, res) => {
   try {
-    await ensurePayrollLedgerTable();
     const { month, workerId } = req.query as { month?: string; workerId?: string };
 
     let rows;
@@ -122,7 +85,6 @@ router.get("/v1/payroll/ledger", authenticateToken, async (req, res) => {
 // POST calculate + store payroll record
 router.post("/v1/payroll/ledger", authenticateToken, async (req, res) => {
   try {
-    await ensurePayrollLedgerTable();
     const { workerId, workerName, monthYear, hours, hourlyRate, advances, penalties, contractType, iban } = req.body as {
       workerId: string; workerName?: string; monthYear: string; hours: number; hourlyRate: number;
       advances?: number; penalties?: number; contractType?: string; iban?: string;
@@ -163,7 +125,6 @@ router.post("/v1/payroll/ledger", authenticateToken, async (req, res) => {
 // GET bank CSV export (Polish banking format)
 router.get("/v1/payroll/export/bank-csv", authenticateToken, async (req, res) => {
   try {
-    await ensurePayrollLedgerTable();
     const { month } = req.query as { month?: string };
     if (!month) return res.status(400).json({ error: "month query parameter required (e.g. 2026-04)" });
 
@@ -193,7 +154,6 @@ router.get("/v1/payroll/export/bank-csv", authenticateToken, async (req, res) =>
 // GET accounting CSV export (19 columns for accountants)
 router.get("/v1/payroll/export/accounting-csv", authenticateToken, async (req, res) => {
   try {
-    await ensurePayrollLedgerTable();
     const { month } = req.query as { month?: string };
     if (!month) return res.status(400).json({ error: "month query parameter required" });
 

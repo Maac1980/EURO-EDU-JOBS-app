@@ -1,4 +1,5 @@
 import { createServer } from "http";
+import * as Sentry from "@sentry/node";
 import app from "./app.js";
 import { startAlerter } from "./lib/alerter.js";
 import { startRegulatoryMonitor } from "./routes/regulatory.js";
@@ -20,6 +21,19 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function start() {
+  // Initialize Sentry (must run before any DB work that might surface errors)
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV ?? "development",
+      tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+      integrations: [Sentry.httpIntegration(), Sentry.expressIntegration()],
+    });
+    console.log("[sentry] Sentry error monitoring initialized");
+  } else {
+    console.warn("[sentry] SENTRY_DSN not set — error monitoring disabled");
+  }
+
   // Initialize database
   await runMigrations();
   await seedInitialData();

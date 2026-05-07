@@ -1765,6 +1765,50 @@ export async function runMigrations(): Promise<void> {
   }
 
   console.log("[db] Tables created successfully");
+
+  // ═══ Post-migration drift detection (Commit 4a) ═══
+  // Boot-time check: verify all 32 Pattern B-centralized tables exist.
+  // Last-line defense for future drift. Logs WARNING on any missing table.
+  // Does NOT fail boot — operator sees the warning in Fly logs + Sentry.
+  const EXPECTED_PATTERN_B_TABLES: string[] = [
+    // Commit 3a (10 independent helpers)
+    "eej_payroll_ledger", "border_crossings", "smart_documents",
+    "eej_notification_log", "eej_billing_events", "eej_escalation_log",
+    "digital_safe", "intelligence_alerts", "ocr_feedback_log", "upo_vault",
+    // Commit 3b (TRC FK chain + agency-compliance, 7 tables)
+    "trc_cases", "trc_documents", "trc_case_notes",
+    "eej_assignments", "eej_kraz", "eej_compliance_deadlines", "eej_retention_schedule",
+    // Commit 3c (legal-intelligence + legal-case-engine, 8 tables)
+    "research_memos", "appeal_outputs", "poa_documents", "authority_drafts", "case_tasks",
+    "eej_legal_cases", "eej_case_generated_docs", "eej_case_notebook",
+    // Commit 2 (a1_certificates — true ghost closure)
+    "a1_certificates",
+    // Commit 3d (knowledge-graph + POA + signature, 6 tables)
+    "kg_nodes", "kg_edges", "kg_patterns",
+    "eej_poa_registry", "eej_rodo_consents", "employer_signature_links",
+  ];
+
+  const missing: string[] = [];
+  for (const t of EXPECTED_PATTERN_B_TABLES) {
+    const r = await db.execute(sql`SELECT to_regclass(${'public.' + t}) AS r`);
+    if ((r.rows[0] as { r: string | null }).r === null) {
+      missing.push(t);
+    }
+  }
+
+  if (missing.length > 0) {
+    const msg = `[db] WARNING: post-migration table existence check failed — ${missing.length} missing: ${missing.join(", ")}`;
+    console.warn(msg);
+    // Sentry breadcrumb (no-op if Sentry not initialized)
+    try {
+      const Sentry = await import("@sentry/node");
+      Sentry.captureMessage(msg, "warning");
+    } catch {
+      // Sentry not loaded — console.warn above is the signal
+    }
+  } else {
+    console.log(`[db] Post-migration table existence check passed (${EXPECTED_PATTERN_B_TABLES.length}/${EXPECTED_PATTERN_B_TABLES.length} expected tables present)`);
+  }
 }
 
 export async function seedInitialData(): Promise<void> {

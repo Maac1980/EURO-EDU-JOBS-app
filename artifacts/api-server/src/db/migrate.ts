@@ -667,6 +667,32 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb;
     END $$;
 
+    -- A1 certificates (EU social security documents for posted Polish workers)
+    -- Closes ghost-table query at services/pip-readiness.service.ts (Posted Workers risk detection)
+    CREATE TABLE IF NOT EXISTS a1_certificates (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+      worker_name TEXT,
+      certificate_number TEXT NOT NULL,
+      issuing_country TEXT NOT NULL DEFAULT 'PL',
+      issuing_authority TEXT,
+      host_country TEXT NOT NULL,
+      employer_name TEXT,
+      employer_nip TEXT,
+      posting_purpose TEXT,
+      signed_date DATE,
+      valid_from DATE,
+      valid_until DATE,
+      status TEXT NOT NULL DEFAULT 'active',
+      tenant_id TEXT NOT NULL DEFAULT 'production',
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_a1_certificates_worker ON a1_certificates(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_a1_certificates_tenant ON a1_certificates(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_a1_certificates_status ON a1_certificates(status);
+    CREATE INDEX IF NOT EXISTS idx_a1_certificates_expiry ON a1_certificates(valid_until);
+
     CREATE TABLE IF NOT EXISTS legal_documents (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
@@ -865,6 +891,15 @@ export async function runMigrations(): Promise<void> {
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'job_applications_tenant_slug_fk') THEN
         ALTER TABLE job_applications
           ADD CONSTRAINT job_applications_tenant_slug_fk
+          FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
+      END IF;
+    EXCEPTION WHEN others THEN NULL; END $$;
+
+    -- Stage 4 FK: a1_certificates → tenants(slug)
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'a1_certificates_tenant_slug_fk') THEN
+        ALTER TABLE a1_certificates
+          ADD CONSTRAINT a1_certificates_tenant_slug_fk
           FOREIGN KEY (tenant_id) REFERENCES tenants(slug) ON DELETE RESTRICT;
       END IF;
     EXCEPTION WHEN others THEN NULL; END $$;

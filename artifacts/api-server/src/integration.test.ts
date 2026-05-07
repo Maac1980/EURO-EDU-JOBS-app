@@ -1245,3 +1245,56 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// a1_certificates schema integrity — DB-backed. Closes ghost-table query at
+// services/pip-readiness.service.ts (Posted Workers risk detection).
+// When TEST_DATABASE_URL is unset, this entire block is skipped.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: a1_certificates schema (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("table exists with all columns required by pip-readiness query", async () => {
+      const { rows } = await pool.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'a1_certificates' ORDER BY ordinal_position`
+      );
+      const cols = rows.map((r) => r.column_name);
+      expect(cols).toContain("worker_name");
+      expect(cols).toContain("host_country");
+      expect(cols).toContain("tenant_id");
+      expect(cols).toContain("status");
+      expect(cols).toContain("certificate_number");
+      expect(cols).toContain("issuing_country");
+      expect(cols).toContain("issuing_authority");
+      expect(cols).toContain("valid_until");
+    });
+
+    it("pip-readiness query shape executes without error", async () => {
+      const { rows } = await pool.query(
+        `SELECT worker_name, host_country FROM a1_certificates WHERE tenant_id = 'production' AND status = 'expired' LIMIT 1`
+      );
+      expect(Array.isArray(rows)).toBe(true);
+    });
+
+    it("FK constraint a1_certificates_tenant_slug_fk references tenants(slug)", async () => {
+      const { rows } = await pool.query<{ conname: string }>(
+        `SELECT conname FROM pg_constraint WHERE conrelid = 'a1_certificates'::regclass AND contype = 'f'`
+      );
+      const constraintNames = rows.map((r) => r.conname);
+      expect(constraintNames).toContain("a1_certificates_tenant_slug_fk");
+    });
+  }
+);

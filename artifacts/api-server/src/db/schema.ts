@@ -604,3 +604,24 @@ export const legalNotifications = pgTable("legal_notifications", {
   approved: boolean("approved").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ── A1 certificates (EU social security documents for posted Polish workers) ──
+export const a1Certificates = pgTable("a1_certificates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").notNull().references(() => workers.id, { onDelete: "cascade" }),
+  workerName: text("worker_name"),
+  certificateNumber: text("certificate_number").notNull(),
+  issuingCountry: text("issuing_country").notNull().default("PL"),
+  issuingAuthority: text("issuing_authority"),
+  hostCountry: text("host_country").notNull(),
+  employerName: text("employer_name"),
+  employerNip: text("employer_nip"),
+  postingPurpose: text("posting_purpose"),
+  signedDate: date("signed_date"),
+  validFrom: date("valid_from"),
+  validUntil: date("valid_until"),
+  status: text("status").notNull().default("active"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

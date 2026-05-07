@@ -159,22 +159,20 @@ export async function calculatePIPReadiness(tenantId: string): Promise<PIPReadin
     }
   }
 
-  // 3. Check A1 certificates
-  try {
-    const a1result = await db.execute<{ worker_name: string; host_country: string }>(sql`
-      SELECT worker_name, host_country FROM a1_certificates WHERE tenant_id = ${tenantId} AND status = 'expired'
-    `);
-    const a1expired = a1result.rows;
-    for (const a of a1expired) {
-      counts.expired++;
-      score -= WEIGHTS.expiredA1;
-      risks.push({
-        severity: "expired", category: "Posted Workers",
-        description: `A1 certificate expired for ${a.worker_name} (${a.host_country})`,
-        workerName: a.worker_name, pointsDeducted: WEIGHTS.expiredA1,
-      });
-    }
-  } catch { /* table may not exist */ }
+  // 3. Check A1 certificates (table guaranteed by migrate.ts)
+  const a1result = await db.execute<{ worker_name: string; host_country: string }>(sql`
+    SELECT worker_name, host_country FROM a1_certificates WHERE tenant_id = ${tenantId} AND status = 'expired'
+  `);
+  const a1expired = a1result.rows;
+  for (const a of a1expired) {
+    counts.expired++;
+    score -= WEIGHTS.expiredA1;
+    risks.push({
+      severity: "expired", category: "Posted Workers",
+      description: `A1 certificate expired for ${a.worker_name} (${a.host_country})`,
+      workerName: a.worker_name, pointsDeducted: WEIGHTS.expiredA1,
+    });
+  }
 
   // 4. Clamp score
   score = Math.max(0, Math.min(100, score));

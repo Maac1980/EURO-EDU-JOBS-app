@@ -1348,3 +1348,59 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pattern B centralization 3b — TRC FK chain + agency-compliance.
+// 7 tables migrated from request-time helpers (trc-service ensureTables +
+// agency-compliance-engine ensureComplianceTables) to migrate.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: Pattern B centralization 3b — TRC + agency-compliance (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("all 7 centralized tables exist after migrations", async () => {
+      const expected = [
+        "trc_cases", "trc_documents", "trc_case_notes",
+        "eej_assignments", "eej_kraz", "eej_compliance_deadlines", "eej_retention_schedule",
+      ];
+      for (const t of expected) {
+        const e = await pool.query("SELECT to_regclass($1) AS r", [`public.${t}`]);
+        expect(e.rows[0].r, `Table ${t} should exist`).toBeTruthy();
+      }
+    });
+
+    it("FK chain enforced: trc_documents.case_id ON DELETE CASCADE", async () => {
+      const caseRes = await pool.query(
+        `INSERT INTO trc_cases (worker_name, permit_type) VALUES ('test-fk-chain', 'TRC') RETURNING id`
+      );
+      const caseId = (caseRes.rows[0] as any).id;
+      await pool.query(
+        `INSERT INTO trc_documents (case_id, document_type, document_name) VALUES ($1, 'PASSPORT', 'test')`,
+        [caseId]
+      );
+      await pool.query(`DELETE FROM trc_cases WHERE id = $1`, [caseId]);
+      const docs = await pool.query(`SELECT id FROM trc_documents WHERE case_id = $1`, [caseId]);
+      expect(docs.rows.length).toBe(0);
+    });
+
+    it("Gap 4: eej_assignments.art_20_enforced column inline with default TRUE", async () => {
+      const cols = await pool.query(
+        `SELECT column_name, column_default, is_nullable FROM information_schema.columns WHERE table_name = 'eej_assignments' AND column_name = 'art_20_enforced'`
+      );
+      expect(cols.rows.length).toBe(1);
+      expect((cols.rows[0] as any).column_default).toContain("true");
+      expect((cols.rows[0] as any).is_nullable).toBe("NO");
+    });
+  }
+);

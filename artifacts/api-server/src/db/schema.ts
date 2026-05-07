@@ -787,6 +787,122 @@ export const upoVault = pgTable("upo_vault", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+// ── TRC application service (Pattern B Commit 3b — FK chain) ───────────────
+export const trcCases = pgTable("trc_cases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: uuid("worker_id").references(() => workers.id),
+  workerName: text("worker_name").notNull(),
+  nationality: text("nationality"),
+  employer: text("employer"),
+  permitType: text("permit_type").notNull().default("TRC"),
+  status: text("status").notNull().default("documents_gathering"),
+  applicationDate: date("application_date"),
+  submissionDate: date("submission_date"),
+  expectedDecisionDate: date("expected_decision_date"),
+  actualDecisionDate: date("actual_decision_date"),
+  voivodeship: text("voivodeship"),
+  appointmentDate: date("appointment_date"),
+  renewalDeadline: date("renewal_deadline"),
+  serviceFee: numeric("service_fee", { precision: 10, scale: 2 }).default("0"),
+  paymentStatus: text("payment_status").default("unpaid"),
+  esspassStatus: text("esspass_status").default("not_applicable"),
+  notes: text("notes").default(""),
+  aiChecklist: jsonb("ai_checklist").default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const trcDocuments = pgTable("trc_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  caseId: uuid("case_id").references(() => trcCases.id, { onDelete: "cascade" }),
+  documentType: text("document_type").notNull(),
+  documentName: text("document_name").notNull(),
+  isRequired: boolean("is_required").default(true),
+  isUploaded: boolean("is_uploaded").default(false),
+  isVerified: boolean("is_verified").default(false),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+  verifiedBy: text("verified_by"),
+  storageKey: text("storage_key"),
+  notes: text("notes").default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const trcCaseNotes = pgTable("trc_case_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  caseId: uuid("case_id").references(() => trcCases.id, { onDelete: "cascade" }),
+  author: text("author").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// ── Agency compliance (Pattern B Commit 3b) ────────────────────────────────
+export const eejAssignments = pgTable("eej_assignments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  workerName: text("worker_name"),
+  clientId: text("client_id"),
+  clientName: text("client_name").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+  daysWorked: integer("days_worked").default(0),
+  status: text("status").notNull().default("ACTIVE"),
+  alert15m: boolean("alert_15m").default(false),
+  alert17m: boolean("alert_17m").default(false),
+  blocked18m: boolean("blocked_18m").default(false),
+  art20Enforced: boolean("art_20_enforced").notNull().default(true),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejKraz = pgTable("eej_kraz", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  krazNumber: text("kraz_number").notNull(),
+  registeredAt: date("registered_at").notNull(),
+  validUntil: date("valid_until"),
+  marshalOffice: text("marshal_office"),
+  voivodeship: text("voivodeship"),
+  status: text("status").notNull().default("ACTIVE"),
+  lastAnnualReport: date("last_annual_report"),
+  nextAnnualReport: date("next_annual_report"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejComplianceDeadlines = pgTable("eej_compliance_deadlines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  workerName: text("worker_name"),
+  deadlineType: text("deadline_type").notNull(),
+  deadlineDate: date("deadline_date").notNull(),
+  referenceEvent: text("reference_event"),
+  referenceDate: date("reference_date"),
+  status: text("status").notNull().default("PENDING"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  completedBy: text("completed_by"),
+  legalBasis: text("legal_basis"),
+  fineRisk: text("fine_risk"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejRetentionSchedule = pgTable("eej_retention_schedule", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id"),
+  documentType: text("document_type").notNull(),
+  documentId: text("document_id"),
+  documentName: text("document_name"),
+  retentionCategory: text("retention_category").notNull(),
+  retentionYears: integer("retention_years").notNull(),
+  employmentEndDate: date("employment_end_date"),
+  deleteAfter: date("delete_after"),
+  status: text("status").notNull().default("RETAINED"),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  legalBasis: text("legal_basis"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 // ── A1 certificates (EU social security documents for posted Polish workers) ──
 export const a1Certificates = pgTable("a1_certificates", {
   id: uuid("id").primaryKey().defaultRandom(),

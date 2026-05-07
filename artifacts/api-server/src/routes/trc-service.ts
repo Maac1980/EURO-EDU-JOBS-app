@@ -8,69 +8,9 @@ import { analyzeText } from "../lib/ai.js";
 const router = Router();
 
 // ── Ensure TRC tables exist ─────────────────────────────────────────────────
-async function ensureTables(): Promise<void> {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS trc_cases (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id UUID REFERENCES workers(id),
-      worker_name TEXT NOT NULL,
-      nationality TEXT,
-      employer TEXT,
-      permit_type TEXT NOT NULL DEFAULT 'TRC',
-      status TEXT NOT NULL DEFAULT 'documents_gathering',
-      application_date DATE,
-      submission_date DATE,
-      expected_decision_date DATE,
-      actual_decision_date DATE,
-      voivodeship TEXT,
-      appointment_date DATE,
-      renewal_deadline DATE,
-      service_fee NUMERIC(10,2) DEFAULT 0,
-      payment_status TEXT DEFAULT 'unpaid',
-      esspass_status TEXT DEFAULT 'not_applicable',
-      notes TEXT DEFAULT '',
-      ai_checklist JSONB DEFAULT '[]'::jsonb,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS trc_documents (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      case_id UUID REFERENCES trc_cases(id) ON DELETE CASCADE,
-      document_type TEXT NOT NULL,
-      document_name TEXT NOT NULL,
-      is_required BOOLEAN DEFAULT true,
-      is_uploaded BOOLEAN DEFAULT false,
-      is_verified BOOLEAN DEFAULT false,
-      uploaded_at TIMESTAMPTZ,
-      verified_by TEXT,
-      storage_key TEXT,
-      notes TEXT DEFAULT '',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS trc_case_notes (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      case_id UUID REFERENCES trc_cases(id) ON DELETE CASCADE,
-      author TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-}
-
-let tablesReady = false;
-async function initTables(): Promise<void> {
-  if (!tablesReady) {
-    await ensureTables();
-    tablesReady = true;
-  }
-}
-
 // ── 1. GET /api/trc/cases — List all TRC cases ─────────────────────────────
 router.get("/trc/cases", authenticateToken, async (_req, res) => {
   try {
-    await initTables();
     const result = await db.execute(sql`
       SELECT c.*,
         (SELECT COUNT(*)::int FROM trc_documents d WHERE d.case_id = c.id) AS total_documents,
@@ -88,7 +28,6 @@ router.get("/trc/cases", authenticateToken, async (_req, res) => {
 // ── 2. POST /api/trc/cases — Create new TRC case ───────────────────────────
 router.post("/trc/cases", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const {
       worker_id, worker_name, nationality, employer, permit_type,
       application_date, voivodeship, service_fee, notes,
@@ -124,7 +63,6 @@ router.post("/trc/cases", authenticateToken, async (req, res) => {
 // ── 3. GET /api/trc/cases/:id — Get single case with documents and notes ───
 router.get("/trc/cases/:id", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
 
     const caseResult = await db.execute(sql`SELECT * FROM trc_cases WHERE id = ${id}`);
@@ -152,7 +90,6 @@ router.get("/trc/cases/:id", authenticateToken, async (req, res) => {
 // ── 4. PATCH /api/trc/cases/:id — Update case ──────────────────────────────
 router.patch("/trc/cases/:id", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const {
       status, application_date, submission_date, expected_decision_date,
@@ -196,7 +133,6 @@ router.patch("/trc/cases/:id", authenticateToken, async (req, res) => {
 // ── 5. DELETE /api/trc/cases/:id — Delete case ─────────────────────────────
 router.delete("/trc/cases/:id", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const result = await db.execute(sql`DELETE FROM trc_cases WHERE id = ${id} RETURNING id`);
     if (!result.rows.length) {
@@ -211,7 +147,6 @@ router.delete("/trc/cases/:id", authenticateToken, async (req, res) => {
 // ── 6. GET /api/trc/cases/:id/documents — List documents for a case ────────
 router.get("/trc/cases/:id/documents", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const result = await db.execute(sql`
       SELECT * FROM trc_documents WHERE case_id = ${id} ORDER BY created_at ASC
@@ -225,7 +160,6 @@ router.get("/trc/cases/:id/documents", authenticateToken, async (req, res) => {
 // ── 7. POST /api/trc/cases/:id/documents — Add document to case ────────────
 router.post("/trc/cases/:id/documents", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const { document_type, document_name, is_required, storage_key, notes } = req.body;
 
@@ -249,7 +183,6 @@ router.post("/trc/cases/:id/documents", authenticateToken, async (req, res) => {
 // ── 8. PATCH /api/trc/documents/:docId — Update document status ─────────────
 router.patch("/trc/documents/:docId", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { docId } = req.params;
     const { is_uploaded, is_verified, verified_by, storage_key, notes } = req.body;
 
@@ -277,7 +210,6 @@ router.patch("/trc/documents/:docId", authenticateToken, async (req, res) => {
 // ── 9. GET /api/trc/cases/:id/notes — Get case notes ───────────────────────
 router.get("/trc/cases/:id/notes", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const result = await db.execute(sql`
       SELECT * FROM trc_case_notes WHERE case_id = ${id} ORDER BY created_at DESC
@@ -291,7 +223,6 @@ router.get("/trc/cases/:id/notes", authenticateToken, async (req, res) => {
 // ── 10. POST /api/trc/cases/:id/notes — Add note to case ───────────────────
 router.post("/trc/cases/:id/notes", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const { author, content } = req.body;
 
@@ -344,7 +275,6 @@ async function generateChecklistForCase(trcCase: Record<string, unknown>): Promi
 // ── 11. POST /api/trc/cases/:id/generate-checklist — AI document checklist ──
 router.post("/trc/cases/:id/generate-checklist", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
 
     const caseResult = await db.execute(sql`SELECT * FROM trc_cases WHERE id = ${id}`);
@@ -377,7 +307,6 @@ router.post("/trc/cases/:id/generate-checklist", authenticateToken, async (req, 
 // ── 12. POST /api/trc/cases/:id/send-checklist — Email checklist to worker ──
 router.post("/trc/cases/:id/send-checklist", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const { recipient_email } = req.body;
 
@@ -444,7 +373,6 @@ router.post("/trc/cases/:id/send-checklist", authenticateToken, async (req, res)
 // ── 13. GET /api/trc/summary — Dashboard stats ─────────────────────────────
 router.get("/trc/summary", authenticateToken, async (_req, res) => {
   try {
-    await initTables();
 
     const totalResult = await db.execute(sql`SELECT COUNT(*)::int AS total FROM trc_cases`);
     const byStatusResult = await db.execute(sql`
@@ -486,7 +414,6 @@ router.get("/trc/summary", authenticateToken, async (_req, res) => {
 // ── 14. POST /api/trc/cases/:id/invoice — Generate invoice data ─────────────
 router.post("/trc/cases/:id/invoice", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
 
     const caseResult = await db.execute(sql`SELECT * FROM trc_cases WHERE id = ${id}`);
@@ -534,7 +461,6 @@ router.post("/trc/cases/:id/invoice", authenticateToken, async (req, res) => {
 // ── 15. POST /api/trc/cases/:id/notify — Send status update email ───────────
 router.post("/trc/cases/:id/notify", authenticateToken, async (req, res) => {
   try {
-    await initTables();
     const { id } = req.params;
     const { recipient_email, message } = req.body;
 

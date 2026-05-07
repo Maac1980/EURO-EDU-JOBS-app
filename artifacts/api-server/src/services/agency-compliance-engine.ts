@@ -36,101 +36,6 @@ import { safeError } from "../lib/security.js";
 
 const router = Router();
 
-// ═══ TABLE SETUP ════════════════════════════════════════════════════════════
-
-async function ensureComplianceTables() {
-  // Worker-Client assignments (18/36 month tracking)
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_assignments (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      worker_name TEXT,
-      client_id TEXT,
-      client_name TEXT NOT NULL,
-      start_date DATE NOT NULL,
-      end_date DATE,
-      days_worked INT DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'ACTIVE',
-      alert_15m BOOLEAN DEFAULT false,
-      alert_17m BOOLEAN DEFAULT false,
-      blocked_18m BOOLEAN DEFAULT false,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  // Gap 4: Art. 20 enforcement marker (TRUE for agency_leased, FALSE for direct_outsourcing)
-  await db.execute(sql`
-    DO $$ BEGIN
-      ALTER TABLE eej_assignments ADD COLUMN IF NOT EXISTS art_20_enforced BOOLEAN NOT NULL DEFAULT TRUE;
-    EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_assign_worker ON eej_assignments(worker_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_assign_client ON eej_assignments(client_name)`);
-
-  // KRAZ registry
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_kraz (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      kraz_number TEXT NOT NULL,
-      registered_at DATE NOT NULL,
-      valid_until DATE,
-      marshal_office TEXT,
-      voivodeship TEXT,
-      status TEXT NOT NULL DEFAULT 'ACTIVE',
-      last_annual_report DATE,
-      next_annual_report DATE,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  // Notification deadlines
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_compliance_deadlines (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      worker_name TEXT,
-      deadline_type TEXT NOT NULL,
-      deadline_date DATE NOT NULL,
-      reference_event TEXT,
-      reference_date DATE,
-      status TEXT NOT NULL DEFAULT 'PENDING',
-      completed_at TIMESTAMPTZ,
-      completed_by TEXT,
-      legal_basis TEXT,
-      fine_risk TEXT,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_deadlines_worker ON eej_compliance_deadlines(worker_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_deadlines_date ON eej_compliance_deadlines(deadline_date)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_deadlines_status ON eej_compliance_deadlines(status)`);
-
-  // Document retention schedule
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_retention_schedule (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT,
-      document_type TEXT NOT NULL,
-      document_id TEXT,
-      document_name TEXT,
-      retention_category TEXT NOT NULL,
-      retention_years INT NOT NULL,
-      employment_end_date DATE,
-      delete_after DATE,
-      status TEXT NOT NULL DEFAULT 'RETAINED',
-      deleted_at TIMESTAMPTZ,
-      legal_basis TEXT,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_retention_delete ON eej_retention_schedule(delete_after)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_retention_status ON eej_retention_schedule(status)`);
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // P1: 18/36 MONTH ASSIGNMENT LIMITER
 // Art. 20 Temporary Workers Act — max 18 months in 36-month rolling window
@@ -172,7 +77,6 @@ async function getAssignmentDays(workerId: string, clientName: string): Promise<
 // POST create/update assignment
 router.post("/v1/agency/assignments", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const { workerId, workerName, clientName, clientId, startDate, endDate } = req.body as {
       workerId: string; workerName?: string; clientName: string; clientId?: string;
       startDate: string; endDate?: string;
@@ -233,7 +137,6 @@ router.post("/v1/agency/assignments", authenticateToken, async (req, res) => {
 // GET check assignment limits for a worker
 router.get("/v1/agency/assignments/check", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const { workerId, clientName } = req.query as { workerId?: string; clientName?: string };
 
     if (!workerId || !clientName) return res.status(400).json({ error: "workerId and clientName required" });
@@ -269,7 +172,6 @@ router.get("/v1/agency/assignments/check", authenticateToken, async (req, res) =
 // GET scan all workers for assignment limit breaches
 router.get("/v1/agency/assignments/scan", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
 
     // Gap 4: only include rows where Art. 20 is enforced (excludes direct_outsourcing assignments)
     const rows = await db.execute(sql`
@@ -317,7 +219,6 @@ router.get("/v1/agency/assignments/scan", authenticateToken, async (req, res) =>
 // POST register/update KRAZ info
 router.post("/v1/agency/kraz", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const { krazNumber, registeredAt, validUntil, marshalOffice, voivodeship } = req.body as {
       krazNumber: string; registeredAt: string; validUntil?: string; marshalOffice?: string; voivodeship?: string;
     };
@@ -344,7 +245,6 @@ router.post("/v1/agency/kraz", authenticateToken, async (req, res) => {
 // GET KRAZ status
 router.get("/v1/agency/kraz", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const rows = await db.execute(sql`SELECT * FROM eej_kraz WHERE org_context = 'EEJ' ORDER BY created_at DESC LIMIT 1`);
     if (rows.rows.length === 0) return res.json({ kraz: null, warning: "No KRAZ registration on file — operating without KRAZ = 100,000 PLN fine" });
 
@@ -371,7 +271,6 @@ router.get("/v1/agency/kraz", authenticateToken, async (req, res) => {
 // GET generate annual marshal report data
 router.get("/v1/agency/marshal-report", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const { year } = req.query as { year?: string };
     const reportYear = year ?? String(new Date().getFullYear() - 1);
 
@@ -432,7 +331,6 @@ router.get("/v1/agency/marshal-report", authenticateToken, async (req, res) => {
 // POST generate notification deadlines when a worker starts/ends work
 router.post("/v1/agency/notifications/generate", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const { workerId, workerName, eventType, eventDate } = req.body as {
       workerId: string; workerName?: string; eventType: "WORK_START" | "WORK_END" | "NON_COMMENCEMENT"; eventDate: string;
     };
@@ -480,7 +378,6 @@ router.post("/v1/agency/notifications/generate", authenticateToken, async (req, 
 // GET upcoming deadlines (sorted by urgency)
 router.get("/v1/agency/deadlines", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const { status: filterStatus } = req.query as { status?: string };
 
     const overdueRows = await db.execute(sql`
@@ -547,7 +444,6 @@ const RETENTION_RULES: Record<string, { years: number; basis: string }> = {
 // POST schedule retention for a document
 router.post("/v1/agency/retention", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const { workerId, documentType, documentId, documentName, employmentEndDate } = req.body as {
       workerId?: string; documentType: string; documentId?: string; documentName?: string; employmentEndDate?: string;
     };
@@ -589,7 +485,6 @@ router.post("/v1/agency/retention", authenticateToken, async (req, res) => {
 // GET documents due for deletion
 router.get("/v1/agency/retention/due", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const rows = await db.execute(sql`
       SELECT * FROM eej_retention_schedule WHERE org_context = 'EEJ' AND status = 'RETAINED' AND delete_after <= CURRENT_DATE
       ORDER BY delete_after ASC
@@ -603,7 +498,6 @@ router.get("/v1/agency/retention/due", authenticateToken, async (req, res) => {
 // GET PIP inspection pack for a worker
 router.get("/v1/agency/pip-pack/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureComplianceTables();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
 
     // Fetch worker

@@ -1301,6 +1301,131 @@ export async function runMigrations(): Promise<void> {
       notes TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- ─── Commit 3b: TRC FK chain (3 tables) + agency-compliance (4 tables) ───
+    -- FK ordering: trc_cases must precede trc_documents + trc_case_notes
+    CREATE TABLE IF NOT EXISTS trc_cases (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id UUID REFERENCES workers(id),
+      worker_name TEXT NOT NULL,
+      nationality TEXT,
+      employer TEXT,
+      permit_type TEXT NOT NULL DEFAULT 'TRC',
+      status TEXT NOT NULL DEFAULT 'documents_gathering',
+      application_date DATE,
+      submission_date DATE,
+      expected_decision_date DATE,
+      actual_decision_date DATE,
+      voivodeship TEXT,
+      appointment_date DATE,
+      renewal_deadline DATE,
+      service_fee NUMERIC(10,2) DEFAULT 0,
+      payment_status TEXT DEFAULT 'unpaid',
+      esspass_status TEXT DEFAULT 'not_applicable',
+      notes TEXT DEFAULT '',
+      ai_checklist JSONB DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS trc_documents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      case_id UUID REFERENCES trc_cases(id) ON DELETE CASCADE,
+      document_type TEXT NOT NULL,
+      document_name TEXT NOT NULL,
+      is_required BOOLEAN DEFAULT true,
+      is_uploaded BOOLEAN DEFAULT false,
+      is_verified BOOLEAN DEFAULT false,
+      uploaded_at TIMESTAMPTZ,
+      verified_by TEXT,
+      storage_key TEXT,
+      notes TEXT DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS trc_case_notes (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      case_id UUID REFERENCES trc_cases(id) ON DELETE CASCADE,
+      author TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- Agency compliance tables. Gap 4 art_20_enforced inlined into eej_assignments
+    -- CREATE (per Decision 2: column belongs in CREATE TABLE definition).
+    CREATE TABLE IF NOT EXISTS eej_assignments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      worker_name TEXT,
+      client_id TEXT,
+      client_name TEXT NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE,
+      days_worked INT DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      alert_15m BOOLEAN DEFAULT false,
+      alert_17m BOOLEAN DEFAULT false,
+      blocked_18m BOOLEAN DEFAULT false,
+      art_20_enforced BOOLEAN NOT NULL DEFAULT TRUE,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_assign_worker ON eej_assignments(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_assign_client ON eej_assignments(client_name);
+
+    CREATE TABLE IF NOT EXISTS eej_kraz (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      kraz_number TEXT NOT NULL,
+      registered_at DATE NOT NULL,
+      valid_until DATE,
+      marshal_office TEXT,
+      voivodeship TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      last_annual_report DATE,
+      next_annual_report DATE,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS eej_compliance_deadlines (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      worker_name TEXT,
+      deadline_type TEXT NOT NULL,
+      deadline_date DATE NOT NULL,
+      reference_event TEXT,
+      reference_date DATE,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      completed_at TIMESTAMPTZ,
+      completed_by TEXT,
+      legal_basis TEXT,
+      fine_risk TEXT,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_deadlines_worker ON eej_compliance_deadlines(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_deadlines_date ON eej_compliance_deadlines(deadline_date);
+    CREATE INDEX IF NOT EXISTS idx_eej_deadlines_status ON eej_compliance_deadlines(status);
+
+    CREATE TABLE IF NOT EXISTS eej_retention_schedule (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT,
+      document_type TEXT NOT NULL,
+      document_id TEXT,
+      document_name TEXT,
+      retention_category TEXT NOT NULL,
+      retention_years INT NOT NULL,
+      employment_end_date DATE,
+      delete_after DATE,
+      status TEXT NOT NULL DEFAULT 'RETAINED',
+      deleted_at TIMESTAMPTZ,
+      legal_basis TEXT,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_retention_delete ON eej_retention_schedule(delete_after);
+    CREATE INDEX IF NOT EXISTS idx_eej_retention_status ON eej_retention_schedule(status);
   `);
 
   // ═══ Stage 4: TIMESTAMP → TIMESTAMPTZ uniformity ═══

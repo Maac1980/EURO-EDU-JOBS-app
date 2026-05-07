@@ -372,13 +372,11 @@ async function executeTool(toolName: string, toolInput: any): Promise<any> {
     }
 
     case "get_kraz_status": {
-      try {
-        const rows = await db.execute(sql`SELECT * FROM eej_kraz WHERE org_context = 'EEJ' ORDER BY created_at DESC LIMIT 1`);
-        if (rows.rows.length === 0) return { warning: "No KRAZ registration on file" };
-        const k = rows.rows[0] as any;
-        const daysToReport = k.next_annual_report ? Math.ceil((new Date(k.next_annual_report).getTime() - Date.now()) / 86400000) : null;
-        return { krazNumber: k.kraz_number, status: k.status, nextReport: k.next_annual_report, daysToReport };
-      } catch { return { warning: "KRAZ table not initialized" }; }
+      const rows = await db.execute(sql`SELECT * FROM eej_kraz WHERE org_context = 'EEJ' ORDER BY created_at DESC LIMIT 1`);
+      if (rows.rows.length === 0) return { warning: "No KRAZ registration on file" };
+      const k = rows.rows[0] as any;
+      const daysToReport = k.next_annual_report ? Math.ceil((new Date(k.next_annual_report).getTime() - Date.now()) / 86400000) : null;
+      return { krazNumber: k.kraz_number, status: k.status, nextReport: k.next_annual_report, daysToReport };
     }
 
     default:

@@ -67,90 +67,6 @@ const STAGE_DOC_TEMPLATES: Record<string, { type: string; titlePl: string; title
   APPROVED: { type: "COMPLIANCE_CONFIRMATION", titlePl: "Potwierdzenie zgodności", titleEn: "Compliance Confirmation for Worker + Employer", prompt: "Generate a compliance confirmation document for both the worker and employer." },
 };
 
-// ═══ TABLE SETUP ════════════════════════════════════════════════════════════
-
-async function ensureTables() {
-  // T1: Legal Cases
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_legal_cases (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      worker_name TEXT,
-      case_type TEXT NOT NULL DEFAULT 'TRC',
-      status TEXT NOT NULL DEFAULT 'NEW',
-      appeal_deadline DATE,
-      next_action TEXT,
-      blocker_type TEXT NOT NULL DEFAULT 'NONE',
-      blocker_reason TEXT,
-      stage_entered_at TIMESTAMPTZ DEFAULT NOW(),
-      sla_deadline TIMESTAMPTZ,
-      voivodeship TEXT,
-      mos_fee_pln NUMERIC(10,2),
-      notes TEXT,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_cases_worker ON eej_legal_cases(worker_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_cases_status ON eej_legal_cases(status)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_cases_sla ON eej_legal_cases(sla_deadline)`);
-
-  // T2: Generated Documents
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_case_generated_docs (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      case_id UUID NOT NULL,
-      doc_type TEXT NOT NULL,
-      title_pl TEXT NOT NULL,
-      title_en TEXT NOT NULL,
-      content_pl TEXT,
-      content_en TEXT,
-      stage_trigger TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'DRAFT',
-      reviewed_by TEXT,
-      reviewed_at TIMESTAMPTZ,
-      review_notes TEXT,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_docs_case ON eej_case_generated_docs(case_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_docs_status ON eej_case_generated_docs(status)`);
-
-  // T3: Case Notebook
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_case_notebook (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      case_id UUID NOT NULL,
-      entry_type TEXT NOT NULL DEFAULT 'manual',
-      title TEXT NOT NULL,
-      content TEXT,
-      author TEXT NOT NULL DEFAULT 'system',
-      search_vector TSVECTOR,
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_notebook_case ON eej_case_notebook(case_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_notebook_search ON eej_case_notebook USING GIN(search_vector)`);
-  // Auto-populate search vector
-  await db.execute(sql`
-    CREATE OR REPLACE FUNCTION eej_notebook_search_update() RETURNS TRIGGER AS $$
-    BEGIN
-      NEW.search_vector := to_tsvector('simple', COALESCE(NEW.title, '') || ' ' || COALESCE(NEW.content, ''));
-      RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql
-  `);
-  await db.execute(sql`
-    DO $$ BEGIN
-      CREATE TRIGGER eej_notebook_search_trigger BEFORE INSERT OR UPDATE ON eej_case_notebook
-        FOR EACH ROW EXECUTE FUNCTION eej_notebook_search_update();
-    EXCEPTION WHEN duplicate_object THEN NULL; END $$
-  `);
-}
-
 // ═══ NOTEBOOK HELPER ════════════════════════════════════════════════════════
 
 async function logNotebook(caseId: string, entryType: string, title: string, content: string, author: string) {
@@ -206,7 +122,6 @@ async function generateStageDocument(caseId: string, caseData: any, newStatus: s
 // GET all cases (with filtering)
 router.get("/v1/legal/cases", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { status, workerId, caseType, limit: lim } = req.query as Record<string, string | undefined>;
     const maxRows = Math.min(parseInt(lim ?? "100", 10), 500);
 
@@ -228,7 +143,6 @@ router.get("/v1/legal/cases", authenticateToken, async (req, res) => {
 // GET case queue (SLA-sorted, blockers first)
 router.get("/v1/legal/cases/queue", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
 
     const blockedRows = await db.execute(sql`
       SELECT * FROM eej_legal_cases WHERE org_context = 'EEJ' AND blocker_type = 'HARD' AND status NOT IN ('APPROVED', 'REJECTED')
@@ -265,7 +179,6 @@ router.get("/v1/legal/cases/queue", authenticateToken, async (req, res) => {
 // POST create new case
 router.post("/v1/legal/cases", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, workerName, caseType, voivodeship, mosFee, notes } = req.body as {
       workerId: string; workerName?: string; caseType?: string; voivodeship?: string; mosFee?: number; notes?: string;
     };
@@ -298,7 +211,6 @@ router.post("/v1/legal/cases", authenticateToken, async (req, res) => {
 // PATCH update case (status transition)
 router.patch("/v1/legal/cases/:id", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const { status: newStatus, notes, nextAction, appealDeadline } = req.body as {
       status?: string; notes?: string; nextAction?: string; appealDeadline?: string;
@@ -369,7 +281,6 @@ router.patch("/v1/legal/cases/:id", authenticateToken, async (req, res) => {
 // GET docs for a case
 router.get("/v1/legal/cases/:id/docs", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const rows = await db.execute(sql`SELECT * FROM eej_case_generated_docs WHERE case_id = ${caseId} AND org_context = 'EEJ' ORDER BY created_at DESC`);
     return res.json({ docs: rows.rows, total: rows.rows.length });
@@ -381,7 +292,6 @@ router.get("/v1/legal/cases/:id/docs", authenticateToken, async (req, res) => {
 // GET lawyer review queue (all DRAFT docs)
 router.get("/v1/legal/docs/review-queue", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const rows = await db.execute(sql`
       SELECT d.*, c.worker_name, c.case_type, c.voivodeship
       FROM eej_case_generated_docs d
@@ -427,7 +337,6 @@ router.patch("/v1/legal/docs/:id/review", authenticateToken, async (req, res) =>
 // GET notebook entries for a case
 router.get("/v1/legal/cases/:id/notebook", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const rows = await db.execute(sql`
       SELECT * FROM eej_case_notebook WHERE case_id = ${caseId} AND org_context = 'EEJ' ORDER BY created_at DESC
@@ -441,7 +350,6 @@ router.get("/v1/legal/cases/:id/notebook", authenticateToken, async (req, res) =
 // POST manual notebook entry
 router.post("/v1/legal/cases/:id/notebook", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const { title, content } = req.body as { title: string; content?: string };
 
@@ -458,7 +366,6 @@ router.post("/v1/legal/cases/:id/notebook", authenticateToken, async (req, res) 
 // GET full-text search across all notebooks
 router.get("/v1/legal/notebook/search", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { q, limit: lim } = req.query as { q?: string; limit?: string };
     if (!q) return res.status(400).json({ error: "q (search query) is required" });
 

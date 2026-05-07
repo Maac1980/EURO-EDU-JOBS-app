@@ -1404,3 +1404,67 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pattern B centralization 3c — legal-intelligence + legal-case-engine + trigger.
+// 8 tables + 1 PL/pgSQL trigger function + 1 trigger migrated from request-time
+// helpers (legal-intelligence ensureTables + legal-case-engine ensureTables) to
+// migrate.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: Pattern B centralization 3c — legal tables + trigger (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("all 8 centralized legal tables exist after migrations", async () => {
+      const expected = [
+        "research_memos", "appeal_outputs", "poa_documents", "authority_drafts", "case_tasks",
+        "eej_legal_cases", "eej_case_generated_docs", "eej_case_notebook",
+      ];
+      for (const t of expected) {
+        const e = await pool.query("SELECT to_regclass($1) AS r", [`public.${t}`]);
+        expect(e.rows[0].r, `Table ${t} should exist`).toBeTruthy();
+      }
+    });
+
+    it("UNIQUE(case_id, task_key) preserved on case_tasks", async () => {
+      const cid = `test-task-${Date.now()}`;
+      await pool.query(`INSERT INTO case_tasks (case_id, task_key, label) VALUES ($1, 'k1', 'test')`, [cid]);
+      await expect(
+        pool.query(`INSERT INTO case_tasks (case_id, task_key, label) VALUES ($1, 'k1', 'dup')`, [cid])
+      ).rejects.toThrow(/unique|duplicate/i);
+      await pool.query(`DELETE FROM case_tasks WHERE case_id = $1`, [cid]);
+    });
+
+    it("eej_notebook_search_update function exists in pg_proc", async () => {
+      const r = await pool.query(
+        `SELECT proname FROM pg_proc WHERE proname = 'eej_notebook_search_update'`
+      );
+      expect(r.rows.length).toBe(1);
+    });
+
+    it("trigger eej_notebook_search_trigger fires on insert (search_vector populated)", async () => {
+      const caseId = (await pool.query(`SELECT gen_random_uuid() AS id`)).rows[0].id;
+      const ins = await pool.query(
+        `INSERT INTO eej_case_notebook (case_id, title, content) VALUES ($1, 'Polish appeal letter', 'Article 127 KPA reference') RETURNING search_vector::text AS sv`,
+        [caseId]
+      );
+      const sv = (ins.rows[0] as any).sv;
+      expect(sv).toBeTruthy();
+      expect(sv.length).toBeGreaterThan(0);
+      // tsvector format: 'word':position 'word2':position ...
+      expect(sv).toContain("'");
+      await pool.query(`DELETE FROM eej_case_notebook WHERE case_id = $1`, [caseId]);
+    });
+  }
+);

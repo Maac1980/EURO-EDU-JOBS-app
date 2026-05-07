@@ -135,47 +135,11 @@ async function callPerplexity(system: string, query: string): Promise<{ answer: 
 
 // ═══ TABLE SETUP ════════════════════════════════════════════════════════════
 
-async function ensureTables() {
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS research_memos (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), title TEXT NOT NULL, memo_type TEXT NOT NULL,
-    prompt TEXT NOT NULL, perplexity_answer TEXT DEFAULT '', sources JSONB DEFAULT '[]'::jsonb,
-    summary TEXT DEFAULT '', action_items JSONB DEFAULT '[]'::jsonb, owner TEXT DEFAULT '',
-    linked_worker_id TEXT, linked_case_id TEXT, status TEXT DEFAULT 'draft',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  )`);
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS appeal_outputs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), worker_id TEXT NOT NULL, case_id TEXT,
-    rejection_text TEXT, appeal_draft_pl TEXT DEFAULT '', appeal_draft_en TEXT DEFAULT '',
-    worker_explanation TEXT DEFAULT '', client_explanation TEXT DEFAULT '',
-    appeal_grounds JSONB DEFAULT '[]'::jsonb, missing_evidence JSONB DEFAULT '[]'::jsonb,
-    relevant_articles JSONB DEFAULT '[]'::jsonb, lawyer_note TEXT DEFAULT '',
-    status TEXT DEFAULT 'draft', provider_status JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  )`);
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS poa_documents (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), worker_id TEXT NOT NULL, case_id TEXT,
-    poa_type TEXT NOT NULL, content_pl TEXT NOT NULL, representative_name TEXT NOT NULL,
-    status TEXT DEFAULT 'draft', created_at TIMESTAMPTZ DEFAULT NOW()
-  )`);
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS authority_drafts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), worker_id TEXT NOT NULL, case_id TEXT,
-    draft_type TEXT NOT NULL, content_pl TEXT DEFAULT '', content_en TEXT DEFAULT '',
-    status TEXT DEFAULT 'draft', created_at TIMESTAMPTZ DEFAULT NOW()
-  )`);
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS case_tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), case_id TEXT NOT NULL,
-    task_key TEXT NOT NULL, label TEXT NOT NULL, status TEXT DEFAULT 'not_started',
-    required BOOLEAN DEFAULT true, notes TEXT, updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(case_id, task_key)
-  )`);
-}
-
 // ═══ ROUTES ═════════════════════════════════════════════════════════════════
 
 // --- Research Workspace ---
 router.post("/legal-intelligence/research", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { title, memoType, prompt, linkedWorkerId } = req.body;
     if (!title || !prompt) return res.status(400).json({ error: "title and prompt required" });
 
@@ -200,7 +164,6 @@ router.post("/legal-intelligence/research", authenticateToken, async (req, res) 
 
 router.get("/legal-intelligence/research", authenticateToken, async (_req, res) => {
   try {
-    await ensureTables();
     const rows = await db.execute(sql`SELECT * FROM research_memos ORDER BY created_at DESC LIMIT 30`);
     res.json({ memos: rows.rows });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -209,7 +172,6 @@ router.get("/legal-intelligence/research", authenticateToken, async (_req, res) 
 // --- Appeal Assistant ---
 router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, caseId, rejectionText } = req.body;
     if (!workerId) return res.status(400).json({ error: "workerId required" });
 
@@ -286,7 +248,6 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
 // --- POA Generator ---
 router.post("/legal-intelligence/poa", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, caseId, poaType, representativeName } = req.body;
     if (!workerId || !representativeName) return res.status(400).json({ error: "workerId and representativeName required" });
 
@@ -318,7 +279,6 @@ router.post("/legal-intelligence/poa", authenticateToken, async (req, res) => {
 // --- Authority Drafting ---
 router.post("/legal-intelligence/authority-draft", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, caseId, draftType, specificIssue, authorityName } = req.body;
     if (!workerId || !specificIssue) return res.status(400).json({ error: "workerId and specificIssue required" });
 

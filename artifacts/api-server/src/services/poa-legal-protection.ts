@@ -231,11 +231,9 @@ router.get("/v1/legal/escalation-check/:caseId", authenticateToken, async (req, 
   try {
     const caseId = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId;
 
-    let caseData: any = null;
-    try {
-      const rows = await db.execute(sql`SELECT * FROM eej_legal_cases WHERE id = ${caseId} AND org_context = 'EEJ'`);
-      caseData = rows.rows[0] ?? null;
-    } catch { /* table may not exist */ }
+    // eej_legal_cases centralized in migrate.ts (Commit 3c)
+    const rows = await db.execute(sql`SELECT * FROM eej_legal_cases WHERE id = ${caseId} AND org_context = 'EEJ'`);
+    const caseData = rows.rows[0] ?? null;
 
     if (!caseData) return res.status(404).json({ error: "Case not found" });
 

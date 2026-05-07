@@ -903,6 +903,130 @@ export const eejRetentionSchedule = pgTable("eej_retention_schedule", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+// ── Legal intelligence research workspace (Pattern B Commit 3c) ────────────
+export const researchMemos = pgTable("research_memos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  memoType: text("memo_type").notNull(),
+  prompt: text("prompt").notNull(),
+  perplexityAnswer: text("perplexity_answer").default(""),
+  sources: jsonb("sources").default([]),
+  summary: text("summary").default(""),
+  actionItems: jsonb("action_items").default([]),
+  owner: text("owner").default(""),
+  linkedWorkerId: text("linked_worker_id"),
+  linkedCaseId: text("linked_case_id"),
+  status: text("status").default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const appealOutputs = pgTable("appeal_outputs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  caseId: text("case_id"),
+  rejectionText: text("rejection_text"),
+  appealDraftPl: text("appeal_draft_pl").default(""),
+  appealDraftEn: text("appeal_draft_en").default(""),
+  workerExplanation: text("worker_explanation").default(""),
+  clientExplanation: text("client_explanation").default(""),
+  appealGrounds: jsonb("appeal_grounds").default([]),
+  missingEvidence: jsonb("missing_evidence").default([]),
+  relevantArticles: jsonb("relevant_articles").default([]),
+  lawyerNote: text("lawyer_note").default(""),
+  status: text("status").default("draft"),
+  providerStatus: jsonb("provider_status").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const poaDocuments = pgTable("poa_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  caseId: text("case_id"),
+  poaType: text("poa_type").notNull(),
+  contentPl: text("content_pl").notNull(),
+  representativeName: text("representative_name").notNull(),
+  status: text("status").default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const authorityDrafts = pgTable("authority_drafts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  caseId: text("case_id"),
+  draftType: text("draft_type").notNull(),
+  contentPl: text("content_pl").default(""),
+  contentEn: text("content_en").default(""),
+  status: text("status").default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const caseTasks = pgTable("case_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  caseId: text("case_id").notNull(),
+  taskKey: text("task_key").notNull(),
+  label: text("label").notNull(),
+  status: text("status").default("not_started"),
+  required: boolean("required").default(true),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ── Legal case engine (Pattern B Commit 3c) ────────────────────────────────
+// Sovereign Intelligence Hub workflow tables. case_id columns on
+// eej_case_generated_docs and eej_case_notebook are intentional soft references
+// (no FK) — preserve as-is per helper definition.
+export const eejLegalCases = pgTable("eej_legal_cases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  workerName: text("worker_name"),
+  caseType: text("case_type").notNull().default("TRC"),
+  status: text("status").notNull().default("NEW"),
+  appealDeadline: date("appeal_deadline"),
+  nextAction: text("next_action"),
+  blockerType: text("blocker_type").notNull().default("NONE"),
+  blockerReason: text("blocker_reason"),
+  stageEnteredAt: timestamp("stage_entered_at", { withTimezone: true }).defaultNow(),
+  slaDeadline: timestamp("sla_deadline", { withTimezone: true }),
+  voivodeship: text("voivodeship"),
+  mosFeePln: numeric("mos_fee_pln", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejCaseGeneratedDocs = pgTable("eej_case_generated_docs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  caseId: uuid("case_id").notNull(),
+  docType: text("doc_type").notNull(),
+  titlePl: text("title_pl").notNull(),
+  titleEn: text("title_en").notNull(),
+  contentPl: text("content_pl"),
+  contentEn: text("content_en"),
+  stageTrigger: text("stage_trigger").notNull(),
+  status: text("status").notNull().default("DRAFT"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNotes: text("review_notes"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// search_vector is TSVECTOR maintained by the eej_notebook_search_trigger.
+// Drizzle has no native TSVECTOR type — declared as text() workaround.
+// Application code must NEVER write to search_vector directly; trigger handles it.
+export const eejCaseNotebook = pgTable("eej_case_notebook", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  caseId: uuid("case_id").notNull(),
+  entryType: text("entry_type").notNull().default("manual"),
+  title: text("title").notNull(),
+  content: text("content"),
+  author: text("author").notNull().default("system"),
+  searchVector: text("search_vector"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 // ── A1 certificates (EU social security documents for posted Polish workers) ──
 export const a1Certificates = pgTable("a1_certificates", {
   id: uuid("id").primaryKey().defaultRandom(),

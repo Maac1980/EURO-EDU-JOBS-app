@@ -407,13 +407,12 @@ router.get("/v1/agency/compliance-certificate", authenticateToken, async (req, r
 
     // Legal cases resolved
     let casesResolved = 0;
-    try {
-      const caseRows = await db.execute(sql`
-        SELECT COUNT(*)::INT as count FROM eej_legal_cases
-        WHERE org_context = 'EEJ' AND status = 'APPROVED' AND updated_at >= ${dateFrom}::DATE
-      `);
-      casesResolved = (caseRows.rows[0] as any)?.count ?? 0;
-    } catch { /* table may not exist */ }
+    // eej_legal_cases centralized in migrate.ts (Commit 3c)
+    const caseRows = await db.execute(sql`
+      SELECT COUNT(*)::INT as count FROM eej_legal_cases
+      WHERE org_context = 'EEJ' AND status = 'APPROVED' AND updated_at >= ${dateFrom}::DATE
+    `);
+    casesResolved = (caseRows.rows[0] as any)?.count ?? 0;
 
     // Nationalities served
     const natRows = await db.execute(sql`
@@ -572,15 +571,13 @@ router.post("/v1/agency/defect-escalation", authenticateToken, async (req, res) 
   try {
     const recipientEmail = (req as any).user?.email ?? process.env.ALERT_EMAIL_TO ?? "anna@edu-jobs.eu";
 
-    let defectCases: any[] = [];
-    try {
-      const rows = await db.execute(sql`
-        SELECT * FROM eej_legal_cases
-        WHERE org_context = 'EEJ' AND status = 'DEFECT_NOTICE'
-        ORDER BY sla_deadline ASC
-      `);
-      defectCases = rows.rows as any[];
-    } catch { /* table may not exist */ }
+    // eej_legal_cases centralized in migrate.ts (Commit 3c)
+    const rows = await db.execute(sql`
+      SELECT * FROM eej_legal_cases
+      WHERE org_context = 'EEJ' AND status = 'DEFECT_NOTICE'
+      ORDER BY sla_deadline ASC
+    `);
+    const defectCases = rows.rows as any[];
 
     const alerts: any[] = [];
 

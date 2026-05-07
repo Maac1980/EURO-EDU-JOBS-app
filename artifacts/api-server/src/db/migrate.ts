@@ -1426,6 +1426,150 @@ export async function runMigrations(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_eej_retention_delete ON eej_retention_schedule(delete_after);
     CREATE INDEX IF NOT EXISTS idx_eej_retention_status ON eej_retention_schedule(status);
+
+    -- ─── Commit 3c: legal-intelligence (5 tables) + legal-case-engine (3 tables) ───
+    -- Note: eej_case_generated_docs.case_id and eej_case_notebook.case_id are
+    -- intentionally soft references (no FK), so order between these is flexible.
+    CREATE TABLE IF NOT EXISTS research_memos (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title TEXT NOT NULL,
+      memo_type TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      perplexity_answer TEXT DEFAULT '',
+      sources JSONB DEFAULT '[]'::jsonb,
+      summary TEXT DEFAULT '',
+      action_items JSONB DEFAULT '[]'::jsonb,
+      owner TEXT DEFAULT '',
+      linked_worker_id TEXT,
+      linked_case_id TEXT,
+      status TEXT DEFAULT 'draft',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS appeal_outputs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      case_id TEXT,
+      rejection_text TEXT,
+      appeal_draft_pl TEXT DEFAULT '',
+      appeal_draft_en TEXT DEFAULT '',
+      worker_explanation TEXT DEFAULT '',
+      client_explanation TEXT DEFAULT '',
+      appeal_grounds JSONB DEFAULT '[]'::jsonb,
+      missing_evidence JSONB DEFAULT '[]'::jsonb,
+      relevant_articles JSONB DEFAULT '[]'::jsonb,
+      lawyer_note TEXT DEFAULT '',
+      status TEXT DEFAULT 'draft',
+      provider_status JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS poa_documents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      case_id TEXT,
+      poa_type TEXT NOT NULL,
+      content_pl TEXT NOT NULL,
+      representative_name TEXT NOT NULL,
+      status TEXT DEFAULT 'draft',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS authority_drafts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      case_id TEXT,
+      draft_type TEXT NOT NULL,
+      content_pl TEXT DEFAULT '',
+      content_en TEXT DEFAULT '',
+      status TEXT DEFAULT 'draft',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS case_tasks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      case_id TEXT NOT NULL,
+      task_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      status TEXT DEFAULT 'not_started',
+      required BOOLEAN DEFAULT true,
+      notes TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(case_id, task_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS eej_legal_cases (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      worker_name TEXT,
+      case_type TEXT NOT NULL DEFAULT 'TRC',
+      status TEXT NOT NULL DEFAULT 'NEW',
+      appeal_deadline DATE,
+      next_action TEXT,
+      blocker_type TEXT NOT NULL DEFAULT 'NONE',
+      blocker_reason TEXT,
+      stage_entered_at TIMESTAMPTZ DEFAULT NOW(),
+      sla_deadline TIMESTAMPTZ,
+      voivodeship TEXT,
+      mos_fee_pln NUMERIC(10,2),
+      notes TEXT,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_cases_worker ON eej_legal_cases(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_cases_status ON eej_legal_cases(status);
+    CREATE INDEX IF NOT EXISTS idx_eej_cases_sla ON eej_legal_cases(sla_deadline);
+
+    CREATE TABLE IF NOT EXISTS eej_case_generated_docs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      case_id UUID NOT NULL,
+      doc_type TEXT NOT NULL,
+      title_pl TEXT NOT NULL,
+      title_en TEXT NOT NULL,
+      content_pl TEXT,
+      content_en TEXT,
+      stage_trigger TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'DRAFT',
+      reviewed_by TEXT,
+      reviewed_at TIMESTAMPTZ,
+      review_notes TEXT,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_docs_case ON eej_case_generated_docs(case_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_docs_status ON eej_case_generated_docs(status);
+
+    CREATE TABLE IF NOT EXISTS eej_case_notebook (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      case_id UUID NOT NULL,
+      entry_type TEXT NOT NULL DEFAULT 'manual',
+      title TEXT NOT NULL,
+      content TEXT,
+      author TEXT NOT NULL DEFAULT 'system',
+      search_vector TSVECTOR,
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_notebook_case ON eej_case_notebook(case_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_notebook_search ON eej_case_notebook USING GIN(search_vector);
+  `);
+
+  // 3c trigger: auto-populate eej_case_notebook.search_vector for full-text search.
+  // Separate db.execute() because DROP TRIGGER ... ON eej_case_notebook requires
+  // the table to exist (created in the block above). CREATE OR REPLACE FUNCTION
+  // and DROP TRIGGER IF EXISTS + CREATE TRIGGER are both idempotent.
+  await db.execute(sql`
+    CREATE OR REPLACE FUNCTION eej_notebook_search_update() RETURNS TRIGGER AS $$
+    BEGIN
+      NEW.search_vector := to_tsvector('simple', COALESCE(NEW.title, '') || ' ' || COALESCE(NEW.content, ''));
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS eej_notebook_search_trigger ON eej_case_notebook;
+    CREATE TRIGGER eej_notebook_search_trigger BEFORE INSERT OR UPDATE ON eej_case_notebook
+      FOR EACH ROW EXECUTE FUNCTION eej_notebook_search_update();
   `);
 
   // ═══ Stage 4: TIMESTAMP → TIMESTAMPTZ uniformity ═══

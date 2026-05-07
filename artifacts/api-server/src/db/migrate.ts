@@ -524,13 +524,6 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE portal_daily_logs ALTER COLUMN hours TYPE NUMERIC(8,2) USING hours::NUMERIC(8,2);
     EXCEPTION WHEN others THEN NULL; END $$;
 
-    -- Extend legal_evidence for working documents
-    DO $$ BEGIN
-      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS notes TEXT;
-      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'uploaded';
-      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb;
-    END $$;
-
     -- Enrich contract_templates with suggestion metadata
     DO $$ BEGIN
       ALTER TABLE contract_templates ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'inne';
@@ -666,6 +659,13 @@ export async function runMigrations(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_legal_evidence_worker ON legal_evidence(worker_id);
     CREATE INDEX IF NOT EXISTS idx_legal_evidence_case ON legal_evidence(case_id);
+
+    -- Extend legal_evidence for working documents (moved post-CREATE for fresh-DB safety)
+    DO $$ BEGIN
+      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'uploaded';
+      ALTER TABLE legal_evidence ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS legal_documents (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

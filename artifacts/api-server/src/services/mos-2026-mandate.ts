@@ -17,31 +17,6 @@ import { calculateSchengen90180 } from "./schengen-calculator.js";
 
 const router = Router();
 
-// ═══ TABLE SETUP ════════════════════════════════════════════════════════════
-
-async function ensureTables() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS employer_signature_links (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      employer_name TEXT NOT NULL,
-      employer_nip TEXT,
-      link_url TEXT,
-      sent_at TIMESTAMPTZ DEFAULT NOW(),
-      signed BOOLEAN DEFAULT false,
-      signed_at TIMESTAMPTZ,
-      deadline TIMESTAMPTZ NOT NULL,
-      alert_sent BOOLEAN DEFAULT false,
-      notes TEXT,
-      created_by TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  // upo_vault centralized in migrate.ts (Commit 3a). employer_signature_links
-  // stays here pending Commit 3d centralization.
-}
-
 // ═══ TASK 1: MOS DATA EXPORTER ══════════════════════════════════════════════
 
 interface MOSSubmissionSheet {
@@ -90,32 +65,30 @@ router.post("/mos2026/submission-sheet/:workerId", authenticateToken, async (req
     };
 
     // Check employer signature status (Gap 1: block if unsigned)
+    // employer_signature_links centralized in migrate.ts (Commit 3d)
     let employerSigned = false;
     let signatureStatus = "NOT_CHECKED";
-    try {
-      await ensureTables();
-      const sigRows = await db.execute(sql`
-        SELECT signed, deadline FROM employer_signature_links
-        WHERE worker_id = ${wid} AND signed = true
+    const sigRows = await db.execute(sql`
+      SELECT signed, deadline FROM employer_signature_links
+      WHERE worker_id = ${wid} AND signed = true
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    if (sigRows.rows.length > 0) {
+      employerSigned = true;
+      signatureStatus = "SIGNED";
+    } else {
+      const pendingRows = await db.execute(sql`
+        SELECT deadline FROM employer_signature_links
+        WHERE worker_id = ${wid} AND signed = false
         ORDER BY created_at DESC LIMIT 1
       `);
-      if (sigRows.rows.length > 0) {
-        employerSigned = true;
-        signatureStatus = "SIGNED";
+      if (pendingRows.rows.length > 0) {
+        const dl = new Date((pendingRows.rows[0] as any).deadline);
+        signatureStatus = dl < new Date() ? "EXPIRED — ANNEX 1 NOT SIGNED (application paralyzed)" : "PENDING — awaiting employer signature";
       } else {
-        const pendingRows = await db.execute(sql`
-          SELECT deadline FROM employer_signature_links
-          WHERE worker_id = ${wid} AND signed = false
-          ORDER BY created_at DESC LIMIT 1
-        `);
-        if (pendingRows.rows.length > 0) {
-          const dl = new Date((pendingRows.rows[0] as any).deadline);
-          signatureStatus = dl < new Date() ? "EXPIRED — ANNEX 1 NOT SIGNED (application paralyzed)" : "PENDING — awaiting employer signature";
-        } else {
-          signatureStatus = "NO_LINK_SENT — employer digital link has not been created";
-        }
+        signatureStatus = "NO_LINK_SENT — employer digital link has not been created";
       }
-    } catch { /* table may not exist */ }
+    }
 
     // Build checklist
     const checklist: MOSSubmissionSheet["checklist"] = [
@@ -200,7 +173,6 @@ router.post("/mos2026/submission-sheet/:workerId", authenticateToken, async (req
 
 router.post("/mos2026/signature-link", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, employerName, employerNip, linkUrl, deadlineDays, notes } = req.body as {
       workerId: string; employerName: string; employerNip?: string;
       linkUrl?: string; deadlineDays?: number; notes?: string;
@@ -236,7 +208,6 @@ router.post("/mos2026/signature-link/:id/signed", authenticateToken, async (req,
 
 router.get("/mos2026/signature-links", authenticateToken, async (_req, res) => {
   try {
-    await ensureTables();
     const rows = await db.execute(sql`
       SELECT sl.*, w.name as worker_name
       FROM employer_signature_links sl
@@ -275,7 +246,6 @@ router.get("/mos2026/signature-links", authenticateToken, async (_req, res) => {
 
 router.post("/mos2026/upo", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, submissionNumber, submissionDate, authority, caseType, fileName, notes } = req.body as {
       workerId: string; submissionNumber: string; submissionDate: string;
       authority?: string; caseType?: string; fileName?: string; notes?: string;
@@ -320,7 +290,6 @@ router.post("/mos2026/upo", authenticateToken, async (req, res) => {
 
 router.get("/mos2026/upo/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const rows = await db.execute(sql`
       SELECT * FROM upo_vault WHERE worker_id = ${wid} ORDER BY submission_date DESC

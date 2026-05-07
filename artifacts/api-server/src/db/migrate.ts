@@ -1553,6 +1553,104 @@ export async function runMigrations(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_eej_notebook_case ON eej_case_notebook(case_id);
     CREATE INDEX IF NOT EXISTS idx_eej_notebook_search ON eej_case_notebook USING GIN(search_vector);
+
+    -- ─── Commit 3d: knowledge-graph + POA + signature (FINAL Pattern B closure) ───
+    -- FK ordering: kg_nodes precedes kg_edges (which has 2 FKs to kg_nodes).
+    -- kg_nodes PK is TEXT (intentional — graph IDs are domain-specific strings).
+    CREATE TABLE IF NOT EXISTS kg_nodes (
+      id TEXT PRIMARY KEY,
+      node_type TEXT NOT NULL,
+      label TEXT NOT NULL,
+      properties JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_kg_nodes_type ON kg_nodes(node_type);
+
+    CREATE TABLE IF NOT EXISTS kg_edges (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      source_id TEXT NOT NULL REFERENCES kg_nodes(id) ON DELETE CASCADE,
+      target_id TEXT NOT NULL REFERENCES kg_nodes(id) ON DELETE CASCADE,
+      edge_type TEXT NOT NULL,
+      weight REAL DEFAULT 1.0,
+      properties JSONB DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(source_id, target_id, edge_type)
+    );
+    CREATE INDEX IF NOT EXISTS idx_kg_edges_source ON kg_edges(source_id);
+    CREATE INDEX IF NOT EXISTS idx_kg_edges_target ON kg_edges(target_id);
+    CREATE INDEX IF NOT EXISTS idx_kg_edges_type ON kg_edges(edge_type);
+
+    CREATE TABLE IF NOT EXISTS kg_patterns (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      pattern_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      conditions JSONB DEFAULT '{}'::jsonb,
+      outcome TEXT NOT NULL,
+      frequency INT DEFAULT 1,
+      confidence REAL DEFAULT 0.5,
+      example_worker_ids JSONB DEFAULT '[]'::jsonb,
+      legal_articles JSONB DEFAULT '[]'::jsonb,
+      voivodeships JSONB DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS eej_poa_registry (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      worker_name TEXT,
+      representative_name TEXT NOT NULL,
+      representative_role TEXT,
+      case_type TEXT NOT NULL,
+      case_number TEXT,
+      voivodeship TEXT,
+      scope TEXT NOT NULL,
+      stamp_duty_paid BOOLEAN DEFAULT false,
+      stamp_duty_amount NUMERIC(10,2) DEFAULT 17.00,
+      filed_at_office BOOLEAN DEFAULT false,
+      filed_date DATE,
+      valid_until DATE,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_poa_worker ON eej_poa_registry(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_eej_poa_status ON eej_poa_registry(status);
+
+    CREATE TABLE IF NOT EXISTS eej_rodo_consents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      worker_name TEXT,
+      consent_type TEXT NOT NULL,
+      consent_language TEXT NOT NULL DEFAULT 'pl',
+      signed_date DATE,
+      privacy_notice_delivered BOOLEAN DEFAULT false,
+      privacy_notice_language TEXT,
+      data_auth_employee TEXT,
+      data_auth_issued_date DATE,
+      retention_end_date DATE,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      org_context TEXT NOT NULL DEFAULT 'EEJ',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_eej_rodo_worker ON eej_rodo_consents(worker_id);
+
+    CREATE TABLE IF NOT EXISTS employer_signature_links (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      worker_id TEXT NOT NULL,
+      employer_name TEXT NOT NULL,
+      employer_nip TEXT,
+      link_url TEXT,
+      sent_at TIMESTAMPTZ DEFAULT NOW(),
+      signed BOOLEAN DEFAULT false,
+      signed_at TIMESTAMPTZ,
+      deadline TIMESTAMPTZ NOT NULL,
+      alert_sent BOOLEAN DEFAULT false,
+      notes TEXT,
+      created_by TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   // 3c trigger: auto-populate eej_case_notebook.search_vector for full-text search.

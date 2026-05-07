@@ -46,56 +46,6 @@ interface GraphEdge {
 
 // ═══ TABLE SETUP ════════════════════════════════════════════════════════════
 
-async function ensureGraphTables() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS kg_nodes (
-      id TEXT PRIMARY KEY,
-      node_type TEXT NOT NULL,
-      label TEXT NOT NULL,
-      properties JSONB DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS kg_edges (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      source_id TEXT NOT NULL REFERENCES kg_nodes(id) ON DELETE CASCADE,
-      target_id TEXT NOT NULL REFERENCES kg_nodes(id) ON DELETE CASCADE,
-      edge_type TEXT NOT NULL,
-      weight REAL DEFAULT 1.0,
-      properties JSONB DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(source_id, target_id, edge_type)
-    )
-  `);
-
-  // Index for fast traversal
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_kg_edges_source ON kg_edges(source_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_kg_edges_target ON kg_edges(target_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_kg_edges_type ON kg_edges(edge_type)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_kg_nodes_type ON kg_nodes(node_type)`);
-
-  // Pattern memory table — stores discovered patterns for AI retrieval
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS kg_patterns (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      pattern_type TEXT NOT NULL,
-      description TEXT NOT NULL,
-      conditions JSONB DEFAULT '{}'::jsonb,
-      outcome TEXT NOT NULL,
-      frequency INT DEFAULT 1,
-      confidence REAL DEFAULT 0.5,
-      example_worker_ids JSONB DEFAULT '[]'::jsonb,
-      legal_articles JSONB DEFAULT '[]'::jsonb,
-      voivodeships JSONB DEFAULT '[]'::jsonb,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-}
-
 // ═══ NODE OPERATIONS ════════════════════════════════════════════════════════
 
 async function upsertNode(id: string, type: NodeType, label: string, properties: Record<string, any> = {}): Promise<void> {
@@ -135,7 +85,6 @@ export async function syncToGraph(params: {
   isRejection: boolean;
   isApplication: boolean;
 }): Promise<{ nodesCreated: number; edgesCreated: number }> {
-  await ensureGraphTables();
 
   const { workerId, workerName, nationality, docId, docType, extractedData, legalImpact, legalArticles, voivodeship, employerName, isRejection, isApplication } = params;
 
@@ -288,8 +237,7 @@ async function learnPattern(params: {
 
 router.post("/legal/patterns/search", authenticateToken, async (req, res) => {
   try {
-    await ensureGraphTables();
-    const { query: searchQuery, docType, voivodeship, nationality, outcome } = req.body as {
+      const { query: searchQuery, docType, voivodeship, nationality, outcome } = req.body as {
       query?: string; docType?: string; voivodeship?: string; nationality?: string; outcome?: string;
     };
 
@@ -375,8 +323,7 @@ router.post("/legal/patterns/search", authenticateToken, async (req, res) => {
 
 router.get("/legal/patterns/stats", authenticateToken, async (_req, res) => {
   try {
-    await ensureGraphTables();
-
+  
     const nodeCount = await db.execute(sql`SELECT node_type, COUNT(*)::int as count FROM kg_nodes GROUP BY node_type ORDER BY count DESC`);
     const edgeCount = await db.execute(sql`SELECT edge_type, COUNT(*)::int as count FROM kg_edges GROUP BY edge_type ORDER BY count DESC`);
     const patternCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM kg_patterns`);
@@ -413,8 +360,7 @@ router.get("/legal/patterns/stats", authenticateToken, async (_req, res) => {
 
 router.get("/legal/patterns/worker/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureGraphTables();
-    const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
+      const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const nodeId = `worker:${wid}`;
 
     // 1-hop: direct connections

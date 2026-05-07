@@ -167,18 +167,15 @@ router.post("/v1/agency/deadlines/auto-escalate", authenticateToken, async (req,
 
 router.get("/v1/agency/annex1-tracker", authenticateToken, async (req, res) => {
   try {
-    // Check employer_signature_links table from MOS mandate
-    let links: any[] = [];
-    try {
-      const rows = await db.execute(sql`
-        SELECT sl.*, w.name as worker_name
-        FROM employer_signature_links sl
-        LEFT JOIN workers w ON w.id = sl.worker_id
-        WHERE sl.signed = false
-        ORDER BY sl.deadline ASC
-      `);
-      links = rows.rows as any[];
-    } catch { /* table may not exist */ }
+    // employer_signature_links centralized in migrate.ts (Commit 3d)
+    const rows = await db.execute(sql`
+      SELECT sl.*, w.name as worker_name
+      FROM employer_signature_links sl
+      LEFT JOIN workers w ON w.id = sl.worker_id
+      WHERE sl.signed = false
+      ORDER BY sl.deadline ASC
+    `);
+    const links = rows.rows as any[];
 
     const tracked = links.map(l => {
       const deadline = new Date(l.deadline);

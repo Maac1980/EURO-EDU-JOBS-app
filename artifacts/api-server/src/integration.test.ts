@@ -1468,3 +1468,95 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pattern B centralization 3d — knowledge-graph + POA + signature (FINAL closure).
+// 6 tables migrated from request-time helpers. Pattern B fully closed after 3d:
+// 31 of 31 tables centralized in migrate.ts; 0 ensureXxxTables in services/.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "integration: Pattern B centralization 3d — graph + poa + signature (FINAL)",
+  () => {
+    let pool: Pool;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("all 6 centralized tables exist after migrations", async () => {
+      const expected = [
+        "kg_nodes", "kg_edges", "kg_patterns",
+        "eej_poa_registry", "eej_rodo_consents", "employer_signature_links",
+      ];
+      for (const t of expected) {
+        const e = await pool.query("SELECT to_regclass($1) AS r", [`public.${t}`]);
+        expect(e.rows[0].r, `Table ${t} should exist`).toBeTruthy();
+      }
+    });
+
+    it("kg_edges FK to kg_nodes enforced (CASCADE on delete)", async () => {
+      const nodeId = `test-node-${Date.now()}`;
+      const otherNodeId = `test-other-${Date.now()}`;
+      await pool.query(
+        `INSERT INTO kg_nodes (id, node_type, label) VALUES ($1, 'WORKER', 'Test'), ($2, 'CASE', 'Other')`,
+        [nodeId, otherNodeId]
+      );
+      await pool.query(
+        `INSERT INTO kg_edges (source_id, target_id, edge_type) VALUES ($1, $2, 'HAS')`,
+        [nodeId, otherNodeId]
+      );
+      await pool.query(`DELETE FROM kg_nodes WHERE id IN ($1, $2)`, [nodeId, otherNodeId]);
+      const edges = await pool.query(
+        `SELECT id FROM kg_edges WHERE source_id = $1 OR target_id = $1`,
+        [nodeId]
+      );
+      expect(edges.rows.length).toBe(0);
+    });
+
+    it("kg_edges UNIQUE(source_id, target_id, edge_type) preserved", async () => {
+      const a = `test-a-${Date.now()}`;
+      const b = `test-b-${Date.now()}`;
+      await pool.query(`INSERT INTO kg_nodes (id, node_type, label) VALUES ($1, 'X', 'a'), ($2, 'X', 'b')`, [a, b]);
+      await pool.query(`INSERT INTO kg_edges (source_id, target_id, edge_type) VALUES ($1, $2, 'LINK')`, [a, b]);
+      await expect(
+        pool.query(`INSERT INTO kg_edges (source_id, target_id, edge_type) VALUES ($1, $2, 'LINK')`, [a, b])
+      ).rejects.toThrow(/unique|duplicate/i);
+      await pool.query(`DELETE FROM kg_nodes WHERE id IN ($1, $2)`, [a, b]);
+    });
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pattern B closure invariant: zero `async function ensureXxxTables` helpers
+// remain in services/. Source-grep regression catcher; doesn't require DB.
+// Architectural memory of why Pattern B was bad. If a future PR re-introduces
+// a lazy-table helper in services/, this test fails and CI surfaces the regression.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Pattern B closure invariant (architectural regression catcher)", () => {
+  it("no ensure* helpers remain in services/", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const url = await import("node:url");
+    const __filename = url.fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const servicesDir = path.resolve(__dirname, "services");
+    const files = fs.readdirSync(servicesDir).filter((f) => f.endsWith(".ts"));
+    const offending: string[] = [];
+    for (const f of files) {
+      const src = fs.readFileSync(path.join(servicesDir, f), "utf8");
+      if (/^\s*async function ensure[A-Z]\w*\s*\(/m.test(src)) {
+        offending.push(f);
+      }
+    }
+    expect(
+      offending,
+      `Pattern B regression: services still containing ensure*Tables helpers: ${offending.join(", ")}`
+    ).toEqual([]);
+  });
+});

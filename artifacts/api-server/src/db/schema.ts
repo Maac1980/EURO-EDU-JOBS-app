@@ -1027,6 +1027,98 @@ export const eejCaseNotebook = pgTable("eej_case_notebook", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+// ── Knowledge graph (Pattern B Commit 3d — FINAL Pattern B closure) ────────
+// kg_nodes uses TEXT PK (intentional — graph node IDs are domain-specific
+// strings, not auto-UUIDs). Preserved per Phase A DRIFT-12.
+export const kgNodes = pgTable("kg_nodes", {
+  id: text("id").primaryKey(),
+  nodeType: text("node_type").notNull(),
+  label: text("label").notNull(),
+  properties: jsonb("properties").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const kgEdges = pgTable("kg_edges", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sourceId: text("source_id").notNull().references(() => kgNodes.id, { onDelete: "cascade" }),
+  targetId: text("target_id").notNull().references(() => kgNodes.id, { onDelete: "cascade" }),
+  edgeType: text("edge_type").notNull(),
+  weight: real("weight").default(1.0),
+  properties: jsonb("properties").default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const kgPatterns = pgTable("kg_patterns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  patternType: text("pattern_type").notNull(),
+  description: text("description").notNull(),
+  conditions: jsonb("conditions").default({}),
+  outcome: text("outcome").notNull(),
+  frequency: integer("frequency").default(1),
+  confidence: real("confidence").default(0.5),
+  exampleWorkerIds: jsonb("example_worker_ids").default([]),
+  legalArticles: jsonb("legal_articles").default([]),
+  voivodeships: jsonb("voivodeships").default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ── POA + RODO compliance (Pattern B Commit 3d) ────────────────────────────
+export const eejPoaRegistry = pgTable("eej_poa_registry", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  workerName: text("worker_name"),
+  representativeName: text("representative_name").notNull(),
+  representativeRole: text("representative_role"),
+  caseType: text("case_type").notNull(),
+  caseNumber: text("case_number"),
+  voivodeship: text("voivodeship"),
+  scope: text("scope").notNull(),
+  stampDutyPaid: boolean("stamp_duty_paid").default(false),
+  stampDutyAmount: numeric("stamp_duty_amount", { precision: 10, scale: 2 }).default("17.00"),
+  filedAtOffice: boolean("filed_at_office").default(false),
+  filedDate: date("filed_date"),
+  validUntil: date("valid_until"),
+  status: text("status").notNull().default("ACTIVE"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+export const eejRodoConsents = pgTable("eej_rodo_consents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  workerName: text("worker_name"),
+  consentType: text("consent_type").notNull(),
+  consentLanguage: text("consent_language").notNull().default("pl"),
+  signedDate: date("signed_date"),
+  privacyNoticeDelivered: boolean("privacy_notice_delivered").default(false),
+  privacyNoticeLanguage: text("privacy_notice_language"),
+  dataAuthEmployee: text("data_auth_employee"),
+  dataAuthIssuedDate: date("data_auth_issued_date"),
+  retentionEndDate: date("retention_end_date"),
+  status: text("status").notNull().default("ACTIVE"),
+  orgContext: text("org_context").notNull().default("EEJ"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// ── MOS 2026 employer signature workflow (Pattern B Commit 3d) ─────────────
+export const employerSignatureLinks = pgTable("employer_signature_links", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workerId: text("worker_id").notNull(),
+  employerName: text("employer_name").notNull(),
+  employerNip: text("employer_nip"),
+  linkUrl: text("link_url"),
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow(),
+  signed: boolean("signed").default(false),
+  signedAt: timestamp("signed_at", { withTimezone: true }),
+  deadline: timestamp("deadline", { withTimezone: true }).notNull(),
+  alertSent: boolean("alert_sent").default(false),
+  notes: text("notes"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 // ── A1 certificates (EU social security documents for posted Polish workers) ──
 export const a1Certificates = pgTable("a1_certificates", {
   id: uuid("id").primaryKey().defaultRandom(),

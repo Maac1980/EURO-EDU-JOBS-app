@@ -27,54 +27,6 @@ const router = Router();
 
 // ═══ TABLE SETUP ════════════════════════════════════════════════════════════
 
-async function ensureTables() {
-  // POA Registry
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_poa_registry (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      worker_name TEXT,
-      representative_name TEXT NOT NULL,
-      representative_role TEXT,
-      case_type TEXT NOT NULL,
-      case_number TEXT,
-      voivodeship TEXT,
-      scope TEXT NOT NULL,
-      stamp_duty_paid BOOLEAN DEFAULT false,
-      stamp_duty_amount NUMERIC(10,2) DEFAULT 17.00,
-      filed_at_office BOOLEAN DEFAULT false,
-      filed_date DATE,
-      valid_until DATE,
-      status TEXT NOT NULL DEFAULT 'ACTIVE',
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_poa_worker ON eej_poa_registry(worker_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_poa_status ON eej_poa_registry(status)`);
-
-  // RODO Consent Tracker
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS eej_rodo_consents (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      worker_id TEXT NOT NULL,
-      worker_name TEXT,
-      consent_type TEXT NOT NULL,
-      consent_language TEXT NOT NULL DEFAULT 'pl',
-      signed_date DATE,
-      privacy_notice_delivered BOOLEAN DEFAULT false,
-      privacy_notice_language TEXT,
-      data_auth_employee TEXT,
-      data_auth_issued_date DATE,
-      retention_end_date DATE,
-      status TEXT NOT NULL DEFAULT 'ACTIVE',
-      org_context TEXT NOT NULL DEFAULT 'EEJ',
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_eej_rodo_worker ON eej_rodo_consents(worker_id)`);
-}
-
 // ═══ MANDATORY DISCLAIMERS (PL + EN) ════════════════════════════════════════
 
 const DISCLAIMERS = {
@@ -96,7 +48,6 @@ const DISCLAIMERS = {
 
 router.post("/v1/legal/poa/generate", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, workerFirstName, workerSecondName, workerSurname, workerPassport,
             representativeName, representativeRole, caseType, caseNumber, voivodeship } = req.body as {
       workerId: string; workerFirstName: string; workerSecondName?: string; workerSurname: string;
@@ -149,7 +100,6 @@ router.post("/v1/legal/poa/generate", authenticateToken, async (req, res) => {
 // GET active POAs for a worker
 router.get("/v1/legal/poa/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const rows = await db.execute(sql`SELECT * FROM eej_poa_registry WHERE worker_id = ${wid} AND org_context = 'EEJ' ORDER BY created_at DESC`);
     return res.json({ poas: rows.rows, total: rows.rows.length, disclaimers: DISCLAIMERS });
@@ -168,7 +118,6 @@ router.get("/v1/legal/disclaimers", authenticateToken, async (_req, res) => {
 
 router.post("/v1/legal/rodo-consent", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const { workerId, workerName, consentType, consentLanguage, signedDate,
             privacyNoticeDelivered, privacyNoticeLanguage, dataAuthEmployee, retentionEndDate } = req.body as {
       workerId: string; workerName?: string; consentType: string; consentLanguage?: string;
@@ -196,7 +145,6 @@ router.post("/v1/legal/rodo-consent", authenticateToken, async (req, res) => {
 // GET RODO compliance status for a worker
 router.get("/v1/legal/rodo-consent/:workerId", authenticateToken, async (req, res) => {
   try {
-    await ensureTables();
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
     const rows = await db.execute(sql`SELECT * FROM eej_rodo_consents WHERE worker_id = ${wid} AND org_context = 'EEJ' ORDER BY created_at DESC`);
 

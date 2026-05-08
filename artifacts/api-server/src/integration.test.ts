@@ -1862,6 +1862,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     let t3MobileToken: string;
     let twofaUserToken: string;
 
+    // Unique X-Forwarded-For per login call, to keep `loginLimiter`
+    // (lib/security.ts: 10 req / 15 min, IP-keyed, shared instance across
+    // /auth/login + /eej/auth/login) from throttling cumulative test calls.
+    // app.ts:11 enables `app.set("trust proxy", 1)`, so req.ip honors XFF.
+    let xffCounter = 0;
+    const uniqueIp = () => {
+      xffCounter += 1;
+      return `10.0.${Math.floor(xffCounter / 254)}.${(xffCounter % 254) + 1}`;
+    };
+
     // scrypt hash helper matching auth.ts hashPassword shape "salt:hex"
     async function makeScryptHash(password: string): Promise<string> {
       const { randomBytes, scrypt } = await import("crypto");
@@ -1951,29 +1961,36 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
 
     // ── /auth/login (auth.ts:45) ───────────────────────────────────────────
     it("A1 POST /auth/login 400 missing email", async () => {
-      const res = await request(app).post("/api/auth/login").send({ password: "x" });
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ password: "x" });
       expect(res.status).toBe(400);
     });
 
     it("A2 POST /auth/login 400 missing password", async () => {
-      const res = await request(app).post("/api/auth/login").send({ email: "x@y" });
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ email: "x@y" });
       expect(res.status).toBe(400);
     });
 
     it("A3 POST /auth/login 403 unknown email", async () => {
       const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: `unknown-${Date.now()}@nowhere.local`, password: "anything" });
       expect(res.status).toBe(403);
     });
 
     it("A4 POST /auth/login 401 wrong password", async () => {
       const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: authUserEmail, password: "definitely-wrong" });
       expect(res.status).toBe(401);
     });
 
     it("A5 POST /auth/login 200 happy path returns JWT + user payload", async () => {
       const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: authUserEmail, password: authUserPassword });
       expect(res.status).toBe(200);
       expect(typeof res.body.token).toBe("string");
@@ -2047,6 +2064,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
 
       // Verify by attempting login with new password
       const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: authUserEmail, password: newPassword });
       expect(loginRes.status).toBe(200);
 
@@ -2058,24 +2076,29 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
 
     // ── /eej/auth/login (eej-auth.ts:53) ───────────────────────────────────
     it("E1 POST /eej/auth/login 400 missing fields", async () => {
-      const res = await request(app).post("/api/eej/auth/login").send({});
+      const res = await request(app).post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({});
       expect(res.status).toBe(400);
     });
 
     it("E2 POST /eej/auth/login 401 unknown email", async () => {
       const res = await request(app).post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: `unknown-${Date.now()}@nowhere.local`, password: "x" });
       expect(res.status).toBe(401);
     });
 
     it("E3 POST /eej/auth/login 401 wrong password", async () => {
       const res = await request(app).post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: eejUserEmail, password: "definitely-wrong" });
       expect(res.status).toBe(401);
     });
 
     it("E4 POST /eej/auth/login 200 maps T1 → executive/tier=1", async () => {
       const res = await request(app).post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: eejUserEmail, password: eejUserPassword });
       expect(res.status).toBe(200);
       expect(typeof res.body.token).toBe("string");

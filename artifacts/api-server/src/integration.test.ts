@@ -11,6 +11,7 @@ vi.mock("./lib/alerter.js", async (importActual) => {
   return {
     ...actual,
     sendWhatsAppMessage: vi.fn().mockResolvedValue(undefined),
+    sendLoginNotification: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -1830,6 +1831,447 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       expect(phone).toBe("+48 555 010 101");
       expect(body).toContain("Twoj portal EEJ");
       expect(body).toContain("Portal Test Worker");
+    });
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T0-B: Auth admin + Auth EEJ mobile + 2FA endpoints — DB-backed.
+// Item 2.6 Phase B Step T0-B. Covers /auth/* (auth.ts), /eej/auth/* (eej-auth.ts),
+// and /2fa/* (twofa.ts). Mock sendLoginNotification at file scope (top of file).
+// Three test users created in beforeAll, all in tenant 'test', all cleaned in afterAll:
+//   1. Admin-side `users` row, role='manager' (auth + change-password tests)
+//   2. Mobile `system_users` row, role='T1' (eej-auth tests)
+//   3. Admin-side `users` row, role='manager' (2FA tests — separate to avoid
+//      F7's enable-2FA leaking into A5's login flow)
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "T0-B: auth + eej-auth + 2FA endpoints (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let authUserId: string;
+    let authUserEmail: string;
+    let authUserPassword: string;
+    let eejUserId: string;
+    let eejUserEmail: string;
+    let eejUserPassword: string;
+    let twofaUserId: string;
+    let twofaUserEmail: string;
+    let managerToken: string;
+    let t1MobileToken: string;
+    let t3MobileToken: string;
+    let twofaUserToken: string;
+
+    // scrypt hash helper matching auth.ts hashPassword shape "salt:hex"
+    async function makeScryptHash(password: string): Promise<string> {
+      const { randomBytes, scrypt } = await import("crypto");
+      const salt = randomBytes(16).toString("hex");
+      return new Promise((resolve, reject) => {
+        scrypt(password, salt, 64, (err, key) => {
+          if (err) reject(err);
+          else resolve(`${salt}:${key.toString("hex")}`);
+        });
+      });
+    }
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      authUserEmail = `auth-test-${Date.now()}@eej-test.local`;
+      authUserPassword = "test-password-1234";
+      const authHash = await makeScryptHash(authUserPassword);
+      const authIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (email, name, role, site, password_hash, tenant_id)
+         VALUES ($1, 'Auth Test User', 'manager', NULL, $2, 'test') RETURNING id`,
+        [authUserEmail, authHash],
+      );
+      authUserId = authIns.rows[0].id;
+
+      eejUserEmail = `eej-t1-test-${Date.now()}@eej-test.local`;
+      eejUserPassword = "eej-test-password-1234";
+      const eejHash = await makeScryptHash(eejUserPassword);
+      const eejIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('EEJ T1 Test', $1, $2, 'T1', 'Executive Test', 'Test') RETURNING id`,
+        [eejUserEmail, eejHash],
+      );
+      eejUserId = eejIns.rows[0].id;
+
+      twofaUserEmail = `twofa-test-${Date.now()}@eej-test.local`;
+      const twofaHash = await makeScryptHash("twofa-password-1234");
+      const twofaIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (email, name, role, site, password_hash, tenant_id)
+         VALUES ($1, '2FA Test User', 'manager', NULL, $2, 'test') RETURNING id`,
+        [twofaUserEmail, twofaHash],
+      );
+      twofaUserId = twofaIns.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      managerToken = jwt.default.sign(
+        { id: authUserId, email: authUserEmail, name: "Auth Test User",
+          role: "manager", site: null, tenantId: "test" },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      // EEJ mobile JWT shape (see eej-auth.ts:63 — id, email, role, tier, tenantId)
+      t1MobileToken = jwt.default.sign(
+        { sub: eejUserId, id: eejUserId, email: eejUserEmail, name: "EEJ T1 Test",
+          role: "executive", tier: 1, tenantId: "production", site: null },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      t3MobileToken = jwt.default.sign(
+        { sub: "00000000-0000-0000-0000-0000000000d3", id: "00000000-0000-0000-0000-0000000000d3",
+          email: "t3@eej-test.local", name: "T3 Mobile", role: "operations", tier: 3,
+          tenantId: "production", site: null },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      twofaUserToken = jwt.default.sign(
+        { id: twofaUserId, email: twofaUserEmail, name: "2FA Test User",
+          role: "manager", site: null, tenantId: "test" },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM audit_entries WHERE worker_id = ANY($1::text[])`,
+          [[authUserId, eejUserId, twofaUserId]]);
+        await pool.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`,
+          [[authUserId, twofaUserId]]);
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [eejUserId]);
+        // Sweep any system_users created via E13 happy path (defensive)
+        await pool.query(
+          `DELETE FROM system_users WHERE email LIKE 'eej-create-test-%@eej-test.local'`,
+        );
+      } finally {
+        await pool.end();
+      }
+    });
+
+    // ── /auth/login (auth.ts:45) ───────────────────────────────────────────
+    it("A1 POST /auth/login 400 missing email", async () => {
+      const res = await request(app).post("/api/auth/login").send({ password: "x" });
+      expect(res.status).toBe(400);
+    });
+
+    it("A2 POST /auth/login 400 missing password", async () => {
+      const res = await request(app).post("/api/auth/login").send({ email: "x@y" });
+      expect(res.status).toBe(400);
+    });
+
+    it("A3 POST /auth/login 403 unknown email", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .send({ email: `unknown-${Date.now()}@nowhere.local`, password: "anything" });
+      expect(res.status).toBe(403);
+    });
+
+    it("A4 POST /auth/login 401 wrong password", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .send({ email: authUserEmail, password: "definitely-wrong" });
+      expect(res.status).toBe(401);
+    });
+
+    it("A5 POST /auth/login 200 happy path returns JWT + user payload", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .send({ email: authUserEmail, password: authUserPassword });
+      expect(res.status).toBe(200);
+      expect(typeof res.body.token).toBe("string");
+      expect(res.body.user).toMatchObject({
+        id: authUserId, email: authUserEmail, role: "manager", tenantId: "test",
+      });
+    });
+
+    // ── /auth/verify (auth.ts:134) ─────────────────────────────────────────
+    it("A6 POST /auth/verify 401 no Bearer header", async () => {
+      const res = await request(app).post("/api/auth/verify");
+      expect(res.status).toBe(401);
+    });
+
+    it("A7 POST /auth/verify 401 invalid token", async () => {
+      const res = await request(app).post("/api/auth/verify")
+        .set("Authorization", "Bearer not-a-real-token");
+      expect(res.status).toBe(401);
+    });
+
+    it("A8 POST /auth/verify 200 valid token returns decoded user", async () => {
+      const res = await request(app).post("/api/auth/verify")
+        .set("Authorization", `Bearer ${managerToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.valid).toBe(true);
+      expect(res.body.user.email).toBe(authUserEmail);
+    });
+
+    // ── /auth/whoami (auth.ts:148) — PUBLIC by design ──────────────────────
+    it("A9 GET /auth/whoami is PUBLIC and returns shape { allowedEmail, userCount }", async () => {
+      const res = await request(app).get("/api/auth/whoami");
+      expect(res.status).toBe(200);
+      expect(typeof res.body.allowedEmail).toBe("string");
+      expect(typeof res.body.userCount).toBe("number");
+    });
+
+    // ── /auth/change-password (auth.ts:156) ────────────────────────────────
+    it("A10 POST /auth/change-password 401 no token", async () => {
+      const res = await request(app).post("/api/auth/change-password")
+        .send({ currentPassword: "x", newPassword: "y" });
+      expect(res.status).toBe(401);
+    });
+
+    it("A11 POST /auth/change-password 400 missing fields", async () => {
+      const res = await request(app).post("/api/auth/change-password")
+        .set("Authorization", `Bearer ${managerToken}`).send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("A12 POST /auth/change-password 400 newPassword < 8 chars", async () => {
+      const res = await request(app).post("/api/auth/change-password")
+        .set("Authorization", `Bearer ${managerToken}`)
+        .send({ currentPassword: authUserPassword, newPassword: "short" });
+      expect(res.status).toBe(400);
+    });
+
+    it("A13 POST /auth/change-password 401 currentPassword wrong", async () => {
+      const res = await request(app).post("/api/auth/change-password")
+        .set("Authorization", `Bearer ${managerToken}`)
+        .send({ currentPassword: "definitely-wrong", newPassword: "newer-password-1234" });
+      expect(res.status).toBe(401);
+    });
+
+    it("A14 POST /auth/change-password 200 happy path; password hash updated", async () => {
+      const newPassword = "rotated-password-5678";
+      const res = await request(app).post("/api/auth/change-password")
+        .set("Authorization", `Bearer ${managerToken}`)
+        .send({ currentPassword: authUserPassword, newPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      // Verify by attempting login with new password
+      const loginRes = await request(app).post("/api/auth/login")
+        .send({ email: authUserEmail, password: newPassword });
+      expect(loginRes.status).toBe(200);
+
+      // Restore the original password so other tests aren't disturbed.
+      await request(app).post("/api/auth/change-password")
+        .set("Authorization", `Bearer ${managerToken}`)
+        .send({ currentPassword: newPassword, newPassword: authUserPassword });
+    });
+
+    // ── /eej/auth/login (eej-auth.ts:53) ───────────────────────────────────
+    it("E1 POST /eej/auth/login 400 missing fields", async () => {
+      const res = await request(app).post("/api/eej/auth/login").send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("E2 POST /eej/auth/login 401 unknown email", async () => {
+      const res = await request(app).post("/api/eej/auth/login")
+        .send({ email: `unknown-${Date.now()}@nowhere.local`, password: "x" });
+      expect(res.status).toBe(401);
+    });
+
+    it("E3 POST /eej/auth/login 401 wrong password", async () => {
+      const res = await request(app).post("/api/eej/auth/login")
+        .send({ email: eejUserEmail, password: "definitely-wrong" });
+      expect(res.status).toBe(401);
+    });
+
+    it("E4 POST /eej/auth/login 200 maps T1 → executive/tier=1", async () => {
+      const res = await request(app).post("/api/eej/auth/login")
+        .send({ email: eejUserEmail, password: eejUserPassword });
+      expect(res.status).toBe(200);
+      expect(typeof res.body.token).toBe("string");
+      expect(res.body.user).toMatchObject({
+        email: eejUserEmail, role: "executive", tier: 1, shortName: "Executive",
+      });
+    });
+
+    // ── /eej/auth/refresh (eej-auth.ts:71) ─────────────────────────────────
+    it("E5 POST /eej/auth/refresh 401 no token", async () => {
+      const res = await request(app).post("/api/eej/auth/refresh");
+      expect(res.status).toBe(401);
+    });
+
+    it("E6 POST /eej/auth/refresh 200 returns new JWT", async () => {
+      const res = await request(app).post("/api/eej/auth/refresh")
+        .set("Authorization", `Bearer ${t1MobileToken}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.token).toBe("string");
+    });
+
+    // ── /eej/auth/users GET (eej-auth.ts:87) ───────────────────────────────
+    it("E7 GET /eej/auth/users 403 no token", async () => {
+      const res = await request(app).get("/api/eej/auth/users");
+      expect(res.status).toBe(403);
+    });
+
+    it("E8 GET /eej/auth/users 403 T3 token (T1 only)", async () => {
+      const res = await request(app).get("/api/eej/auth/users")
+        .set("Authorization", `Bearer ${t3MobileToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it("E9 GET /eej/auth/users 200 T1 token; response shape excludes passwordHash", async () => {
+      const res = await request(app).get("/api/eej/auth/users")
+        .set("Authorization", `Bearer ${t1MobileToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.users)).toBe(true);
+      const sample = res.body.users.find((u: any) => u.email === eejUserEmail);
+      expect(sample).toBeDefined();
+      expect(sample).not.toHaveProperty("passwordHash");
+      expect(sample).not.toHaveProperty("password_hash");
+    });
+
+    // ── /eej/auth/users POST (eej-auth.ts:94) ──────────────────────────────
+    it("E10 POST /eej/auth/users 403 T3 token", async () => {
+      const res = await request(app).post("/api/eej/auth/users")
+        .set("Authorization", `Bearer ${t3MobileToken}`)
+        .send({ name: "x", email: "x@y", password: "12345678", role: "T3" });
+      expect(res.status).toBe(403);
+    });
+
+    it("E11 POST /eej/auth/users 400 missing fields", async () => {
+      const res = await request(app).post("/api/eej/auth/users")
+        .set("Authorization", `Bearer ${t1MobileToken}`)
+        .send({ email: "x@y" });
+      expect(res.status).toBe(400);
+    });
+
+    it("E12 POST /eej/auth/users 409 duplicate email", async () => {
+      const res = await request(app).post("/api/eej/auth/users")
+        .set("Authorization", `Bearer ${t1MobileToken}`)
+        .send({ name: "Dup", email: eejUserEmail, password: "newpassword1", role: "T2" });
+      expect(res.status).toBe(409);
+    });
+
+    it("E13 POST /eej/auth/users 201 happy path creates user", async () => {
+      const newEmail = `eej-create-test-${Date.now()}@eej-test.local`;
+      const res = await request(app).post("/api/eej/auth/users")
+        .set("Authorization", `Bearer ${t1MobileToken}`)
+        .send({ name: "Created Test", email: newEmail, password: "createpass1234", role: "T2" });
+      expect(res.status).toBe(201);
+      expect(res.body.user).toMatchObject({
+        name: "Created Test", email: newEmail, role: "T2",
+      });
+      // Cleanup happens in afterAll's email-LIKE sweep.
+    });
+
+    // ── /eej/auth/users DELETE (eej-auth.ts:115) ───────────────────────────
+    it("E14 DELETE /eej/auth/users/:id 403 T3 token", async () => {
+      const res = await request(app).delete(`/api/eej/auth/users/${eejUserId}`)
+        .set("Authorization", `Bearer ${t3MobileToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it("E15 DELETE /eej/auth/users/:id 200 T1 token; row removed", async () => {
+      // Create a sacrificial user so we don't break our test fixture.
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('Sacrifice', $1, 'placeholder:nohash', 'T3', 'Test', 'Test') RETURNING id`,
+        [`eej-create-test-sacrifice-${Date.now()}@eej-test.local`],
+      );
+      const sacrificialId = ins.rows[0].id;
+
+      const res = await request(app).delete(`/api/eej/auth/users/${sacrificialId}`)
+        .set("Authorization", `Bearer ${t1MobileToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const after = await pool.query(`SELECT id FROM system_users WHERE id = $1`, [sacrificialId]);
+      expect(after.rows.length).toBe(0);
+    });
+
+    // ── /2fa/setup (twofa.ts:13) — separate user to avoid login flow leak ──
+    it("F1 POST /2fa/setup 401 no token", async () => {
+      const res = await request(app).post("/api/2fa/setup");
+      expect(res.status).toBe(401);
+    });
+
+    it("F2 POST /2fa/setup 200 returns secret + QR; persists secret on user row", async () => {
+      const res = await request(app).post("/api/2fa/setup")
+        .set("Authorization", `Bearer ${twofaUserToken}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.secret).toBe("string");
+      expect(res.body.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+
+      const stored = await pool.query<{ s: string | null; e: boolean | null }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM users WHERE id = $1`,
+        [twofaUserId],
+      );
+      expect(stored.rows[0].s).toBe(res.body.secret);
+      expect(stored.rows[0].e).toBe(false); // not enabled until verify
+    });
+
+    // ── /2fa/verify (twofa.ts:21) ──────────────────────────────────────────
+    it("F3 POST /2fa/verify 401 no token", async () => {
+      const res = await request(app).post("/api/2fa/verify").send({ token: "000000" });
+      expect(res.status).toBe(401);
+    });
+
+    it("F4 POST /2fa/verify 400 missing token field", async () => {
+      const res = await request(app).post("/api/2fa/verify")
+        .set("Authorization", `Bearer ${twofaUserToken}`).send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("F5 POST /2fa/verify 401 wrong TOTP", async () => {
+      const res = await request(app).post("/api/2fa/verify")
+        .set("Authorization", `Bearer ${twofaUserToken}`)
+        .send({ token: "000000" });
+      expect(res.status).toBe(401);
+    });
+
+    it("F6 POST /2fa/verify 200 with real TOTP; sets enabled=true", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM users WHERE id = $1`, [twofaUserId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+
+      const res = await request(app).post("/api/2fa/verify")
+        .set("Authorization", `Bearer ${twofaUserToken}`)
+        .send({ token: realToken });
+      expect(res.status).toBe(200);
+
+      const after = await pool.query<{ e: boolean }>(
+        `SELECT two_factor_enabled AS e FROM users WHERE id = $1`, [twofaUserId],
+      );
+      expect(after.rows[0].e).toBe(true);
+    });
+
+    // ── /2fa/status (twofa.ts:45) ──────────────────────────────────────────
+    it("F7 GET /2fa/status 200 returns { enabled: boolean }", async () => {
+      const res = await request(app).get("/api/2fa/status")
+        .set("Authorization", `Bearer ${twofaUserToken}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.enabled).toBe("boolean");
+      expect(res.body.enabled).toBe(true); // F6 just enabled it
+    });
+
+    // ── /2fa/disable (twofa.ts:33) ─────────────────────────────────────────
+    it("F8 POST /2fa/disable 401 wrong TOTP", async () => {
+      const res = await request(app).post("/api/2fa/disable")
+        .set("Authorization", `Bearer ${twofaUserToken}`)
+        .send({ token: "000000" });
+      expect(res.status).toBe(401);
+    });
+
+    it("F9 POST /2fa/disable 200 happy path; clears secret + enabled=false", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM users WHERE id = $1`, [twofaUserId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+
+      const res = await request(app).post("/api/2fa/disable")
+        .set("Authorization", `Bearer ${twofaUserToken}`)
+        .send({ token: realToken });
+      expect(res.status).toBe(200);
+
+      const after = await pool.query<{ s: string | null; e: boolean | null }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM users WHERE id = $1`,
+        [twofaUserId],
+      );
+      expect(after.rows[0].s).toBeNull();
+      expect(after.rows[0].e).toBe(false);
     });
   }
 );

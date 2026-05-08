@@ -825,6 +825,10 @@ export async function runMigrations(): Promise<void> {
     INSERT INTO tenants (slug, name, status, contact_email)
     VALUES ('test', 'Test Data (Isolated)', 'active', NULL)
     ON CONFLICT (slug) DO NOTHING;
+
+    INSERT INTO tenants (slug, name, status, contact_email)
+    VALUES ('staging', 'EEJ Staging', 'active', NULL)
+    ON CONFLICT (slug) DO NOTHING;
   `);
 
   // Add FK constraints idempotently: tenant_id (TEXT) -> tenants(slug).

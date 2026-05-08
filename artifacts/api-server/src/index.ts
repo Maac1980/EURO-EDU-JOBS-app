@@ -21,6 +21,19 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function start() {
+  // Hard fence: staging must never connect to production DB.
+  // Production Neon endpoint is hardcoded (no env-var dependency) so a
+  // misconfigured staging deploy fails fast at boot rather than corrupting prod data.
+  if (process.env.NODE_ENV === "staging") {
+    const dbUrl = process.env.DATABASE_URL ?? "";
+    if (dbUrl.includes("ep-wild-cell-aljop684")) {
+      throw new Error(
+        "FATAL: NODE_ENV=staging but DATABASE_URL points to production " +
+        "endpoint (ep-wild-cell-aljop684). Refusing to boot.",
+      );
+    }
+  }
+
   // Initialize Sentry (must run before any DB work that might surface errors)
   if (process.env.SENTRY_DSN) {
     Sentry.init({

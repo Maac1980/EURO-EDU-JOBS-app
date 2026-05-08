@@ -61,7 +61,10 @@ async function buildAll() {
     format: "cjs",
     outfile: path.resolve(distDir, "index.cjs"),
     define: {
-      "process.env.NODE_ENV": '"production"',
+      // NODE_ENV must NOT be statically replaced — runtime value is read via
+      // process.env in index.ts (staging fence, Sentry environment, etc.).
+      // Replacing it at build time would dead-code-eliminate the staging fence
+      // and mislabel Sentry events from non-prod environments.
       // import.meta.url is undefined in CJS bundles — polyfill it so that
       // fileURLToPath(import.meta.url) works at runtime.
       "import.meta.url": "importMetaUrl",

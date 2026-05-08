@@ -1,6 +1,6 @@
 # EEJ — RECOVERY PROCEDURES
 
-**Last verified:** 2026-05-06 (Day 18)
+**Last verified:** 2026-05-08 (Day 20 — Item 2.4 staging substrate landed)
 **Authored after:** Item 2.5 Phase A read-only investigation. Structure mirrors APATRIS Compliance Hub `RECOVERY_PROCEDURES.md` (authored Day 19, 2026-05-06 against the standalone Compliance Hub repo). Portfolio consistency: an operator who has read APATRIS's doc will navigate EEJ's identically.
 **Scope:** five recovery surfaces — code, database, Fly app, configuration, cross-repo
 **Discipline:** every command in this document has been EITHER (a) empirically tested, OR (b) explicitly marked with `⚠️ UNTESTED` and a planned drill date. No commands fabricated from training memory.
@@ -10,7 +10,7 @@
 ## Quick reference (under stress, start here)
 
 - **Bad pushed commit:** `git revert <sha> && git push origin master`
-- **Bad prod deploy:** `~/.fly/bin/flyctl deploy --app eej-jobs-api --image registry.fly.io/eej-jobs-api:deployment-<previous-tag>` ⚠️ Joint Manish + chat-Claude go required (single-environment app; no staging buffer until Item 2.4 lands).
+- **Bad prod deploy:** `~/.fly/bin/flyctl deploy --app eej-jobs-api --image registry.fly.io/eej-jobs-api:deployment-<previous-tag>` ⚠️ Joint Manish + chat-Claude go required. Recommended: dry-run first on staging (`--config fly.staging.toml --app eej-api`) to verify the prior image still boots cleanly.
 - **Schema corruption:** `~/.fly/bin/flyctl machine restart <machine-id> --app eej-jobs-api` (migrate.ts reruns `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` idempotently on every boot)
 - **Missing secret:** `~/.fly/bin/flyctl secrets set <NAME>=<VALUE> --app eej-jobs-api` (auto-restarts both machines)
 - **Lost local repo:** `git clone git@github.com:Maac1980/EURO-EDU-JOBS-app.git` + restore `.env` from password manager
@@ -31,7 +31,7 @@ Detailed procedures + verification + caveats below.
 
 **Recovery discipline:**
 - Never use destructive commands without explicit Manish + chat-Claude joint go (Hard Boundaries 11, 13, 14 forbid by default).
-- Always verify which environment you're targeting before any state-changing command. EEJ currently runs only `eej-jobs-api` (production); a staging app does not yet exist (Item 2.4 will add it).
+- Always verify which environment you're targeting before any state-changing command. EEJ runs **two** Fly apps: `eej-jobs-api` (production, region `ams`, prod Neon hostname `ep-wild-cell-aljop684-pooler`) and `eej-api` (staging, region `ams`, staging Neon hostname `ep-delicate-mountain-al828ei0-pooler`). Confirm `--app` flag AND DATABASE_URL hostname match intent before any state-changing call.
 - If the incident is ambiguous, surface in EXPECTED / FOUND / REASONABLE INTERPRETATION format and pause.
 
 ---
@@ -215,7 +215,7 @@ git rev-list --left-right --count origin/master...HEAD              # 0 0 = in s
 - Schema corruption (a CREATE/ALTER ran wrong; tables in unexpected state)
 - Data loss (rows accidentally DELETED or UPDATEd; truncated table; bad migration ran)
 - Catastrophic Neon failure (Neon platform incident; project destroyed)
-- Prod/staging mixup (DATABASE_URL accidentally swapped) — currently low risk; staging app not yet provisioned (Item 2.4)
+- Prod/staging mixup (DATABASE_URL accidentally swapped) — **real risk since Day 20**: staging exists. Mitigation: hard fence in `index.ts` `start()` rejects boot if `NODE_ENV=staging` AND DATABASE_URL points at `ep-wild-cell-aljop684`. Always verify hostname before secret-set.
 - DATABASE_URL secret lost (Fly secret accidentally cleared)
 
 ### Inventory (as of 2026-05-06)
@@ -297,7 +297,7 @@ curl https://eej-jobs-api.fly.dev/api/healthz                            # 200 O
 # Spot-check the recovered rows via app's UI or a read-only API endpoint
 ```
 
-**Tested:** ⚠️ **NOT YET TESTED.** Drill BLOCKED-BY-ITEM-2.4 (no staging substrate; cannot dry-run PITR restore against eej-jobs-api without risking production). Pattern documented from Neon's public docs and Item 2.5 Phase A console verification of retention setting (14 days). Hard precondition before relying on this scenario in a real outage: dry-run with chat-Claude + Manish on the staging substrate once Item 2.4 lands.
+**Tested:** ⚠️ **NOT YET TESTED on prod.** Drill **scheduled** (see Drill schedule section below) — staging substrate is now live (`eej-api` app + `ep-delicate-mountain-al828ei0-pooler` Neon branch, Day 20 / 2026-05-08). PITR dry-run runs against the staging Neon branch first; only after a clean staging dry-run does the procedure become a live prod option. Pattern documented from Neon's public docs and Item 2.5 Phase A console verification of retention setting (14 days).
 
 ---
 
@@ -348,7 +348,7 @@ If secret is wrong (pointed at recovery branch or staging):
 curl https://eej-jobs-api.fly.dev/api/healthz                            # 200 OK
 ```
 
-**Tested:** SSH-host-probe pattern proven 2026-05-06 during Item 2.5 Phase A. Secret-set + restart cycle proven 2026-05-06 during Item 2.1 (`TWILIO_AUTH_TOKEN` re-set after Authenticate failure). Joint write of DATABASE_URL specifically: ⚠️ **NOT YET DRILLED.** Drill BLOCKED-BY-ITEM-2.4.
+**Tested:** SSH-host-probe pattern proven 2026-05-06 during Item 2.5 Phase A AND re-proven 2026-05-08 during Item 2.4 Step 7 against the new staging app (`eej-api` resolved to `ep-delicate-mountain-al828ei0-pooler` correctly). Secret-set + restart cycle proven 2026-05-06 during Item 2.1 (`TWILIO_AUTH_TOKEN` re-set after Authenticate failure) and re-proven 2026-05-08 during Item 2.4 Step 6.5 (`EEJ_SEED_PASSWORD` set on staging, both machines auto-rolled). Joint write of DATABASE_URL specifically on prod: ⚠️ **NOT YET DRILLED.** Drill **scheduled** — dry-run will rotate staging DATABASE_URL on `eej-api` first.
 
 ---
 
@@ -369,7 +369,7 @@ curl https://eej-jobs-api.fly.dev/api/healthz                          # 200 OK
 
 **Off-site immutable backups are NOT configured.** Today's recovery story depends on Neon's PITR (14-day verified) plus this repo. If Neon experiences a project-destroying incident OR a 14-day-undetected data corruption event occurs, recovery options run out.
 
-**Hard precondition before Movement 3 high-stakes work:** scheduled off-site backups + restoration test within the post-Item-2.4 drill schedule.
+**Hard precondition before Movement 3 high-stakes work:** scheduled off-site backups + restoration test. Drill schedule active since Day 20 (Item 2.4 staging substrate live) — see Drill schedule section.
 
 ---
 
@@ -401,7 +401,7 @@ curl https://eej-jobs-api.fly.dev/api/healthz                          # 200 OK
 | Internal port | `8080` |
 | `force_https` | `true` |
 | Health check | **NOT formally registered in `fly.toml`** (no `[[checks]]` section). `/api/healthz` exists at `routes/health.ts:5`. Fly relies on default smoke checks during deploy. (Tracked as REC-5 follow-up.) |
-| Staging app | **Does not exist yet** — Item 2.4 will provision `eej-jobs-api-staging` |
+| Staging app | **`eej-api`** (`eej-api.fly.dev`, region `ams`, image `eej-api:deployment-01KR3K68P7DV43VMHGVZ7V37ZQ`, 2 machines auto-stop, 512mb shared, `min_machines_running=0`, config in `fly.staging.toml`). Provisioned 2026-05-08 (Item 2.4). Staging DB: separate Neon branch `ep-delicate-mountain-al828ei0-pooler.c-3.eu-central-1.aws.neon.tech` (schema-only, 7-day auto-delete unless extended). |
 
 ### Recent prod release history
 
@@ -420,7 +420,7 @@ curl https://eej-jobs-api.fly.dev/api/healthz                          # 200 OK
 
 ### Decision tree
 
-#### Scenario A — Bad deploy on prod (high-stakes; no staging buffer until Item 2.4)
+#### Scenario A — Bad deploy on prod (high-stakes; staging dry-run on `eej-api` recommended before live rollback)
 
 **Symptom:** `flyctl deploy` returns `Unrecoverable error: timeout reached waiting for health checks to pass`. Machines may show `stopped` with `0/1` checks, OR `started` with `0/1` warnings. Health endpoint `https://eej-jobs-api.fly.dev/api/healthz` returns non-200 or fails to connect.
 
@@ -447,7 +447,7 @@ curl https://eej-jobs-api.fly.dev/api/healthz                          # 200 OK
 
 ⚠️ **`flyctl releases rollback <id>` is a valid alternative** but `flyctl deploy --image` is more explicit about the target.
 
-⚠️ **EEJ has only one environment.** Until Item 2.4 lands, every Fly-level rollback affects production directly. There is no staging buffer to dry-run on. **Joint go gate is therefore the only safety net** — exercise it.
+⚠️ **Staging dry-run available since Day 20.** Recommended sequence: deploy the candidate previous-image to `eej-api` (staging) via `flyctl deploy --config fly.staging.toml --app eej-api --image registry.fly.io/eej-jobs-api:deployment-<previous-tag>` first; verify staging boots cleanly + health 200; THEN execute the prod rollback. Joint go gate remains required for the prod step regardless.
 
 **Verification:**
 ```bash
@@ -532,7 +532,7 @@ curl https://eej-jobs-api.fly.dev/api/healthz                      # 200 OK
 
 ⚠️ **App-name claims are first-come-first-served on Fly.** If `eej-jobs-api` is destroyed AND a different Fly user takes the name within the recovery window, recovery requires renaming. Update DNS records for `eej-jobs-api.fly.dev` accordingly (or accept a new Fly hostname).
 
-**Tested:** ⚠️ **NOT YET TESTED.** Pattern documented from Fly docs. Drill BLOCKED-BY-ITEM-2.4.
+**Tested:** ⚠️ **NOT YET TESTED.** Pattern documented from Fly docs. Drill **scheduled** — dry-run on `eej-api` (staging) before any live test on `eej-jobs-api`.
 
 ---
 
@@ -712,7 +712,7 @@ NEW_VALUE=$(openssl rand -hex 32)
 #    - DATABASE_URL rotation: see Section 2 Scenario D
 ```
 
-**Tested:** ⚠️ **NOT YET DRILLED for this app.** Pattern proven on TWILIO secret (Item 2.1). High-stakes rotations (JWT_SECRET, EEJ_ENCRYPTION_KEY) BLOCKED-BY-ITEM-2.4 for safe drilling.
+**Tested:** ⚠️ **NOT YET DRILLED on prod.** Pattern proven on TWILIO secret (Item 2.1) and on staging `EEJ_SEED_PASSWORD` set (Item 2.4 Step 6.5). High-stakes rotations (JWT_SECRET, EEJ_ENCRYPTION_KEY) drilled on staging first per Drill schedule below.
 
 ---
 
@@ -835,19 +835,60 @@ ls /Users/manishshetty/Desktop/                             # confirm sibling re
 
 ---
 
-## Drill schedule (post-Item-2.4)
+## Staging substrate lifecycle (Item 2.4)
 
-All recovery procedures in this document are **untested on EEJ today** unless explicitly marked otherwise. Restore drills require Item 2.4 (staging substrate) to land before they can be executed safely.
+### Inventory (as of 2026-05-08)
 
-### Proposed drill cadence (post-Item-2.4)
+| Property | Value |
+|---|---|
+| Fly app | `eej-api` (region `ams`, image `eej-api:deployment-01KR3K68P7DV43VMHGVZ7V37ZQ`) |
+| Hostname | `eej-api.fly.dev` |
+| Config file | `fly.staging.toml` (in repo root; `auto_stop_machines = true`, `min_machines_running = 0`, `512mb` shared) |
+| Deploy command | `~/.fly/bin/flyctl deploy --config fly.staging.toml --app eej-api` |
+| GHA workflow | `.github/workflows/deploy-staging.yml` (triggers on push to `staging` branch + `workflow_dispatch`) |
+| Neon branch | `ep-delicate-mountain-al828ei0-pooler.c-3.eu-central-1.aws.neon.tech/neondb` (schema-only at provisioning, separate from prod's `ep-wild-cell-aljop684`) |
+| Tenant slug | `staging` (seeded into `tenants` table by `migrate.ts`) |
+| Hard fence | `index.ts:start()` rejects boot if `NODE_ENV=staging` AND DATABASE_URL contains `ep-wild-cell-aljop684` (production hostname) |
+| Secrets count | **11** (10 from initial Step 3 + `EEJ_SEED_PASSWORD` from Step 6.5) |
 
-| Drill | Trigger | Cadence |
+### 7-day Neon branch auto-delete
+
+Staging Neon branch is configured to **auto-delete 7 days after creation** (default Neon behavior for non-protected branches). After auto-delete, the branch is gone — no PITR recovery for staging data, and `eej-api`'s `DATABASE_URL` will start failing.
+
+**Mitigations:**
+- Staging is intentionally **schema-only / drill-only** — never put data here that you can't lose at any moment.
+- Before drills that need >7 days of branch existence: **extend retention manually** in Neon Console (project → Branches → select staging branch → Settings → toggle "protect from auto-delete" OR extend retention window).
+- If the staging branch is auto-deleted unexpectedly during an active drill: re-provision via Neon Console (clone fresh from prod schema-only) → update `eej-api`'s `DATABASE_URL` secret to the new branch URL → redeploy.
+
+### Staging-vs-prod recovery callouts
+
+Most procedures in Sections 1-5 above apply identically to staging by swapping:
+- `--app eej-jobs-api` → `--app eej-api`
+- `eej-jobs-api.fly.dev` → `eej-api.fly.dev`
+- `ep-wild-cell-aljop684-pooler...` (prod DATABASE_URL) → `ep-delicate-mountain-al828ei0-pooler...` (staging)
+- `fly.toml` → `fly.staging.toml` (only when issuing `flyctl deploy`)
+
+**Procedures that differ from prod context:**
+- **Schema corruption (Section 2 Scenario A)** on staging is no-go-gate — just restart the staging machine. Staging is the substrate for testing this very recovery, so caution gates don't apply at the same level.
+- **PITR restore (Section 2 Scenario B)** on staging may be **unavailable** if the branch was auto-deleted — re-provision the branch instead.
+- **Bad deploy rollback (Section 3 Scenario A)** on staging needs **no joint-go gate** — staging is the dry-run substrate for the prod gate.
+- **Secret rotation (Section 4 Scenario C)** on staging is **expected** during quarterly rotation drill; rotate first, observe, then mirror to prod.
+
+---
+
+## Drill schedule (active since Day 20 — Item 2.4 staging substrate live)
+
+Most recovery procedures in this document are still `⚠️ UNTESTED` on prod, but staging substrate is now live (`eej-api` Fly app + `ep-delicate-mountain-al828ei0-pooler` Neon branch, 2026-05-08). Drills below run on staging first; only after a clean staging run does a procedure become a live prod option.
+
+### Drill cadence
+
+| Drill | First-run trigger | Cadence |
 |---|---|---|
-| **Code rollback dry-run** (Section 1 Scenario C) | After Item 2.4 lands | One-off; verify forward-fix pattern |
-| **Schema corruption recovery** (Section 2 Scenario A) | After Item 2.4 lands | One-off on staging; confirm migrate.ts re-creates dropped table |
-| **PITR restore to new branch** (Section 2 Scenario B Path 1) | After Item 2.4 lands | One-off on staging; confirm 14-day window functions |
-| **Bad deploy rollback** (Section 3 Scenario A) | After Item 2.4 lands | One-off on staging; confirm `flyctl deploy --image` works |
-| **Secret rotation drill** (Section 4 Scenario C) | After Item 2.4 lands | Quarterly thereafter (rotate JWT_SECRET on staging) |
+| **Code rollback dry-run** (Section 1 Scenario C) | Within 7 days of staging go-live (by 2026-05-15) | One-off; verify forward-fix pattern |
+| **Schema corruption recovery** (Section 2 Scenario A) | Within 7 days of staging go-live | One-off on staging — drop a non-critical table on `eej-api`'s staging Neon branch, restart machine, confirm migrate.ts re-creates it |
+| **PITR restore to new branch** (Section 2 Scenario B Path 1) | Within 14 days of staging go-live (by 2026-05-22) | One-off on staging Neon branch; confirm 14-day window functions |
+| **Bad deploy rollback** (Section 3 Scenario A) | Within 7 days of staging go-live | One-off on `eej-api`; confirm `flyctl deploy --image` reverts cleanly |
+| **Secret rotation drill** (Section 4 Scenario C) | Within 14 days of staging go-live | Quarterly thereafter (rotate JWT_SECRET / EEJ_ENCRYPTION_KEY on `eej-api`) |
 | **Off-site backup + restore** (Section 2 Scenario C) | Once REC-2 (off-site backups) ships | First drill within 30 days of REC-2 closure |
 | **Full disaster simulation** | After all of the above pass | Annual |
 
@@ -875,7 +916,7 @@ Captured during Item 2.5 Phase A read-only investigation. Track to closure as se
 | **REC-3** | No documented recovery path if local `.env` AND password manager backup are simultaneously lost. Section 4 Scenario D documents the upstream re-provisioning sequence; consider adding a third-trusted-location backup. | Open — operational hygiene item |
 | **REC-4** | Rolling Fly back past schema migrations breaks the app. Safe-rollback window codified in Section 3 Scenario A.1. Reverse-migration tooling not yet built. | Open — schema tooling item |
 | **REC-5** | No `[[checks]]` section in `fly.toml`. `/api/healthz` exists in code but is not formally registered with Fly. Misses an opportunity to fail-fast on bad releases. | Open — separate Item 2.X follow-up per Day 18 decision |
-| **REC-6** | All recovery procedures here are `⚠️ UNTESTED` on EEJ. Drills blocked by Item 2.4 staging substrate. | Open — drill schedule above |
+| **REC-6** | All recovery procedures here are `⚠️ UNTESTED` on prod. Drills now active against staging (`eej-api`) since Day 20 (Item 2.4 closed 2026-05-08). | Open — execute drill schedule above (first drill window: 2026-05-15) |
 
 ---
 

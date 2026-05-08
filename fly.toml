@@ -1,5 +1,6 @@
-# fly.toml — EEJ (Euro Edu Jobs) API
-# Deploy: flyctl deploy -a eej-api
+# fly.toml — EEJ (Euro Edu Jobs) API — PRODUCTION
+# Deploy: flyctl deploy -a eej-jobs-api
+# Staging deploys use fly.staging.toml against the eej-api app.
 
 app = 'eej-jobs-api'
 primary_region = 'ams'

@@ -37,7 +37,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       // shadow the original template name for active-path tests
       (globalThis as any).__activeTemplateName = activeName;
 
-      inactiveTemplateName = "application_received";
+      // Test-controlled inactive template — decoupled from the seeded
+      // `application_received` which flipped active=true in production after
+      // Item 2.1 (Day 18) and is inherited by every child Neon branch (staging,
+      // eej-test). Tenant 'production' to match the createDraft tenantId in
+      // D4/D7; cleanup deletes this row in afterAll.
+      inactiveTemplateName = `inactive_for_test_${Date.now()}`;
+      await pool.query(
+        `INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
+         VALUES ('production', $1, 'pl', 'Inactive {{workerName}}.', '["workerName"]'::jsonb, FALSE)`,
+        [inactiveTemplateName],
+      );
 
       const real = await pool.query<{ id: string }>(
         `INSERT INTO workers (name, phone, tenant_id) VALUES ('Drafter Real', '+48 501 222 333', 'production') RETURNING id`,
@@ -66,6 +76,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         const activeName = (globalThis as any).__activeTemplateName as string | undefined;
         if (activeName) {
           await pool.query(`DELETE FROM whatsapp_templates WHERE tenant_id = 'production' AND name = $1`, [activeName]);
+        }
+        if (inactiveTemplateName) {
+          await pool.query(`DELETE FROM whatsapp_templates WHERE tenant_id = 'production' AND name = $1`, [inactiveTemplateName]);
         }
       } finally {
         await pool.end();

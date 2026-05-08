@@ -1,7 +1,18 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi, type Mock } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import type { Pool } from "pg";
+
+// T0 portal/whatsapp tests need a deterministic stand-in for the Twilio dispatch
+// leg. Mock just `sendWhatsAppMessage` (other alerter exports preserved). vi.mock
+// is hoisted, so the spy is in place before app.ts loads alerter.
+vi.mock("./lib/alerter.js", async (importActual) => {
+  const actual = await importActual<typeof import("./lib/alerter.js")>();
+  return {
+    ...actual,
+    sendWhatsAppMessage: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 // Required env vars for app module to load. Set BEFORE importing app.
 process.env.JWT_SECRET ??= "test-jwt-secret-for-integration-tests-64-bytes-long-padding-xyz";
@@ -1560,3 +1571,265 @@ describe("Pattern B closure invariant (architectural regression catcher)", () =>
     ).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T0-A: Portal endpoints — DB-backed, end-to-end via supertest.
+// Item 2.6 Phase B Step T0-A. Covers /portal/token, /portal/me, /portal/hours,
+// /portal/send-whatsapp. Mocks sendWhatsAppMessage at file scope (see top).
+// Tenant: 'test'. Cleanup in afterAll.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "T0-A: portal endpoints (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let workerId: string;
+    let adminToken: string;
+    let crossTenantAdminToken: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      const { rows } = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, job_role, assigned_site, tenant_id)
+         VALUES ('Portal Test Worker', '+48 555 010 101', 'welder', 'Warsaw Site A', 'test')
+         RETURNING id`,
+      );
+      workerId = rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      adminToken = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000c1", email: "admin@portal-test.local",
+          name: "Admin", role: "executive", tier: 1, tenantId: "test", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+      crossTenantAdminToken = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000c2", email: "admin2@portal-test.local",
+          name: "Admin Other", role: "executive", tier: 1, tenantId: "production", site: null },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM portal_daily_logs WHERE worker_id = $1`, [workerId]);
+        await pool.query(`DELETE FROM audit_entries WHERE worker_id = $1`, [workerId]);
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [workerId]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    // ── GET /portal/token/:recordId ─────────────────────────────────────────
+    it("P1 GET /portal/token returns 401 without Authorization header", async () => {
+      const res = await request(app).get(`/api/portal/token/${workerId}`);
+      expect(res.status).toBe(401);
+    });
+
+    it("P2 GET /portal/token returns 401 with invalid bearer token", async () => {
+      const res = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", "Bearer not-a-real-token");
+      expect(res.status).toBe(401);
+    });
+
+    it("P3 GET /portal/token returns 404 when worker belongs to another tenant", async () => {
+      const res = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", `Bearer ${crossTenantAdminToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("P4 GET /portal/token mints a valid 30-day portal-typed JWT", async () => {
+      const res = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.token).toBe("string");
+      expect(res.body.expiresIn).toBe("30d");
+
+      const jwt = await import("jsonwebtoken");
+      const decoded = jwt.default.verify(res.body.token, process.env.JWT_SECRET!) as Record<string, unknown>;
+      expect(decoded.type).toBe("portal");
+      expect(decoded.workerId).toBe(workerId);
+    });
+
+    // ── GET /portal/me ──────────────────────────────────────────────────────
+    it("P5 GET /portal/me returns 400 when token query param missing", async () => {
+      const res = await request(app).get("/api/portal/me");
+      expect(res.status).toBe(400);
+    });
+
+    it("P6 GET /portal/me returns 401 with invalid portal token", async () => {
+      const res = await request(app).get("/api/portal/me?token=garbage");
+      expect(res.status).toBe(401);
+    });
+
+    it("P7 GET /portal/me happy path returns profile + dailyLog shape", async () => {
+      // Mint a portal token via the admin endpoint (already exercised in P4).
+      const tokRes = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const portalToken = tokRes.body.token as string;
+
+      const res = await request(app).get(`/api/portal/me?token=${portalToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.profile).toMatchObject({
+        id: workerId,
+        name: "Portal Test Worker",
+        specialization: "welder",
+        siteLocation: "Warsaw Site A",
+      });
+      expect(Array.isArray(res.body.dailyLog)).toBe(true);
+    });
+
+    // ── POST /portal/hours ──────────────────────────────────────────────────
+    it("P8 POST /portal/hours returns 400 when token missing", async () => {
+      const res = await request(app).post("/api/portal/hours").send({ date: "2026-05-08", hours: 8 });
+      expect(res.status).toBe(400);
+    });
+
+    it("P9 POST /portal/hours rejects malformed date with 400", async () => {
+      const tokRes = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const portalToken = tokRes.body.token as string;
+
+      const res = await request(app)
+        .post(`/api/portal/hours?token=${portalToken}`)
+        .send({ date: "not-a-date", hours: 8 });
+      expect(res.status).toBe(400);
+    });
+
+    it("P10 POST /portal/hours rejects out-of-range hours with 400", async () => {
+      const tokRes = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const portalToken = tokRes.body.token as string;
+
+      const tooHigh = await request(app)
+        .post(`/api/portal/hours?token=${portalToken}`)
+        .send({ date: "2026-05-08", hours: 30 });
+      expect(tooHigh.status).toBe(400);
+
+      const negative = await request(app)
+        .post(`/api/portal/hours?token=${portalToken}`)
+        .send({ date: "2026-05-08", hours: -1 });
+      expect(negative.status).toBe(400);
+    });
+
+    it("P11 POST /portal/hours happy path inserts log + recalculates totalHours + appends audit", async () => {
+      const tokRes = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const portalToken = tokRes.body.token as string;
+
+      const res = await request(app)
+        .post(`/api/portal/hours?token=${portalToken}`)
+        .send({ date: "2026-05-09", hours: 8 });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.totalHours).toBeGreaterThanOrEqual(8);
+
+      const logRows = await pool.query(
+        `SELECT hours::float AS hours FROM portal_daily_logs WHERE worker_id = $1 AND date = '2026-05-09'`,
+        [workerId],
+      );
+      expect(logRows.rows.length).toBe(1);
+      expect(Number(logRows.rows[0].hours)).toBe(8);
+
+      const auditRows = await pool.query(
+        `SELECT field, action FROM audit_entries WHERE worker_id = $1 AND action = 'daily-hours'`,
+        [workerId],
+      );
+      expect(auditRows.rows.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("P12 POST /portal/hours upserts on second submission for same date", async () => {
+      const tokRes = await request(app)
+        .get(`/api/portal/token/${workerId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const portalToken = tokRes.body.token as string;
+
+      // Same date as P11 but new hours value — should UPDATE, not INSERT a duplicate.
+      const res = await request(app)
+        .post(`/api/portal/hours?token=${portalToken}`)
+        .send({ date: "2026-05-09", hours: 6 });
+      expect(res.status).toBe(200);
+
+      const logRows = await pool.query(
+        `SELECT hours::float AS hours FROM portal_daily_logs WHERE worker_id = $1 AND date = '2026-05-09'`,
+        [workerId],
+      );
+      expect(logRows.rows.length).toBe(1);
+      expect(Number(logRows.rows[0].hours)).toBe(6);
+    });
+
+    // ── POST /portal/send-whatsapp/:recordId ────────────────────────────────
+    it("P13 POST /portal/send-whatsapp returns 401 without Authorization header", async () => {
+      const res = await request(app).post(`/api/portal/send-whatsapp/${workerId}`).send({});
+      expect(res.status).toBe(401);
+    });
+
+    it("P14 POST /portal/send-whatsapp returns 404 cross-tenant", async () => {
+      // Twilio creds may be unset in CI; if so, the route returns 503 BEFORE
+      // tenant lookup. Skip cross-tenant assertion in that case.
+      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+        const res = await request(app)
+          .post(`/api/portal/send-whatsapp/${workerId}`)
+          .set("Authorization", `Bearer ${crossTenantAdminToken}`)
+          .send({});
+        expect(res.status).toBe(503);
+        return;
+      }
+      const res = await request(app)
+        .post(`/api/portal/send-whatsapp/${workerId}`)
+        .set("Authorization", `Bearer ${crossTenantAdminToken}`)
+        .send({});
+      expect(res.status).toBe(404);
+    });
+
+    it("P15 POST /portal/send-whatsapp returns 400 for worker with no phone", async () => {
+      // Twilio creds gate fires before phone check; skip if absent.
+      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) return;
+      const { rows } = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('No Phone Worker', NULL, 'test') RETURNING id`,
+      );
+      const noPhoneId = rows[0].id;
+      try {
+        const res = await request(app)
+          .post(`/api/portal/send-whatsapp/${noPhoneId}`)
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({});
+        expect(res.status).toBe(400);
+      } finally {
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [noPhoneId]);
+      }
+    });
+
+    it("P16 POST /portal/send-whatsapp happy path calls sendWhatsAppMessage with correct args", async () => {
+      // Twilio creds gate fires first; skip mock-call assertion if absent.
+      if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) return;
+      const alerter = await import("./lib/alerter.js");
+      const sendMock = alerter.sendWhatsAppMessage as unknown as Mock;
+      sendMock.mockClear();
+
+      const res = await request(app)
+        .post(`/api/portal/send-whatsapp/${workerId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.sentTo).toBe("+48 555 010 101");
+
+      expect(sendMock).toHaveBeenCalledTimes(1);
+      const [phone, body] = sendMock.mock.calls[0];
+      expect(phone).toBe("+48 555 010 101");
+      expect(body).toContain("Twoj portal EEJ");
+      expect(body).toContain("Portal Test Worker");
+    });
+  }
+);

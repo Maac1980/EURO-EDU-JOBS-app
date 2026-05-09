@@ -54,12 +54,33 @@ async function buildAll() {
       !(pkg.dependencies?.[dep]?.startsWith("workspace:")),
   );
 
+  // Item 2.7 #3 — Sentry source map upload via @sentry/esbuild-plugin.
+  // Plugin uploads source maps + release artifacts to Sentry when
+  // SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT env vars are present
+  // (typically set in CI). When absent (local dev builds), the plugin is
+  // skipped silently so local development isn't blocked by missing creds.
+  const plugins = [];
+  if (process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT) {
+    const { sentryEsbuildPlugin } = await import("@sentry/esbuild-plugin");
+    plugins.push(sentryEsbuildPlugin({
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      sourcemaps: { assets: path.resolve(distDir, "**") },
+      telemetry: false,
+    }));
+    console.log("[sentry] esbuild plugin active — source maps will upload after build");
+  } else {
+    console.log("[sentry] esbuild plugin skipped — SENTRY_AUTH_TOKEN/ORG/PROJECT not set (local dev mode)");
+  }
+
   await esbuild({
     entryPoints: [path.resolve(__dirname, "src/index.ts")],
     platform: "node",
     bundle: true,
     format: "cjs",
     outfile: path.resolve(distDir, "index.cjs"),
+    sourcemap: true,
     define: {
       // NODE_ENV must NOT be statically replaced — runtime value is read via
       // process.env in index.ts (staging fence, Sentry environment, etc.).
@@ -81,6 +102,7 @@ async function buildAll() {
     minify: true,
     external: externals,
     logLevel: "info",
+    plugins,
   });
 }
 

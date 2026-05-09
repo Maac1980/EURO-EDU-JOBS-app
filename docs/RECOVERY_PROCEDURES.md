@@ -786,6 +786,29 @@ diff <(~/.fly/bin/flyctl config show --app eej-jobs-api) fly.toml | head -20
 git diff fly.toml                                                           # local vs git HEAD
 ```
 
+### Note — shared `loginLimiter` counter across login routes (Item 2.7 #19)
+
+`lib/security.ts:34-41` exports a single `loginLimiter` instance. Both
+`auth.ts` (`/auth/login`) and `eej-auth.ts` (`/eej/auth/login`) import that
+same instance. Express attaches the same middleware function to both routes,
+so they share state — **a brute-force attempt against admin auth from IP X
+also throttles EEJ-mobile auth from IP X** for the 15-minute window.
+
+Possibly intentional (defense-in-depth across both surfaces, single attacker
+IP sees both endpoints throttled). Possibly accidental side-effect of
+single-export re-use. Either way, the operational property is real.
+
+Operational implication: recovery plays that involve resetting login state
+(e.g., emergency admin login when normal auth is failing) may need to
+account for this — clearing limiter state for one route clears it for both.
+Use `~/.fly/bin/flyctl machine restart --app <app>` to clear in-memory
+limiter state.
+
+Surfaced during T0-B rate-limiter diagnosis (Item 2.6 Day 21) — 13 cumulative
+login calls in vitest test file shared the 10-per-15-min counter via a single
+in-memory store. Tests now use unique `X-Forwarded-For` per call; production
+behavior unchanged.
+
 ---
 
 ## Section 5 — Cross-repo recovery scope

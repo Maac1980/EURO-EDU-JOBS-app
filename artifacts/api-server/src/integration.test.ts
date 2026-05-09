@@ -22,11 +22,18 @@ vi.mock("./lib/alerter.js", async (importActual) => {
 // .mockRejectedValueOnce. Existing whatsapp lifecycle tests (A2/A3) hit 409
 // branches BEFORE reaching this import, so the mock is never consulted there.
 // Use vi.hoisted() so twilioCreateMock exists in the hoist phase before
-// vi.mock's factory closure runs.
+// vi.mock's factory closure runs. Use importActual + spread so the named
+// export `validateRequest` (consumed by lib/twilio-signature.ts) keeps the
+// real HMAC-SHA1 implementation; only the default factory is overridden so
+// approve-dispatch tests can intercept messages.create.
 const { twilioCreateMock } = vi.hoisted(() => ({ twilioCreateMock: vi.fn() }));
-vi.mock("twilio", () => ({
-  default: vi.fn(() => ({ messages: { create: twilioCreateMock } })),
-}));
+vi.mock("twilio", async (importActual) => {
+  const actual = await importActual<typeof import("twilio")>();
+  return {
+    ...actual,
+    default: vi.fn(() => ({ messages: { create: twilioCreateMock } })),
+  };
+});
 
 // Required env vars for app module to load. Set BEFORE importing app.
 process.env.JWT_SECRET ??= "test-jwt-secret-for-integration-tests-64-bytes-long-padding-xyz";
@@ -275,8 +282,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
 
     it("Sd2 ON CONFLICT DO NOTHING prevents duplication on re-seed", async () => {
+      // Tighten WHERE to the 3 seeded names — eej-test is a shared Neon branch
+      // across vitest-parallel test files, and other suites churn templates
+      // with Date.now() suffixes. Naming-anchored filter is race-immune.
+      const namedFilter = `WHERE tenant_id = 'production'
+          AND name IN ('application_received', 'permit_status_update', 'payment_reminder')`;
       const { rows: beforeRows } = await pool.query<{ c: number }>(
-        `SELECT COUNT(*)::int AS c FROM whatsapp_templates WHERE tenant_id = 'production'`
+        `SELECT COUNT(*)::int AS c FROM whatsapp_templates ${namedFilter}`
       );
       await pool.query(`
         INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
@@ -287,7 +299,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         ON CONFLICT (tenant_id, name) DO NOTHING
       `);
       const { rows: afterRows } = await pool.query<{ c: number }>(
-        `SELECT COUNT(*)::int AS c FROM whatsapp_templates WHERE tenant_id = 'production'`
+        `SELECT COUNT(*)::int AS c FROM whatsapp_templates ${namedFilter}`
       );
       expect(afterRows[0].c).toBe(beforeRows[0].c);
     });
@@ -2512,7 +2524,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
 
       // Verify notifications row written.
       const notif = await pool.query<{ channel: string; actor: string }>(
-        `SELECT channel, actor FROM notifications WHERE worker_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        `SELECT channel, actor FROM notifications WHERE worker_id = $1 ORDER BY sent_at DESC LIMIT 1`,
         [outboundWorkerId],
       );
       expect(notif.rows.length).toBeGreaterThanOrEqual(1);

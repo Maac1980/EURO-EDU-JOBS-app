@@ -43,3 +43,7 @@ jobs:
 
       - name: Build
         run: cd artifacts/api-server && npx tsx build.ts
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}

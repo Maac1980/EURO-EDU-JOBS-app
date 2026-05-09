@@ -2570,3 +2570,182 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T0-D: PIP readiness behavior — GET /api/pip-readiness.
+// Item 2.6 Phase B Step T0-D. Existing schema-only coverage (a1_certificates
+// integrity, lines 1310-1355) verifies the table exists; T0-D covers endpoint
+// behavior end-to-end: auth gate, tenant scoping, score calculation, A1
+// certificate query path.
+//
+// Test tenant: 'test' (clean of seeded workers). Each Q4-Q6 test does
+// belt-and-suspenders DELETE at start to neutralize cross-test pollution.
+// Score calculations derived from pip-readiness.service.ts WEIGHTS at the
+// time of writing: blank worker scores 81 (LOW); expired work permit adds
+// -10 deduction; expired A1 certificate adds -6.
+//
+// Deviations from production score code (Item 2.X surfaces #23, #24):
+//   - workers.passport_expiry column doesn't exist; service reads undefined
+//     for every worker → always counts as missing-Identity (pts=2)
+//   - bhpExpiry := r.bhpStatus type-confuses TEXT for date; null bhpStatus
+//     triggers missing-Safety path (pts=4)
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "T0-D: PIP readiness (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let testTenantToken: string;
+    const pipUserId = "00000000-0000-0000-0000-0000000000f1";
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      // Belt-and-suspenders: clean any leftover state in 'test' tenant before
+      // suite runs (other suites should have cleaned up but PIP scoring is
+      // sensitive to lingering workers).
+      await pool.query(`DELETE FROM a1_certificates WHERE tenant_id = 'test'`);
+      await pool.query(`DELETE FROM workers WHERE tenant_id = 'test'`);
+
+      const jwt = await import("jsonwebtoken");
+      testTenantToken = jwt.default.sign(
+        { id: pipUserId, email: "pip-test@eej-test.local", name: "PIP Test User",
+          role: "executive", tier: 1, tenantId: "test", site: null },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM a1_certificates WHERE tenant_id = 'test'`);
+        await pool.query(`DELETE FROM workers WHERE tenant_id = 'test'`);
+        // Cross-tenant insert in Q3 — clean by name match.
+        await pool.query(`DELETE FROM workers WHERE tenant_id = 'production' AND name = 'PIP Q3 Production Worker'`);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    // ── Q1 — auth gate ──────────────────────────────────────────────────────
+    it("Q1 GET /pip-readiness 401 no token", async () => {
+      const res = await request(app).get("/api/pip-readiness");
+      expect(res.status).toBe(401);
+    });
+
+    // ── Q2 — empty tenant ───────────────────────────────────────────────────
+    it("Q2 empty 'test' tenant returns score=100, totalWorkers=0", async () => {
+      // Cleanup before-state for determinism.
+      await pool.query(`DELETE FROM a1_certificates WHERE tenant_id = 'test'`);
+      await pool.query(`DELETE FROM workers WHERE tenant_id = 'test'`);
+
+      const res = await request(app).get("/api/pip-readiness")
+        .set("Authorization", `Bearer ${testTenantToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.totalWorkers).toBe(0);
+      expect(res.body.score).toBe(100);
+      expect(res.body.riskLevel).toBe("LOW");
+      expect(res.body.explanation).toContain("No workers");
+    });
+
+    // ── Q3 — tenant isolation: production worker invisible to test token ────
+    it("Q3 'production' worker invisible to 'test' tenant token", async () => {
+      await pool.query(`DELETE FROM a1_certificates WHERE tenant_id = 'test'`);
+      await pool.query(`DELETE FROM workers WHERE tenant_id = 'test'`);
+      // Insert a production-tenant worker that should NOT appear under the
+      // 'test' tenant query path.
+      await pool.query(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('PIP Q3 Production Worker', '+48 504 100 100', 'production')`,
+      );
+      try {
+        const res = await request(app).get("/api/pip-readiness")
+          .set("Authorization", `Bearer ${testTenantToken}`);
+        expect(res.status).toBe(200);
+        expect(res.body.totalWorkers).toBe(0);
+        expect(res.body.score).toBe(100);
+      } finally {
+        await pool.query(
+          `DELETE FROM workers WHERE tenant_id = 'production' AND name = 'PIP Q3 Production Worker'`,
+        );
+      }
+    });
+
+    // ── Q4 — blank worker scoring ──────────────────────────────────────────
+    it("Q4 blank worker (all nulls) scores 81 LOW; counts.missing=6", async () => {
+      await pool.query(`DELETE FROM a1_certificates WHERE tenant_id = 'test'`);
+      await pool.query(`DELETE FROM workers WHERE tenant_id = 'test'`);
+      await pool.query(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('PIP Q4 Blank Worker', '+48 504 200 200', 'test')`,
+      );
+
+      const res = await request(app).get("/api/pip-readiness")
+        .set("Authorization", `Bearer ${testTenantToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.totalWorkers).toBe(1);
+      // Deductions for a blank worker: 2 (trc) + 2 (passport — col undefined)
+      // + 4 (bhp — bhpStatus null) + 2 (workPermit) + 5 (contract) + 4 (medical) = 19
+      // Score = 100 - 19 = 81. riskLevel = LOW (>=80).
+      expect(res.body.score).toBe(81);
+      expect(res.body.riskLevel).toBe("LOW");
+      expect(res.body.counts.missing).toBe(6);
+      expect(res.body.counts.expired).toBe(0);
+    });
+
+    // ── Q5 — expired work permit triggers high deduction + MEDIUM risk ────
+    it("Q5 expired work permit: -10 deduction; score=73 MEDIUM; topRisks[0] is Immigration expired", async () => {
+      await pool.query(`DELETE FROM a1_certificates WHERE tenant_id = 'test'`);
+      await pool.query(`DELETE FROM workers WHERE tenant_id = 'test'`);
+      await pool.query(
+        `INSERT INTO workers (name, phone, tenant_id, work_permit_expiry)
+         VALUES ('PIP Q5 Expired Permit Worker', '+48 504 300 300', 'test', '2020-01-01')`,
+      );
+
+      const res = await request(app).get("/api/pip-readiness")
+        .set("Authorization", `Bearer ${testTenantToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.totalWorkers).toBe(1);
+      // Deductions: 2 (trc) + 2 (passport) + 4 (bhp) + 10 (permit expired) +
+      // 5 (contract) + 4 (medical) = 27. Score = 100 - 27 = 73. MEDIUM.
+      expect(res.body.score).toBe(73);
+      expect(res.body.riskLevel).toBe("MEDIUM");
+      expect(res.body.counts.expired).toBe(1);
+      expect(res.body.counts.missing).toBe(5);
+      // topRisks sorted: expired first (severityOrder.expired = 0).
+      expect(res.body.topRisks[0].severity).toBe("expired");
+      expect(res.body.topRisks[0].category).toBe("Immigration");
+      expect(res.body.topRisks[0].pointsDeducted).toBe(10);
+    });
+
+    // ── Q6 — expired A1 certificate adds -6 + Posted Workers risk ──────────
+    it("Q6 expired A1 certificate: -6 from blank-worker baseline → score=75 MEDIUM", async () => {
+      await pool.query(`DELETE FROM a1_certificates WHERE tenant_id = 'test'`);
+      await pool.query(`DELETE FROM workers WHERE tenant_id = 'test'`);
+      const wIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('PIP Q6 A1 Worker', '+48 504 400 400', 'test') RETURNING id`,
+      );
+      const a1WorkerId = wIns.rows[0].id;
+      await pool.query(
+        `INSERT INTO a1_certificates (worker_id, worker_name, certificate_number, host_country, status, tenant_id, valid_until)
+         VALUES ($1, 'PIP Q6 A1 Worker', 'A1-TEST-${Date.now()}', 'DE', 'expired', 'test', '2020-01-01')`,
+        [a1WorkerId],
+      );
+
+      const res = await request(app).get("/api/pip-readiness")
+        .set("Authorization", `Bearer ${testTenantToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.totalWorkers).toBe(1);
+      // Deductions: 19 (blank-worker) + 6 (expiredA1) = 25. Score = 100-25 = 75.
+      // counts.expired = 1 (from A1); counts.missing = 6 (worker fields).
+      expect(res.body.score).toBe(75);
+      expect(res.body.riskLevel).toBe("MEDIUM");
+      expect(res.body.counts.expired).toBe(1);
+      expect(res.body.counts.missing).toBe(6);
+
+      // Verify Posted Workers risk appears in topRisks.
+      const postedWorkerRisk = res.body.topRisks.find((r: { category: string }) => r.category === "Posted Workers");
+      expect(postedWorkerRisk).toBeDefined();
+      expect(postedWorkerRisk.severity).toBe("expired");
+      expect(postedWorkerRisk.pointsDeducted).toBe(6);
+    });
+  }
+);

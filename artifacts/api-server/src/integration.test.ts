@@ -15,6 +15,19 @@ vi.mock("./lib/alerter.js", async (importActual) => {
   };
 });
 
+// Mock the `twilio` module for T0-C approve-dispatch tests. Source uses
+// `await import("twilio")` then `twilioMod.default(accountSid, authToken)` →
+// returns a client whose `messages.create(...)` is invoked. We expose the
+// inner `create` as a vi.fn so tests can per-call .mockResolvedValueOnce /
+// .mockRejectedValueOnce. Existing whatsapp lifecycle tests (A2/A3) hit 409
+// branches BEFORE reaching this import, so the mock is never consulted there.
+// Use vi.hoisted() so twilioCreateMock exists in the hoist phase before
+// vi.mock's factory closure runs.
+const { twilioCreateMock } = vi.hoisted(() => ({ twilioCreateMock: vi.fn() }));
+vi.mock("twilio", () => ({
+  default: vi.fn(() => ({ messages: { create: twilioCreateMock } })),
+}));
+
 // Required env vars for app module to load. Set BEFORE importing app.
 process.env.JWT_SECRET ??= "test-jwt-secret-for-integration-tests-64-bytes-long-padding-xyz";
 // Use TEST_DATABASE_URL for integration tests against a real DB; fall back to stub when unset (skipIf gates DB-touching tests in stub case)
@@ -2295,6 +2308,236 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       );
       expect(after.rows[0].s).toBeNull();
       expect(after.rows[0].e).toBe(false);
+    });
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T0-C: WhatsApp outbound — GET /whatsapp/messages + dispatch leg of approve.
+// Item 2.6 Phase B Step T0-C. Webhook (POST /webhooks/whatsapp) already
+// covered by L1-L8 in the inbound suite — no duplication here.
+//
+// Twilio dispatch: vi.mock("twilio") at file scope replaces the factory; per
+// test we set twilioCreateMock.mockResolvedValueOnce / mockRejectedValueOnce.
+// Real Twilio creds are temporarily set in beforeAll and restored in afterAll
+// so D2/D3 reach the dispatch leg (route returns 503 before twilio import if
+// creds absent).
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "T0-C: whatsapp outbound (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let outboundTemplateName: string;
+    let outboundTemplateId: string;
+    let outboundWorkerId: string;
+    let outboundClientId: string;
+    let outT1Token: string;
+    let outT3Token: string;
+    let savedSid: string | undefined;
+    let savedToken: string | undefined;
+    let savedFrom: string | undefined;
+    const outT1UserId = "00000000-0000-0000-0000-0000000000e1";
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      // Active template WITH content_sid — required by approve-dispatch path
+      // (route line 256 returns 409 if content_sid absent).
+      outboundTemplateName = `outbound_test_${Date.now()}`;
+      const tIns = await pool.query<{ id: string }>(
+        `INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active, content_sid)
+         VALUES ('production', $1, 'pl', 'Outbound {{workerName}}.', '["workerName"]'::jsonb, TRUE, 'HX_test_content_sid_${Date.now()}')
+         RETURNING id`,
+        [outboundTemplateName],
+      );
+      outboundTemplateId = tIns.rows[0].id;
+
+      const wIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id) VALUES ('Outbound Worker', '+48 503 444 555', 'production') RETURNING id`,
+      );
+      outboundWorkerId = wIns.rows[0].id;
+
+      const cIns = await pool.query<{ id: string }>(
+        `INSERT INTO clients (name, phone, tenant_id) VALUES ('Outbound Client', '+48 503 444 666', 'production') RETURNING id`,
+      );
+      outboundClientId = cIns.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      outT1Token = jwt.default.sign(
+        { id: outT1UserId, email: "outbound-t1@test.local", name: "Outbound T1",
+          role: "executive", tier: 1, tenantId: "production", site: null },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      outT3Token = jwt.default.sign(
+        { id: "00000000-0000-0000-0000-0000000000e3", email: "outbound-t3@test.local", name: "Outbound T3",
+          role: "operations", tier: 3, tenantId: "production", site: null },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+
+      // Save Twilio env state and set fakes so D2/D3 reach dispatch leg.
+      // D1 explicitly strips them within its own try/finally.
+      savedSid = process.env.TWILIO_ACCOUNT_SID;
+      savedToken = process.env.TWILIO_AUTH_TOKEN;
+      savedFrom = process.env.TWILIO_WHATSAPP_FROM;
+      process.env.TWILIO_ACCOUNT_SID = "AC_test_fake_account_sid";
+      process.env.TWILIO_AUTH_TOKEN = "fake_test_auth_token";
+      process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+14155238886";
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM notifications WHERE worker_id = $1`, [outboundWorkerId]);
+        await pool.query(`DELETE FROM client_activities WHERE client_id = $1`, [outboundClientId]);
+        await pool.query(`DELETE FROM whatsapp_messages WHERE worker_id = $1 OR client_id = $2`,
+          [outboundWorkerId, outboundClientId]);
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [outboundWorkerId]);
+        await pool.query(`DELETE FROM clients WHERE id = $1`, [outboundClientId]);
+        await pool.query(`DELETE FROM whatsapp_templates WHERE id = $1`, [outboundTemplateId]);
+
+        if (savedSid === undefined) delete process.env.TWILIO_ACCOUNT_SID;
+        else process.env.TWILIO_ACCOUNT_SID = savedSid;
+        if (savedToken === undefined) delete process.env.TWILIO_AUTH_TOKEN;
+        else process.env.TWILIO_AUTH_TOKEN = savedToken;
+        if (savedFrom === undefined) delete process.env.TWILIO_WHATSAPP_FROM;
+        else process.env.TWILIO_WHATSAPP_FROM = savedFrom;
+      } finally {
+        await pool.end();
+      }
+    });
+
+    // Helper: create a DRAFT row directly via DB (bypass POST /drafts) so
+    // dispatch-leg tests have a deterministic starting state.
+    async function makeDraftRow(): Promise<string> {
+      const { rows } = await pool.query<{ id: string }>(
+        `INSERT INTO whatsapp_messages (
+            tenant_id, direction, status, worker_id, phone, body, template_id, template_variables, trigger_event, is_test_label
+         ) VALUES (
+            'production', 'outbound', 'DRAFT', $1, '+48503444555', 'Outbound Subject.', $2, '{"workerName":"Subject"}'::jsonb, 'manual', FALSE
+         ) RETURNING id`,
+        [outboundWorkerId, outboundTemplateId],
+      );
+      return rows[0].id;
+    }
+
+    // ── GET /whatsapp/messages (whatsapp.ts:406) ──────────────────────────
+    it("G1 GET /whatsapp/messages 401 no token", async () => {
+      const res = await request(app).get("/api/whatsapp/messages");
+      expect(res.status).toBe(401);
+    });
+
+    it("G2 GET /whatsapp/messages 403 T3 token (T1/T2 only)", async () => {
+      const res = await request(app).get("/api/whatsapp/messages")
+        .set("Authorization", `Bearer ${outT3Token}`);
+      expect(res.status).toBe(403);
+    });
+
+    it("G3 GET /whatsapp/messages 200 T1; response shape { messages, pagination, filter }", async () => {
+      const res = await request(app).get("/api/whatsapp/messages")
+        .set("Authorization", `Bearer ${outT1Token}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.messages)).toBe(true);
+      expect(res.body.pagination).toMatchObject({ limit: expect.any(Number), offset: 0 });
+      expect(res.body.filter).toBeDefined();
+    });
+
+    it("G4 GET /whatsapp/messages?direction=inbound filter applies", async () => {
+      const res = await request(app).get("/api/whatsapp/messages?direction=inbound")
+        .set("Authorization", `Bearer ${outT1Token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.filter.direction).toBe("inbound");
+      for (const m of res.body.messages) expect(m.direction).toBe("inbound");
+    });
+
+    it("G5 GET /whatsapp/messages?status=DRAFT filter applies", async () => {
+      // Seed a DRAFT row so the result is non-empty for verification.
+      const draftId = await makeDraftRow();
+
+      const res = await request(app).get("/api/whatsapp/messages?status=DRAFT")
+        .set("Authorization", `Bearer ${outT1Token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.filter.status).toEqual(["DRAFT"]);
+      const ids = res.body.messages.map((m: { id: string }) => m.id);
+      expect(ids).toContain(draftId);
+      for (const m of res.body.messages) expect(m.status).toBe("DRAFT");
+    });
+
+    it("G6 GET /whatsapp/messages?direction=invalid → 400", async () => {
+      const res = await request(app).get("/api/whatsapp/messages?direction=sideways")
+        .set("Authorization", `Bearer ${outT1Token}`);
+      expect(res.status).toBe(400);
+    });
+
+    // ── PATCH /whatsapp/drafts/:id/approve dispatch leg (whatsapp.ts:167) ──
+    it("D1 sendImmediately + TWILIO_ACCOUNT_SID absent → 503", async () => {
+      const draftId = await makeDraftRow();
+      const savedSidLocal = process.env.TWILIO_ACCOUNT_SID;
+      delete process.env.TWILIO_ACCOUNT_SID;
+      try {
+        const res = await request(app)
+          .patch(`/api/whatsapp/drafts/${draftId}/approve`)
+          .set("Authorization", `Bearer ${outT1Token}`)
+          .send({ sendImmediately: true });
+        expect(res.status).toBe(503);
+        expect(typeof res.body.error).toBe("string");
+        expect(res.body.error.toLowerCase()).toContain("twilio");
+      } finally {
+        if (savedSidLocal === undefined) delete process.env.TWILIO_ACCOUNT_SID;
+        else process.env.TWILIO_ACCOUNT_SID = savedSidLocal;
+      }
+    });
+
+    it("D2 sendImmediately happy path: Twilio mock returns sid → row → SENT + notifications row", async () => {
+      const draftId = await makeDraftRow();
+      const fakeSid = `SM_test_${Date.now()}`;
+      twilioCreateMock.mockReset();
+      twilioCreateMock.mockResolvedValueOnce({ sid: fakeSid });
+
+      const res = await request(app)
+        .patch(`/api/whatsapp/drafts/${draftId}/approve`)
+        .set("Authorization", `Bearer ${outT1Token}`)
+        .send({ sendImmediately: true });
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("SENT");
+      expect(res.body.twilioMessageSid).toBe(fakeSid);
+      expect(res.body.sentAt).toBeTruthy();
+
+      // Verify mock called with expected shape.
+      expect(twilioCreateMock).toHaveBeenCalledTimes(1);
+      const callArg = twilioCreateMock.mock.calls[0][0];
+      expect(callArg.contentSid).toMatch(/^HX_test_content_sid_/);
+      expect(callArg.to).toBe("whatsapp:+48503444555");
+      expect(callArg.from).toBe("whatsapp:+14155238886");
+
+      // Verify notifications row written.
+      const notif = await pool.query<{ channel: string; actor: string }>(
+        `SELECT channel, actor FROM notifications WHERE worker_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [outboundWorkerId],
+      );
+      expect(notif.rows.length).toBeGreaterThanOrEqual(1);
+      expect(notif.rows[0].channel).toBe("whatsapp");
+    });
+
+    it("D3 sendImmediately + Twilio throws → 502; row → FAILED + failedReason set", async () => {
+      const draftId = await makeDraftRow();
+      twilioCreateMock.mockReset();
+      twilioCreateMock.mockRejectedValueOnce(new Error("Twilio test failure: bad number"));
+
+      const res = await request(app)
+        .patch(`/api/whatsapp/drafts/${draftId}/approve`)
+        .set("Authorization", `Bearer ${outT1Token}`)
+        .send({ sendImmediately: true });
+      expect(res.status).toBe(502);
+      expect(typeof res.body.error).toBe("string");
+      expect(res.body.error.toLowerCase()).toContain("twilio");
+
+      // DB row should be FAILED with failedReason captured.
+      const after = await pool.query<{ status: string; failed_reason: string | null }>(
+        `SELECT status, failed_reason FROM whatsapp_messages WHERE id = $1`, [draftId],
+      );
+      expect(after.rows[0].status).toBe("FAILED");
+      expect(after.rows[0].failed_reason).toContain("Twilio test failure");
     });
   }
 );

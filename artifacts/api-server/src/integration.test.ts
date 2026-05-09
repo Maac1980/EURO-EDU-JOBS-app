@@ -22,16 +22,33 @@ vi.mock("./lib/alerter.js", async (importActual) => {
 // .mockRejectedValueOnce. Existing whatsapp lifecycle tests (A2/A3) hit 409
 // branches BEFORE reaching this import, so the mock is never consulted there.
 // Use vi.hoisted() so twilioCreateMock exists in the hoist phase before
-// vi.mock's factory closure runs. Use importActual + spread so the named
-// export `validateRequest` (consumed by lib/twilio-signature.ts) keeps the
-// real HMAC-SHA1 implementation; only the default factory is overridden so
-// approve-dispatch tests can intercept messages.create.
+// vi.mock's factory closure runs. twilio is CJS-only (`module.exports =
+// TwilioSDK`); validateRequest is attached as `TwilioSDK.validateRequest =
+// webhooks.validateRequest`. Vitest's importActual may surface twilio as the
+// raw namespace OR as `{ default: namespace, ... }`; spread alone is
+// unreliable. Explicitly list the named exports we depend on, sourcing from
+// `actual.default ?? actual`. Only `default` is overridden so approve-dispatch
+// tests can intercept messages.create; everything else passes through to the
+// real implementation (preserving HMAC-SHA1 webhook signature verification).
 const { twilioCreateMock } = vi.hoisted(() => ({ twilioCreateMock: vi.fn() }));
 vi.mock("twilio", async (importActual) => {
-  const actual = await importActual<typeof import("twilio")>();
+  const actual: any = await importActual();
+  const ns = actual?.default ?? actual;
   return {
-    ...actual,
     default: vi.fn(() => ({ messages: { create: twilioCreateMock } })),
+    validateRequest: ns.validateRequest,
+    validateBody: ns.validateBody,
+    validateRequestWithBody: ns.validateRequestWithBody,
+    validateExpressRequest: ns.validateExpressRequest,
+    validateIncomingRequest: ns.validateIncomingRequest,
+    getExpectedBodyHash: ns.getExpectedBodyHash,
+    getExpectedTwilioSignature: ns.getExpectedTwilioSignature,
+    webhook: ns.webhook,
+    Twilio: ns.Twilio,
+    jwt: ns.jwt,
+    twiml: ns.twiml,
+    RequestClient: ns.RequestClient,
+    RestException: ns.RestException,
   };
 });
 

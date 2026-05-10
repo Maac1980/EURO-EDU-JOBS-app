@@ -27,12 +27,36 @@ router.get("/notifications", authenticateToken, async (req, res) => {
   }
 });
 
-router.delete("/notifications", authenticateToken, requireAdmin, async (_req, res) => {
+// Item 3.0.0 emergency patch — explicit confirmation friction on the
+// admin-only "clear all notifications" endpoint. Previously the handler ran
+// `db.delete(schema.notifications)` with no WHERE clause on auth check alone;
+// any admin token (and the notifications table has no tenant_id column) could
+// wipe the entire table cross-tenant in a single call. Friction layer now
+// requires the caller to send an explicit body token, and every successful
+// invocation is audit-logged with actor email + row count. Aligns with
+// Item 3.0 sub-task 5 confirmation-friction pattern landing early.
+const CLEAR_ALL_CONFIRM_TOKEN = "WIPE_ALL_NOTIFICATIONS";
+
+router.delete("/notifications", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    await db.delete(schema.notifications);
-    res.json({ success: true, message: "Notification history cleared." });
+    const body = (req.body ?? {}) as { confirm?: unknown };
+    if (body.confirm !== CLEAR_ALL_CONFIRM_TOKEN) {
+      return res.status(400).json({
+        error: `Destructive operation requires explicit confirmation. POST body must include { "confirm": "${CLEAR_ALL_CONFIRM_TOKEN}" }.`,
+      });
+    }
+
+    const deleted = await db.delete(schema.notifications).returning({ id: schema.notifications.id });
+    const actorEmail = (req.user as { email?: string } | undefined)?.email ?? "unknown";
+    console.warn(`[notifications] CLEAR-ALL invoked by ${actorEmail} — ${deleted.length} rows deleted`);
+
+    return res.json({
+      success: true,
+      message: "Notification history cleared.",
+      deletedCount: deleted.length,
+    });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 

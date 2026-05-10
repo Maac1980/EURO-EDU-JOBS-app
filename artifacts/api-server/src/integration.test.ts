@@ -93,6 +93,43 @@ describe("integration: public endpoints (no DB required)", () => {
     const res = await request(app).delete("/api/audit");
     expect(res.status).toBe(404);
   });
+
+  // Item 3.0.0 emergency patch — confirmation friction on clear-all-notifications.
+  // Friction returns 400 before reaching DB, so test runs without TEST_DATABASE_URL.
+  it("DELETE /api/notifications returns 401 without auth (gate intact)", async () => {
+    const res = await request(app).delete("/api/notifications");
+    expect(res.status).toBe(401);
+  });
+
+  it("DELETE /api/notifications returns 400 with admin token but no confirm body", async () => {
+    const jwt = await import("jsonwebtoken");
+    const adminToken = jwt.default.sign(
+      { id: "00000000-0000-0000-0000-0000000000a0", email: "admin@test.local",
+        name: "Test Admin", role: "admin", site: null, tenantId: "test" },
+      process.env.JWT_SECRET!,
+      { expiresIn: "5m" },
+    );
+    const res = await request(app)
+      .delete("/api/notifications")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("WIPE_ALL_NOTIFICATIONS");
+  });
+
+  it("DELETE /api/notifications returns 400 with wrong confirm token", async () => {
+    const jwt = await import("jsonwebtoken");
+    const adminToken = jwt.default.sign(
+      { id: "00000000-0000-0000-0000-0000000000a0", email: "admin@test.local",
+        name: "Test Admin", role: "admin", site: null, tenantId: "test" },
+      process.env.JWT_SECRET!,
+      { expiresIn: "5m" },
+    );
+    const res = await request(app)
+      .delete("/api/notifications")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ confirm: "wrong" });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("integration: /api/auth/login input validation", () => {

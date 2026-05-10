@@ -54,6 +54,17 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pretooluse-firewall.sh"
+          }
+        ]
+      }
     ]
   }
 }

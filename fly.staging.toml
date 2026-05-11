@@ -1,10 +1,14 @@
 # fly.staging.toml — EEJ (Euro Edu Jobs) API — STAGING
-# Deploy: flyctl deploy --config fly.staging.toml --app eej-api
+# Deploy from REPO ROOT (where this file lives):
+#   ~/.fly/bin/flyctl deploy --config fly.staging.toml --app eej-api
+# Build context must be repo root so the monorepo workspace is visible to
+# pnpm install inside the container (lib/api-zod, lib/db, etc.).
 
 app = 'eej-api'
 primary_region = 'ams'
 
 [build]
+  dockerfile = "Dockerfile"
 
 [env]
   NODE_ENV = 'staging'

@@ -58,6 +58,20 @@ Yana's worker-listing queries automatically filter to Ukrainian nationality. Oth
 
 After commit lands on master and deploys to production:
 
+0. **Deploy from REPO ROOT** — never from `artifacts/api-server/`. The Docker
+   build context must be the repo root so the pnpm workspace (lib/api-zod,
+   lib/db, pnpm-workspace.yaml) is visible to `pnpm install` inside the
+   container; deploying from `artifacts/api-server/` fails with
+   `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND: @workspace/api-zod`.
+   ```
+   cd /Users/manishshetty/Desktop/EURO-EDU-JOBS-app   # repo root
+   ~/.fly/bin/flyctl deploy -a eej-jobs-api --remote-only
+   ```
+   Staging:
+   ```
+   ~/.fly/bin/flyctl deploy --config fly.staging.toml --app eej-api --remote-only
+   ```
+
 1. **Confirm `EEJ_SEED_PASSWORD` is set on production Fly secrets:**
    ```
    ~/.fly/bin/flyctl secrets list --app eej-jobs-api | grep EEJ_SEED_PASSWORD

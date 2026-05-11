@@ -8,7 +8,7 @@ EEJ is a Polish labor compliance, recruitment, and workforce management platform
 
 ## Deployment
 - **Primary:** Fly.io app `eej-jobs-api` (region `ams`, 2 machines)
-- **Deploy command:** `~/.fly/bin/flyctl deploy -a eej-jobs-api`
+- **Deploy command:** `~/.fly/bin/flyctl deploy -a eej-jobs-api` (run from REPO ROOT — never `cd` into `artifacts/api-server/`; Docker build context must include the full monorepo workspace so `lib/api-zod`, `lib/db`, and `pnpm-workspace.yaml` are visible to `pnpm install` inside the container)
 - **Build:** `pnpm build` (builds api-server + eej-mobile + apatris-dashboard)
 - **Run:** `node artifacts/api-server/dist/index.cjs`
 - **Health Check:** `GET /api/healthz` → https://eej-jobs-api.fly.dev/api/healthz

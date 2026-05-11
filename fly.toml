@@ -1,11 +1,16 @@
 # fly.toml — EEJ (Euro Edu Jobs) API — PRODUCTION
-# Deploy: flyctl deploy -a eej-jobs-api
+# Deploy from REPO ROOT (where this fly.toml lives):
+#   ~/.fly/bin/flyctl deploy -a eej-jobs-api
+# Do NOT cd into artifacts/api-server/ first — the Docker build context must be
+# the repo root so the monorepo workspace (pnpm-workspace.yaml + lib/api-zod
+# etc.) is visible to pnpm install inside the container.
 # Staging deploys use fly.staging.toml against the eej-api app.
 
 app = 'eej-jobs-api'
 primary_region = 'ams'
 
 [build]
+  dockerfile = "Dockerfile"
 
 [http_service]
   internal_port = 8080

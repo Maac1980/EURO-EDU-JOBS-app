@@ -97,6 +97,12 @@ export async function runMigrations(): Promise<void> {
       short_name TEXT,
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     );
+    -- Item T23 — per-user permission flags
+    -- can_view_financials gates business-level financial views (invoices, revenue, admin/stats).
+    -- Worker-level financial fields (salary, advance) remain accessible to all team.
+    -- nationality_scope filters worker-listing queries when set (e.g., "Ukrainian" → Yana sees only UA workers).
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS can_view_financials BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS nationality_scope TEXT;
 
     CREATE TABLE IF NOT EXISTS clients (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1848,16 +1854,44 @@ export async function seedInitialData(): Promise<void> {
 
   // Seed system users (EEJ mobile) only when EEJ_SEED_PASSWORD is set.
   // Never hardcode credentials — production systems must bootstrap via env var,
-  // then rotate user passwords through the in-app change-password flow.
+  // then rotate user passwords through the in-app /eej/auth/change-password flow.
+  //
+  // T23 — real team accounts (May 18 rollout). Per-user permission flags:
+  // - canViewFinancials: TRUE for Manish + Anna only; FALSE for everyone else
+  //   (gates invoices/revenue/admin-stats; worker-level financials remain open)
+  // - nationalityScope: "Ukrainian" for Yana (UA-liaison role); NULL for others
+  //
+  // Historical accounts (Marta, Piotr, ceo@ alias) kept in seedUsers OR removed
+  // per Manish resolved decisions Day 23:
+  //   - ceo@ alias REMOVED from seed (rolls off fresh installs); existing prod
+  //     row stays (HB-14 forbids DELETE in migrate.ts) — Manish deactivates
+  //     post-deploy via DELETE /eej/auth/users/:id (T1 endpoint).
+  //   - Marta + Piotr KEPT in seed temporarily; Manish deactivates same way
+  //     post-deploy. Future migration can clean seed entries once production
+  //     rows are deactivated.
   const INITIAL_PASSWORD = process.env.EEJ_SEED_PASSWORD;
   if (!INITIAL_PASSWORD) {
     console.warn("[db] EEJ_SEED_PASSWORD not set — skipping system user seed (set this env var once to bootstrap)");
   } else {
-    const seedUsers = [
-      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
-      { name: "Anna Bondarenko", email: "ceo@euro-edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive" },
-      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance" },
-      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations" },
+    const seedUsers: Array<{
+      name: string;
+      email: string;
+      role: string;
+      designation: string;
+      shortName: string;
+      canViewFinancials: boolean;
+      nationalityScope: string | null;
+    }> = [
+      // T23 — real team (Day 23 rollout)
+      { name: "Manish Shetty", email: "manish.s@edu-jobs.eu", role: "T1", designation: "Founder & Executive", shortName: "Executive", canViewFinancials: true, nationalityScope: null },
+      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive", canViewFinancials: true, nationalityScope: null },
+      { name: "Liza Yelyzaveta Chubarova", email: "liza.c@edu-jobs.eu", role: "T1", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null },
+      { name: "Karan Chauhan", email: "karan.c@edu-jobs.eu", role: "T3", designation: "Recruitment & People Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
+      { name: "Marjorie Isla Ramones", email: "marjorie.r@edu-jobs.eu", role: "T3", designation: "Recruitment Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
+      { name: "Yana Zielinska", email: "yana.z@edu-jobs.eu", role: "T3", designation: "Contracts & UA Liaison", shortName: "Operations", canViewFinancials: false, nationalityScope: "Ukrainian" },
+      // Historical accounts kept until Manish deactivates post-deploy.
+      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null },
+      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
     ];
 
     for (const u of seedUsers) {
@@ -1873,10 +1907,24 @@ export async function seedInitialData(): Promise<void> {
           role: u.role,
           designation: u.designation,
           shortName: u.shortName,
+          canViewFinancials: u.canViewFinancials,
+          nationalityScope: u.nationalityScope,
         });
-        console.log(`[db] Seeded system user: ${u.email} (${u.role})`);
+        console.log(`[db] Seeded system user: ${u.email} (${u.role}, canViewFinancials=${u.canViewFinancials})`);
       }
     }
+
+    // T23 — backfill canViewFinancials for users who pre-existed before this
+    // migration. The seedUsers INSERT path only fires on first-creation, so
+    // existing rows (e.g., Anna's pre-T23 anna.b@edu-jobs.eu) keep the
+    // ALTER TABLE default (FALSE). This idempotent UPDATE corrects that.
+    // The `AND can_view_financials = FALSE` filter makes subsequent runs no-op.
+    await db.execute(sql`
+      UPDATE system_users
+      SET can_view_financials = TRUE
+      WHERE email IN ('manish.s@edu-jobs.eu', 'anna.b@edu-jobs.eu')
+        AND can_view_financials = FALSE
+    `);
   }
 
   // ── Seed sample workers if < 5 exist ──────────────────────────────────────

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, schema } from "../db/index.js";
 import { and, eq, sql } from "drizzle-orm";
-import { authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
+import { authenticateToken, requireAdmin, requireFinancialAccess } from "../lib/authMiddleware.js";
 import { requireTenant } from "../lib/tenancy.js";
 import { scrypt, randomBytes } from "crypto";
 
@@ -172,7 +172,7 @@ router.delete("/admin/users/:id", authenticateToken, requireAdmin, async (req, r
 
 // ── T1 Executive Dashboard Aggregator ─────────────────────────────────────────
 // Returns all home-screen KPIs in one call. Tenant-scoped. Admin/T1 only.
-router.get("/admin/stats", authenticateToken, requireAdmin, async (req, res) => {
+router.get("/admin/stats", authenticateToken, requireFinancialAccess, requireAdmin, async (req, res) => {
   try {
     const tenantId = requireTenant(req);
 

@@ -2786,3 +2786,246 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     });
   }
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T23 — Team-provisioning Phase B (TDD red→green).
+// Item: per-user permission flags on system_users — can_view_financials gates
+// business-level financials (invoices/revenue/admin-stats); nationality_scope
+// filters worker-listing queries. Plus new /eej/auth/change-password +
+// /eej/auth/me endpoints.
+//
+// Tests written BEFORE implementation per Manish AC-8.X directive
+// (red→green pattern). On first run before implementation, expect failures
+// on T1-T4. After implementation, all pass.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "T23: team-provisioning permission flags + auth endpoints (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let lizaUserId: string;
+    let lizaUserEmail: string;
+    let yanaUserId: string;
+    let yanaUserEmail: string;
+    let changePasswordUserId: string;
+    let changePasswordUserEmail: string;
+    let changePasswordInitial: string;
+    let meUserId: string;
+    let meUserEmail: string;
+    let ukrainianWorkerId: string;
+    let polishWorkerId: string;
+    let lizaToken: string;
+    let yanaToken: string;
+    let meToken: string;
+
+    async function scryptHash(password: string): Promise<string> {
+      const { randomBytes, scrypt } = await import("crypto");
+      const salt = randomBytes(16).toString("hex");
+      return new Promise((resolve, reject) => {
+        scrypt(password, salt, 64, (err, key) => {
+          if (err) reject(err);
+          else resolve(`${salt}:${key.toString("hex")}`);
+        });
+      });
+    }
+
+    let xffCounter2 = 0;
+    const uniqueIp2 = () => {
+      xffCounter2 += 1;
+      return `10.99.${Math.floor(xffCounter2 / 254)}.${(xffCounter2 % 254) + 1}`;
+    };
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      // Liza fixture: T1 with can_view_financials=false (business-financials denied)
+      lizaUserEmail = `liza-t23-${Date.now()}@eej-test.local`;
+      const lizaHash = await scryptHash("liza-pwd-12345678");
+      const lizaIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope)
+         VALUES ('Liza Test', $1, $2, 'T1', 'Legal Test', 'Test', FALSE, NULL) RETURNING id`,
+        [lizaUserEmail, lizaHash],
+      );
+      lizaUserId = lizaIns.rows[0].id;
+
+      // Yana fixture: T3 with nationality_scope='Ukrainian'
+      yanaUserEmail = `yana-t23-${Date.now()}@eej-test.local`;
+      const yanaHash = await scryptHash("yana-pwd-12345678");
+      const yanaIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope)
+         VALUES ('Yana Test', $1, $2, 'T3', 'UA Liaison Test', 'Test', FALSE, 'Ukrainian') RETURNING id`,
+        [yanaUserEmail, yanaHash],
+      );
+      yanaUserId = yanaIns.rows[0].id;
+
+      // change-password user fixture
+      changePasswordUserEmail = `chgpw-t23-${Date.now()}@eej-test.local`;
+      changePasswordInitial = "initial-pwd-12345678";
+      const chgHash = await scryptHash(changePasswordInitial);
+      const chgIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('ChgPw Test', $1, $2, 'T3', 'Test', 'Test') RETURNING id`,
+        [changePasswordUserEmail, chgHash],
+      );
+      changePasswordUserId = chgIns.rows[0].id;
+
+      // /eej/auth/me user fixture
+      meUserEmail = `me-t23-${Date.now()}@eej-test.local`;
+      const meHash = await scryptHash("me-pwd-12345678");
+      const meIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope)
+         VALUES ('Me Test', $1, $2, 'T2', 'Test', 'Test', TRUE, 'Ukrainian') RETURNING id`,
+        [meUserEmail, meHash],
+      );
+      meUserId = meIns.rows[0].id;
+
+      // Worker fixtures for nationality_scope test
+      const uaIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality)
+         VALUES ('T23 UA Worker', '+48 555 990 001', 'test', 'Ukrainian') RETURNING id`,
+      );
+      ukrainianWorkerId = uaIns.rows[0].id;
+
+      const plIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality)
+         VALUES ('T23 PL Worker', '+48 555 990 002', 'test', 'Polish') RETURNING id`,
+      );
+      polishWorkerId = plIns.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      // JWT payload mirrors /eej/auth/login shape PLUS new permission flags
+      // (post-implementation, the login endpoint bakes these into the JWT).
+      lizaToken = jwt.default.sign(
+        { sub: lizaUserId, id: lizaUserId, email: lizaUserEmail, name: "Liza Test",
+          role: "executive", tier: 1, tenantId: "test", site: null,
+          canViewFinancials: false, nationalityScope: null },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      yanaToken = jwt.default.sign(
+        { sub: yanaUserId, id: yanaUserId, email: yanaUserEmail, name: "Yana Test",
+          role: "operations", tier: 3, tenantId: "test", site: null,
+          canViewFinancials: false, nationalityScope: "Ukrainian" },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      meToken = jwt.default.sign(
+        { sub: meUserId, id: meUserId, email: meUserEmail, name: "Me Test",
+          role: "legal", tier: 2, tenantId: "test", site: null,
+          canViewFinancials: true, nationalityScope: "Ukrainian" },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(
+          `DELETE FROM system_users WHERE id = ANY($1::uuid[])`,
+          [[lizaUserId, yanaUserId, changePasswordUserId, meUserId]],
+        );
+        await pool.query(
+          `DELETE FROM workers WHERE id = ANY($1::uuid[])`,
+          [[ukrainianWorkerId, polishWorkerId]],
+        );
+      } finally {
+        await pool.end();
+      }
+    });
+
+    // ── Test #1: Liza (T1 + can_view_financials=false) cannot access invoices ──
+    it("T23.1 Liza T1 with can_view_financials=false → GET /api/invoices returns 403", async () => {
+      const res = await request(app).get("/api/invoices")
+        .set("Authorization", `Bearer ${lizaToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it("T23.1b Liza T1 with can_view_financials=false → GET /api/revenue/summary returns 403", async () => {
+      const res = await request(app).get("/api/revenue/summary")
+        .set("Authorization", `Bearer ${lizaToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    // ── Test #2: Yana (T3 + nationality_scope='Ukrainian') sees only UA workers ──
+    it("T23.2 Yana T3 with nationality_scope='Ukrainian' → GET /api/workers filters by nationality", async () => {
+      const res = await request(app).get("/api/workers")
+        .set("Authorization", `Bearer ${yanaToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.workers)).toBe(true);
+      const returnedIds: string[] = res.body.workers.map((w: { id: string }) => w.id);
+      // UA worker MUST be in result; PL worker MUST NOT be
+      // (other tenant workers excluded by existing tenant filter).
+      expect(returnedIds).toContain(ukrainianWorkerId);
+      expect(returnedIds).not.toContain(polishWorkerId);
+      // Every returned row must have nationality='Ukrainian'.
+      for (const w of res.body.workers as Array<{ nationality?: string | null }>) {
+        expect(w.nationality).toBe("Ukrainian");
+      }
+    });
+
+    // ── Test #3: /eej/auth/change-password happy path ──
+    it("T23.3 POST /eej/auth/change-password rotates password; new password works on login", async () => {
+      const jwt = await import("jsonwebtoken");
+      const chgToken = jwt.default.sign(
+        { sub: changePasswordUserId, id: changePasswordUserId, email: changePasswordUserEmail,
+          name: "ChgPw Test", role: "operations", tier: 3, tenantId: "test", site: null,
+          canViewFinancials: false, nationalityScope: null },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      const newPassword = "rotated-pwd-87654321";
+      const changeRes = await request(app)
+        .post("/api/eej/auth/change-password")
+        .set("Authorization", `Bearer ${chgToken}`)
+        .send({ currentPassword: changePasswordInitial, newPassword });
+      expect(changeRes.status).toBe(200);
+
+      // Verify new password works on /eej/auth/login (use unique XFF to avoid loginLimiter).
+      const loginRes = await request(app).post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: changePasswordUserEmail, password: newPassword });
+      expect(loginRes.status).toBe(200);
+
+      // Old password rejected.
+      const oldRes = await request(app).post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: changePasswordUserEmail, password: changePasswordInitial });
+      expect(oldRes.status).toBe(401);
+    });
+
+    it("T23.3b POST /eej/auth/change-password 401 wrong current password", async () => {
+      const jwt = await import("jsonwebtoken");
+      const tok = jwt.default.sign(
+        { sub: meUserId, id: meUserId, email: meUserEmail, name: "Me Test",
+          role: "legal", tier: 2, tenantId: "test", site: null,
+          canViewFinancials: true, nationalityScope: "Ukrainian" },
+        process.env.JWT_SECRET!, { expiresIn: "5m" },
+      );
+      const res = await request(app).post("/api/eej/auth/change-password")
+        .set("Authorization", `Bearer ${tok}`)
+        .send({ currentPassword: "wrong-current", newPassword: "newer-pwd-87654321" });
+      expect(res.status).toBe(401);
+    });
+
+    it("T23.3c POST /eej/auth/change-password 400 short new password", async () => {
+      const res = await request(app).post("/api/eej/auth/change-password")
+        .set("Authorization", `Bearer ${meToken}`)
+        .send({ currentPassword: "me-pwd-12345678", newPassword: "short" });
+      expect(res.status).toBe(400);
+    });
+
+    // ── Test #4: /eej/auth/me returns can_view_financials + nationality_scope ──
+    it("T23.4 GET /eej/auth/me returns canViewFinancials + nationalityScope fields", async () => {
+      const res = await request(app).get("/api/eej/auth/me")
+        .set("Authorization", `Bearer ${meToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        email: meUserEmail,
+        canViewFinancials: true,
+        nationalityScope: "Ukrainian",
+      });
+    });
+
+    it("T23.4b GET /eej/auth/me 401 no token", async () => {
+      const res = await request(app).get("/api/eej/auth/me");
+      expect(res.status).toBe(401);
+    });
+  }
+);

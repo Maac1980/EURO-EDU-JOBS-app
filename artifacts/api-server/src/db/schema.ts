@@ -134,6 +134,13 @@ export const systemUsers = pgTable("system_users", {
   role: text("role").notNull().default("T3"), // T1, T2, T3, T4
   designation: text("designation"),
   shortName: text("short_name"),
+  // Item T23 — per-user permission flags
+  // canViewFinancials: gates business-level financials (invoices/revenue/admin-stats).
+  // Worker-level financial fields (salary, advance) remain accessible to all team.
+  canViewFinancials: boolean("can_view_financials").notNull().default(false),
+  // nationalityScope: when set, filters worker-listing queries to that nationality.
+  // NULL = no scope (default: see all). "Ukrainian" = Yana's UA-liaison scope.
+  nationalityScope: text("nationality_scope"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

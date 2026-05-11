@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
-import { authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
+import { authenticateToken, requireFinancialAccess } from "../lib/authMiddleware.js";
 
 const router = Router();
 const HOURS_PER_MONTH = 160;
@@ -28,7 +28,7 @@ function monthsBetween(from: Date, to: Date): number {
 }
 
 // ── GET /api/revenue/forecast — 6 month forward projection ───────────────
-router.get("/revenue/forecast", authenticateToken, async (_req, res) => {
+router.get("/revenue/forecast", authenticateToken, requireFinancialAccess, async (_req, res) => {
   try {
     const workers = await db.execute<WorkerRow>(sql`
       SELECT id, name, hourly_netto_rate, assigned_site, contract_end_date, pipeline_stage
@@ -94,7 +94,7 @@ router.get("/revenue/forecast", authenticateToken, async (_req, res) => {
 });
 
 // ── GET /api/revenue/actual — actual vs projected comparison ─────────────
-router.get("/revenue/actual", authenticateToken, async (_req, res) => {
+router.get("/revenue/actual", authenticateToken, requireFinancialAccess, async (_req, res) => {
   try {
     // Get invoices grouped by month
     const invoices = await db.execute<InvoiceRow>(sql`
@@ -141,7 +141,7 @@ router.get("/revenue/actual", authenticateToken, async (_req, res) => {
 });
 
 // ── GET /api/revenue/summary — current month, next month, 6 month total ──
-router.get("/revenue/summary", authenticateToken, async (_req, res) => {
+router.get("/revenue/summary", authenticateToken, requireFinancialAccess, async (_req, res) => {
   try {
     const workers = await db.execute<WorkerRow>(sql`
       SELECT id, name, hourly_netto_rate, assigned_site, contract_end_date, pipeline_stage

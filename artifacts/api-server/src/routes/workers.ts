@@ -405,6 +405,15 @@ router.get("/workers", authenticateToken, async (req, res) => {
       filtered = filtered.filter(w => w.assignedSite?.toLowerCase() === managerSite);
     }
 
+    // T23 — nationality_scope filter. When caller's JWT carries
+    // nationalityScope (set on system_users for specific liaison roles, e.g.,
+    // Yana's "Ukrainian" scope), restrict listing to that nationality.
+    // Absent/NULL on JWT = no scope filter (default: see all nationalities).
+    const scope = req.user?.nationalityScope;
+    if (scope) {
+      filtered = filtered.filter(w => w.nationality === scope);
+    }
+
     // Pagination (offset/limit) — default cap 100, max 500
     const total = filtered.length;
     const offset = Math.max(parseInt((req.query as any).offset ?? "0", 10) || 0, 0);

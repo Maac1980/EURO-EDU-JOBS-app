@@ -50,6 +50,28 @@ function verifyEejToken(authHeader: string | undefined): { email: string; role: 
 }
 
 import { loginLimiter } from "../lib/security.js";
+
+// T23 — JWT payload includes per-user permission flags (canViewFinancials +
+// nationalityScope). Baking into JWT avoids DB lookup on every gated request;
+// flags propagate within TOKEN_EXPIRY (7d) or sooner via /eej/auth/refresh.
+function buildPayload(user: typeof schema.systemUsers.$inferSelect) {
+  const { appRole, tier, shortName } = roleToMobile(user.role);
+  return {
+    sub: user.id,
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: appRole,
+    tier,
+    designation: user.designation,
+    shortName,
+    tenantId: "production" as const,
+    site: null,
+    canViewFinancials: user.canViewFinancials,
+    nationalityScope: user.nationalityScope,
+  };
+}
+
 router.post("/eej/auth/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body as { email?: string; password?: string };
   if (!email?.trim() || !password) return res.status(400).json({ error: "Email and password are required." });
@@ -59,9 +81,16 @@ router.post("/eej/auth/login", loginLimiter, async (req, res) => {
     if (!user) return res.status(401).json({ error: "Invalid email or password." });
     if (!(await verifyPassword(password, user.passwordHash))) return res.status(401).json({ error: "Invalid email or password." });
 
-    const { appRole, tier, shortName } = roleToMobile(user.role);
-    const token = jwt.sign({ sub: user.id, id: user.id, email: user.email, name: user.name, role: appRole, tier, designation: user.designation, shortName, tenantId: "production", site: null }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
-    return res.json({ token, user: { name: user.name, email: user.email, role: appRole, tier, designation: user.designation, shortName } });
+    const payload = buildPayload(user);
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    return res.json({
+      token,
+      user: {
+        name: user.name, email: user.email, role: payload.role, tier: payload.tier,
+        designation: user.designation, shortName: payload.shortName,
+        canViewFinancials: user.canViewFinancials, nationalityScope: user.nationalityScope,
+      },
+    });
   } catch (err) {
     return res.status(500).json({ error: "Authentication service unavailable." });
   }
@@ -76,11 +105,66 @@ router.post("/eej/auth/refresh", async (req, res) => {
     const [user] = await db.select().from(schema.systemUsers).where(sql`LOWER(${schema.systemUsers.email}) = ${caller.email.toLowerCase()}`);
     if (!user) return res.status(401).json({ error: "User not found" });
 
-    const { appRole, tier, shortName } = roleToMobile(user.role);
-    const token = jwt.sign({ sub: user.id, id: user.id, email: user.email, name: user.name, role: appRole, tier, designation: user.designation, shortName, tenantId: "production", site: null }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    const token = jwt.sign(buildPayload(user), JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
     return res.json({ token });
   } catch {
     return res.status(500).json({ error: "Refresh failed" });
+  }
+});
+
+// T23 — GET /eej/auth/me: returns the authenticated mobile user's profile
+// including per-user permission flags so the client can gate UI surfaces.
+// Server-side gates are the source of truth; this endpoint exists for UI hints.
+router.get("/eej/auth/me", async (req, res) => {
+  const caller = verifyEejToken(req.headers.authorization);
+  if (!caller) return res.status(401).json({ error: "Invalid or expired token" });
+  try {
+    const [user] = await db.select().from(schema.systemUsers).where(sql`LOWER(${schema.systemUsers.email}) = ${caller.email.toLowerCase()}`);
+    if (!user) return res.status(401).json({ error: "User not found" });
+    const { appRole, tier, shortName } = roleToMobile(user.role);
+    return res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: appRole,
+        tier,
+        designation: user.designation,
+        shortName,
+        canViewFinancials: user.canViewFinancials,
+        nationalityScope: user.nationalityScope,
+      },
+    });
+  } catch {
+    return res.status(500).json({ error: "Profile lookup failed" });
+  }
+});
+
+// T23 — POST /eej/auth/change-password: rotate the mobile user's password.
+// Requires valid EEJ token + current password verification + min-length new password.
+router.post("/eej/auth/change-password", async (req, res) => {
+  const caller = verifyEejToken(req.headers.authorization);
+  if (!caller) return res.status(401).json({ error: "Invalid or expired token" });
+
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "currentPassword and newPassword are required." });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: "New password must be at least 8 characters." });
+  }
+
+  try {
+    const [user] = await db.select().from(schema.systemUsers).where(sql`LOWER(${schema.systemUsers.email}) = ${caller.email.toLowerCase()}`);
+    if (!user) return res.status(401).json({ error: "User not found" });
+    if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+      return res.status(401).json({ error: "Current password is incorrect." });
+    }
+    const newHash = await hashPassword(newPassword);
+    await db.update(schema.systemUsers).set({ passwordHash: newHash }).where(eq(schema.systemUsers.id, user.id));
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({ error: "Password rotation failed" });
   }
 });
 

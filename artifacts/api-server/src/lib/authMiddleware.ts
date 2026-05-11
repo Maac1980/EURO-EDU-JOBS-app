@@ -17,6 +17,11 @@ export interface AuthUser {
   role: UserRole;
   site: string | null;
   tenantId: string;
+  // T23 — per-user permission flags (only present on mobile-app JWTs from
+  // /eej/auth/login). Admin-side JWTs (auth.ts /auth/login) don't include them;
+  // gates treat absence as unrestricted (admin path bypasses the flag).
+  canViewFinancials?: boolean;
+  nationalityScope?: string | null;
 }
 
 declare global {
@@ -66,6 +71,23 @@ export function requireRole(...roles: string[]) {
     }
     next();
   };
+}
+
+// T23 — business-level financial gate. Blocks callers whose JWT has
+// canViewFinancials explicitly false. Admin-side JWTs without the flag pass
+// through (Anna's admin path retains financial access). Mobile-app JWTs from
+// /eej/auth/login carry the flag baked in; users with false are denied.
+//
+// Applied to: invoices, revenue forecasting/actuals/summary, admin/stats.
+// NOT applied to: worker-level financial fields (salary/advance on
+// /api/workers/* — those remain accessible to all team).
+export function requireFinancialAccess(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
+  if (req.user.canViewFinancials === false) {
+    res.status(403).json({ error: "Financial access required." });
+    return;
+  }
+  next();
 }
 
 // T1 or T2 gate — accepts both the mobile-app role names (executive/legal) and

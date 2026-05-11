@@ -2,7 +2,7 @@ import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { db, schema } from "../db/index.js";
 import { and, eq, desc } from "drizzle-orm";
-import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
+import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin, requireFinancialAccess } from "../lib/authMiddleware.js";
 import { requireTenant } from "../lib/tenancy.js";
 
 const router = Router();
@@ -15,8 +15,8 @@ function generateInvoiceNumber(): string {
   return `EEJ-${y}${m}-${rand}`;
 }
 
-// GET /api/invoices
-router.get("/invoices", authenticateToken, async (req, res) => {
+// GET /api/invoices — business-level financial view; gated by canViewFinancials (T23).
+router.get("/invoices", authenticateToken, requireFinancialAccess, async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
@@ -37,7 +37,7 @@ router.get("/invoices", authenticateToken, async (req, res) => {
 });
 
 // POST /api/invoices — create invoice
-router.post("/invoices", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+router.post("/invoices", authenticateToken, requireFinancialAccess, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const body = req.body;
     const items = body.items as Array<{ amount: number }>;
@@ -68,7 +68,7 @@ router.post("/invoices", authenticateToken, requireCoordinatorOrAdmin, async (re
 });
 
 // PATCH /api/invoices/:id/status
-router.patch("/invoices/:id/status", authenticateToken, async (req, res) => {
+router.patch("/invoices/:id/status", authenticateToken, requireFinancialAccess, async (req, res) => {
   try {
     const { status } = req.body as { status: string };
     const updates: Record<string, unknown> = { status, updatedAt: new Date() };
@@ -85,7 +85,7 @@ router.patch("/invoices/:id/status", authenticateToken, async (req, res) => {
 });
 
 // GET /api/invoices/:id/pdf — generate Polish invoice PDF (Faktura VAT)
-router.get("/invoices/:id/pdf", authenticateToken, async (req, res) => {
+router.get("/invoices/:id/pdf", authenticateToken, requireFinancialAccess, async (req, res) => {
   try {
     const tenantId = requireTenant(req);
     const [invoice] = await db.select().from(schema.invoices).where(
@@ -166,7 +166,7 @@ router.get("/invoices/:id/pdf", authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/invoices/:id
-router.delete("/invoices/:id", authenticateToken, requireAdmin, async (req, res) => {
+router.delete("/invoices/:id", authenticateToken, requireFinancialAccess, requireAdmin, async (req, res) => {
   try {
     const tenantId = requireTenant(req);
     await db.delete(schema.invoices).where(

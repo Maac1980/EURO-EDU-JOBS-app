@@ -1,5 +1,11 @@
 FROM node:24-alpine AS base
-RUN npm install -g pnpm
+# Pin pnpm to match CI (.github/workflows/ci.yml uses pnpm 9). pnpm 10.x enforces
+# strict build-script approval by default and fails on @sentry/cli / esbuild /
+# sharp build scripts. Keeping Docker and CI on the same major version means
+# what passes 282 tests in CI also builds in the container. Upgrade plan: bump
+# CI + this pin + add pnpm.onlyBuiltDependencies to root package.json in one
+# coordinated commit.
+RUN npm install -g pnpm@9
 
 FROM base AS deps
 WORKDIR /app

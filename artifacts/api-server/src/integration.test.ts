@@ -73,7 +73,8 @@ beforeAll(async () => {
   }
   const mod = await import("./app.js");
   app = mod.default;
-});
+}, 60_000); // 60s hook timeout: runMigrations walks 75+ idempotent CREATE/ALTER guards;
+            // CI cold-start exceeds the 10s vitest default. Local fast path still ~1s.
 
 describe("integration: public endpoints (no DB required)", () => {
   it("GET /api/healthz returns 200 ok", async () => {

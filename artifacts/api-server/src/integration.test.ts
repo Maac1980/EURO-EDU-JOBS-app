@@ -61,6 +61,16 @@ process.env.EEJ_ADMIN_EMAIL ??= "anna.b@edu-jobs.eu";
 let app: Express;
 
 beforeAll(async () => {
+  // Apply migrations to test DB before importing app. Without this, recently-added
+  // schema (e.g. T23 system_users.can_view_financials / nationality_scope) is absent
+  // from the test branch, causing both new tests asserting those columns and
+  // pre-existing tests that now traverse code paths reading them to fail with
+  // "column does not exist". runMigrations is idempotent (Pattern B, Day 19) so
+  // it is safe to re-run on every test invocation.
+  if (process.env.TEST_DATABASE_URL) {
+    const { runMigrations } = await import("./db/migrate.js");
+    await runMigrations();
+  }
   const mod = await import("./app.js");
   app = mod.default;
 });

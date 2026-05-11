@@ -464,7 +464,7 @@ Same 16 hard boundaries as APATRIS Claude, applied to EEJ Claude:
 **Scope:**
 
 - **Read-only Neon database role for EEJ Claude operations** — separate from full-access role
-- **Production NEON_DATABASE_URL off developer machine** — rotate to environment-only access where AI cannot read it
+- **Production NEON_DATABASE_URL off developer machine** — rotate to environment-only access where AI cannot read it ✅ Closed 2026-05-10 (Day 22), documented Day 23 — see `docs/ITEM_3_0_SUBTASK_2_DEV_MACHINE_SCRUB.md`
 - **Off-site immutable backups separate from Neon** — S3, separate cloud, manual copy procedure
 - **Soft-delete patterns** — mark records as inactive rather than erasing for worker, placement, agency tables
 - **Confirmation friction code patterns** — destructive operations require typing resource name or confirmation code

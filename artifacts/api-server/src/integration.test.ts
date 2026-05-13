@@ -2868,6 +2868,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     let t4DashEmail: string;
     let t4DashPassword: string;
     let dashTargetWorkerId: string;
+    // 2FA migration to system_users (May 15, commit 5a) — TFA fixture
+    let tfaDashId: string;
+    let tfaDashEmail: string;
+    let tfaDashPassword: string;
 
     async function scryptHash(password: string): Promise<string> {
       const { randomBytes, scrypt } = await import("crypto");
@@ -3065,6 +3069,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
          VALUES ('DASH Target Worker', '+48 555 990 003', 'test', 'Polish') RETURNING id`,
       );
       dashTargetWorkerId = dashWorkerIns.rows[0].id;
+
+      // 2FA on system_users (commit 5a) — dedicated fixture so TFA.* tests
+      // can mutate 2FA state without affecting DASH.* tests. T3 manager,
+      // opt-in 2FA (requires_2fa = FALSE; sets up via /2fa/setup flow).
+      tfaDashEmail = `tfa-dash-${Date.now()}@eej-test.local`;
+      tfaDashPassword = "tfa-dash-pwd-12345678";
+      const tfaDashHash = await scryptHash(tfaDashPassword);
+      const tfaDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('TFA Dash Test', $1, $2, 'T3', 'Recruitment Test', 'Operations', FALSE, NULL, TRUE) RETURNING id`,
+        [tfaDashEmail, tfaDashHash],
+      );
+      tfaDashId = tfaDashIns.rows[0].id;
     });
 
     afterAll(async () => {
@@ -3072,7 +3089,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         await pool.query(
           `DELETE FROM system_users WHERE id = ANY($1::uuid[])`,
           [[lizaUserId, yanaUserId, changePasswordUserId, meUserId,
-            manishDashId, karanDashId, yanaDashId, lizaDashId, annaDashSysId, t4DashId]],
+            manishDashId, karanDashId, yanaDashId, lizaDashId, annaDashSysId, t4DashId, tfaDashId]],
         );
         await pool.query(
           `DELETE FROM users WHERE id = ANY($1::uuid[])`,
@@ -3482,6 +3499,146 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         .send({ email: t4DashEmail, password: t4DashPassword });
       expect(res.status).toBe(403);
       expect(res.body.error).toMatch(/mobile app/i);
+    });
+
+    // ── 2FA migration to system_users (May 15, commit 5a) — TFA.1-TFA.5 ─────
+    // End-to-end TOTP flow on the unified auth path. Setup → verify → status
+    // → login-requires-TOTP → disable. State carried forward across tests
+    // (sequential within this describe block; tfaDashId is dedicated to TFA.*
+    // so DASH.* tests don't perturb its 2FA state).
+    //
+    // The existing F.1-F.9 tests (on users-table path) still pass — they
+    // use a manager-shape JWT with no sourceTable, which defaults to "users"
+    // through the helpers and routes.
+
+    it("TFA.1 POST /2fa/setup as system_users user persists secret to system_users (NOT users)", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      expect(loginRes.status).toBe(200);
+      expect(loginRes.body.user.sourceTable).toBe("system_users");
+      const token = loginRes.body.token as string;
+
+      const setupRes = await request(app).post("/api/2fa/setup")
+        .set("Authorization", `Bearer ${token}`);
+      expect(setupRes.status).toBe(200);
+      expect(typeof setupRes.body.secret).toBe("string");
+      expect(setupRes.body.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+
+      // Secret persists to system_users — NOT to users (no row exists)
+      const sysRow = await pool.query<{ s: string | null; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(sysRow.rows[0].s).toBe(setupRes.body.secret);
+      expect(sysRow.rows[0].e).toBe(false);
+    });
+
+    it("TFA.2 POST /2fa/verify with real TOTP enables 2FA on system_users", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token as string;
+
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+
+      const verifyRes = await request(app).post("/api/2fa/verify")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ token: realToken });
+      expect(verifyRes.status).toBe(200);
+
+      const after = await pool.query<{ e: boolean }>(
+        `SELECT two_factor_enabled AS e FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      expect(after.rows[0].e).toBe(true);
+    });
+
+    it("TFA.3 GET /2fa/status on system_users user returns enabled=true after verify", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      // Note: with 2FA now enabled (TFA.2), this login should require TOTP.
+      // But we're only testing /2fa/status here, which works against an
+      // already-issued token. So construct token via direct mint to bypass
+      // login's 2FA prompt for this isolated status test.
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const loginWithTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: realToken });
+      expect(loginWithTotp.status).toBe(200);
+      const token = loginWithTotp.body.token as string;
+
+      const statusRes = await request(app).get("/api/2fa/status")
+        .set("Authorization", `Bearer ${token}`);
+      expect(statusRes.status).toBe(200);
+      expect(statusRes.body.enabled).toBe(true);
+
+      // Confirm loginRes (the no-totp attempt) returned 202 — TFA.4 will
+      // assert this same shape in isolation, included here for tightness.
+      expect(loginRes.status).toBe(202);
+      expect(loginRes.body.requires2FA).toBe(true);
+    });
+
+    it("TFA.4 /auth/login on system_users user with 2FA enabled — 202 without TOTP, 200 with valid TOTP, 401 with bad TOTP", async () => {
+      // Without TOTP → 202 requires2FA
+      const noTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      expect(noTotp.status).toBe(202);
+      expect(noTotp.body.requires2FA).toBe(true);
+
+      // With bad TOTP → 401
+      const badTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: "000000" });
+      expect(badTotp.status).toBe(401);
+
+      // With real TOTP → 200 + token carries sourceTable=system_users
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const goodTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: realToken });
+      expect(goodTotp.status).toBe(200);
+      expect(goodTotp.body.user.sourceTable).toBe("system_users");
+    });
+
+    it("TFA.5 POST /2fa/disable clears secret + enabled on system_users (not users)", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: realToken });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token as string;
+
+      const realTokenForDisable = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const disableRes = await request(app).post("/api/2fa/disable")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ token: realTokenForDisable });
+      expect(disableRes.status).toBe(200);
+
+      const after = await pool.query<{ s: string | null; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(after.rows[0].s).toBeNull();
+      expect(after.rows[0].e).toBe(false);
     });
   }
 );

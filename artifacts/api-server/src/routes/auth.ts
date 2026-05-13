@@ -92,13 +92,21 @@ router.post("/auth/login", loginLimiter, async (req, res) => {
       return res.status(401).json({ error: "Incorrect password." });
     }
 
-    // TODO(commit 5 — dashboard auth unification): add 2FA check on the
-    // system_users login path. Required when TOTP columns land on
-    // system_users (commit 4) and verify2FAToken/user2FAEnabled gain
-    // sourceTable dispatch (commit 5). Mandatory-for-admin enforcement
-    // (Manish, Anna) gates here once requires_2fa flag is on system_users.
-    // Reference: docs/PHASE_A_AUDIT_DASHBOARD_AUTH_UNIFICATION.md §11.5
-    // commit 5 dependencies + §13.4 (2FA scope and migration plan).
+    // TOTP 2FA on the system_users path. If the user has 2FA enabled,
+    // require a valid TOTP token to complete login. Mirrors the legacy
+    // users-path 2FA check below, but dispatches to system_users via the
+    // sourceTable param on the helpers (commit 5a).
+    // Mandatory-for-admin enforcement (requires_2fa flag forces setup
+    // before login completes) lands in commit 5b — not yet active here.
+    if (await user2FAEnabled(sysUser.id, "system_users")) {
+      const totpToken = (req.body as { totpToken?: string }).totpToken;
+      if (!totpToken) {
+        return res.status(202).json({ requires2FA: true, message: "Please enter your authenticator code." });
+      }
+      if (!(await verify2FAToken(sysUser.id, totpToken, "system_users"))) {
+        return res.status(401).json({ error: "Invalid authenticator code." });
+      }
+    }
 
     const payload: AuthUser = {
       id: sysUser.id,
@@ -177,20 +185,16 @@ router.post("/auth/login", loginLimiter, async (req, res) => {
     return res.status(401).json({ error: "Incorrect password." });
   }
 
-  // TOTP 2FA (non-admin, if enabled). Legacy users-table path only.
-  // TODO(commit 5): user2FAEnabled and verify2FAToken currently query
-  // schema.users only (see routes/twofa.ts). When TOTP migrates to
-  // system_users in commit 4-5, these helpers need sourceTable dispatch
-  // (parallel to the change-password handler pattern in this file).
-  // The callsite below doesn't change shape, but the helpers do.
-  // Reference: docs/PHASE_A_AUDIT_DASHBOARD_AUTH_UNIFICATION.md §11.5
-  // commit 5 dependencies.
-  if (found.role !== "admin" && await user2FAEnabled(found.id)) {
-    const totpToken = (req.body as any).totpToken as string | undefined;
+  // TOTP 2FA (non-admin, if enabled). Legacy users-table path. Explicitly
+  // passes "users" sourceTable to the helpers (commit 5a — sourceTable
+  // dispatch added). Without the explicit param, helpers default to "users"
+  // anyway, but the explicit form is clearer at the callsite.
+  if (found.role !== "admin" && await user2FAEnabled(found.id, "users")) {
+    const totpToken = (req.body as { totpToken?: string }).totpToken;
     if (!totpToken) {
       return res.status(202).json({ requires2FA: true, message: "Please enter your authenticator code." });
     }
-    if (!(await verify2FAToken(found.id, totpToken))) {
+    if (!(await verify2FAToken(found.id, totpToken, "users"))) {
       return res.status(401).json({ error: "Invalid authenticator code." });
     }
   }

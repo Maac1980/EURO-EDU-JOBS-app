@@ -141,6 +141,12 @@ export const systemUsers = pgTable("system_users", {
   // nationalityScope: when set, filters worker-listing queries to that nationality.
   // NULL = no scope (default: see all). "Ukrainian" = Yana's UA-liaison scope.
   nationalityScope: text("nationality_scope"),
+  // Dashboard auth unification (May 14) — finer-grained gate than role for
+  // worker-edit access. T1/T2/T3 default TRUE (recruitment + ops do data entry);
+  // T4 candidate-tier seeds must set explicitly FALSE. Honored by
+  // requireCoordinatorOrAdmin middleware to allow T3→manager users to PATCH
+  // workers when this flag is set (Karan/Marj/Yana on dashboard rollout).
+  canEditWorkers: boolean("can_edit_workers").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

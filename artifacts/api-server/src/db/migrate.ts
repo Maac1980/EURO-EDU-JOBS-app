@@ -103,6 +103,12 @@ export async function runMigrations(): Promise<void> {
     -- nationality_scope filters worker-listing queries when set (e.g., "Ukrainian" → Yana sees only UA workers).
     ALTER TABLE system_users ADD COLUMN IF NOT EXISTS can_view_financials BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE system_users ADD COLUMN IF NOT EXISTS nationality_scope TEXT;
+    -- Dashboard auth unification (May 14) — finer-grained gate than role for worker-edit.
+    -- Default TRUE: existing rows (Manish, Anna, Liza, Karan, Marjorie, Yana, Marta, Piotr)
+    -- all retain worker-edit access on column addition. T4 candidate-tier seeds must
+    -- explicitly set FALSE (none currently seeded). Honored by requireCoordinatorOrAdmin
+    -- to allow T3→manager users to PATCH /workers/:id when flag is set.
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS can_edit_workers BOOLEAN NOT NULL DEFAULT TRUE;
 
     CREATE TABLE IF NOT EXISTS clients (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1929,17 +1935,20 @@ export async function seedInitialData(): Promise<void> {
       shortName: string;
       canViewFinancials: boolean;
       nationalityScope: string | null;
+      canEditWorkers: boolean;
     }> = [
-      // T23 — real team (Day 23 rollout)
-      { name: "Manish Shetty", email: "manish.s@edu-jobs.eu", role: "T1", designation: "Founder & Executive", shortName: "Executive", canViewFinancials: true, nationalityScope: null },
-      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive", canViewFinancials: true, nationalityScope: null },
-      { name: "Liza Yelyzaveta Chubarova", email: "liza.c@edu-jobs.eu", role: "T1", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null },
-      { name: "Karan Chauhan", email: "karan.c@edu-jobs.eu", role: "T3", designation: "Recruitment & People Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
-      { name: "Marjorie Isla Ramones", email: "marjorie.r@edu-jobs.eu", role: "T3", designation: "Recruitment Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
-      { name: "Yana Zielinska", email: "yana.z@edu-jobs.eu", role: "T3", designation: "Contracts & UA Liaison", shortName: "Operations", canViewFinancials: false, nationalityScope: "Ukrainian" },
+      // T23 — real team (Day 23 rollout). canEditWorkers explicit per dashboard
+      // auth unification (May 14): T1/T2/T3 all do worker data entry; T4 (none
+      // seeded) would set FALSE.
+      { name: "Manish Shetty", email: "manish.s@edu-jobs.eu", role: "T1", designation: "Founder & Executive", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true },
+      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true },
+      { name: "Liza Yelyzaveta Chubarova", email: "liza.c@edu-jobs.eu", role: "T1", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
+      { name: "Karan Chauhan", email: "karan.c@edu-jobs.eu", role: "T3", designation: "Recruitment & People Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
+      { name: "Marjorie Isla Ramones", email: "marjorie.r@edu-jobs.eu", role: "T3", designation: "Recruitment Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
+      { name: "Yana Zielinska", email: "yana.z@edu-jobs.eu", role: "T3", designation: "Contracts & UA Liaison", shortName: "Operations", canViewFinancials: false, nationalityScope: "Ukrainian", canEditWorkers: true },
       // Historical accounts kept until Manish deactivates post-deploy.
-      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null },
-      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
+      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
+      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
     ];
 
     for (const u of seedUsers) {
@@ -1957,8 +1966,9 @@ export async function seedInitialData(): Promise<void> {
           shortName: u.shortName,
           canViewFinancials: u.canViewFinancials,
           nationalityScope: u.nationalityScope,
+          canEditWorkers: u.canEditWorkers,
         });
-        console.log(`[db] Seeded system user: ${u.email} (${u.role}, canViewFinancials=${u.canViewFinancials})`);
+        console.log(`[db] Seeded system user: ${u.email} (${u.role}, canViewFinancials=${u.canViewFinancials}, canEditWorkers=${u.canEditWorkers})`);
       }
     }
 

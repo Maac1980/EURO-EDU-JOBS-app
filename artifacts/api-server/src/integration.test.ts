@@ -3054,6 +3054,55 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       const res = await request(app).get("/api/eej/auth/me");
       expect(res.status).toBe(401);
     });
+
+    // ── Dashboard auth unification (May 14) — canEditWorkers column ─────────
+    // Additive migration: ALTER TABLE system_users ADD COLUMN IF NOT EXISTS
+    // can_edit_workers BOOLEAN NOT NULL DEFAULT TRUE. Existing rows backfilled
+    // by the DEFAULT clause; new inserts without explicit value get TRUE.
+    // T4 candidate-tier seeds (none currently) would set explicit FALSE.
+    it("T23.5 can_edit_workers column exists on system_users with NOT NULL DEFAULT TRUE", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, column_default, is_nullable, data_type
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'can_edit_workers'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("boolean");
+      expect(colInfo.rows[0].is_nullable).toBe("NO");
+      expect(colInfo.rows[0].column_default).toMatch(/true/i);
+    });
+
+    it("T23.5b system_users INSERT without can_edit_workers gets TRUE by default", async () => {
+      const email = `canedit-default-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{ id: string; can_edit_workers: boolean }>(
+        `INSERT INTO system_users (name, email, password_hash, role)
+         VALUES ('CanEdit Default Test', $1, 'unused-hash', 'T3')
+         RETURNING id, can_edit_workers`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].can_edit_workers).toBe(true);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
+
+    it("T23.5c system_users INSERT with can_edit_workers=false respects explicit value", async () => {
+      const email = `canedit-explicit-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{ id: string; can_edit_workers: boolean }>(
+        `INSERT INTO system_users (name, email, password_hash, role, can_edit_workers)
+         VALUES ('CanEdit Explicit Test', $1, 'unused-hash', 'T4', false)
+         RETURNING id, can_edit_workers`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].can_edit_workers).toBe(false);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
   }
 );
 

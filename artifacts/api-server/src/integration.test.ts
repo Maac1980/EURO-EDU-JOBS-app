@@ -3233,6 +3233,107 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       }
     });
 
+    // ── 2FA migration to system_users (May 15, commit 4) — column existence ──
+    // Four additive columns: two_factor_secret (TEXT, nullable), two_factor_enabled
+    // (BOOLEAN NOT NULL DEFAULT FALSE), requires_2fa (BOOLEAN NOT NULL DEFAULT FALSE),
+    // recovery_codes_hashed (TEXT, nullable). Code that reads/writes them lands in
+    // commit 5. These tests assert only the DB-state shape.
+    it("T23.6 two_factor_secret column exists on system_users (TEXT nullable)", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'two_factor_secret'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("text");
+      expect(colInfo.rows[0].is_nullable).toBe("YES");
+    });
+
+    it("T23.6b two_factor_enabled column exists with NOT NULL DEFAULT FALSE", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'two_factor_enabled'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("boolean");
+      expect(colInfo.rows[0].is_nullable).toBe("NO");
+      expect(colInfo.rows[0].column_default).toMatch(/false/i);
+    });
+
+    it("T23.6c requires_2fa column exists with NOT NULL DEFAULT FALSE (mandatory-for-admin via backfill, not default)", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'requires_2fa'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("boolean");
+      expect(colInfo.rows[0].is_nullable).toBe("NO");
+      expect(colInfo.rows[0].column_default).toMatch(/false/i);
+    });
+
+    it("T23.6d recovery_codes_hashed column exists (TEXT nullable, stores JSON array)", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'recovery_codes_hashed'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("text");
+      expect(colInfo.rows[0].is_nullable).toBe("YES");
+    });
+
+    it("T23.6e system_users INSERT without 2FA fields gets defaults (no secret, disabled, not required, no recovery codes)", async () => {
+      const email = `tfa-default-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{
+        id: string;
+        two_factor_secret: string | null;
+        two_factor_enabled: boolean;
+        requires_2fa: boolean;
+        recovery_codes_hashed: string | null;
+      }>(
+        `INSERT INTO system_users (name, email, password_hash, role)
+         VALUES ('TFA Default Test', $1, 'unused-hash', 'T3')
+         RETURNING id, two_factor_secret, two_factor_enabled, requires_2fa, recovery_codes_hashed`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].two_factor_secret).toBe(null);
+        expect(ins.rows[0].two_factor_enabled).toBe(false);
+        expect(ins.rows[0].requires_2fa).toBe(false);
+        expect(ins.rows[0].recovery_codes_hashed).toBe(null);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
+
+    it("T23.6f system_users INSERT with explicit 2FA values respects them (secret + enabled + required + codes)", async () => {
+      const email = `tfa-explicit-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{
+        id: string;
+        two_factor_secret: string;
+        two_factor_enabled: boolean;
+        requires_2fa: boolean;
+        recovery_codes_hashed: string;
+      }>(
+        `INSERT INTO system_users (name, email, password_hash, role, two_factor_secret, two_factor_enabled, requires_2fa, recovery_codes_hashed)
+         VALUES ('TFA Explicit Test', $1, 'unused-hash', 'T1', 'ABCD1234EFGH5678', true, true, '["salt1:hash1","salt2:hash2"]')
+         RETURNING id, two_factor_secret, two_factor_enabled, requires_2fa, recovery_codes_hashed`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].two_factor_secret).toBe("ABCD1234EFGH5678");
+        expect(ins.rows[0].two_factor_enabled).toBe(true);
+        expect(ins.rows[0].requires_2fa).toBe(true);
+        expect(JSON.parse(ins.rows[0].recovery_codes_hashed)).toEqual(["salt1:hash1", "salt2:hash2"]);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
+
     // ── Dashboard auth unification (May 14) — DASH.1-DASH.10 tests ──────────
     // Per Phase A audit doc §9. Tests cover: role translation (T1+legal→
     // coordinator, T1→admin, T3→manager, T4→reject), JWT payload extension

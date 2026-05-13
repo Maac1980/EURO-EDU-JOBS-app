@@ -109,6 +109,15 @@ export async function runMigrations(): Promise<void> {
     -- explicitly set FALSE (none currently seeded). Honored by requireCoordinatorOrAdmin
     -- to allow T3→manager users to PATCH /workers/:id when flag is set.
     ALTER TABLE system_users ADD COLUMN IF NOT EXISTS can_edit_workers BOOLEAN NOT NULL DEFAULT TRUE;
+    -- 2FA on system_users (May 15, commit 4). Migration of TOTP from the legacy
+    -- users table so the unified auth path can verify against the same row.
+    -- All four columns additive; existing rows get the defaults.
+    -- requires_2fa default FALSE; backfilled TRUE for admin-tier T1 (Manish, Anna)
+    -- below per mandatory-for-admin / opt-in-for-others decision (audit doc §13.4).
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT;
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS requires_2fa BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS recovery_codes_hashed TEXT;
 
     CREATE TABLE IF NOT EXISTS clients (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1936,19 +1945,23 @@ export async function seedInitialData(): Promise<void> {
       canViewFinancials: boolean;
       nationalityScope: string | null;
       canEditWorkers: boolean;
+      requires2fa: boolean;
     }> = [
       // T23 — real team (Day 23 rollout). canEditWorkers explicit per dashboard
       // auth unification (May 14): T1/T2/T3 all do worker data entry; T4 (none
       // seeded) would set FALSE.
-      { name: "Manish Shetty", email: "manish.s@edu-jobs.eu", role: "T1", designation: "Founder & Executive", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true },
-      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true },
-      { name: "Liza Yelyzaveta Chubarova", email: "liza.c@edu-jobs.eu", role: "T1", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
-      { name: "Karan Chauhan", email: "karan.c@edu-jobs.eu", role: "T3", designation: "Recruitment & People Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
-      { name: "Marjorie Isla Ramones", email: "marjorie.r@edu-jobs.eu", role: "T3", designation: "Recruitment Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
-      { name: "Yana Zielinska", email: "yana.z@edu-jobs.eu", role: "T3", designation: "Contracts & UA Liaison", shortName: "Operations", canViewFinancials: false, nationalityScope: "Ukrainian", canEditWorkers: true },
+      // requires2fa per audit doc §13.4 (mandatory-for-admin / opt-in-for-others):
+      // TRUE for admin-tier (T1 non-Legal → Manish, Anna); FALSE for everyone
+      // else (Liza coordinator, T3 manager) — they can opt in via Profile UI.
+      { name: "Manish Shetty", email: "manish.s@edu-jobs.eu", role: "T1", designation: "Founder & Executive", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true, requires2fa: true },
+      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true, requires2fa: true },
+      { name: "Liza Yelyzaveta Chubarova", email: "liza.c@edu-jobs.eu", role: "T1", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Karan Chauhan", email: "karan.c@edu-jobs.eu", role: "T3", designation: "Recruitment & People Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Marjorie Isla Ramones", email: "marjorie.r@edu-jobs.eu", role: "T3", designation: "Recruitment Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Yana Zielinska", email: "yana.z@edu-jobs.eu", role: "T3", designation: "Contracts & UA Liaison", shortName: "Operations", canViewFinancials: false, nationalityScope: "Ukrainian", canEditWorkers: true, requires2fa: false },
       // Historical accounts kept until Manish deactivates post-deploy.
-      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
-      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true },
+      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
     ];
 
     for (const u of seedUsers) {
@@ -1967,8 +1980,9 @@ export async function seedInitialData(): Promise<void> {
           canViewFinancials: u.canViewFinancials,
           nationalityScope: u.nationalityScope,
           canEditWorkers: u.canEditWorkers,
+          requires2fa: u.requires2fa,
         });
-        console.log(`[db] Seeded system user: ${u.email} (${u.role}, canViewFinancials=${u.canViewFinancials}, canEditWorkers=${u.canEditWorkers})`);
+        console.log(`[db] Seeded system user: ${u.email} (${u.role}, canViewFinancials=${u.canViewFinancials}, canEditWorkers=${u.canEditWorkers}, requires2fa=${u.requires2fa})`);
       }
     }
 
@@ -1982,6 +1996,20 @@ export async function seedInitialData(): Promise<void> {
       SET can_view_financials = TRUE
       WHERE email IN ('manish.s@edu-jobs.eu', 'anna.b@edu-jobs.eu')
         AND can_view_financials = FALSE
+    `);
+
+    // Commit 4 (May 15) — backfill requires_2fa for admin-tier rows that
+    // pre-existed before this column was added. Matches the role-translation
+    // rule (T1 + designation NOT containing "Legal" → admin → mandatory 2FA).
+    // Idempotent: the `AND requires_2fa = FALSE` filter makes subsequent
+    // runs no-op. Only escalates from FALSE→TRUE, never demotes.
+    // Per audit doc §13.4 (mandatory-for-admin scope).
+    await db.execute(sql`
+      UPDATE system_users
+      SET requires_2fa = TRUE
+      WHERE role = 'T1'
+        AND (designation IS NULL OR designation NOT ILIKE '%legal%')
+        AND requires_2fa = FALSE
     `);
   }
 

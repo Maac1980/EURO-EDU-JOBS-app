@@ -147,6 +147,21 @@ export const systemUsers = pgTable("system_users", {
   // requireCoordinatorOrAdmin middleware to allow T3→manager users to PATCH
   // workers when this flag is set (Karan/Marj/Yana on dashboard rollout).
   canEditWorkers: boolean("can_edit_workers").notNull().default(true),
+  // 2FA on system_users (May 15, commit 4 of dashboard auth unification).
+  // Previously TOTP lived on the legacy `users` table only. Migrating columns
+  // here so the unified auth path can verify 2FA against the same row that
+  // resolves the login. Implementation reads/writes added in commit 5.
+  // - two_factor_secret: speakeasy base32 secret, set during /2fa/setup
+  // - two_factor_enabled: user has completed setup + first verify
+  // - requires_2fa: mandatory enforcement flag. Backfilled TRUE for admin-tier
+  //   (T1 non-Legal designation per role-translation). Liza + T3 = FALSE
+  //   (opt-in for May 18). Reviewed via FUTURE.md §4 (broader mandate trigger).
+  // - recovery_codes_hashed: JSON array of scrypt-hashed codes for lost-phone
+  //   fallback. NULL = not generated yet. Codes consumed-on-use (commit 5).
+  twoFactorSecret: text("two_factor_secret"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  requires2fa: boolean("requires_2fa").notNull().default(false),
+  recoveryCodesHashed: text("recovery_codes_hashed"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { analyzeImage } from "../lib/ai.js";
+import { analyzeImage, analyzeText } from "../lib/ai.js";
 import { db, schema } from "../db/index.js";
-import { eq, sql, ilike, and } from "drizzle-orm";
+import { eq, sql, ilike, and, desc } from "drizzle-orm";
 import { appendAuditEntry } from "./audit.js";
 import { toWorker, filterWorkers, type Worker } from "../lib/compliance.js";
 import { authenticateToken, requireAdmin, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
@@ -524,6 +524,768 @@ router.get("/workers/:id", authenticateToken, async (req, res) => {
     return res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
+
+// GET /workers/:id/cockpit — Unified worker view
+// One call returns worker + adjacent state so the mobile app can render the
+// full worker page without sequential fetches. Tenant-scoped. PII masked per
+// viewer role. Built as a read-aggregator on top of existing modules — no new
+// tables, no schema changes.
+router.get("/workers/:id/cockpit", authenticateToken, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+    const workerId = String(req.params.id);
+
+    // 1. Worker row (foundational — return 404 if not in this tenant)
+    const [workerRow] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, workerId), eq(schema.workers.tenantId, tenantId))
+    );
+    if (!workerRow) return res.status(404).json({ error: "Worker not found" });
+
+    const worker = projectWorkerPII(toWorker(workerRow), req.user?.role);
+
+    // 2. Latest TRC case (Liza's domain) + doc completion counts.
+    // worker_id is nullable on trc_cases; cases without a worker won't appear here.
+    const trcResult = await db.execute(sql`
+      SELECT c.*,
+        (SELECT COUNT(*)::int FROM trc_documents d WHERE d.case_id = c.id) AS total_documents,
+        (SELECT COUNT(*)::int FROM trc_documents d WHERE d.case_id = c.id AND d.is_uploaded = true) AS uploaded_documents,
+        (SELECT COUNT(*)::int FROM trc_documents d WHERE d.case_id = c.id AND d.is_required = true AND d.is_uploaded = false) AS missing_documents
+      FROM trc_cases c
+      WHERE c.worker_id = ${workerId}
+      ORDER BY c.created_at DESC
+      LIMIT 1
+    `);
+    const trcCase = trcResult.rows[0] ?? null;
+
+    // 3. Latest work permit application (Anna's domain).
+    const [workPermit] = await db
+      .select()
+      .from(schema.workPermitApplications)
+      .where(
+        and(
+          eq(schema.workPermitApplications.workerId, workerId),
+          eq(schema.workPermitApplications.tenantId, tenantId),
+        ),
+      )
+      .orderBy(desc(schema.workPermitApplications.createdAt))
+      .limit(1);
+
+    // 4. Documents — file_attachments is the canonical FK'd document store.
+    const documents = await db
+      .select()
+      .from(schema.fileAttachments)
+      .where(eq(schema.fileAttachments.workerId, workerId))
+      .orderBy(desc(schema.fileAttachments.uploadedAt));
+
+    // 5. Notes — worker_notes (general) + trc_case_notes (case-specific).
+    const workerNotes = await db
+      .select()
+      .from(schema.workerNotes)
+      .where(eq(schema.workerNotes.workerId, workerId))
+      .orderBy(desc(schema.workerNotes.updatedAt))
+      .limit(20);
+
+    let trcNotes: Array<Record<string, unknown>> = [];
+    if (trcCase) {
+      const notesResult = await db.execute(sql`
+        SELECT * FROM trc_case_notes WHERE case_id = ${trcCase.id as string}
+        ORDER BY created_at DESC LIMIT 20
+      `);
+      trcNotes = notesResult.rows as Array<Record<string, unknown>>;
+    }
+
+    // 6. Recent payroll (last 6 records).
+    const payroll = await db
+      .select()
+      .from(schema.payrollRecords)
+      .where(eq(schema.payrollRecords.workerId, workerId))
+      .orderBy(desc(schema.payrollRecords.createdAt))
+      .limit(6);
+
+    // 7. Recent job applications (placement signals for Karan/Marj/Yana).
+    const jobApplications = await db
+      .select()
+      .from(schema.jobApplications)
+      .where(eq(schema.jobApplications.workerId, workerId))
+      .orderBy(desc(schema.jobApplications.appliedAt))
+      .limit(10);
+
+    // 8. Audit history — audit_entries.worker_id is text-typed, no FK; raw query.
+    const auditResult = await db.execute(sql`
+      SELECT * FROM audit_entries WHERE worker_id = ${workerId}
+      ORDER BY timestamp DESC LIMIT 20
+    `);
+
+    // 8b. AI reasoning log — what the AI has decided about this worker (scans,
+    // summaries, applied updates). Visible alongside audit history for Liza/Anna.
+    const reasoningResult = await db.execute(sql`
+      SELECT id, decision_type, input_summary, output, confidence,
+             decided_action, reviewed_by, model, created_at
+      FROM ai_reasoning_log
+      WHERE worker_id = ${workerId}
+      ORDER BY created_at DESC LIMIT 10
+    `);
+
+    // 8c. WhatsApp messages — Yana (UA-liaison) and Anna check these daily.
+    // Last 10 messages either direction, tenant-scoped.
+    const whatsappMessages = await db
+      .select({
+        id: schema.whatsappMessages.id,
+        direction: schema.whatsappMessages.direction,
+        status: schema.whatsappMessages.status,
+        body: schema.whatsappMessages.body,
+        sentAt: schema.whatsappMessages.sentAt,
+        receivedAt: schema.whatsappMessages.receivedAt,
+        createdAt: schema.whatsappMessages.createdAt,
+        twilioMessageSid: schema.whatsappMessages.twilioMessageSid,
+      })
+      .from(schema.whatsappMessages)
+      .where(
+        and(
+          eq(schema.whatsappMessages.workerId, workerId),
+          eq(schema.whatsappMessages.tenantId, tenantId),
+        ),
+      )
+      .orderBy(desc(schema.whatsappMessages.createdAt))
+      .limit(10);
+
+    // 9. Compute alerts from expiry dates + missing-doc counts.
+    const alerts: Array<{ level: "red" | "amber"; field: string; message: string; date?: string }> = [];
+    const today = new Date();
+    const checkExpiry = (field: string, dateStr: string | null | undefined, label: string) => {
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return;
+      const daysLeft = Math.ceil((d.getTime() - today.getTime()) / 86_400_000);
+      if (daysLeft < 0) {
+        alerts.push({ level: "red", field, message: `${label} EXPIRED`, date: dateStr });
+      } else if (daysLeft <= 30) {
+        alerts.push({ level: "red", field, message: `${label} expires in ${daysLeft}d`, date: dateStr });
+      } else if (daysLeft <= 60) {
+        alerts.push({ level: "amber", field, message: `${label} expires in ${daysLeft}d`, date: dateStr });
+      }
+    };
+    checkExpiry("trcExpiry", workerRow.trcExpiry, "TRC");
+    checkExpiry("workPermitExpiry", workerRow.workPermitExpiry, "Work permit");
+    checkExpiry("badaniaLekExpiry", workerRow.badaniaLekExpiry, "Medical exam");
+    checkExpiry("oswiadczenieExpiry", workerRow.oswiadczenieExpiry, "Oświadczenie");
+    checkExpiry("udtCertExpiry", workerRow.udtCertExpiry, "UDT cert");
+    checkExpiry("contractEndDate", workerRow.contractEndDate, "Contract");
+
+    if (trcCase && Number(trcCase.missing_documents) > 0) {
+      alerts.push({
+        level: "amber",
+        field: "trcDocuments",
+        message: `${trcCase.missing_documents} TRC document(s) missing`,
+      });
+    }
+
+    return res.json({
+      worker,
+      trcCase,
+      workPermit: workPermit ?? null,
+      documents,
+      notes: { worker: workerNotes, trc: trcNotes },
+      payroll,
+      jobApplications,
+      auditHistory: auditResult.rows,
+      aiReasoning: reasoningResult.rows,
+      whatsappMessages,
+      alerts,
+      meta: {
+        generatedAt: new Date().toISOString(),
+        viewerRole: req.user?.role,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to load cockpit data",
+    });
+  }
+});
+
+// GET /workers/:id/ai-summary — AI-generated 3-sentence summary tuned to the
+// viewer's role. Legal viewer hears about TRC/compliance first; executive
+// hears about revenue/contracts; operations hears about placement/contact.
+// Returns 503 if ANTHROPIC_API_KEY is unset — UI shows a graceful fallback.
+router.get("/workers/:id/ai-summary", authenticateToken, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+    const workerId = String(req.params.id);
+    const viewerRole = req.user?.role;
+
+    const [workerRow] = await db
+      .select()
+      .from(schema.workers)
+      .where(and(eq(schema.workers.id, workerId), eq(schema.workers.tenantId, tenantId)));
+    if (!workerRow) return res.status(404).json({ error: "Worker not found" });
+
+    // Pull the minimum slice that informs the summary — TRC case if any,
+    // permit if any. The rest is on workerRow itself.
+    const trcResult = await db.execute(sql`
+      SELECT status, permit_type, voivodeship, application_date, appointment_date, renewal_deadline,
+        (SELECT COUNT(*)::int FROM trc_documents d
+          WHERE d.case_id = c.id AND d.is_required = true AND d.is_uploaded = false) AS missing_documents
+      FROM trc_cases c
+      WHERE c.worker_id = ${workerId}
+      ORDER BY c.created_at DESC LIMIT 1
+    `);
+    const trcCase = trcResult.rows[0] ?? null;
+
+    const [workPermit] = await db
+      .select({
+        permitType: schema.workPermitApplications.permitType,
+        status: schema.workPermitApplications.status,
+        submittedAt: schema.workPermitApplications.submittedAt,
+        decisionDate: schema.workPermitApplications.decisionDate,
+        expiryDate: schema.workPermitApplications.expiryDate,
+      })
+      .from(schema.workPermitApplications)
+      .where(
+        and(
+          eq(schema.workPermitApplications.workerId, workerId),
+          eq(schema.workPermitApplications.tenantId, tenantId),
+        ),
+      )
+      .orderBy(desc(schema.workPermitApplications.createdAt))
+      .limit(1);
+
+    const today = new Date().toISOString().split("T")[0];
+    const context = {
+      today,
+      worker: {
+        name: workerRow.name,
+        nationality: workerRow.nationality,
+        jobRole: workerRow.jobRole,
+        assignedSite: workerRow.assignedSite,
+        voivodeship: workerRow.voivodeship,
+        pipelineStage: workerRow.pipelineStage,
+        contractType: workerRow.contractType,
+        contractEndDate: workerRow.contractEndDate,
+        trcExpiry: workerRow.trcExpiry,
+        workPermitExpiry: workerRow.workPermitExpiry,
+        badaniaLekExpiry: workerRow.badaniaLekExpiry,
+        oswiadczenieExpiry: workerRow.oswiadczenieExpiry,
+        udtCertExpiry: workerRow.udtCertExpiry,
+        bhpStatus: workerRow.bhpStatus,
+        zusStatus: workerRow.zusStatus,
+        visaType: workerRow.visaType,
+      },
+      trc: trcCase,
+      workPermit: workPermit ?? null,
+    };
+
+    // Role-tuned system prompts. AI now returns JSON with a 3-sentence summary
+    // PLUS a structured list of suggested actions. Each action is a single
+    // concrete next-step the viewer can take with one tap in the cockpit:
+    // scan_document (renewal), send_whatsapp (reminder), open_trc / open_permit
+    // / open_payroll (deep-link), add_note (reminder to self), or none
+    // (informational only). The frontend renders these as tappable buttons.
+    //
+    // This is the "AI as writer / orchestrator" pattern: Liza opens a worker,
+    // sees not just "TRC expires in 7 days" but a concrete "Scan the renewal
+    // document" button that opens the right flow. The lawyer becomes the
+    // editor, not the typist.
+    const ACTION_TYPES = "scan_document | send_whatsapp | open_trc | open_permit | open_payroll | add_note | none";
+    const TEMPLATE_NAMES = [
+      "trc_expiry_reminder_pl",
+      "trc_expiry_reminder_en",
+      "documents_missing_pl",
+      "documents_missing_en",
+      "application_received",
+      "permit_status_update",
+      "payment_reminder",
+    ].join(" | ");
+    const baseFormat =
+      ` Return ONLY valid JSON, no preamble or markdown, in this exact shape:
+{
+  "summary": "three short sentences, action-oriented, written in plain English",
+  "actions": [
+    {
+      "label": "human-readable button text (4-6 words)",
+      "actionType": "${ACTION_TYPES}",
+      "priority": "high | med | low",
+      "reasoning": "one short sentence — why this action, why now",
+      "templateHint": "optional — only when actionType is send_whatsapp, suggest one of: ${TEMPLATE_NAMES}. Prefer the _pl variant for Ukrainian/Polish workers (most workers speak Polish); _en for others. Omit the field if no good match."
+    }
+  ]
+}
+
+Max 3 actions. Order from highest priority first. If nothing urgent applies, return an empty actions array. Use the provided 'today' date to reason about expiries.`;
+
+    const systemPrompts: Record<string, string> = {
+      legal:
+        "You are advising a Polish immigration lawyer on a foreign worker's case. " +
+        "Lead with the most legally-pressing item (TRC expiry, missing TRC documents, " +
+        "appointment dates, work-permit renewal). Prefer suggested actions of type " +
+        "scan_document (when a renewal document is needed), send_whatsapp (when the " +
+        "worker needs to submit something), or open_trc (deep-edit the case)." +
+        baseFormat,
+      executive:
+        "You are advising the staffing-agency executive on a worker's status. Lead " +
+        "with what affects revenue or risk: contract end date, ZUS status, expensive " +
+        "expiries, placement state. Prefer suggested actions of type open_payroll, " +
+        "open_permit, or add_note (decision reminders for yourself)." +
+        baseFormat,
+      operations:
+        "You are advising the recruitment-operations lead on a worker. Lead with " +
+        "placement readiness, site assignment, contact recency, document completeness " +
+        "for deployment. Prefer suggested actions of type send_whatsapp (chase the " +
+        "worker), scan_document (when a doc is missing), or add_note (followup)." +
+        baseFormat,
+      candidate:
+        "You are summarising the worker's own status for themselves. Lead with what " +
+        "they need to do or know next (documents to provide, dates to remember). " +
+        "Actions should mostly be 'none' (informational) since workers can't trigger " +
+        "internal flows; suggest scan_document only if they can upload it themselves." +
+        baseFormat,
+    };
+    const systemPrompt = systemPrompts[viewerRole ?? "operations"] ?? systemPrompts.operations;
+
+    const raw = await analyzeText(
+      `Worker situation as of ${today}:\n\n${JSON.stringify(context, null, 2)}`,
+      systemPrompt,
+    );
+
+    if (!raw) {
+      return res.status(503).json({
+        error: "AI summary unavailable. Verify ANTHROPIC_API_KEY is set.",
+      });
+    }
+
+    // Defensive parse — Claude usually returns clean JSON but tolerate
+    // surrounding prose by finding the first {...} block.
+    let parsed: { summary?: string; actions?: unknown[] } = {};
+    try {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+    } catch {
+      // Fall back to plain-text summary, no actions.
+      parsed = { summary: raw.trim(), actions: [] };
+    }
+    const summary = (parsed.summary ?? raw).trim();
+    const validActionTypes = new Set([
+      "scan_document", "send_whatsapp", "open_trc", "open_permit", "open_payroll", "add_note", "none",
+    ]);
+    const validPriorities = new Set(["high", "med", "low"]);
+    const actions = Array.isArray(parsed.actions)
+      ? (parsed.actions as Array<Record<string, unknown>>)
+          .filter((a) =>
+            typeof a === "object" &&
+            a !== null &&
+            typeof a.label === "string" &&
+            typeof a.actionType === "string" &&
+            validActionTypes.has(a.actionType),
+          )
+          .map((a) => ({
+            label: String(a.label),
+            actionType: String(a.actionType),
+            priority: validPriorities.has(String(a.priority)) ? String(a.priority) : "med",
+            reasoning: typeof a.reasoning === "string" ? a.reasoning : null,
+            // templateHint only carried when actionType === 'send_whatsapp';
+            // any value here is best-effort, the cockpit verifies that the
+            // suggested name exists in the active templates list before pre-
+            // selecting it.
+            templateHint:
+              a.actionType === "send_whatsapp" && typeof a.templateHint === "string"
+                ? a.templateHint
+                : null,
+          }))
+          .slice(0, 3)
+      : [];
+
+    // Log the reasoning for provenance — Liza can later trace why AI suggested
+    // a particular action via the AI history panel / AiAuditTab.
+    try {
+      await db.insert(schema.aiReasoningLog).values({
+        decisionType: "ai_summary",
+        workerId,
+        inputSummary: `ai-summary for role=${viewerRole}`,
+        inputHash: null,
+        output: { summary, actions } as Record<string, unknown>,
+        confidence: null,
+        decidedAction: "applied",
+        reviewedBy: req.user?.email ?? null,
+        model: "claude-sonnet-4-6",
+        tenantId,
+      });
+    } catch {
+      // Logging is non-critical; never fail the request if reasoning insert fails.
+    }
+
+    return res.json({
+      summary,
+      actions,
+      generatedAt: new Date().toISOString(),
+      viewerRole,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to generate AI summary",
+    });
+  }
+});
+
+// ── Document scanning loop — AI as ambient layer ─────────────────────────────
+// POST /workers/scan-document
+//   Upload a document image. Claude vision identifies the doc type and
+//   extracts the entities. Backend then fuzzy-matches against existing
+//   workers in the tenant and returns top candidates with confidence.
+//   Does NOT mutate state — pure read + AI. The caller decides what to do.
+//
+// POST /workers/scan-document/apply
+//   Caller posts the extracted entities + target workerId (or null = create).
+//   Backend updates the worker (or creates one) and writes a reasoning log
+//   entry. State changes here, audit + reasoning log entries written.
+//
+// This pair is the "scan a doc, system updates itself" loop from the
+// audit conversation. Two-step (scan + apply) so the human stays in the
+// loop on identity resolution — AI suggests, human confirms.
+
+interface ScannedEntities {
+  docType: "passport" | "trc" | "work_permit" | "bhp" | "contract" | "cv" | "medical" | "other";
+  personName: string | null;
+  documentNumber: string | null;
+  dateOfBirth: string | null;
+  nationality: string | null;
+  expiryDate: string | null;
+  issueDate: string | null;
+  issuingAuthority: string | null;
+  additionalFields: Record<string, string | null>;
+  rawText: string | null;
+  confidence: number;
+}
+
+async function extractEntitiesFromDocument(
+  fileBuffer: Buffer,
+  mimeType: string,
+): Promise<ScannedEntities | null> {
+  const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  if (!imageTypes.includes(mimeType)) return null;
+
+  const prompt = `Analyse this document image. Return ONLY valid JSON in this exact shape:
+{
+  "docType": "passport" | "trc" | "work_permit" | "bhp" | "contract" | "cv" | "medical" | "other",
+  "personName": "full name as written on document, or null",
+  "documentNumber": "passport/permit/cert number, or null",
+  "dateOfBirth": "YYYY-MM-DD or null",
+  "nationality": "nationality / country, or null",
+  "expiryDate": "YYYY-MM-DD or null",
+  "issueDate": "YYYY-MM-DD or null",
+  "issuingAuthority": "issuing body name or null",
+  "additionalFields": { "any_other_relevant_field": "value" },
+  "rawText": "first 500 chars of text you can read, or null",
+  "confidence": 0.0 to 1.0
+}
+
+Polish-specific document types:
+- "trc" = Karta Pobytu (Temporary Residence Card)
+- "work_permit" = Zezwolenie na pracę (Type A/B/C)
+- "bhp" = BHP / Badania lekarskie (safety / medical certificate)
+- "oswiadczenie" → use "work_permit"
+
+If the document type is unclear, use "other" and put your best guess in additionalFields.documentTypeGuess.
+Return ONLY the JSON object, no preamble.`;
+
+  const base64 = fileBuffer.toString("base64");
+  const result = await analyzeImage(base64, mimeType, prompt);
+  if (!result) return null;
+  try {
+    const match = result.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[0]) as ScannedEntities;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// Score how well a worker matches the extracted entities. 0-1, where >0.7 is
+// "very likely" and >0.4 is "possibly". Boost on exact passport number, name
+// similarity, and nationality alignment.
+function scoreWorkerMatch(
+  worker: typeof schema.workers.$inferSelect,
+  entities: ScannedEntities,
+): number {
+  let score = 0;
+  let signals = 0;
+
+  if (entities.personName && worker.name) {
+    const a = entities.personName.toLowerCase().trim();
+    const b = worker.name.toLowerCase().trim();
+    if (a === b) {
+      score += 1.0;
+    } else if (a.includes(b) || b.includes(a)) {
+      score += 0.7;
+    } else {
+      // Token overlap — splits both names and counts shared tokens.
+      const at = new Set(a.split(/\s+/));
+      const bt = new Set(b.split(/\s+/));
+      const overlap = [...at].filter((x) => bt.has(x)).length;
+      const denom = Math.max(at.size, bt.size);
+      if (denom > 0) score += (overlap / denom) * 0.6;
+    }
+    signals += 1;
+  }
+
+  if (entities.nationality && worker.nationality) {
+    if (entities.nationality.toLowerCase().includes(worker.nationality.toLowerCase()) ||
+        worker.nationality.toLowerCase().includes(entities.nationality.toLowerCase())) {
+      score += 0.3;
+    }
+    signals += 1;
+  }
+
+  // Document-number match against worker.pesel or worker fields — if exact,
+  // very strong signal.
+  if (entities.documentNumber) {
+    const num = entities.documentNumber.toLowerCase().replace(/\s/g, "");
+    if (worker.pesel && worker.pesel.toLowerCase().replace(/\s/g, "") === num) {
+      score += 1.5;
+      signals += 1;
+    }
+  }
+
+  // Normalise: divide by the max possible score given how many signals were
+  // available. Keeps "name + nationality + number all match" at ~1.0 and
+  // "only name matches" at ~0.5.
+  return signals > 0 ? Math.min(1.0, score / Math.max(1, signals)) : 0;
+}
+
+const scanUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+router.post(
+  "/workers/scan-document",
+  authenticateToken,
+  requireCoordinatorOrAdmin,
+  scanUpload.single("file"),
+  async (req, res) => {
+    try {
+      const tenantId = requireTenant(req);
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: "No file uploaded (field name 'file')." });
+
+      const entities = await extractEntitiesFromDocument(file.buffer, file.mimetype);
+      if (!entities) {
+        return res.status(422).json({
+          error: "Could not extract entities from this document. Verify ANTHROPIC_API_KEY and that the file is a clear image (JPEG/PNG).",
+        });
+      }
+
+      // Score every worker in this tenant. For small tenants this is fine;
+      // for larger ones we'd add an indexed pre-filter on name similarity.
+      const workers = await db
+        .select()
+        .from(schema.workers)
+        .where(eq(schema.workers.tenantId, tenantId));
+
+      const scored = workers
+        .map((w) => ({ worker: w, score: scoreWorkerMatch(w, entities) }))
+        .filter((s) => s.score > 0.25)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+        .map(({ worker, score }) => ({
+          id: worker.id,
+          name: worker.name,
+          nationality: worker.nationality,
+          jobRole: worker.jobRole,
+          pipelineStage: worker.pipelineStage,
+          score: Math.round(score * 1000) / 1000,
+        }));
+
+      // Log the extraction reasoning even though no state changed yet —
+      // gives Liza a paper trail of what the AI saw before she acted on it.
+      const { createHash } = await import("crypto");
+      const inputHash = createHash("sha256")
+        .update(file.buffer)
+        .digest("hex");
+      await db.insert(schema.aiReasoningLog).values({
+        decisionType: "document_extraction",
+        workerId: null,
+        inputSummary: `${file.originalname ?? "upload"} (${file.mimetype}, ${file.size}B)`,
+        inputHash,
+        output: {
+          entities,
+          topMatches: scored,
+        } as Record<string, unknown>,
+        confidence: entities.confidence.toFixed(3),
+        decidedAction: "pending_review",
+        reviewedBy: req.user?.email ?? null,
+        model: "claude-sonnet-4-6",
+        tenantId,
+      });
+
+      return res.json({
+        entities,
+        matches: scored,
+        inputHash,
+        meta: { extractedAt: new Date().toISOString() },
+      });
+    } catch (err) {
+      return res.status(500).json({
+        error: err instanceof Error ? err.message : "Document scan failed",
+      });
+    }
+  },
+);
+
+// Map extracted entities to worker fields. Conservative — only writes fields
+// that the document clearly establishes, never overwrites existing non-null
+// values without explicit human confirmation (apply endpoint sets
+// allowOverwrite=true to opt in to overwriting).
+function applyEntitiesToWorker(
+  entities: ScannedEntities,
+  current: Partial<typeof schema.workers.$inferInsert>,
+  allowOverwrite: boolean,
+): { updates: Record<string, unknown>; appliedFields: string[] } {
+  const updates: Record<string, unknown> = {};
+  const appliedFields: string[] = [];
+  const set = (field: string, value: unknown) => {
+    if (value === null || value === undefined || value === "") return;
+    const existing = (current as Record<string, unknown>)[field];
+    if (existing && existing !== "" && !allowOverwrite) return;
+    updates[field] = value;
+    appliedFields.push(field);
+  };
+
+  if (entities.personName) set("name", entities.personName);
+  if (entities.nationality) set("nationality", entities.nationality);
+
+  switch (entities.docType) {
+    case "trc":
+      if (entities.expiryDate) set("trcExpiry", entities.expiryDate);
+      break;
+    case "work_permit":
+      if (entities.expiryDate) set("workPermitExpiry", entities.expiryDate);
+      break;
+    case "bhp":
+      if (entities.expiryDate) set("badaniaLekExpiry", entities.expiryDate);
+      // bhpStatus is text — set to "valid" if we have a recent issue date.
+      if (entities.issueDate) set("bhpStatus", "valid");
+      break;
+    case "passport":
+      // No direct field; passport number could go to additionalFields review.
+      break;
+    case "medical":
+      if (entities.expiryDate) set("badaniaLekExpiry", entities.expiryDate);
+      break;
+  }
+
+  return { updates, appliedFields };
+}
+
+router.post(
+  "/workers/scan-document/apply",
+  authenticateToken,
+  requireCoordinatorOrAdmin,
+  async (req, res) => {
+    try {
+      const tenantId = requireTenant(req);
+      const body = req.body as {
+        entities: ScannedEntities;
+        workerId?: string | null;
+        createNew?: boolean;
+        allowOverwrite?: boolean;
+        inputHash?: string;
+        storageKey?: string;
+        filename?: string;
+      };
+
+      if (!body?.entities) return res.status(400).json({ error: "entities required" });
+
+      let targetWorkerId: string;
+      let didCreate = false;
+
+      if (body.createNew) {
+        // Auto-create a worker from the extracted entities. Bare minimum to
+        // get them into the pipeline as 'New' — Karan/Marj will enrich later.
+        if (!body.entities.personName) {
+          return res.status(400).json({ error: "Cannot create worker: entities.personName missing." });
+        }
+        const [created] = await db
+          .insert(schema.workers)
+          .values({
+            name: body.entities.personName,
+            nationality: body.entities.nationality ?? undefined,
+            pipelineStage: "New",
+            tenantId,
+          })
+          .returning({ id: schema.workers.id });
+        targetWorkerId = created.id;
+        didCreate = true;
+        appendAuditEntry({
+          workerId: targetWorkerId,
+          actor: req.user?.email ?? "ai-scan",
+          field: "CREATED_FROM_SCAN",
+          newValue: { source: body.filename ?? "document_scan" } as Record<string, unknown>,
+          action: "create",
+        });
+      } else {
+        if (!body.workerId) return res.status(400).json({ error: "workerId or createNew=true required" });
+        // Verify the worker exists in this tenant.
+        const [w] = await db.select({ id: schema.workers.id }).from(schema.workers).where(
+          and(eq(schema.workers.id, body.workerId), eq(schema.workers.tenantId, tenantId)),
+        );
+        if (!w) return res.status(404).json({ error: "Worker not found in this tenant." });
+        targetWorkerId = w.id;
+      }
+
+      // Load the current worker to inform conservative update logic.
+      const [currentWorker] = await db.select().from(schema.workers).where(
+        eq(schema.workers.id, targetWorkerId),
+      );
+
+      const { updates, appliedFields } = applyEntitiesToWorker(
+        body.entities,
+        currentWorker,
+        body.allowOverwrite === true,
+      );
+
+      if (appliedFields.length > 0) {
+        await db.update(schema.workers)
+          .set({ ...updates, updatedAt: new Date() })
+          .where(eq(schema.workers.id, targetWorkerId));
+        appendAuditEntry({
+          workerId: targetWorkerId,
+          actor: req.user?.email ?? "ai-scan",
+          field: appliedFields.join(", "),
+          newValue: updates as Record<string, unknown>,
+          action: didCreate ? "create" : "update",
+        });
+      }
+
+      // Reasoning log entry — what the AI proposed, what we applied, who approved.
+      await db.insert(schema.aiReasoningLog).values({
+        decisionType: didCreate ? "worker_auto_create" : "field_update",
+        workerId: targetWorkerId,
+        inputSummary: body.filename ?? "document_scan",
+        inputHash: body.inputHash ?? null,
+        output: {
+          entities: body.entities,
+          appliedFields,
+          updates,
+          createdNew: didCreate,
+        } as Record<string, unknown>,
+        confidence: body.entities.confidence?.toFixed(3) ?? null,
+        decidedAction: "applied",
+        reviewedBy: req.user?.email ?? null,
+        model: "claude-sonnet-4-6",
+        tenantId,
+      });
+
+      return res.json({
+        workerId: targetWorkerId,
+        created: didCreate,
+        appliedFields,
+        updates,
+      });
+    } catch (err) {
+      return res.status(500).json({
+        error: err instanceof Error ? err.message : "Failed to apply scan",
+      });
+    }
+  },
+);
 
 // PATCH /workers/:id
 router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {

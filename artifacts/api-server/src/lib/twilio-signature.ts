@@ -16,7 +16,14 @@
  *   - Never throws
  */
 
-import { validateRequest } from "twilio";
+// Twilio's CJS export shape differs across Node versions in ESM mode (named
+// imports work under esbuild bundling but break under tsx ESM dev). Default-
+// import the module and read validateRequest off it — same function, more
+// tolerant of the dev-vs-build divergence.
+import twilio from "twilio";
+const { validateRequest } = twilio as unknown as {
+  validateRequest: (authToken: string, signature: string, url: string, params: Record<string, string>) => boolean;
+};
 
 export interface VerifyTwilioSignatureInput {
   authToken: string;

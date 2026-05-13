@@ -334,6 +334,50 @@ router.get("/admin/stats", authenticateToken, requireFinancialAccess, requireAdm
   }
 });
 
+// GET /admin/ai-reasoning — list AI decisions across the tenant.
+// Each row records why AI did what it did (document_extraction, field_update,
+// worker_auto_create, ai_summary, etc.) with confidence, reviewer, source.
+// Liza / Anna visit this when a Voivodeship questions an AI-driven update —
+// this is the legal evidence trail. Append-only on the table; this endpoint
+// is read-only.
+//
+// Filters: decisionType, decidedAction, workerId (free-text in query string).
+router.get("/admin/ai-reasoning", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+    const decisionType = typeof req.query.decisionType === "string" ? req.query.decisionType : null;
+    const decidedAction = typeof req.query.decidedAction === "string" ? req.query.decidedAction : null;
+    const workerId = typeof req.query.workerId === "string" ? req.query.workerId : null;
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+
+    const result = await db.execute(sql`
+      SELECT r.id, r.decision_type, r.input_summary, r.output, r.confidence,
+             r.decided_action, r.reviewed_by, r.model, r.created_at,
+             r.worker_id, w.name AS worker_name
+      FROM ai_reasoning_log r
+      LEFT JOIN workers w ON w.id = r.worker_id
+      WHERE r.tenant_id = ${tenantId}
+        AND (${decisionType}::text IS NULL OR r.decision_type = ${decisionType})
+        AND (${decidedAction}::text IS NULL OR r.decided_action = ${decidedAction})
+        AND (${workerId}::uuid IS NULL OR r.worker_id = ${workerId}::uuid)
+      ORDER BY r.created_at DESC
+      LIMIT ${limit}
+    `);
+
+    return res.json({
+      entries: result.rows,
+      meta: {
+        count: result.rows.length,
+        filters: { decisionType, decidedAction, workerId },
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to load AI reasoning log",
+    });
+  }
+});
+
 router.get("/admin/system-status", authenticateToken, requireAdmin, (_req, res) => {
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;

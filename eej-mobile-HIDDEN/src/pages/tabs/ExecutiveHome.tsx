@@ -14,12 +14,16 @@ import {
   Search,
   ChevronRight,
   Loader2,
+  Sparkles,
 } from "lucide-react";
-import { EXEC_STATS } from "@/data/mockData";
+// EXEC_STATS removed — Anna now sees real-or-empty from /admin/stats, never
+// the synthetic mock fallback. If stats fail to load, we show an error banner
+// rather than a misleading number.
 import PlatformModules from "@/components/PlatformModules";
 import AddCandidateModal from "@/components/AddCandidateModal";
 import AddUserModal from "@/components/AddUserModal";
 import ModuleSheet from "@/components/ModuleSheet";
+import DocumentScanFlow from "@/components/DocumentScanFlow";
 import type { ModuleId } from "@/components/PlatformModules";
 import type { ActiveTab } from "@/types";
 import { fetchRegulatorySummary, searchImmigration, fetchAdminStats, fetchNotifications, fetchWorkers } from "@/lib/api";
@@ -32,9 +36,19 @@ export default function ExecutiveHome({ onNavigate }: Props) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showAddUser,  setShowAddUser]  = useState(false);
   const [openModule,   setOpenModule]   = useState<ModuleId | null>(null);
+  const [showScanFlow, setShowScanFlow] = useState(false);
 
-  // Live stats state (falls back to EXEC_STATS defaults)
-  const [stats, setStats] = useState(EXEC_STATS);
+  // Live stats — initialized to real-or-empty zeroes. Anna sees what the
+  // system actually knows, not a mock-data illusion.
+  const [stats, setStats] = useState({
+    totalCandidates: 0,
+    placementPct: 0,
+    pendingReviews: 0,
+    activeDeployments: 0,
+    monthlyRevenue: "0.00",
+    zusLiability: "0.00",
+    b2bContracts: 0,
+  });
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsMeta, setStatsMeta] = useState<{
     newApplicationsToday: number;
@@ -74,17 +88,23 @@ export default function ExecutiveHome({ onNavigate }: Props) {
     return new Date(w.createdAt).toDateString() === new Date().toDateString();
   });
 
+  // Real-or-empty: each stat reads from the API; if the API doesn't return
+  // a value, we show 0 (or empty) instead of falling back to mockData.
+  // Anna should see what the system actually knows about the business — a
+  // fake number is worse than no number when she's making decisions.
+  const [statsError, setStatsError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchAdminStats()
       .then((data) => {
         setStats({
-          totalCandidates: data.totalCandidates ?? EXEC_STATS.totalCandidates,
-          placementPct: data.placementPct ?? EXEC_STATS.placementPct,
-          pendingReviews: data.pendingReviews ?? EXEC_STATS.pendingReviews,
-          activeDeployments: data.activeDeployments ?? EXEC_STATS.activeDeployments,
-          monthlyRevenue: data.monthlyRevenue ?? EXEC_STATS.monthlyRevenue,
-          zusLiability: data.zusLiability ?? EXEC_STATS.zusLiability,
-          b2bContracts: data.b2bContracts ?? EXEC_STATS.b2bContracts,
+          totalCandidates: data.totalCandidates ?? 0,
+          placementPct: data.placementPct ?? 0,
+          pendingReviews: data.pendingReviews ?? 0,
+          activeDeployments: data.activeDeployments ?? 0,
+          monthlyRevenue: data.monthlyRevenue ?? "0.00",
+          zusLiability: data.zusLiability ?? "0.00",
+          b2bContracts: data.b2bContracts ?? 0,
         });
         setStatsMeta({
           newApplicationsToday: data.newApplicationsToday ?? 0,
@@ -102,8 +122,12 @@ export default function ExecutiveHome({ onNavigate }: Props) {
           },
           stagnantLeads: data.stagnantLeads ?? 0,
         });
+        setStatsError(null);
       })
-      .catch(() => {/* keep defaults */})
+      .catch((e) => {
+        // Don't fall back to fake numbers. Surface that the data is missing.
+        setStatsError(e instanceof Error ? e.message : "Stats unavailable");
+      })
       .finally(() => setStatsLoading(false));
 
     fetchRegulatorySummary()
@@ -134,6 +158,37 @@ export default function ExecutiveHome({ onNavigate }: Props) {
         </div>
         <div className="tab-greeting-date">{formatDate()}</div>
       </div>
+
+      <button className="lh-scan-btn" onClick={() => setShowScanFlow(true)}>
+        <Sparkles size={16} strokeWidth={2.2} />
+        <div className="lh-scan-text">
+          <div className="lh-scan-title">Scan a document</div>
+          <div className="lh-scan-sub">AI reads it and matches to the right worker</div>
+        </div>
+        <ChevronRight size={14} strokeWidth={2.2} />
+      </button>
+
+      {statsError && (
+        <div
+          style={{
+            margin: "0 0 12px",
+            padding: "8px 12px",
+            background: "#FFFBEB",
+            border: "1px solid #FCD34D",
+            borderRadius: 8,
+            fontSize: 12,
+            color: "#92400E",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <AlertTriangle size={13} strokeWidth={2.2} />
+          <span style={{ flex: 1 }}>
+            Stats unavailable — showing what's loaded so far. {statsError}
+          </span>
+        </div>
+      )}
 
       {/* ── New Applications Today ── */}
       {(todayApps.length > 0 || newApps.length > 0) && (
@@ -545,6 +600,7 @@ export default function ExecutiveHome({ onNavigate }: Props) {
       {showAdd     && <AddCandidateModal onClose={() => setShowAdd(false)} />}
       {showAddUser && <AddUserModal      onClose={() => setShowAddUser(false)} />}
       {openModule  && <ModuleSheet moduleId={openModule} onClose={() => setOpenModule(null)} />}
+      {showScanFlow && <DocumentScanFlow onClose={() => setShowScanFlow(false)} />}
     </div>
   );
 }

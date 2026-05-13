@@ -2,9 +2,9 @@ import { useState, useMemo } from "react";
 import { Search, SlidersHorizontal, MapPin, ChevronRight, UserPlus, Building2 } from "lucide-react";
 import { OPS_PIPELINE, B2B_CONTRACTS, type DocStatus, type Candidate } from "@/data/mockData";
 import { useCandidates } from "@/lib/candidateContext";
-import CandidateDetail from "./CandidateDetail";
+import WorkerCockpit from "@/components/WorkerCockpit";
 import AddCandidateModal from "@/components/AddCandidateModal";
-import type { Role } from "@/types";
+import type { Role, ActiveTab } from "@/types";
 import { ROLE_PERMISSIONS } from "@/types";
 
 type Filter = "all" | DocStatus;
@@ -32,9 +32,12 @@ const STAGE_COLORS: Record<string, string> = {
   "On Assignment":     "#1B2A4A",
 };
 
-interface Props { role: Role; }
+interface Props {
+  role: Role;
+  onNavigate?: (tab: ActiveTab) => void;
+}
 
-export default function CandidatesList({ role }: Props) {
+export default function CandidatesList({ role, onNavigate }: Props) {
   const { candidates, loading, error } = useCandidates();
   const [query, setQuery]               = useState("");
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
@@ -52,9 +55,6 @@ export default function CandidatesList({ role }: Props) {
       c.location.toLowerCase().includes(query.toLowerCase());
     return matchesFilter && matchesSearch;
   }), [candidates, query, activeFilter]);
-
-  const canViewFullProfile = perms.seeGlobalCandidates && role !== "candidate";
-  const canEdit            = role === "executive" || role === "legal" || role === "operations";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -219,12 +219,25 @@ export default function CandidatesList({ role }: Props) {
       </div>
 
       {selected && (
-        <CandidateDetail
-          candidate={selected}
+        <WorkerCockpit
+          workerId={selected.id}
           onClose={() => setSelected(null)}
-          seeFinancials={perms.seeFinancials}
-          canViewFullProfile={canViewFullProfile}
-          canEdit={canEdit}
+          onOpenModule={
+            onNavigate
+              ? (module) => {
+                  const tabMap: Record<string, ActiveTab> = {
+                    trc: "trc",
+                    permits: "permits",
+                    payroll: "payroll",
+                  };
+                  const target = tabMap[module];
+                  if (target) {
+                    setSelected(null);
+                    onNavigate(target);
+                  }
+                }
+              : undefined
+          }
         />
       )}
 

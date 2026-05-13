@@ -1146,3 +1146,40 @@ export const a1Certificates = pgTable("a1_certificates", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ── AI Reasoning Log (provenance for AI-driven decisions) ────────────────────
+// Stores why the AI did what it did — separate from audit_entries which records
+// state changes. The reasoning log is the legal-evidence trail: if a worker's
+// fields were updated by AI-extracted document data, this table records the
+// source document, the extracted entities, the matching logic, the confidence
+// score, and the human reviewer (if any). Append-only.
+export const aiReasoningLog = pgTable("ai_reasoning_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // What kind of decision: "document_extraction", "entity_match", "field_update",
+  // "worker_auto_create", "ai_summary", "appeal_draft", etc.
+  decisionType: text("decision_type").notNull(),
+  // The worker this decision is about (nullable for new-worker creation events
+  // where the worker hasn't been created yet — workerId set after creation).
+  workerId: uuid("worker_id").references(() => workers.id, { onDelete: "set null" }),
+  // Free-form context about the input — e.g., "passport-scan", filename + size,
+  // or the prompt parameters. Should not contain raw PII.
+  inputSummary: text("input_summary"),
+  // Hash of the input for dedupe / reproduction (sha256 hex). Lets us detect
+  // re-runs of the same input without storing the input itself.
+  inputHash: text("input_hash"),
+  // What the AI produced — JSON-shaped output (extracted fields, decided action,
+  // suggested next steps). Tolerates schema evolution.
+  output: jsonb("output"),
+  // 0.0 - 1.0; how confident the AI was in this output. Null when N/A.
+  confidence: numeric("confidence", { precision: 4, scale: 3 }),
+  // What action this reasoning led to: "applied", "rejected", "pending_review",
+  // "auto_applied", "user_corrected". Lets us measure AI accuracy over time.
+  decidedAction: text("decided_action"),
+  // Email of the human who reviewed / approved the AI's output. Null if no
+  // human in the loop (e.g., auto-applied low-risk updates).
+  reviewedBy: text("reviewed_by"),
+  // The AI model name + version. Tracks which model produced what.
+  model: text("model"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

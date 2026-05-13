@@ -4,7 +4,13 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import router from "./routes/index.js";
+
+// __dirname doesn't exist in ESM mode (tsx dev). Derive it from import.meta.url
+// so the same source runs under both tsx (ESM dev) and esbuild's CJS bundle.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 

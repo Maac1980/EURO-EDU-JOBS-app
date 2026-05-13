@@ -2,17 +2,21 @@ import { useState, useRef } from "react";
 import { Upload, FileCheck, Paperclip, CheckCircle2, Search } from "lucide-react";
 import { useCandidates } from "@/lib/candidateContext";
 import { useToast } from "@/lib/toast";
+import { uploadWorkerDocument } from "@/lib/api";
 
-const DOC_TYPES = [
-  "Passport / ID Card",
-  "TRC Residence Card",
-  "Work Permit (A1)",
-  "BHP Certificate",
-  "Badania Lekarskie",
-  "Oświadczenie",
-  "UDT Certificate",
-  "Employment Contract",
-  "Other Document",
+// Display label → server doc-type slug. Server uses these slugs to route
+// auto-OCR (passport / contract types trigger Claude vision extraction) and
+// to map back into worker field updates via the upload endpoint.
+const DOC_TYPES: { label: string; slug: string }[] = [
+  { label: "Passport / ID Card",   slug: "passport"    },
+  { label: "TRC Residence Card",   slug: "trc"         },
+  { label: "Work Permit",          slug: "work-permit" },
+  { label: "BHP Certificate",      slug: "bhp"         },
+  { label: "Badania Lekarskie",    slug: "badania"     },
+  { label: "Oświadczenie",         slug: "oswiad"      },
+  { label: "UDT Certificate",      slug: "udt"         },
+  { label: "Employment Contract",  slug: "contract"    },
+  { label: "Other Document",       slug: "other"       },
 ];
 
 interface UploadEntry {
@@ -28,27 +32,45 @@ export default function BulkUploadTab() {
   const fileRef        = useRef<HTMLInputElement | null>(null);
   const [candidate,    setCandidate]   = useState("");
   const [docType,      setDocType]     = useState("");
-  const [uploadedLog,  setUploadedLog] = useState<UploadEntry[]>([
-    { candidateName: "Daria Shevchenko",  docType: "TRC Residence Card", fileName: "trc_shevchenko_mar26.pdf",  uploadedAt: "Today, 09:14" },
-    { candidateName: "Ahmed Al-Rashid",   docType: "Passport / ID Card", fileName: "passport_alrashid.jpg",     uploadedAt: "Today, 08:50" },
-    { candidateName: "Oleksandr Bondar",  docType: "Work Permit (A1)",   fileName: "wp_bondar_2026.pdf",        uploadedAt: "Yesterday" },
-  ]);
+  // Append-only feed of THIS session's real uploads. Server-side state lives
+  // in file_attachments. No mock seed entries — start empty and grow as the
+  // user uploads. The cockpit's Documents panel is the canonical view of
+  // a worker's full document history.
+  const [uploadedLog,  setUploadedLog] = useState<UploadEntry[]>([]);
+  const [uploading,    setUploading]   = useState(false);
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!candidate) { showToast("Select a candidate first", "error"); e.target.value = ""; return; }
     if (!docType)   { showToast("Select a document type first", "error"); e.target.value = ""; return; }
 
-    const name = candidates.find((c) => c.id === candidate)?.name ?? candidate;
-    setUploadedLog((prev) => [
-      { candidateName: name, docType, fileName: file.name, uploadedAt: "Just now" },
-      ...prev,
-    ]);
-    showToast(`Uploaded ${file.name} for ${name}`, "success");
-    e.target.value = "";
-    setCandidate("");
-    setDocType("");
+    const cand = candidates.find((c) => c.id === candidate);
+    const name = cand?.name ?? candidate;
+    setUploading(true);
+    try {
+      await uploadWorkerDocument(candidate, docType, file);
+      setUploadedLog((prev) => [
+        {
+          candidateName: name,
+          docType: DOC_TYPES.find((d) => d.slug === docType)?.label ?? docType,
+          fileName: file.name,
+          uploadedAt: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        },
+        ...prev,
+      ]);
+      showToast(`Uploaded ${file.name} for ${name}`, "success");
+      setCandidate("");
+      setDocType("");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? `Upload failed: ${err.message}` : "Upload failed",
+        "error",
+      );
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   }
 
   const sel = "add-cand-input add-cand-select";
@@ -87,17 +109,18 @@ export default function BulkUploadTab() {
           <label className="add-cand-label">Document Type</label>
           <select className={sel} value={docType} onChange={(e) => setDocType(e.target.value)}>
             <option value="">— select type —</option>
-            {DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            {DOC_TYPES.map((t) => <option key={t.slug} value={t.slug}>{t.label}</option>)}
           </select>
         </div>
 
         <button
           className="bulk-upload-trigger"
           onClick={() => fileRef.current?.click()}
-          style={{ opacity: candidate && docType ? 1 : 0.5 }}
+          style={{ opacity: candidate && docType && !uploading ? 1 : 0.5 }}
+          disabled={uploading}
         >
           <Paperclip size={15} strokeWidth={2.5} />
-          Choose File &amp; Upload
+          {uploading ? "Uploading…" : "Choose File & Upload"}
         </button>
         <input
           type="file"

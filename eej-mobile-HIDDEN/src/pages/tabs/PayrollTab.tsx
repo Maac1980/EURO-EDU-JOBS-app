@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Calculator, Download, Lock } from "lucide-react";
+import { Calculator, Download, Lock, Sparkles } from "lucide-react";
 import { calculate, reverseCalculate } from "@/components/KnowledgeCenter";
 import { useToast } from "@/lib/toast";
+import { useDeepLinkWorker, clearDeepLinkWorker } from "@/lib/navContext";
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem("eej_token_v2");
@@ -16,6 +17,11 @@ export default function PayrollTab() {
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState("2026-03");
   const [edits, setEdits] = useState<Record<string, { hours?: number; advance?: number }>>({});
+  const deepLink = useDeepLinkWorker();
+  const displayedWorkers = useMemo(
+    () => (deepLink ? workers.filter((w) => w.id === deepLink.id) : workers),
+    [workers, deepLink],
+  );
 
   useEffect(() => {
     fetch("/api/payroll/workers", { headers: authHeaders() })
@@ -49,9 +55,16 @@ export default function PayrollTab() {
         <div style={{ flex: 1, background: "#ECFDF5", borderRadius: 12, padding: "10px", textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 800, color: "#059669" }}>{totals.net.toFixed(0)} PLN</div><div style={{ fontSize: 10, color: "#059669" }}>Total Net</div></div>
         <div style={{ flex: 1, background: "#FEF2F2", borderRadius: 12, padding: "10px", textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 800, color: "#DC2626" }}>{totals.cost.toFixed(0)} PLN</div><div style={{ fontSize: 10, color: "#DC2626" }}>Employer Cost</div></div>
       </div>
+      {deepLink && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 10, marginBottom: 10, fontSize: 12, color: "#1B2A4A" }}>
+          <Sparkles size={14} strokeWidth={2.2} />
+          <span style={{ flex: 1 }}>Showing payroll for <strong>{deepLink.name ?? "selected worker"}</strong></span>
+          <button onClick={clearDeepLinkWorker} style={{ background: "transparent", border: "1px solid #BFDBFE", borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600, color: "#3B82F6", cursor: "pointer" }}>Show all</button>
+        </div>
+      )}
       {loading && <div style={{ textAlign: "center", padding: 40, color: "#9CA3AF" }}>Loading payroll...</div>}
-      {!loading && workers.length === 0 && <div style={{ textAlign: "center", padding: 40, color: "#9CA3AF" }}><Calculator size={28} /><div style={{ marginTop: 8 }}>No workers in payroll</div></div>}
-      {workers.map((w) => { const c = calc(w); return (
+      {!loading && displayedWorkers.length === 0 && <div style={{ textAlign: "center", padding: 40, color: "#9CA3AF" }}><Calculator size={28} /><div style={{ marginTop: 8 }}>{deepLink ? "No payroll records for this worker" : "No workers in payroll"}</div></div>}
+      {displayedWorkers.map((w) => { const c = calc(w); return (
         <div key={w.id} style={{ background: "#fff", border: "1.5px solid #E5E7EB", borderRadius: 14, padding: 12, marginBottom: 8 }}>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#111827", marginBottom: 6 }}>{w.name}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, fontSize: 11 }}>

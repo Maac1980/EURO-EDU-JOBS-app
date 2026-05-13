@@ -31,9 +31,19 @@ async function hashPassword(password: string): Promise<string> {
   });
 }
 
-function roleToMobile(role: string) {
+// Map system_users.role (T1-T4) to mobile-app appRole + tier + shortName.
+// Designation refines the mapping at T1: Liza ("Head of Legal & Client
+// Relations") gets the legal layout despite her T1 tier — she has T1-level
+// visibility but her daily work is TRC/legal, so she lands on LegalHome
+// instead of ExecutiveHome. Manish + Anna keep the executive layout.
+function roleToMobile(role: string, designation?: string | null) {
   switch (role) {
-    case "T1": return { appRole: "executive", tier: 1, shortName: "Executive" };
+    case "T1": {
+      const isLegal =
+        designation?.toLowerCase().includes("legal") ?? false;
+      if (isLegal) return { appRole: "legal", tier: 1, shortName: "Legal & Compliance" };
+      return { appRole: "executive", tier: 1, shortName: "Executive" };
+    }
     case "T2": return { appRole: "legal", tier: 2, shortName: "Legal & Compliance" };
     case "T3": return { appRole: "operations", tier: 3, shortName: "Operations" };
     case "T4": return { appRole: "candidate", tier: 4, shortName: "Candidate Portal" };
@@ -55,7 +65,7 @@ import { loginLimiter } from "../lib/security.js";
 // nationalityScope). Baking into JWT avoids DB lookup on every gated request;
 // flags propagate within TOKEN_EXPIRY (7d) or sooner via /eej/auth/refresh.
 function buildPayload(user: typeof schema.systemUsers.$inferSelect) {
-  const { appRole, tier, shortName } = roleToMobile(user.role);
+  const { appRole, tier, shortName } = roleToMobile(user.role, user.designation);
   return {
     sub: user.id,
     id: user.id,

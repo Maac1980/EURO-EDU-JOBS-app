@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
-import { Mail, Phone, Globe2, FileCheck, FileClock, FileX, FileQuestion, Upload, Paperclip, CheckCircle2 } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Mail, Phone, Globe2, FileCheck, FileClock, FileX, FileQuestion, Upload, Paperclip, CheckCircle2, AlertTriangle, CalendarClock } from "lucide-react";
 import { useCandidates } from "@/lib/candidateContext";
 import type { DocReviewStatus, Candidate } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
+import { uploadWorkerDocument } from "@/lib/api";
 
 interface Props {
   candidateId?: string;
@@ -37,6 +38,7 @@ export default function CandidateHome({ candidateId }: Props) {
   const { showToast } = useToast();
   const { candidates, loading } = useCandidates();
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // If candidateId is provided, look up that specific candidate.
@@ -45,6 +47,29 @@ export default function CandidateHome({ candidateId }: Props) {
   const MY: Candidate | undefined = candidateId
     ? candidates.find((c) => c.id === candidateId)
     : candidates[0];
+
+  // Worker-side status — declared BEFORE the early returns so it follows
+  // the rules of hooks. Returns [] when MY is undefined.
+  const myExpiryStatus = useMemo(() => {
+    if (!MY) return [] as Array<{ label: string; date: string; days: number; level: "red" | "amber" | "green" }>;
+    const today = Date.now();
+    const items: Array<{ label: string; date: string; days: number; level: "red" | "amber" | "green" }> = [];
+    const check = (label: string, dateStr?: string) => {
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return;
+      const days = Math.ceil((d.getTime() - today) / 86_400_000);
+      const level: "red" | "amber" | "green" = days < 0 || days <= 30 ? "red" : days <= 60 ? "amber" : "green";
+      items.push({ label, date: dateStr, days, level });
+    };
+    check("TRC", MY.trcExpiry);
+    check("Work permit", MY.workPermitExpiry);
+    check("Medical exam", MY.badaniaLekExpiry);
+    check("Oświadczenie", MY.oswiadczenieExpiry);
+    check("UDT cert", MY.udtCertExpiry);
+    check("Contract", MY.contractEndDate);
+    return items.sort((a, b) => a.days - b.days);
+  }, [MY]);
 
   if (loading) {
     return (
@@ -70,12 +95,23 @@ export default function CandidateHome({ candidateId }: Props) {
     );
   }
 
-  function handleUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
-    showToast(`Uploaded: ${file.name}`, "success");
-    e.target.value = "";
+    if (!file || !MY) return;
+    setUploading((p) => ({ ...p, [slotId]: true }));
+    try {
+      // Real POST — stores file metadata server-side and triggers Claude OCR
+      // for passport/contract types. Auto-updates worker fields if AI extracts
+      // an expiry / nationality.
+      await uploadWorkerDocument(MY.id, slotId, file);
+      setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
+      showToast(`${file.name} uploaded — your coordinator will review`, "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Upload failed", "error");
+    } finally {
+      setUploading((p) => ({ ...p, [slotId]: false }));
+      e.target.value = "";
+    }
   }
 
   const uploadedCount = Object.keys(uploadedFiles).length;
@@ -100,6 +136,32 @@ export default function CandidateHome({ candidateId }: Props) {
           {MY.status === "cleared" ? "✓ Cleared" : MY.statusLabel}
         </div>
       </div>
+
+      {/* What's pressing on my case — worker-side at-a-glance status. */}
+      {myExpiryStatus.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: 16 }}>
+            <CalendarClock size={13} color="#9CA3AF" strokeWidth={2} />
+            What needs my attention
+          </div>
+          <div className="my-status-grid">
+            {myExpiryStatus.slice(0, 6).map((s) => (
+              <div
+                key={s.label}
+                className={`my-status-card my-status-${s.level}`}
+              >
+                <div className="my-status-label">{s.label}</div>
+                <div className="my-status-days">
+                  {s.days < 0 ? `Expired ${Math.abs(s.days)}d ago` : `${s.days}d left`}
+                </div>
+                <div className="my-status-date">
+                  {new Date(s.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="section-label">Contact Details</div>
       <div className="profile-detail-card">
@@ -167,10 +229,13 @@ export default function CandidateHome({ candidateId }: Props) {
               <button
                 className={"my-upload-btn" + (uploaded ? " my-upload-btn--done" : "")}
                 onClick={() => fileRefs.current[id]?.click()}
+                disabled={uploading[id]}
               >
-                {uploaded
-                  ? <><CheckCircle2 size={13} strokeWidth={2.5} /> Replace</>
-                  : <><Upload size={13} strokeWidth={2.5} /> Upload</>}
+                {uploading[id]
+                  ? <>Uploading…</>
+                  : uploaded
+                    ? <><CheckCircle2 size={13} strokeWidth={2.5} /> Replace</>
+                    : <><Upload size={13} strokeWidth={2.5} /> Upload</>}
               </button>
               <input
                 type="file"

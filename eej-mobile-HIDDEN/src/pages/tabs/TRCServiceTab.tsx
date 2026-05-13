@@ -1,14 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   FileText, Plus, ChevronDown, ChevronUp, Send, Bell,
   Receipt, Sparkles, AlertTriangle, CheckCircle, Clock, X,
 } from "lucide-react";
 import { useToast } from "@/lib/toast";
+import { useDeepLinkWorker, clearDeepLinkWorker } from "@/lib/navContext";
 
 /* ── Types ────────────────────────────────────────────────── */
 interface TRCCase {
   id: string;
+  worker_id?: string | null;
   workerName: string;
+  worker_name?: string;
   nationality: string;
   employer: string;
   status: string;
@@ -84,17 +87,37 @@ export default function TRCServiceTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [filter, setFilter] = useState("all");
 
+  // Deep-link from cockpit: when set, the tab opens pre-filtered to that
+  // worker's cases. User can clear via the banner's "Show all" button.
+  const deepLink = useDeepLinkWorker();
+
   const loadData = () => {
     setLoading(true);
     Promise.all([api("/api/trc/cases"), api("/api/trc/summary")])
-      .then(([c, s]) => { setCases(c); setSummary(s); })
+      .then(([c, s]) => {
+        const normalised = ((c.cases ?? c) as TRCCase[]).map((row) => ({
+          ...row,
+          workerName: row.workerName ?? row.worker_name ?? "",
+        }));
+        setCases(normalised);
+        setSummary(s);
+      })
       .catch(() => showToast("Failed to load TRC data", "error"))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { loadData(); }, []);
 
-  const filtered = filter === "all" ? cases : cases.filter((c) => c.status === filter);
+  const filtered = useMemo(() => {
+    let rows = cases;
+    if (deepLink) {
+      rows = rows.filter((c) => c.worker_id === deepLink.id);
+    }
+    if (filter !== "all") {
+      rows = rows.filter((c) => c.status === filter);
+    }
+    return rows;
+  }, [cases, filter, deepLink]);
 
   return (
     <div className="tab-page">
@@ -108,6 +131,45 @@ export default function TRCServiceTab() {
           <Plus size={14} /> New Case
         </button>
       </div>
+
+      {/* Deep-link banner: when the cockpit deep-linked into this tab with
+          a worker, show a clear-able filter chip. */}
+      {deepLink && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 12px",
+            background: "#EFF6FF",
+            border: "1px solid #BFDBFE",
+            borderRadius: 10,
+            marginBottom: 10,
+            fontSize: 12,
+            color: "#1B2A4A",
+          }}
+        >
+          <Sparkles size={14} strokeWidth={2.2} />
+          <span style={{ flex: 1 }}>
+            Showing cases for <strong>{deepLink.name ?? "selected worker"}</strong>
+          </span>
+          <button
+            onClick={clearDeepLinkWorker}
+            style={{
+              background: "transparent",
+              border: "1px solid #BFDBFE",
+              borderRadius: 6,
+              padding: "2px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#3B82F6",
+              cursor: "pointer",
+            }}
+          >
+            Show all
+          </button>
+        </div>
+      )}
 
       {/* Summary Cards */}
       {summary && <SummaryHeader summary={summary} />}

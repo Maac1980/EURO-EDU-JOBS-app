@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type { Candidate, CandidateDocument, DocReviewStatus } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
-import WorkerProfileSheet from "@/components/WorkerProfileSheet";
+import WorkerCockpit from "@/components/WorkerCockpit";
 
 const DETAIL_UPLOAD_SLOTS = [
   { id: "passport",    label: "Passport / ID Card" },
@@ -226,12 +226,12 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
         </div>
       </div>
 
-      {/* Full Worker Profile Sheet */}
+      {/* Full Worker Cockpit — unified view backed by GET /workers/:id/cockpit.
+          Replaces the previous mock-data WorkerProfileSheet. Panels arrange
+          themselves by viewer role (legal/executive/operations). */}
       {showFullProfile && (
-        <WorkerProfileSheet
-          candidate={candidate}
-          seeFinancials={seeFinancials}
-          canEdit={canEdit}
+        <WorkerCockpit
+          workerId={candidate.id}
           onClose={() => setShowFullProfile(false)}
         />
       )}

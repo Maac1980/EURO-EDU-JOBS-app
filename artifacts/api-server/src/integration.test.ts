@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi, type Mock } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi, type Mock } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import type { Pool } from "pg";
@@ -49,6 +49,22 @@ vi.mock("twilio", async (importActual) => {
     twiml: ns.twiml,
     RequestClient: ns.RequestClient,
     RestException: ns.RestException,
+  };
+});
+
+// Mock the AI lib so document-scan tests can run without ANTHROPIC_API_KEY
+// and without making real network calls. Individual tests override the mock
+// per-case via analyzeImageMock.mockResolvedValueOnce(...).
+const { analyzeImageMock, analyzeTextMock } = vi.hoisted(() => ({
+  analyzeImageMock: vi.fn<(...args: unknown[]) => Promise<string | null>>(),
+  analyzeTextMock: vi.fn<(...args: unknown[]) => Promise<string | null>>(),
+}));
+vi.mock("./lib/ai.js", async (importActual) => {
+  const actual: any = await importActual();
+  return {
+    ...actual,
+    analyzeImage: analyzeImageMock,
+    analyzeText: analyzeTextMock,
   };
 });
 
@@ -3039,4 +3055,1125 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       expect(res.status).toBe(401);
     });
   }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Worker Cockpit — GET /workers/:id/cockpit aggregator endpoint.
+// One call returns worker + adjacent state (TRC, work permit, documents,
+// notes, payroll, jobs, audit, computed alerts). Tenant-scoped, PII masked.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "Worker Cockpit (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let workerId: string;
+    let otherTenantWorkerId: string;
+    let trcCaseId: string;
+    let userToken: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      // Ensure the 'test' tenant exists (T23 tests reuse it; we're idempotent).
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('test', 'Test Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+
+      // Worker with an imminent TRC expiry (10 days out) → should produce a red alert.
+      const tenDaysOut = new Date(Date.now() + 10 * 86_400_000).toISOString().split("T")[0];
+      const wIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality, job_role, assigned_site, trc_expiry)
+         VALUES ('Cockpit Test Worker', '+48 555 990 100', 'test', 'Ukrainian',
+                 'Welder', 'Wroclaw-Test', $1)
+         RETURNING id`,
+        [tenDaysOut],
+      );
+      workerId = wIns.rows[0].id;
+
+      // Worker in a different tenant — cockpit must NOT return this one.
+      const otherIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality)
+         VALUES ('Other Tenant Worker', '+48 555 990 101', 'other-tenant', 'Polish')
+         RETURNING id`,
+      );
+      otherTenantWorkerId = otherIns.rows[0].id;
+
+      // TRC case linked to the worker — cockpit must surface it.
+      const trcIns = await pool.query<{ id: string }>(
+        `INSERT INTO trc_cases (worker_id, worker_name, nationality, permit_type, status, voivodeship)
+         VALUES ($1, 'Cockpit Test Worker', 'Ukrainian', 'TRC', 'under_review', 'dolnoslaskie')
+         RETURNING id`,
+        [workerId],
+      );
+      trcCaseId = trcIns.rows[0].id;
+
+      // One missing required TRC doc → cockpit alerts should mention it.
+      await pool.query(
+        `INSERT INTO trc_documents (case_id, document_type, document_name, is_required, is_uploaded)
+         VALUES ($1, 'identity', 'Passport scan', true, false)`,
+        [trcCaseId],
+      );
+
+      // A worker note → cockpit notes section should include it.
+      await pool.query(
+        `INSERT INTO worker_notes (worker_id, content, updated_by, updated_at)
+         VALUES ($1, 'Initial intake by Karan', 'karan.c@edu-jobs.eu', NOW())`,
+        [workerId],
+      );
+
+      const jwt = await import("jsonwebtoken");
+      userToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000c0c0",
+          id: "00000000-0000-0000-0000-00000000c0c0",
+          email: "cockpit-test@eej-test.local",
+          name: "Cockpit Test User",
+          role: "legal",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: false,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM trc_documents WHERE case_id = $1`, [trcCaseId]);
+        await pool.query(`DELETE FROM trc_cases WHERE id = $1`, [trcCaseId]);
+        await pool.query(`DELETE FROM worker_notes WHERE worker_id = $1`, [workerId]);
+        await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [
+          [workerId, otherTenantWorkerId],
+        ]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("WC.1 returns 200 with all top-level keys for a real worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("worker");
+      expect(res.body).toHaveProperty("trcCase");
+      expect(res.body).toHaveProperty("workPermit");
+      expect(res.body).toHaveProperty("documents");
+      expect(res.body).toHaveProperty("notes");
+      expect(res.body.notes).toHaveProperty("worker");
+      expect(res.body.notes).toHaveProperty("trc");
+      expect(res.body).toHaveProperty("payroll");
+      expect(res.body).toHaveProperty("jobApplications");
+      expect(res.body).toHaveProperty("auditHistory");
+      expect(res.body).toHaveProperty("alerts");
+      expect(res.body).toHaveProperty("meta");
+      expect(res.body.meta).toHaveProperty("generatedAt");
+      expect(res.body.meta).toHaveProperty("viewerRole");
+    });
+
+    it("WC.2 surfaces the TRC case linked to the worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.trcCase).not.toBeNull();
+      expect(res.body.trcCase.status).toBe("under_review");
+      expect(res.body.trcCase.permit_type).toBe("TRC");
+      // Doc completion counts computed via sub-query.
+      expect(Number(res.body.trcCase.total_documents)).toBe(1);
+      expect(Number(res.body.trcCase.missing_documents)).toBe(1);
+    });
+
+    it("WC.3 includes worker notes and surfaces them in notes.worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.notes.worker)).toBe(true);
+      expect(res.body.notes.worker.length).toBeGreaterThan(0);
+      expect(res.body.notes.worker[0].content).toContain("Initial intake by Karan");
+    });
+
+    it("WC.4 computes a red alert for TRC expiring inside 30 days + amber for missing TRC docs", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      const alerts = res.body.alerts as Array<{ level: string; field: string; message: string }>;
+      const trcExpiryAlert = alerts.find((a) => a.field === "trcExpiry");
+      expect(trcExpiryAlert).toBeDefined();
+      expect(trcExpiryAlert!.level).toBe("red");
+      const missingDocsAlert = alerts.find((a) => a.field === "trcDocuments");
+      expect(missingDocsAlert).toBeDefined();
+      expect(missingDocsAlert!.level).toBe("amber");
+    });
+
+    it("WC.5 returns 404 for a worker in a different tenant (tenant isolation)", async () => {
+      // userToken is scoped to tenantId='test'. The other worker is in tenantId='other-tenant'.
+      const res = await request(app)
+        .get(`/api/workers/${otherTenantWorkerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("WC.6 returns 404 for non-existent worker UUID", async () => {
+      const res = await request(app)
+        .get(`/api/workers/00000000-0000-0000-0000-000000000000/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("WC.7 returns 401 without token", async () => {
+      const res = await request(app).get(`/api/workers/${workerId}/cockpit`);
+      expect(res.status).toBe(401);
+    });
+
+    it("WC.8 meta.viewerRole reflects the JWT role baked into the token", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.meta.viewerRole).toBe("legal");
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// roleToMobile — Liza routing fix. Designation containing "Legal" at T1
+// should route to appRole "legal" so Liza lands on LegalHome instead of
+// ExecutiveHome. Manish + Anna (T1 without "Legal" in designation) stay
+// on executive.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "roleToMobile: T1 designation-aware routing",
+  () => {
+    let pool: Pool;
+    let lizaEmail: string;
+    let annaEmail: string;
+    let lizaPwd = "liza-route-pwd-1234";
+    let annaPwd = "anna-route-pwd-1234";
+
+    async function scryptHash(password: string): Promise<string> {
+      const { randomBytes, scrypt } = await import("crypto");
+      const salt = randomBytes(16).toString("hex");
+      return new Promise((resolve, reject) => {
+        scrypt(password, salt, 64, (err, key) => {
+          if (err) reject(err);
+          else resolve(`${salt}:${key.toString("hex")}`);
+        });
+      });
+    }
+
+    let xff = 0;
+    const uniqueIp = () => {
+      xff += 1;
+      return `10.111.${Math.floor(xff / 254)}.${(xff % 254) + 1}`;
+    };
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      lizaEmail = `liza-route-${Date.now()}@eej-test.local`;
+      annaEmail = `anna-route-${Date.now()}@eej-test.local`;
+      await pool.query(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('Liza Route', $1, $2, 'T1', 'Head of Legal & Client Relations', 'Legal')`,
+        [lizaEmail, await scryptHash(lizaPwd)],
+      );
+      await pool.query(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('Anna Route', $1, $2, 'T1', 'Executive Board & Finance', 'Executive')`,
+        [annaEmail, await scryptHash(annaPwd)],
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM system_users WHERE email IN ($1, $2)`, [lizaEmail, annaEmail]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("RM.1 T1 + 'Legal' in designation routes to appRole=legal", async () => {
+      const res = await request(app)
+        .post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ email: lizaEmail, password: lizaPwd });
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("legal");
+      expect(res.body.user.tier).toBe(1);
+    });
+
+    it("RM.2 T1 without 'Legal' in designation stays on appRole=executive", async () => {
+      const res = await request(app)
+        .post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ email: annaEmail, password: annaPwd });
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("executive");
+      expect(res.body.user.tier).toBe(1);
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Document scanning loop — POST /workers/scan-document + .../apply
+// AI extracts entities from an uploaded document, suggests worker matches,
+// then optionally applies the entities to a chosen (or newly-created) worker
+// and writes an ai_reasoning_log entry as the legal-evidence trail.
+//
+// analyzeImage is mocked at file scope so we don't burn Anthropic credits
+// or depend on ANTHROPIC_API_KEY in CI. Each test sets its own mock response.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "Document scanning (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let andriyId: string;     // existing worker name "Andriy Shevchenko" — should match strongly
+    let kowalskiId: string;   // unrelated existing worker — should not match
+    let userToken: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('test', 'Test Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+
+      const andriy = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, nationality, tenant_id)
+         VALUES ('Andriy Shevchenko', 'Ukrainian', 'test') RETURNING id`,
+      );
+      andriyId = andriy.rows[0].id;
+
+      const kow = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, nationality, tenant_id)
+         VALUES ('Mariusz Kowalski', 'Polish', 'test') RETURNING id`,
+      );
+      kowalskiId = kow.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      userToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000d0d0",
+          id: "00000000-0000-0000-0000-00000000d0d0",
+          email: "scan-test@eej-test.local",
+          name: "Scan Test User",
+          role: "legal",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: false,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(
+          `DELETE FROM ai_reasoning_log WHERE tenant_id = 'test' AND worker_id = ANY($1::uuid[])`,
+          [[andriyId, kowalskiId]],
+        );
+        // Also purge orphan reasoning rows (decision_type=document_extraction has worker_id=NULL).
+        await pool.query(
+          `DELETE FROM ai_reasoning_log WHERE tenant_id = 'test' AND decision_type = 'document_extraction'`,
+        );
+        await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [[andriyId, kowalskiId]]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    beforeEach(() => {
+      analyzeImageMock.mockReset();
+    });
+
+    it("DS.1 returns 400 when no file uploaded", async () => {
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/no file/i);
+    });
+
+    it("DS.2 returns 401 without token", async () => {
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .attach("file", Buffer.from("fake-image-bytes"), "passport.jpg");
+      expect(res.status).toBe(401);
+    });
+
+    it("DS.3 returns 422 when AI extraction yields null (e.g. missing API key)", async () => {
+      analyzeImageMock.mockResolvedValueOnce(null);
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`)
+        .attach("file", Buffer.from("fake-image-bytes"), {
+          filename: "passport.jpg",
+          contentType: "image/jpeg",
+        });
+      expect(res.status).toBe(422);
+      expect(res.body.error).toMatch(/extract/i);
+    });
+
+    it("DS.4 happy path: extract entities, score matches, return top match strongly", async () => {
+      analyzeImageMock.mockResolvedValueOnce(JSON.stringify({
+        docType: "passport",
+        personName: "Andriy Shevchenko",
+        documentNumber: "AB1234567",
+        dateOfBirth: "1990-06-15",
+        nationality: "Ukrainian",
+        expiryDate: "2030-12-31",
+        issueDate: "2020-12-31",
+        issuingAuthority: "Ministry of Foreign Affairs of Ukraine",
+        additionalFields: {},
+        rawText: "PASSPORT UKRAINE...",
+        confidence: 0.92,
+      }));
+
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`)
+        .attach("file", Buffer.from("fake-image-bytes"), {
+          filename: "passport.jpg",
+          contentType: "image/jpeg",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.entities.docType).toBe("passport");
+      expect(res.body.entities.personName).toBe("Andriy Shevchenko");
+      expect(res.body.entities.confidence).toBe(0.92);
+      expect(res.body.matches.length).toBeGreaterThan(0);
+      // Andriy should be the top match.
+      expect(res.body.matches[0].id).toBe(andriyId);
+      expect(res.body.matches[0].score).toBeGreaterThan(0.5);
+      // Mariusz Kowalski (Polish, unrelated name) should not be in the matches.
+      expect(res.body.matches.find((m: any) => m.id === kowalskiId)).toBeUndefined();
+      // inputHash is a sha256 hex string.
+      expect(res.body.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("DS.5 reasoning log row written on extraction with decided_action=pending_review", async () => {
+      analyzeImageMock.mockResolvedValueOnce(JSON.stringify({
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-0000-1",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2027-03-15",
+        issueDate: null,
+        issuingAuthority: "Wojewoda Dolnoslaski",
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.85,
+      }));
+
+      await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`)
+        .attach("file", Buffer.from("trc-image-bytes"), {
+          filename: "trc.jpg",
+          contentType: "image/jpeg",
+        });
+
+      const reasoningRows = await pool.query(
+        `SELECT decision_type, decided_action, reviewed_by, model
+         FROM ai_reasoning_log
+         WHERE tenant_id = 'test' AND decision_type = 'document_extraction'
+         ORDER BY created_at DESC LIMIT 1`,
+      );
+      expect(reasoningRows.rows.length).toBeGreaterThan(0);
+      const row = reasoningRows.rows[0];
+      expect(row.decision_type).toBe("document_extraction");
+      expect(row.decided_action).toBe("pending_review");
+      expect(row.reviewed_by).toBe("scan-test@eej-test.local");
+      expect(row.model).toBe("claude-sonnet-4-6");
+    });
+
+    it("DS.6 apply: updates an existing worker's TRC expiry from extracted entities", async () => {
+      // Pre-condition: Andriy has no TRC expiry on file.
+      await pool.query(`UPDATE workers SET trc_expiry = NULL WHERE id = $1`, [andriyId]);
+
+      const entities = {
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-0000-1",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2027-03-15",
+        issueDate: null,
+        issuingAuthority: "Wojewoda Dolnoslaski",
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.85,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, workerId: andriyId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(false);
+      expect(res.body.workerId).toBe(andriyId);
+      expect(res.body.appliedFields).toContain("trcExpiry");
+
+      // Verify the field actually updated.
+      const updated = await pool.query<{ trc_expiry: string }>(
+        `SELECT trc_expiry FROM workers WHERE id = $1`, [andriyId],
+      );
+      // pg returns Date objects for DATE columns; ISO-stringify both sides.
+      const got = updated.rows[0].trc_expiry;
+      const gotIso = (got as unknown) instanceof Date
+        ? (got as unknown as Date).toISOString().slice(0, 10)
+        : String(got).slice(0, 10);
+      expect(gotIso).toBe("2027-03-15");
+    });
+
+    it("DS.7 apply with createNew=true creates a new worker in pipeline stage 'New'", async () => {
+      const entities = {
+        docType: "passport",
+        personName: "Test Auto Created",
+        documentNumber: "ZZ9999999",
+        dateOfBirth: "1995-01-01",
+        nationality: "Vietnamese",
+        expiryDate: null,
+        issueDate: null,
+        issuingAuthority: null,
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.7,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, createNew: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(true);
+      expect(res.body.workerId).toBeTruthy();
+
+      const newWorkerId = res.body.workerId;
+      const row = await pool.query<{ name: string; nationality: string; pipeline_stage: string }>(
+        `SELECT name, nationality, pipeline_stage FROM workers WHERE id = $1`, [newWorkerId],
+      );
+      expect(row.rows.length).toBe(1);
+      expect(row.rows[0].name).toBe("Test Auto Created");
+      expect(row.rows[0].nationality).toBe("Vietnamese");
+      expect(row.rows[0].pipeline_stage).toBe("New");
+
+      // Clean up the auto-created worker.
+      await pool.query(`DELETE FROM ai_reasoning_log WHERE worker_id = $1`, [newWorkerId]);
+      await pool.query(`DELETE FROM workers WHERE id = $1`, [newWorkerId]);
+    });
+
+    it("DS.8 apply respects allowOverwrite=false (conservative — no clobber)", async () => {
+      // Pre-condition: Andriy has a TRC expiry already set.
+      await pool.query(
+        `UPDATE workers SET trc_expiry = '2025-01-01' WHERE id = $1`, [andriyId],
+      );
+
+      const entities = {
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-NEW",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2099-12-31",
+        issueDate: null,
+        issuingAuthority: null,
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.8,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, workerId: andriyId, allowOverwrite: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.appliedFields).not.toContain("trcExpiry");
+
+      const row = await pool.query<{ trc_expiry: string }>(
+        `SELECT trc_expiry FROM workers WHERE id = $1`, [andriyId],
+      );
+      const got = row.rows[0].trc_expiry;
+      const gotIso = (got as unknown) instanceof Date
+        ? (got as unknown as Date).toISOString().slice(0, 10)
+        : String(got).slice(0, 10);
+      expect(gotIso).toBe("2025-01-01");
+    });
+
+    it("DS.9 apply respects allowOverwrite=true (overwrites existing value)", async () => {
+      await pool.query(
+        `UPDATE workers SET trc_expiry = '2025-01-01' WHERE id = $1`, [andriyId],
+      );
+
+      const entities = {
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-NEW",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2099-12-31",
+        issueDate: null,
+        issuingAuthority: null,
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.8,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, workerId: andriyId, allowOverwrite: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.appliedFields).toContain("trcExpiry");
+
+      const row = await pool.query<{ trc_expiry: string }>(
+        `SELECT trc_expiry FROM workers WHERE id = $1`, [andriyId],
+      );
+      const got = row.rows[0].trc_expiry;
+      const gotIso = (got as unknown) instanceof Date
+        ? (got as unknown as Date).toISOString().slice(0, 10)
+        : String(got).slice(0, 10);
+      expect(gotIso).toBe("2099-12-31");
+    });
+
+    it("DS.10b cockpit returns aiReasoning array after a scan applies updates", async () => {
+      // Apply something to leave a reasoning row.
+      await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          entities: {
+            docType: "trc",
+            personName: "Andriy Shevchenko",
+            documentNumber: "KP-IT-1",
+            dateOfBirth: null,
+            nationality: "Ukrainian",
+            expiryDate: "2030-01-01",
+            issueDate: null,
+            issuingAuthority: null,
+            additionalFields: {},
+            rawText: null,
+            confidence: 0.9,
+          },
+          workerId: andriyId,
+          allowOverwrite: true,
+        });
+
+      const cockpit = await request(app)
+        .get(`/api/workers/${andriyId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(cockpit.status).toBe(200);
+      expect(Array.isArray(cockpit.body.aiReasoning)).toBe(true);
+      expect(cockpit.body.aiReasoning.length).toBeGreaterThan(0);
+      const r = cockpit.body.aiReasoning[0];
+      expect(r).toHaveProperty("decision_type");
+      expect(r).toHaveProperty("decided_action");
+      expect(r).toHaveProperty("model");
+    });
+
+    it("DS.10 apply returns 404 for a worker in a different tenant", async () => {
+      // Insert a worker in 'other-tenant' (created earlier in cockpit tests).
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+      const other = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, tenant_id) VALUES ('Stranger', 'other-tenant') RETURNING id`,
+      );
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          entities: {
+            docType: "trc",
+            personName: "Stranger",
+            documentNumber: null,
+            dateOfBirth: null,
+            nationality: null,
+            expiryDate: "2030-01-01",
+            issueDate: null,
+            issuingAuthority: null,
+            additionalFields: {},
+            rawText: null,
+            confidence: 0.5,
+          },
+          workerId: other.rows[0].id,
+        });
+
+      expect(res.status).toBe(404);
+      await pool.query(`DELETE FROM workers WHERE id = $1`, [other.rows[0].id]);
+    });
+
+    it("DS.11 AI summary returns role-tuned narrative + structured actions", async () => {
+      // AI now returns JSON with summary + actions array. The endpoint parses
+      // it and exposes both. Action types come from a fixed allow-list; the
+      // parser filters out invalid types.
+      analyzeTextMock.mockResolvedValueOnce(
+        JSON.stringify({
+          summary:
+            "Andriy's TRC expires in 8 days. Three required documents are still missing. Submit the renewal by 2026-05-20 to avoid lapse.",
+          actions: [
+            { label: "Scan new TRC card", actionType: "scan_document", priority: "high", reasoning: "TRC expires in 8 days." },
+            // send_whatsapp action carries a templateHint matching one of the
+            // seeded template names — cockpit will auto-select it in the picker.
+            { label: "Send TRC reminder", actionType: "send_whatsapp", priority: "med", reasoning: "Worker not responsive.", templateHint: "trc_expiry_reminder_pl" },
+            { label: "Open TRC case", actionType: "open_trc", priority: "low", reasoning: "Final filing review." },
+            { label: "Should be filtered", actionType: "invalid_type", priority: "high", reasoning: "should not appear" },
+          ],
+        }),
+      );
+
+      const res = await request(app)
+        .get(`/api/workers/${andriyId}/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary).toContain("Andriy");
+      expect(res.body.viewerRole).toBe("legal");
+      expect(res.body.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(Array.isArray(res.body.actions)).toBe(true);
+      // Three valid actions; invalid_type filtered out.
+      expect(res.body.actions).toHaveLength(3);
+      expect(res.body.actions[0].actionType).toBe("scan_document");
+      expect(res.body.actions[0].priority).toBe("high");
+      // Non-whatsapp actions never carry templateHint.
+      expect(res.body.actions[0].templateHint).toBeNull();
+      // The whatsapp action preserves the templateHint for cockpit auto-pick.
+      const waAction = res.body.actions.find((a: any) => a.actionType === "send_whatsapp");
+      expect(waAction.templateHint).toBe("trc_expiry_reminder_pl");
+      // The endpoint also writes a reasoning_log row.
+      const log = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM ai_reasoning_log
+         WHERE worker_id = $1 AND decision_type = 'ai_summary'`,
+        [andriyId],
+      );
+      expect(log.rows[0].cnt).toBeGreaterThan(0);
+    });
+
+    it("DS.11b AI summary tolerates plain-text response (no JSON parsing)", async () => {
+      // Earlier Claude responses might be plain text; the endpoint should
+      // still return the text as summary with an empty actions array.
+      analyzeTextMock.mockResolvedValueOnce("Plain text summary, no JSON.");
+      const res = await request(app)
+        .get(`/api/workers/${andriyId}/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary).toBe("Plain text summary, no JSON.");
+      expect(res.body.actions).toEqual([]);
+    });
+
+    it("DS.12 AI summary returns 503 when analyzeText returns null (key unset)", async () => {
+      analyzeTextMock.mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .get(`/api/workers/${andriyId}/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/ANTHROPIC_API_KEY/i);
+    });
+
+    it("DS.13 AI summary returns 404 for unknown worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/00000000-0000-0000-0000-000000000000/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("DS.14 note append: inserts a new row each call (append-only feed)", async () => {
+      const before = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM worker_notes WHERE worker_id = $1`,
+        [andriyId],
+      );
+
+      const r1 = await request(app)
+        .post(`/api/workers/${andriyId}/notes/append`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ content: "Called today, sending docs Friday." });
+      expect(r1.status).toBe(201);
+      expect(r1.body.note.content).toBe("Called today, sending docs Friday.");
+
+      const r2 = await request(app)
+        .post(`/api/workers/${andriyId}/notes/append`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ content: "Docs received, forwarding to lawyer." });
+      expect(r2.status).toBe(201);
+
+      const after = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM worker_notes WHERE worker_id = $1`,
+        [andriyId],
+      );
+      expect(after.rows[0].cnt).toBe(before.rows[0].cnt + 2);
+
+      // Cleanup added notes.
+      await pool.query(
+        `DELETE FROM worker_notes WHERE worker_id = $1 AND id IN ($2, $3)`,
+        [andriyId, r1.body.note.id, r2.body.note.id],
+      );
+    });
+
+    it("DS.15 note append: 400 when content empty or whitespace", async () => {
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/notes/append`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ content: "   " });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/content/i);
+    });
+
+    it("DS.16 admin/ai-reasoning: requires admin token (legal viewer gets 403)", async () => {
+      // userToken is for a legal-role user; requireAdmin should reject.
+      const res = await request(app)
+        .get("/api/admin/ai-reasoning")
+        .set("Authorization", `Bearer ${userToken}`);
+      expect([401, 403]).toContain(res.status);
+    });
+
+    it("DS.17a whatsapp/templates returns active templates only, scoped to tenant", async () => {
+      // Seed a couple of test-tenant templates, one active one inactive.
+      const tIns = await pool.query(
+        `INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
+         VALUES
+           ('test', 'test_active_template', 'en', 'Hello {{name}}', '["name"]'::jsonb, TRUE),
+           ('test', 'test_inactive_template', 'en', 'Inactive {{name}}', '["name"]'::jsonb, FALSE)
+         RETURNING id`,
+      );
+      try {
+        const res = await request(app)
+          .get("/api/whatsapp/templates")
+          .set("Authorization", `Bearer ${userToken}`);
+        expect(res.status).toBe(200);
+        const names = (res.body.templates ?? []).map((t: any) => t.name);
+        expect(names).toContain("test_active_template");
+        expect(names).not.toContain("test_inactive_template");
+        // Verify shape on the active one
+        const active = res.body.templates.find(
+          (t: any) => t.name === "test_active_template",
+        );
+        expect(active.bodyPreview).toBe("Hello {{name}}");
+        expect(active.variables).toEqual(["name"]);
+        expect(active.language).toBe("en");
+      } finally {
+        await pool.query(`DELETE FROM whatsapp_templates WHERE id = ANY($1::uuid[])`, [
+          tIns.rows.map((r: any) => r.id),
+        ]);
+      }
+    });
+
+    it("DS.16a upload: 401 without token", async () => {
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .attach("file", Buffer.from("fake"), { filename: "passport.jpg", contentType: "image/jpeg" });
+      expect(res.status).toBe(401);
+    });
+
+    it("DS.16b upload: 404 for worker in a different tenant", async () => {
+      // userToken is scoped to tenantId='test'. Create a worker in 'other-tenant'.
+      const other = await pool.query<{ id: string }>(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant') ON CONFLICT (slug) DO NOTHING;
+         INSERT INTO workers (name, tenant_id) VALUES ('Cross-Tenant Worker', 'other-tenant') RETURNING id`,
+      );
+      const otherId = other.rows[0].id;
+      try {
+        const res = await request(app)
+          .post(`/api/workers/${otherId}/upload`)
+          .set("Authorization", `Bearer ${userToken}`)
+          .field("docType", "passport")
+          .attach("file", Buffer.from("fake"), { filename: "passport.jpg", contentType: "image/jpeg" });
+        expect(res.status).toBe(404);
+      } finally {
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [otherId]);
+      }
+    });
+
+    it("DS.16c upload: 400 when no file attached", async () => {
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .field("docType", "passport");
+      expect(res.status).toBe(400);
+    });
+
+    it("DS.16d upload happy path: creates file_attachments row + returns metadata", async () => {
+      // Non-passport/contract/cv docType to skip the OCR mock requirement.
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .field("docType", "bhp")
+        .attach("file", Buffer.from("fake-bhp-cert"), {
+          filename: "bhp-cert.jpg",
+          contentType: "image/jpeg",
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.attachment).toBeDefined();
+      expect(res.body.attachment.workerId).toBe(andriyId);
+      expect(res.body.attachment.fieldName).toBe("bhp");
+      expect(res.body.attachment.filename).toBe("bhp-cert.jpg");
+      expect(res.body.attachment.mimeType).toBe("image/jpeg");
+      // Non-AI docType → no scan output.
+      expect(res.body.scanned).toBeFalsy();
+
+      // Verify row exists in DB.
+      const row = await pool.query<{ filename: string; field_name: string }>(
+        `SELECT filename, field_name FROM file_attachments WHERE id = $1`,
+        [res.body.attachment.id],
+      );
+      expect(row.rows[0].filename).toBe("bhp-cert.jpg");
+      expect(row.rows[0].field_name).toBe("bhp");
+
+      await pool.query(`DELETE FROM file_attachments WHERE id = $1`, [res.body.attachment.id]);
+    });
+
+    it("DS.16e upload passport: OCR auto-updates worker fields when AI extracts data", async () => {
+      // Reset Andriy's nationality so we can verify it changes.
+      await pool.query(`UPDATE workers SET nationality = NULL WHERE id = $1`, [andriyId]);
+
+      // analyzeImage is mocked at file scope; the upload endpoint calls it
+      // for docType=passport. Return a structured extraction.
+      analyzeImageMock.mockResolvedValueOnce(JSON.stringify({
+        name: "Andriy Shevchenko",
+        dateOfBirth: "1990-06-15",
+        passportExpiry: "2032-01-01",
+        passportNumber: "AB1234567",
+        nationality: "Ukrainian",
+      }));
+
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .field("docType", "passport")
+        .attach("file", Buffer.from("fake-passport"), {
+          filename: "passport.jpg",
+          contentType: "image/jpeg",
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.attachment).toBeDefined();
+      expect(res.body.scanned).toBeTruthy();
+      expect(res.body.scanned.nationality).toBe("Ukrainian");
+
+      // Verify the worker row was auto-updated by the OCR result.
+      const w = await pool.query<{ nationality: string; work_permit_expiry: string }>(
+        `SELECT nationality, work_permit_expiry FROM workers WHERE id = $1`,
+        [andriyId],
+      );
+      expect(w.rows[0].nationality).toBe("Ukrainian");
+      const expiry = w.rows[0].work_permit_expiry;
+      const iso = (expiry as unknown) instanceof Date
+        ? (expiry as unknown as Date).toISOString().slice(0, 10)
+        : String(expiry).slice(0, 10);
+      expect(iso).toBe("2032-01-01");
+
+      await pool.query(`DELETE FROM file_attachments WHERE id = $1`, [res.body.attachment.id]);
+    });
+
+    it("DS.17 admin/ai-reasoning: returns combined entries with worker_name join", async () => {
+      // Admin token for the test tenant
+      const jwt = await import("jsonwebtoken");
+      const adminToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000a0a0",
+          id: "00000000-0000-0000-0000-00000000a0a0",
+          email: "admin-ar@eej-test.local",
+          name: "Admin AR",
+          role: "admin",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: true,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+
+      // Seed at least one reasoning row tied to Andriy so the join produces a name.
+      await pool.query(
+        `INSERT INTO ai_reasoning_log (decision_type, worker_id, input_summary, decided_action, model, tenant_id, confidence)
+         VALUES ('field_update', $1, 'integration test row', 'applied', 'claude-sonnet-4-6', 'test', 0.88)`,
+        [andriyId],
+      );
+
+      const res = await request(app)
+        .get("/api/admin/ai-reasoning?decisionType=field_update")
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.entries)).toBe(true);
+      const ours = res.body.entries.find(
+        (e: any) => e.input_summary === "integration test row",
+      );
+      expect(ours).toBeDefined();
+      expect(ours.worker_name).toBe("Andriy Shevchenko");
+      expect(ours.decided_action).toBe("applied");
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Daily-use worker mutations — the inline-edit paths the cockpit relies on.
+// Cockpit's contact edit goes to PATCH /workers/:id (existing endpoint, no
+// dedicated coverage). Note append + cockpit deep-link nav covered earlier;
+// these tests close the remaining gaps for the day's surfaces.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "Cockpit edit flows (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let workerId: string;
+    let executiveToken: string;
+    let candidateToken: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('test', 'Test Tenant') ON CONFLICT (slug) DO NOTHING`,
+      );
+
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, email, phone, tenant_id, nationality)
+         VALUES ('Edit Test Worker', 'old.email@test.local', '+48 555 000 100', 'test', 'Polish') RETURNING id`,
+      );
+      workerId = ins.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      executiveToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000e1e1",
+          id: "00000000-0000-0000-0000-00000000e1e1",
+          email: "exec-edit@eej-test.local",
+          name: "Exec Edit",
+          role: "executive",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: true,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+      candidateToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000e2e2",
+          id: "00000000-0000-0000-0000-00000000e2e2",
+          email: "cand-edit@eej-test.local",
+          name: "Cand Edit",
+          role: "candidate",
+          tier: 4,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: false,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM audit_entries WHERE worker_id = $1`, [workerId]);
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [workerId]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("CE.1 PATCH /workers/:id updates phone + email (cockpit inline edit)", async () => {
+      const res = await request(app)
+        .patch(`/api/workers/${workerId}`)
+        .set("Authorization", `Bearer ${executiveToken}`)
+        .send({ email: "new.email@test.local", phone: "+48 555 999 100" });
+      expect(res.status).toBe(200);
+
+      const w = await pool.query<{ email: string; phone: string }>(
+        `SELECT email, phone FROM workers WHERE id = $1`,
+        [workerId],
+      );
+      expect(w.rows[0].email).toBe("new.email@test.local");
+      expect(w.rows[0].phone).toBe("+48 555 999 100");
+
+      // Audit entry written.
+      const audit = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM audit_entries WHERE worker_id = $1 AND action = 'update'`,
+        [workerId],
+      );
+      expect(audit.rows[0].cnt).toBeGreaterThan(0);
+    });
+
+    it("CE.2 PATCH /workers/:id requires coordinator-or-admin role (candidate forbidden)", async () => {
+      const res = await request(app)
+        .patch(`/api/workers/${workerId}`)
+        .set("Authorization", `Bearer ${candidateToken}`)
+        .send({ email: "should.not.land@test.local" });
+      // Candidate role doesn't have coordinator privileges.
+      expect([401, 403]).toContain(res.status);
+
+      const w = await pool.query<{ email: string }>(
+        `SELECT email FROM workers WHERE id = $1`,
+        [workerId],
+      );
+      expect(w.rows[0].email).not.toBe("should.not.land@test.local");
+    });
+
+    it("CE.3 PATCH /workers/:id 404 for worker in a different tenant", async () => {
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant') ON CONFLICT (slug) DO NOTHING`,
+      );
+      const other = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, tenant_id) VALUES ('Cross Tenant Edit', 'other-tenant') RETURNING id`,
+      );
+      try {
+        const res = await request(app)
+          .patch(`/api/workers/${other.rows[0].id}`)
+          .set("Authorization", `Bearer ${executiveToken}`)
+          .send({ email: "x@x.com" });
+        expect(res.status).toBe(404);
+      } finally {
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [other.rows[0].id]);
+      }
+    });
+
+    it("CE.4 cockpit endpoint exposes whatsappMessages array (key present even when empty)", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${executiveToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.whatsappMessages)).toBe(true);
+      // Empty for this worker (no whatsapp_messages rows yet) but the key
+      // must always be present so the frontend renders the panel without
+      // optional-chaining everywhere.
+    });
+
+    it("CE.5 cockpit endpoint exposes aiReasoning array (key present even when empty)", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${executiveToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.aiReasoning)).toBe(true);
+    });
+  },
 );

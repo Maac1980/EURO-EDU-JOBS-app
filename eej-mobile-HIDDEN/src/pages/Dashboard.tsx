@@ -79,15 +79,15 @@ function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: A
   if (tab === "calculator") return <NetPerHourTab />;
   if (tab === "home") {
     if (role === "executive")  return <ExecutiveHome onNavigate={onNavigate} />;
-    if (role === "legal")      return <LegalHome />;
-    if (role === "operations") return <OperationsHome />;
+    if (role === "legal")      return <LegalHome onNavigate={onNavigate} />;
+    if (role === "operations") return <OperationsHome onNavigate={onNavigate} />;
     if (role === "candidate")  return <CandidateHome candidateId={candidateId} />;
   }
   if (tab === "candidates") {
     if (role === "candidate") return (
       <PlaceholderTab emoji="🔒" title="Access Restricted" description="The global candidate directory is visible only to staff designations." />
     );
-    return <CandidatesList role={role} />;
+    return <CandidatesList role={role} onNavigate={onNavigate} />;
   }
   if (tab === "upload") {
     if (role === "candidate") return <MyDocsTab />;

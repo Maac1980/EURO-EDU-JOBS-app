@@ -699,6 +699,27 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_a1_certificates_status ON a1_certificates(status);
     CREATE INDEX IF NOT EXISTS idx_a1_certificates_expiry ON a1_certificates(valid_until);
 
+    -- AI Reasoning Log — provenance for AI-driven decisions. See schema.ts
+    -- and docs/EOD_WEEK_MAY_12.md for the design rationale. Append-only.
+    CREATE TABLE IF NOT EXISTS ai_reasoning_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      decision_type TEXT NOT NULL,
+      worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
+      input_summary TEXT,
+      input_hash TEXT,
+      output JSONB,
+      confidence NUMERIC(4,3),
+      decided_action TEXT,
+      reviewed_by TEXT,
+      model TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'production' REFERENCES tenants(slug) ON DELETE RESTRICT,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_worker ON ai_reasoning_log(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_decision ON ai_reasoning_log(decision_type);
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_tenant ON ai_reasoning_log(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_created ON ai_reasoning_log(created_at DESC);
+
     CREATE TABLE IF NOT EXISTS legal_documents (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
@@ -1108,7 +1129,34 @@ export async function runMigrations(): Promise<void> {
         '["permitStatus","updateDate"]'::jsonb, FALSE),
       ('production', 'payment_reminder', 'pl',
         'Przypominamy o fakturze {{invoiceNumber}} na kwote {{amount}} {{currency}}. Termin: {{dueDate}}.',
-        '["invoiceNumber","amount","currency","dueDate"]'::jsonb, FALSE)
+        '["invoiceNumber","amount","currency","dueDate"]'::jsonb, FALSE),
+      -- TRC expiry reminder: triggered by the cockpit's AI-suggested action
+      -- "Send document reminder" when a worker's TRC is approaching expiry.
+      -- workerName auto-fills from worker.name; trcExpiry from worker.trcExpiry;
+      -- daysLeft from the alert computation. All variables match the cockpit's
+      -- pre-fill heuristic in WorkerCockpit.tsx so Yana/Liza don't have to
+      -- type anything when sending.
+      --
+      -- Naming convention: name suffix _pl / _en because the unique index is
+      -- on (tenant_id, name) only — same name across two languages would
+      -- silently drop one row. Two distinct names lets Yana pick the right
+      -- language for the worker in the cockpit picker.
+      ('production', 'trc_expiry_reminder_pl', 'pl',
+        'Witaj {{workerName}}. Twoja karta pobytu (TRC) wygasa {{trcExpiry}} — za {{daysLeft}} dni. Skontaktuj sie z nami pilnie, zeby zlozyc wniosek o przedluzenie.',
+        '["workerName","trcExpiry","daysLeft"]'::jsonb, FALSE),
+      ('production', 'trc_expiry_reminder_en', 'en',
+        'Hi {{workerName}}. Your TRC residence card expires on {{trcExpiry}} — in {{daysLeft}} days. Please contact us urgently to file the renewal.',
+        '["workerName","trcExpiry","daysLeft"]'::jsonb, FALSE),
+      -- Generic document-missing reminder for the cockpit's missing-docs alert.
+      -- Used when the AI suggests "Send document reminder" because TRC docs
+      -- are incomplete (not just expiring). Single-variable so Yana can fire
+      -- it with one tap regardless of which doc is missing.
+      ('production', 'documents_missing_pl', 'pl',
+        'Witaj {{workerName}}. Brakuje nam kilku dokumentow do Twojego dossier. Przeslij je tak szybko, jak to mozliwe — pomoze nam to zakonczyc Twoja sprawe szybciej.',
+        '["workerName"]'::jsonb, FALSE),
+      ('production', 'documents_missing_en', 'en',
+        'Hi {{workerName}}. We''re missing a few documents for your file. Please send them as soon as possible — it helps us close your case faster.',
+        '["workerName"]'::jsonb, FALSE)
     ON CONFLICT (tenant_id, name) DO NOTHING;
   `);
 

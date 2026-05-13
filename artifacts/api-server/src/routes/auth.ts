@@ -5,7 +5,9 @@ import { db, schema } from "../db/index.js";
 import { eq, sql } from "drizzle-orm";
 import { JWT_SECRET, authenticateToken, type AuthUser, type UserRole } from "../lib/authMiddleware.js";
 import { loginLimiter } from "../lib/security.js";
-import { verify2FAToken, user2FAEnabled } from "./twofa.js";
+import { verify2FAToken, user2FAEnabled, consumeRecoveryCode } from "./twofa.js";
+import speakeasy from "speakeasy";
+import QRCode from "qrcode";
 import { appendAuditEntry } from "./audit.js";
 import { sendLoginNotification } from "../lib/alerter.js";
 
@@ -92,19 +94,73 @@ router.post("/auth/login", loginLimiter, async (req, res) => {
       return res.status(401).json({ error: "Incorrect password." });
     }
 
+    // Mandatory-for-admin enforcement (commit 5b). When system_users.requires_2fa
+    // is TRUE and 2FA is NOT yet enabled, force setup before login completes.
+    // First attempt: generate/return a TOTP secret + QR; client scans, then
+    // re-submits login with the new totpToken. Second attempt with valid TOTP:
+    // mark enabled=TRUE and continue. Subsequent logins go through the normal
+    // 2FA check below.
+    if (sysUser.requires2fa && !sysUser.twoFactorEnabled) {
+      const totpToken = (req.body as { totpToken?: string }).totpToken;
+
+      // Ensure a secret exists (provisional — enabled stays false until verify).
+      let pendingSecret = sysUser.twoFactorSecret;
+      if (!pendingSecret) {
+        const generated = speakeasy.generateSecret({ name: `EEJ Portal (${sysUser.email})`, length: 20 });
+        pendingSecret = generated.base32;
+        await db.update(schema.systemUsers)
+          .set({ twoFactorSecret: pendingSecret })
+          .where(eq(schema.systemUsers.id, sysUser.id));
+      }
+
+      if (!totpToken) {
+        // First-pass: return QR for user to scan
+        const otpauthUrl = `otpauth://totp/${encodeURIComponent(`EEJ Portal (${sysUser.email})`)}?secret=${pendingSecret}&issuer=${encodeURIComponent("EEJ Portal")}`;
+        const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
+        return res.status(202).json({
+          requires2FASetup: true,
+          message: "2FA setup required. Scan the QR code with your authenticator app, then re-submit login with your code.",
+          qrDataUrl,
+          secret: pendingSecret,
+        });
+      }
+
+      // Second-pass: verify TOTP against the pending secret and enable
+      const valid = speakeasy.totp.verify({
+        secret: pendingSecret,
+        encoding: "base32",
+        token: totpToken,
+        window: 1,
+      });
+      if (!valid) {
+        return res.status(401).json({ error: "Invalid authenticator code during 2FA setup." });
+      }
+      await db.update(schema.systemUsers)
+        .set({ twoFactorEnabled: true })
+        .where(eq(schema.systemUsers.id, sysUser.id));
+      // Fall through — the normal 2FA-check below will see enabled=true and
+      // accept the same totpToken (speakeasy.totp.verify is idempotent
+      // within the time window).
+    }
+
     // TOTP 2FA on the system_users path. If the user has 2FA enabled,
-    // require a valid TOTP token to complete login. Mirrors the legacy
-    // users-path 2FA check below, but dispatches to system_users via the
-    // sourceTable param on the helpers (commit 5a).
-    // Mandatory-for-admin enforcement (requires_2fa flag forces setup
-    // before login completes) lands in commit 5b — not yet active here.
+    // require a valid TOTP token OR a recovery code (commit 5b) to complete
+    // login. Mirrors the legacy users-path 2FA check below, but dispatches
+    // to system_users via the sourceTable param on the helpers.
     if (await user2FAEnabled(sysUser.id, "system_users")) {
       const totpToken = (req.body as { totpToken?: string }).totpToken;
-      if (!totpToken) {
-        return res.status(202).json({ requires2FA: true, message: "Please enter your authenticator code." });
+      const recoveryCode = (req.body as { recoveryCode?: string }).recoveryCode;
+      if (!totpToken && !recoveryCode) {
+        return res.status(202).json({ requires2FA: true, message: "Please enter your authenticator code or a recovery code." });
       }
-      if (!(await verify2FAToken(sysUser.id, totpToken, "system_users"))) {
-        return res.status(401).json({ error: "Invalid authenticator code." });
+      let valid = false;
+      if (totpToken) {
+        valid = await verify2FAToken(sysUser.id, totpToken, "system_users");
+      } else if (recoveryCode) {
+        valid = await consumeRecoveryCode(sysUser.id, recoveryCode);
+      }
+      if (!valid) {
+        return res.status(401).json({ error: "Invalid authenticator code or recovery code." });
       }
     }
 

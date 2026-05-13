@@ -2872,6 +2872,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     let tfaDashId: string;
     let tfaDashEmail: string;
     let tfaDashPassword: string;
+    // Mandatory-for-admin (commit 5b) — separate fixture so DASH.4 stays clean
+    let tfaMandatoryId: string;
+    let tfaMandatoryEmail: string;
+    let tfaMandatoryPassword: string;
 
     async function scryptHash(password: string): Promise<string> {
       const { randomBytes, scrypt } = await import("crypto");
@@ -3082,6 +3086,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         [tfaDashEmail, tfaDashHash],
       );
       tfaDashId = tfaDashIns.rows[0].id;
+
+      // Mandatory-for-admin fixture (commit 5b) — T1 non-Legal designation
+      // (translates to admin role) with requires_2fa = TRUE. Separate from
+      // manishDashId so DASH.4 stays a clean role+canViewFinancials shape
+      // test without inheriting setup-required behavior.
+      tfaMandatoryEmail = `tfa-mandatory-${Date.now()}@eej-test.local`;
+      tfaMandatoryPassword = "tfa-mandatory-pwd-12345678";
+      const tfaMandatoryHash = await scryptHash(tfaMandatoryPassword);
+      const tfaMandatoryIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers, requires_2fa)
+         VALUES ('TFA Mandatory Admin Test', $1, $2, 'T1', 'Founder Test', 'Executive', TRUE, NULL, TRUE, TRUE) RETURNING id`,
+        [tfaMandatoryEmail, tfaMandatoryHash],
+      );
+      tfaMandatoryId = tfaMandatoryIns.rows[0].id;
     });
 
     afterAll(async () => {
@@ -3089,7 +3107,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         await pool.query(
           `DELETE FROM system_users WHERE id = ANY($1::uuid[])`,
           [[lizaUserId, yanaUserId, changePasswordUserId, meUserId,
-            manishDashId, karanDashId, yanaDashId, lizaDashId, annaDashSysId, t4DashId, tfaDashId]],
+            manishDashId, karanDashId, yanaDashId, lizaDashId, annaDashSysId, t4DashId, tfaDashId, tfaMandatoryId]],
         );
         await pool.query(
           `DELETE FROM users WHERE id = ANY($1::uuid[])`,
@@ -3639,6 +3657,197 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       );
       expect(after.rows[0].s).toBeNull();
       expect(after.rows[0].e).toBe(false);
+    });
+
+    // ── 2FA new capabilities (May 15, commit 5b) — TFA.6/7/8 ────────────────
+    // Recovery codes, admin reset, mandatory-for-admin enforcement. Builds on
+    // 5a's sourceTable dispatch foundation.
+
+    it("TFA.6 Recovery codes — generate returns 10 codes once; login consumes one (single-use)", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+
+      // Re-enable 2FA on tfaDashId (TFA.5 disabled it). Direct SQL to bypass
+      // the setup flow; we're not testing setup here.
+      const setupSecret = speakeasy.generateSecret({ name: "Recovery Test", length: 20 }).base32;
+      await pool.query(
+        `UPDATE system_users SET two_factor_secret = $1, two_factor_enabled = true WHERE id = $2`,
+        [setupSecret, tfaDashId],
+      );
+
+      // Login via TOTP to get a token
+      const loginTotp = speakeasy.totp({ secret: setupSecret, encoding: "base32" });
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: loginTotp });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token as string;
+
+      // Generate recovery codes
+      const genRes = await request(app).post("/api/2fa/recovery-codes/generate")
+        .set("Authorization", `Bearer ${token}`);
+      expect(genRes.status).toBe(200);
+      expect(Array.isArray(genRes.body.codes)).toBe(true);
+      expect(genRes.body.codes.length).toBe(10);
+      expect(genRes.body.codes[0]).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}$/);
+      const firstCode = genRes.body.codes[0] as string;
+
+      // Verify hashed codes persisted on system_users (not plaintext)
+      const dbRow = await pool.query<{ rch: string }>(
+        `SELECT recovery_codes_hashed AS rch FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      const hashedArray = JSON.parse(dbRow.rows[0].rch) as string[];
+      expect(hashedArray.length).toBe(10);
+      expect(hashedArray[0]).toMatch(/^[a-f0-9]+:[a-f0-9]+$/); // salt:hash pattern
+      expect(hashedArray[0]).not.toContain(firstCode); // plaintext NOT stored
+
+      // Use recovery code at login (instead of TOTP)
+      const useRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, recoveryCode: firstCode });
+      expect(useRes.status).toBe(200);
+      expect(useRes.body.user.sourceTable).toBe("system_users");
+
+      // Same code used again → 401 (consumed, single-use)
+      const reuseRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, recoveryCode: firstCode });
+      expect(reuseRes.status).toBe(401);
+
+      // Array now has 9 codes (one consumed)
+      const afterRow = await pool.query<{ rch: string }>(
+        `SELECT recovery_codes_hashed AS rch FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(JSON.parse(afterRow.rows[0].rch).length).toBe(9);
+    });
+
+    it("TFA.7 Admin reset — admin clears another user's 2FA state (secret + enabled + recovery codes)", async () => {
+      // Manish admin login (manishDashId, requires_2fa=false, no 2FA enabled → straight 200)
+      const manishLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      expect(manishLogin.status).toBe(200);
+      expect(manishLogin.body.user.role).toBe("admin");
+      const adminToken = manishLogin.body.token as string;
+
+      // Confirm tfaDashId currently has 2FA + recovery codes (from TFA.6 setup)
+      const beforeRow = await pool.query<{ s: string | null; e: boolean; rch: string | null }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e, recovery_codes_hashed AS rch
+         FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(beforeRow.rows[0].e).toBe(true);
+      expect(beforeRow.rows[0].rch).not.toBeNull();
+
+      // Admin resets tfaDashId
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ targetUserId: tfaDashId, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(200);
+
+      // State cleared: secret null, enabled false, recovery codes null
+      const afterRow = await pool.query<{ s: string | null; e: boolean; rch: string | null }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e, recovery_codes_hashed AS rch
+         FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(afterRow.rows[0].s).toBeNull();
+      expect(afterRow.rows[0].e).toBe(false);
+      expect(afterRow.rows[0].rch).toBeNull();
+    });
+
+    it("TFA.7b Admin reset — non-admin caller rejected with 403", async () => {
+      // Karan manager login
+      const karanLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: karanDashEmail, password: karanDashPassword });
+      expect(karanLogin.status).toBe(200);
+      expect(karanLogin.body.user.role).toBe("manager");
+      const karanToken = karanLogin.body.token as string;
+
+      // Karan attempts to reset tfaDashId → 403 (requireAdmin gate)
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${karanToken}`)
+        .send({ targetUserId: tfaDashId, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(403);
+    });
+
+    it("TFA.8 Mandatory-for-admin — first login no totp returns 202 + qrDataUrl; second login with totp completes setup and issues token", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+
+      // First-pass: no totpToken → 202 setup required + QR
+      const firstRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaMandatoryEmail, password: tfaMandatoryPassword });
+      expect(firstRes.status).toBe(202);
+      expect(firstRes.body.requires2FASetup).toBe(true);
+      expect(firstRes.body.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+      expect(typeof firstRes.body.secret).toBe("string");
+      const setupSecret = firstRes.body.secret as string;
+
+      // Verify provisional secret persisted but enabled still false
+      const midRow = await pool.query<{ s: string; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaMandatoryId],
+      );
+      expect(midRow.rows[0].s).toBe(setupSecret);
+      expect(midRow.rows[0].e).toBe(false);
+
+      // Second-pass: provide TOTP from the setup secret → completes setup, issues token
+      const totpToken = speakeasy.totp({ secret: setupSecret, encoding: "base32" });
+      const secondRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaMandatoryEmail, password: tfaMandatoryPassword, totpToken });
+      expect(secondRes.status).toBe(200);
+      expect(secondRes.body.user.role).toBe("admin");
+      expect(typeof secondRes.body.token).toBe("string");
+
+      // Enabled=true persisted after second-pass
+      const finalRow = await pool.query<{ e: boolean }>(
+        `SELECT two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaMandatoryId],
+      );
+      expect(finalRow.rows[0].e).toBe(true);
+    });
+
+    it("TFA.8b Mandatory-for-admin — invalid totp during setup returns 401, leaves enabled=false", async () => {
+      // Use a fresh fixture for this negative test — direct insert with
+      // requires_2fa=true, no existing secret. The previous test (TFA.8)
+      // completed setup on tfaMandatoryId, so it's no longer in setup-required
+      // state. We need a fresh user.
+      const negEmail = `tfa-mandatory-neg-${Date.now()}@eej-test.local`;
+      const negPassword = "tfa-neg-pwd-12345678";
+      const negHash = await scryptHash(negPassword);
+      const negIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, can_edit_workers, requires_2fa)
+         VALUES ('TFA Mandatory Neg', $1, $2, 'T1', 'Founder Neg', 'Executive', TRUE, TRUE, TRUE) RETURNING id`,
+        [negEmail, negHash],
+      );
+      const negId = negIns.rows[0].id;
+
+      try {
+        // First-pass: get setup QR
+        const firstRes = await request(app).post("/api/auth/login")
+          .set("X-Forwarded-For", uniqueIp2())
+          .send({ email: negEmail, password: negPassword });
+        expect(firstRes.status).toBe(202);
+
+        // Invalid TOTP → 401
+        const invalidRes = await request(app).post("/api/auth/login")
+          .set("X-Forwarded-For", uniqueIp2())
+          .send({ email: negEmail, password: negPassword, totpToken: "000000" });
+        expect(invalidRes.status).toBe(401);
+
+        // Enabled still false
+        const row = await pool.query<{ e: boolean }>(
+          `SELECT two_factor_enabled AS e FROM system_users WHERE id = $1`,
+          [negId],
+        );
+        expect(row.rows[0].e).toBe(false);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [negId]);
+      }
     });
   }
 );

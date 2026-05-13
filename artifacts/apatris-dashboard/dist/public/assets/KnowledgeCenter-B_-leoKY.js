@@ -1,1 +1,0 @@
-import"./jsx-runtime-Bg_NI1en.js";import{n as e}from"./index-v3uy1Qer.js";export{e as calculate};

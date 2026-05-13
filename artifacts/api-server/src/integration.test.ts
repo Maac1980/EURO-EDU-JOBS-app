@@ -3757,6 +3757,50 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       expect(afterRow.rows[0].rch).toBeNull();
     });
 
+    it("TFA.7c Admin reset by email — admin uses targetEmail (commit 6 UX); resolves to userId server-side", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+      // Re-enable 2FA on tfaDashId for this test (TFA.7 cleared it)
+      const setupSecret = speakeasy.generateSecret({ name: "Reset by email", length: 20 }).base32;
+      await pool.query(
+        `UPDATE system_users SET two_factor_secret = $1, two_factor_enabled = true WHERE id = $2`,
+        [setupSecret, tfaDashId],
+      );
+
+      // Manish admin login
+      const manishLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      const adminToken = manishLogin.body.token as string;
+
+      // Reset by email (not userId)
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ targetEmail: tfaDashEmail, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(200);
+      expect(resetRes.body.targetUserId).toBe(tfaDashId); // server resolved email → userId
+
+      // State cleared
+      const afterRow = await pool.query<{ s: string | null; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(afterRow.rows[0].s).toBeNull();
+      expect(afterRow.rows[0].e).toBe(false);
+    });
+
+    it("TFA.7d Admin reset by email — unknown email returns 404 with clear message", async () => {
+      const manishLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      const adminToken = manishLogin.body.token as string;
+
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ targetEmail: `nobody-${Date.now()}@nowhere.invalid`, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(404);
+      expect(resetRes.body.error).toMatch(/email|not found/i);
+    });
+
     it("TFA.7b Admin reset — non-admin caller rejected with 403", async () => {
       // Karan manager login
       const karanLogin = await request(app).post("/api/auth/login")

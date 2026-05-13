@@ -3,7 +3,7 @@ import speakeasy from "speakeasy";
 import QRCode from "qrcode";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { db, schema } from "../db/index.js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { authenticateToken, requireAdmin } from "../lib/authMiddleware.js";
 
 const router = Router();
@@ -201,20 +201,42 @@ export async function consumeRecoveryCode(userId: string, code: string): Promise
 // setup-required flow.
 
 router.post("/2fa/admin-reset", authenticateToken, requireAdmin, async (req, res) => {
-  const { targetUserId, sourceTable: targetSource } = req.body as {
+  const { targetUserId, targetEmail, sourceTable: targetSource } = req.body as {
     targetUserId?: string;
+    targetEmail?: string;
     sourceTable?: "system_users" | "users";
   };
-  if (!targetUserId) {
-    return res.status(400).json({ error: "targetUserId is required." });
+  if (!targetUserId && !targetEmail) {
+    return res.status(400).json({ error: "targetUserId or targetEmail is required." });
   }
   const targetTable = (targetSource ?? "system_users") === "system_users" ? "system_users" : "users";
+
+  // Resolve to userId if email was provided (commit 6 — admin UX).
+  let resolvedUserId = targetUserId;
+  if (!resolvedUserId && targetEmail) {
+    const emailLower = targetEmail.trim().toLowerCase();
+    if (targetTable === "system_users") {
+      const [row] = await db.select({ id: schema.systemUsers.id })
+        .from(schema.systemUsers)
+        .where(sql`LOWER(${schema.systemUsers.email}) = ${emailLower}`);
+      resolvedUserId = row?.id;
+    } else {
+      const [row] = await db.select({ id: schema.users.id })
+        .from(schema.users)
+        .where(sql`LOWER(${schema.users.email}) = ${emailLower}`);
+      resolvedUserId = row?.id;
+    }
+    if (!resolvedUserId) {
+      return res.status(404).json({ error: `No ${targetTable} row found for that email.` });
+    }
+  }
+
   if (targetTable === "system_users") {
     const result = await db.update(schema.systemUsers).set({
       twoFactorSecret: null,
       twoFactorEnabled: false,
       recoveryCodesHashed: null,
-    }).where(eq(schema.systemUsers.id, targetUserId)).returning({ id: schema.systemUsers.id });
+    }).where(eq(schema.systemUsers.id, resolvedUserId!)).returning({ id: schema.systemUsers.id });
     if (result.length === 0) {
       return res.status(404).json({ error: "User not found." });
     }
@@ -222,13 +244,13 @@ router.post("/2fa/admin-reset", authenticateToken, requireAdmin, async (req, res
     const result = await db.update(schema.users).set({
       twoFactorSecret: null,
       twoFactorEnabled: false,
-    }).where(eq(schema.users.id, targetUserId)).returning({ id: schema.users.id });
+    }).where(eq(schema.users.id, resolvedUserId!)).returning({ id: schema.users.id });
     if (result.length === 0) {
       return res.status(404).json({ error: "User not found." });
     }
   }
-  console.log(`[2fa] Admin reset by ${req.user!.email} for user ${targetUserId} (${targetTable})`);
-  return res.json({ success: true, targetUserId, sourceTable: targetTable });
+  console.log(`[2fa] Admin reset by ${req.user!.email} for user ${resolvedUserId} (${targetTable})`);
+  return res.json({ success: true, targetUserId: resolvedUserId, sourceTable: targetTable });
 });
 
 export { router as twofaRouter };

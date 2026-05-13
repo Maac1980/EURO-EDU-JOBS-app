@@ -396,9 +396,46 @@ Three refinements accepted in cycle 3:
 | 2 | feat(systemusers): canEditWorkers column + T3 backfill | `ALTER TABLE system_users ADD COLUMN IF NOT EXISTS can_edit_workers BOOLEAN NOT NULL DEFAULT TRUE` + seed update + DB-state assertion test | Schema first, before code that depends on it |
 | 3 | feat(auth): unify dashboard on system_users + JWT extension | `routes/auth.ts` try-systemUsers-then-users, role-translation function, JWT payload extension, PayrollPage-type-shape update for new fields, `requireCoordinatorOrAdmin` honors canEditWorkers + DASH.1-DASH.9 tests (interleaved, exit step 2 with auth-coverage complete) | Core unification; DASH.9 lands here (depends on step 2 migration + step 3 middleware + JWT) |
 | 4 | feat(2fa): migrate TOTP columns to system_users | `ALTER TABLE system_users ADD COLUMN IF NOT EXISTS two_factor_secret`, `two_factor_enabled`, `requires_2fa`, `recovery_codes_hashed` + idempotency test | Schema first for 2FA work |
-| 5 | feat(2fa): twofa.ts swap to system_users + recovery codes + admin reset + mandatory-for-admin login enforcement | Rewrite 8 read sites in `routes/twofa.ts`, generation + display-once UI + verify-at-login fallback, admin-reset endpoint, login-flow TOTP gate + TFA.1-TFA.7 tests | Full 2FA flow + interleaved tests |
+| 5 | feat(2fa): twofa.ts swap to system_users + recovery codes + admin reset + mandatory-for-admin login enforcement | Rewrite 8 read sites in `routes/twofa.ts`, generation + display-once UI + verify-at-login fallback, admin-reset endpoint, login-flow TOTP gate + TFA.1-TFA.7 tests | Full 2FA flow + interleaved tests. See "Commit 5 dependencies" below for coupling points commit 3 deferred to here. |
 | 6 | feat(ui): Profile/Settings 2FA toggle + recovery codes UI | Dashboard frontend: setup flow, enable/disable toggle, recovery codes display-once, lost-phone path | UI verification deferred to May 16 walkthrough (no e2e harness; manual UI confirmation) |
-| 7 | docs(eod): May 14-15 build close | EOD writeup capturing implementation surprises, walkthrough prep checklist for May 16 | End-of-build doc per term 6 (brake/reflection) |
+| 6.5 | docs(case-law): fallback-paths-fail-loud principle | Optional pull-forward: case law principle from Alerts cockpit-click bug, drafted before theory-result is in. Independent of which theory is correct. | Decouples principle capture from commit-7 code race; principle has cross-cutting value beyond this specific bug |
+| 7 | fix(alerts): cockpit-click on empty-candidates state | AlertsTab.tsx — empty state instead of mock fallback (Theory A) OR ID-shape correction (Theory B). Gated by Manish's 30-second Network test against staging. | Last-position rationale: (a) gated by Manish's test, (b) test-fidelity — Liza's JWT shape changes post-unification; placing fix verification AFTER auth unification means it runs against the same JWT shape May 18 production will see |
+| 8 | docs(eod): May 14-15 build close | EOD writeup capturing implementation surprises, walkthrough prep checklist for May 16 | End-of-build doc per term 6 (brake/reflection) |
+
+**Commit 5 dependencies (added 2026-05-13 evening per cycle 5 — captured
+from commit 3 implementation surface).** Commit 3 deferred two 2FA-related
+coupling points to commit 5 to keep commit 3 scope-pure on the auth
+unification + role-translation + JWT extension. Both have TODO comments
+in `routes/auth.ts` referencing this section:
+
+1. **system_users login path needs 2FA check.** Commit 3's new
+   system_users branch in `/auth/login` has no 2FA verification today.
+   Commit 5 adds the check after password verification on that path,
+   including the mandatory-for-admin enforcement (Manish, Anna). Site:
+   `routes/auth.ts` after the `passwordOk` block in the system_users
+   branch. Depends on commit 4 (TOTP columns on system_users) and the
+   commit-5-introduced `requires_2fa` boolean.
+
+2. **`user2FAEnabled` and `verify2FAToken` helpers need sourceTable
+   dispatch.** Currently in `routes/twofa.ts`, both helpers query
+   `schema.users` only. Commit 5 must add sourceTable awareness so that
+   system_users users get the right table queried. Two implementation
+   shapes possible: (a) helpers accept a sourceTable parameter (caller
+   passes it from req.user.sourceTable), (b) helpers internally try both
+   tables. Decision deferred to commit 5; (a) is more explicit, (b) is
+   simpler for callers. Callsite in `routes/auth.ts:175`-ish doesn't
+   change shape under (a) but does pass sourceTable; under (b) doesn't
+   change at all.
+
+**Note on Alerts bug (added 2026-05-13 evening per cycle 4):** the Alerts
+cockpit-click bug was surfaced during the morning staging walkthrough.
+Theory A (mock-data fallback rows have no `id`, click gated on falsy id =
+inert by design) vs Theory B (candidates loaded but ID mapping produces
+non-UUID values, click triggers 404 on /workers/{id}/cockpit). 30-second
+Network tab test against staging confirms before commit 7 code lands.
+Not a May-18 blocker (only surfaces on staging empty-candidates state)
+but a real UX bug; bundling in this branch keeps the case-law principle
+together with the fix.
 
 **Independent properties of the sequence:**
 - Commit 1 (PayrollPage) revertible without affecting any other commit

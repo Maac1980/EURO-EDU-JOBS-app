@@ -92,8 +92,13 @@ router.post("/auth/login", loginLimiter, async (req, res) => {
       return res.status(401).json({ error: "Incorrect password." });
     }
 
-    // 2FA on system_users path is added in commits 4-5 (TOTP migration +
-    // mandatory-for-admin). For now, no 2FA check on this path.
+    // TODO(commit 5 — dashboard auth unification): add 2FA check on the
+    // system_users login path. Required when TOTP columns land on
+    // system_users (commit 4) and verify2FAToken/user2FAEnabled gain
+    // sourceTable dispatch (commit 5). Mandatory-for-admin enforcement
+    // (Manish, Anna) gates here once requires_2fa flag is on system_users.
+    // Reference: docs/PHASE_A_AUDIT_DASHBOARD_AUTH_UNIFICATION.md §11.5
+    // commit 5 dependencies + §13.4 (2FA scope and migration plan).
 
     const payload: AuthUser = {
       id: sysUser.id,
@@ -172,7 +177,14 @@ router.post("/auth/login", loginLimiter, async (req, res) => {
     return res.status(401).json({ error: "Incorrect password." });
   }
 
-  // TOTP 2FA (non-admin, if enabled)
+  // TOTP 2FA (non-admin, if enabled). Legacy users-table path only.
+  // TODO(commit 5): user2FAEnabled and verify2FAToken currently query
+  // schema.users only (see routes/twofa.ts). When TOTP migrates to
+  // system_users in commit 4-5, these helpers need sourceTable dispatch
+  // (parallel to the change-password handler pattern in this file).
+  // The callsite below doesn't change shape, but the helpers do.
+  // Reference: docs/PHASE_A_AUDIT_DASHBOARD_AUTH_UNIFICATION.md §11.5
+  // commit 5 dependencies.
   if (found.role !== "admin" && await user2FAEnabled(found.id)) {
     const totpToken = (req.body as any).totpToken as string | undefined;
     if (!totpToken) {

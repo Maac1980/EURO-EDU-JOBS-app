@@ -2843,6 +2843,31 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     let lizaToken: string;
     let yanaToken: string;
     let meToken: string;
+    // Dashboard auth unification (May 14) — DASH.1-DASH.10 fixtures
+    let manishDashId: string;
+    let manishDashEmail: string;
+    let manishDashPassword: string;
+    let karanDashId: string;
+    let karanDashEmail: string;
+    let karanDashPassword: string;
+    let yanaDashId: string;
+    let yanaDashEmail: string;
+    let yanaDashPassword: string;
+    let lizaDashId: string;
+    let lizaDashEmail: string;
+    let lizaDashPassword: string;
+    let annaDashSysId: string;
+    let annaDashSysEmail: string;
+    let annaDashSysPassword: string;
+    let annaDashUsersId: string;
+    let annaDashUsersPassword: string;
+    let legacyFallbackId: string;
+    let legacyFallbackEmail: string;
+    let legacyFallbackPassword: string;
+    let t4DashId: string;
+    let t4DashEmail: string;
+    let t4DashPassword: string;
+    let dashTargetWorkerId: string;
 
     async function scryptHash(password: string): Promise<string> {
       const { randomBytes, scrypt } = await import("crypto");
@@ -2941,17 +2966,121 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
           canViewFinancials: true, nationalityScope: "Ukrainian" },
         process.env.JWT_SECRET!, { expiresIn: "5m" },
       );
+
+      // ── Dashboard auth unification (May 14) — DASH fixtures ───────────────
+      // Manish-like: T1 with designation NOT containing "legal" → translates to admin.
+      manishDashEmail = `manish-dash-${Date.now()}@eej-test.local`;
+      manishDashPassword = "manish-dash-pwd-12345678";
+      const manishDashHash = await scryptHash(manishDashPassword);
+      const manishDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Manish Dash Test', $1, $2, 'T1', 'Founder & Executive', 'Executive', TRUE, NULL, TRUE) RETURNING id`,
+        [manishDashEmail, manishDashHash],
+      );
+      manishDashId = manishDashIns.rows[0].id;
+
+      // Karan-like: T3 with canEditWorkers=true → translates to manager.
+      karanDashEmail = `karan-dash-${Date.now()}@eej-test.local`;
+      karanDashPassword = "karan-dash-pwd-12345678";
+      const karanDashHash = await scryptHash(karanDashPassword);
+      const karanDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Karan Dash Test', $1, $2, 'T3', 'Recruitment & People Operations', 'Operations', FALSE, NULL, TRUE) RETURNING id`,
+        [karanDashEmail, karanDashHash],
+      );
+      karanDashId = karanDashIns.rows[0].id;
+
+      // Yana-like: T3 with nationalityScope='Ukrainian' + canEditWorkers=true → manager.
+      yanaDashEmail = `yana-dash-${Date.now()}@eej-test.local`;
+      yanaDashPassword = "yana-dash-pwd-12345678";
+      const yanaDashHash = await scryptHash(yanaDashPassword);
+      const yanaDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Yana Dash Test', $1, $2, 'T3', 'Contracts & UA Liaison', 'Operations', FALSE, 'Ukrainian', TRUE) RETURNING id`,
+        [yanaDashEmail, yanaDashHash],
+      );
+      yanaDashId = yanaDashIns.rows[0].id;
+
+      // Liza-like: T1 with "legal" in designation → translates to coordinator.
+      lizaDashEmail = `liza-dash-${Date.now()}@eej-test.local`;
+      lizaDashPassword = "liza-dash-pwd-12345678";
+      const lizaDashHash = await scryptHash(lizaDashPassword);
+      const lizaDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Liza Dash Test', $1, $2, 'T1', 'Head of Legal & Client Relations', 'Legal & Compliance', FALSE, NULL, TRUE) RETURNING id`,
+        [lizaDashEmail, lizaDashHash],
+      );
+      lizaDashId = lizaDashIns.rows[0].id;
+
+      // Anna-like: present in BOTH tables with DIFFERENT passwords. DASH.5 logs in
+      // with system_users password (wins); DASH.5b logs in with users password
+      // (should fail — system_users row matches by email, password mismatch → 401,
+      // not 200 via fallback). Tenant 'test' so fixtures don't pollute production.
+      annaDashSysEmail = `anna-dash-${Date.now()}@eej-test.local`;
+      annaDashSysPassword = "anna-sys-pwd-12345678";
+      annaDashUsersPassword = "anna-users-pwd-different-87654321";
+      const annaDashSysHash = await scryptHash(annaDashSysPassword);
+      const annaDashUsersHash = await scryptHash(annaDashUsersPassword);
+      const annaDashSysIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Anna Dash Test', $1, $2, 'T1', 'Executive Board & Finance', 'Executive', TRUE, NULL, TRUE) RETURNING id`,
+        [annaDashSysEmail, annaDashSysHash],
+      );
+      annaDashSysId = annaDashSysIns.rows[0].id;
+      const annaDashUsersIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (name, email, role, site, password_hash, tenant_id)
+         VALUES ('Anna Dash Test (legacy)', $1, 'manager', NULL, $2, 'test') RETURNING id`,
+        [annaDashSysEmail, annaDashUsersHash],
+      );
+      annaDashUsersId = annaDashUsersIns.rows[0].id;
+
+      // Legacy-only fallback fixture: exists in users table only, not in
+      // system_users. Login must succeed via the fallback path with role
+      // from users table (manager).
+      legacyFallbackEmail = `legacy-fallback-${Date.now()}@eej-test.local`;
+      legacyFallbackPassword = "legacy-pwd-12345678";
+      const legacyFallbackHash = await scryptHash(legacyFallbackPassword);
+      const legacyFallbackIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (name, email, role, site, password_hash, tenant_id)
+         VALUES ('Legacy Fallback Test', $1, 'manager', NULL, $2, 'test') RETURNING id`,
+        [legacyFallbackEmail, legacyFallbackHash],
+      );
+      legacyFallbackId = legacyFallbackIns.rows[0].id;
+
+      // T4 candidate fixture for DASH.10 reject test.
+      t4DashEmail = `t4-dash-${Date.now()}@eej-test.local`;
+      t4DashPassword = "t4-dash-pwd-12345678";
+      const t4DashHash = await scryptHash(t4DashPassword);
+      const t4DashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('T4 Candidate Test', $1, $2, 'T4', 'Candidate', 'Candidate', FALSE, NULL, FALSE) RETURNING id`,
+        [t4DashEmail, t4DashHash],
+      );
+      t4DashId = t4DashIns.rows[0].id;
+
+      // Target worker for DASH.9 PATCH test (manager-tier with canEditWorkers=true
+      // must succeed; manager-tier without the flag must 403).
+      const dashWorkerIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality)
+         VALUES ('DASH Target Worker', '+48 555 990 003', 'test', 'Polish') RETURNING id`,
+      );
+      dashTargetWorkerId = dashWorkerIns.rows[0].id;
     });
 
     afterAll(async () => {
       try {
         await pool.query(
           `DELETE FROM system_users WHERE id = ANY($1::uuid[])`,
-          [[lizaUserId, yanaUserId, changePasswordUserId, meUserId]],
+          [[lizaUserId, yanaUserId, changePasswordUserId, meUserId,
+            manishDashId, karanDashId, yanaDashId, lizaDashId, annaDashSysId, t4DashId]],
+        );
+        await pool.query(
+          `DELETE FROM users WHERE id = ANY($1::uuid[])`,
+          [[annaDashUsersId, legacyFallbackId]],
         );
         await pool.query(
           `DELETE FROM workers WHERE id = ANY($1::uuid[])`,
-          [[ukrainianWorkerId, polishWorkerId]],
+          [[ukrainianWorkerId, polishWorkerId, dashTargetWorkerId]],
         );
       } finally {
         await pool.end();
@@ -3102,6 +3231,156 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       } finally {
         await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
       }
+    });
+
+    // ── Dashboard auth unification (May 14) — DASH.1-DASH.10 tests ──────────
+    // Per Phase A audit doc §9. Tests cover: role translation (T1+legal→
+    // coordinator, T1→admin, T3→manager, T4→reject), JWT payload extension
+    // (canViewFinancials, nationalityScope, canEditWorkers, sourceTable),
+    // systemUsers-first ordering when email exists in both tables, defensive
+    // fallback to legacy users table.
+
+    it("DASH.1 Liza T1+Legal logs in via /auth/login → role=coordinator + canViewFinancials=false + sourceTable=system_users", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: lizaDashEmail, password: lizaDashPassword });
+      expect(res.status).toBe(200);
+      expect(typeof res.body.token).toBe("string");
+      expect(res.body.user).toMatchObject({
+        id: lizaDashId,
+        email: lizaDashEmail,
+        role: "coordinator",
+        canViewFinancials: false,
+        canEditWorkers: true,
+        sourceTable: "system_users",
+      });
+    });
+
+    it("DASH.2 Karan T3 logs in via /auth/login → role=manager + canEditWorkers=true + canViewFinancials=false", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: karanDashEmail, password: karanDashPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: karanDashId,
+        role: "manager",
+        canViewFinancials: false,
+        canEditWorkers: true,
+        sourceTable: "system_users",
+      });
+      expect(res.body.user.nationalityScope ?? null).toBe(null);
+    });
+
+    it("DASH.3 Yana T3 logs in → role=manager + nationalityScope=Ukrainian + canEditWorkers=true", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: yanaDashEmail, password: yanaDashPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: yanaDashId,
+        role: "manager",
+        nationalityScope: "Ukrainian",
+        canEditWorkers: true,
+        sourceTable: "system_users",
+      });
+    });
+
+    it("DASH.4 Manish T1 (non-legal designation) logs in → role=admin + canViewFinancials=true", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: manishDashId,
+        role: "admin",
+        canViewFinancials: true,
+        sourceTable: "system_users",
+      });
+    });
+
+    it("DASH.5 Anna in BOTH tables — system_users path wins, login with system_users password succeeds", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: annaDashSysEmail, password: annaDashSysPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: annaDashSysId, // system_users id, not the legacy users id
+        role: "admin",
+        sourceTable: "system_users",
+      });
+      // Explicit: this is NOT the legacy users row id
+      expect(res.body.user.id).not.toBe(annaDashUsersId);
+    });
+
+    it("DASH.5b Anna in BOTH tables — system_users wins ordering; users-table password is rejected (not silently fallen-through)", async () => {
+      // The users-table password is the WRONG password from system_users'
+      // perspective. systemUsers-first means we hit the system_users row,
+      // password mismatch → 401. We must NOT silently fall through to
+      // the users table and accept its password — that would defeat ordering.
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: annaDashSysEmail, password: annaDashUsersPassword });
+      expect(res.status).toBe(401);
+    });
+
+    it("DASH.5c Legacy users-only fixture logs in via fallback path → role from users table + sourceTable=users", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: legacyFallbackEmail, password: legacyFallbackPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: legacyFallbackId,
+        role: "manager",
+        sourceTable: "users",
+      });
+    });
+
+    it("DASH.6 Unknown email (neither table) → 403 Access Denied", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: `nobody-${Date.now()}@nowhere.invalid`, password: "any-pwd-12345678" });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/Access Denied/);
+    });
+
+    it("DASH.7 Liza's coordinator token rejected on /api/admin/stats (requireAdmin gate)", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: lizaDashEmail, password: lizaDashPassword });
+      expect(loginRes.status).toBe(200);
+      const lizaCoordinatorToken = loginRes.body.token as string;
+
+      const res = await request(app).get("/api/admin/stats")
+        .set("Authorization", `Bearer ${lizaCoordinatorToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it("DASH.9 Karan's manager token passes requireCoordinatorOrAdmin gate when canEditWorkers=true", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: karanDashEmail, password: karanDashPassword });
+      expect(loginRes.status).toBe(200);
+      const karanManagerToken = loginRes.body.token as string;
+
+      // Karan's token from systemUsers path carries tenantId='production'
+      // (systemUsers has no tenant column; auth.ts hardcodes production).
+      // The dashTargetWorker is in tenant='test'. Route will return 404
+      // (worker not found in caller's tenant) — but reaching 404 means the
+      // requireCoordinatorOrAdmin gate PASSED. Without the canEditWorkers
+      // fix, the manager role would be rejected at the gate with 403.
+      // Asserting not-403 is the gate-behavior assertion.
+      const res = await request(app).patch(`/api/workers/${dashTargetWorkerId}`)
+        .set("Authorization", `Bearer ${karanManagerToken}`)
+        .send({ totalHours: "42.5" });
+      expect(res.status).not.toBe(403);
+    });
+
+    it("DASH.10 T4 candidate-tier login → 403 with mobile-app guidance message", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: t4DashEmail, password: t4DashPassword });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/mobile app/i);
     });
   }
 );

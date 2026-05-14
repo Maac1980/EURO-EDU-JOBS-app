@@ -16,7 +16,15 @@ primary_region = 'ams'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  # Staging auto-stop disabled permanently (audit response, 2026-05-14).
+  # Pre-fix: auto_stop_machines = true caused 4 work interruptions in one day —
+  # the staging machine would idle-stop mid-task, surfacing as "Workers tab
+  # empty" / "can't connect" false alarms. Per-machine `flyctl --autostop=off`
+  # resets on every deploy because the toml is authoritative. Setting it false
+  # here makes the change durable. min_machines_running stays 0 (staging only
+  # boots when traffic hits — we don't pay for idle), but once boot, stays up.
+  # Production fly.toml is already correct (auto_stop=false, min_running=1).
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']

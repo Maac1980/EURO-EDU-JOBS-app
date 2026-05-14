@@ -37,7 +37,7 @@ export default function AiCopilot() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API}/analytics/copilot`, {
+      const res = await fetch(`${API}/ai/copilot`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ question }),

@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus, RefreshCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { authHeaders } from "@/lib/api";
 
 interface Snapshot {
   week: string;
@@ -92,7 +93,10 @@ export function ComplianceTrendChart() {
     setError(null);
     try {
       const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-      const res = await fetch(`${base}/api/compliance/trend`);
+      // /api/compliance/trend is gated by authenticateToken (compliance.ts:95).
+      // Without the Bearer header the fetch 401s and the panel renders the
+      // "Failed to load trend data" error state. Walkthrough finding #3.
+      const res = await fetch(`${base}/api/compliance/trend`, { headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to load trend data");
       const data = await res.json();
       setSnapshots(data.snapshots ?? []);

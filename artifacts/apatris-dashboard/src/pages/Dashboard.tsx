@@ -1191,6 +1191,17 @@ export default function Dashboard() {
                             <Pencil className="w-3.5 h-3.5" />
                             {t("table.edit")}
                           </button>
+                          {/* Primary COCKPIT action — blue-filled (walkthrough finding #1).
+                              Replaces the small text-link buried in WorkerProfilePanel; now
+                              a discoverable primary action on the worker row alongside Edit. */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setCockpitWorkerId(worker.id); }}
+                            className="flex items-center justify-center gap-1.5 w-full px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-500 border border-blue-400 transition-all hover:brightness-110 active:scale-95"
+                            style={{ minWidth: "84px", boxShadow: "0 2px 12px rgba(59,130,246,0.35)" }}
+                            title="Open the unified worker cockpit (11 panels, AI summary, Ask AI about appeal)"
+                          >
+                            Full Cockpit →
+                          </button>
                           {/* Secondary actions — always visible as small icons */}
                           <div className="flex gap-1">
                             <button

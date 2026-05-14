@@ -11,6 +11,7 @@ import GlobalDropZone from "@/components/GlobalDropZone";
 // Pages
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import WorkersPage from "@/pages/WorkersPage";
 import Apply from "@/pages/Apply";
 import WorkerPortal from "@/pages/WorkerPortal";
 import AdminSettings from "@/pages/AdminSettings";
@@ -413,6 +414,9 @@ function Router() {
         </Route>
         <Route path="/test/ingest-diagnostics">
           {() => <ProtectedRoute component={IngestDiagnostics} />}
+        </Route>
+        <Route path="/workers">
+          {() => <ErrorBoundary><ProtectedRoute component={WorkersPage} /></ErrorBoundary>}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

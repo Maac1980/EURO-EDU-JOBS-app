@@ -52,7 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
     hoverBg: "hover:bg-blue-500/10",
     activeBg: "bg-blue-500/15 text-blue-400",
     items: [
-      { path: "/",                   label: "All Workers",   icon: Users },
+      { path: "/workers",            label: "All Workers",   icon: Users },
       { path: "/worker-timeline",   label: "Timeline",      icon: Clock },
       { path: "/onboarding-checklist", label: "Onboarding", icon: Users },
       { path: "/bulk-upload",       label: "Bulk Upload",   icon: Users },
@@ -158,22 +158,22 @@ const NAV_GROUPS: NavGroup[] = [
 // Quick-access tabs shown directly in the top bar
 const QUICK_TABS: NavItem[] = [
   { path: "/",                  label: "Dashboard",   icon: BarChart3 },
+  { path: "/workers",           label: "Workers",     icon: Users },
   { path: "/candidates",       label: "Recruit",     icon: UserPlus },
   { path: "/payroll",           label: "Payroll",     icon: Calculator },
   { path: "/legal-dashboard",  label: "Compliance",  icon: Shield },
   { path: "/doc-workflow",     label: "Documents",   icon: FileCheck },
   { path: "/ai-copilot-chat",  label: "Research",    icon: Sparkles },
-  { path: "/legal-intelligence", label: "Legal AI",  icon: Shield },
 ];
 
 // Flat list for mobile bottom bar (top 7 most used)
 const MOBILE_TABS: NavItem[] = [
-  { path: "/",                  label: "Workers",   icon: Users },
+  { path: "/",                  label: "Home",      icon: BarChart3 },
+  { path: "/workers",           label: "Workers",   icon: Users },
   { path: "/payroll",           label: "Payroll",   icon: Calculator },
   { path: "/compliance-alerts", label: "Alerts",    icon: AlertTriangle },
   { path: "/immigration",       label: "Permits",   icon: Stamp },
   { path: "/contracts",         label: "Contracts", icon: FileSignature },
-  { path: "/analytics",         label: "Analytics", icon: BarChart3 },
 ];
 
 function findActiveGroup(location: string): NavGroup | undefined {

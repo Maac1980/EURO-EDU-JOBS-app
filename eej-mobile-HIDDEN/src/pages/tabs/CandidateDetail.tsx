@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { Candidate, CandidateDocument, DocReviewStatus } from "@/data/mockData";
 import { useToast } from "@/lib/toast";
+import { uploadWorkerDocument } from "@/lib/api";
 import WorkerCockpit from "@/components/WorkerCockpit";
 
 const DETAIL_UPLOAD_SLOTS = [
@@ -60,14 +61,34 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
   );
   const [showFullProfile, setShowFullProfile] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
+  const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  function handleFileUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
+  /**
+   * Tier 1 #4: wire uploads to the real worker-document endpoint instead of
+   * the prior "set local state + toast success" pattern. Pre-fix the toast
+   * said "Uploaded: <name>" the moment the file picker returned, even though
+   * nothing went to the server — files were silently discarded across
+   * sessions. Now the toast fires only after the server confirms persist.
+   * Failure surfaces an honest error.
+   */
+  async function handleFileUpload(slotId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
-    showToast(`Uploaded: ${file.name}`, "success");
-    e.target.value = "";
+    setUploadingSlot(slotId);
+    try {
+      await uploadWorkerDocument(candidate.id, slotId, file);
+      setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
+      showToast(`Uploaded: ${file.name}`, "success");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? `Upload failed: ${err.message}` : "Upload failed",
+        "error",
+      );
+    } finally {
+      setUploadingSlot(null);
+      e.target.value = "";
+    }
   }
 
   function approve(doc: CandidateDocument) {
@@ -205,10 +226,13 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
                   <button
                     className={"wp-upload-btn" + (uploaded ? " wp-upload-btn--done" : "")}
                     onClick={() => fileRefs.current[id]?.click()}
+                    disabled={uploadingSlot === id}
                   >
-                    {uploaded
-                      ? <><CheckCircle2 size={12} strokeWidth={2.5} /> Replace</>
-                      : <><Upload size={12} strokeWidth={2.5} /> Upload</>}
+                    {uploadingSlot === id
+                      ? <><Upload size={12} strokeWidth={2.5} className="animate-spin" /> Uploading…</>
+                      : uploaded
+                        ? <><CheckCircle2 size={12} strokeWidth={2.5} /> Replace</>
+                        : <><Upload size={12} strokeWidth={2.5} /> Upload</>}
                   </button>
                   <input
                     type="file"

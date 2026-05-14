@@ -65,7 +65,18 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
-  if (req.user.role !== "admin") { res.status(403).json({ error: "Admin access required." }); return; }
+  // Accept both dashboard "admin" and mobile "executive" — the same T1 users
+  // (Manish, Anna) hit this gate from both surfaces. Pre-unification their
+  // mobile tokens (role="executive") got 403 on /admin/stats etc; this
+  // dual-accept is the PENDING-2 Stats 403 fix. Semantically: dashboard admin
+  // and mobile executive are the same tier-1 founder accounts. Coordinator,
+  // manager, legal, operations, candidate roles all still rejected.
+  // String-cast pattern matches existing requireT1T2 below.
+  const role = req.user.role as string;
+  if (role !== "admin" && role !== "executive") {
+    res.status(403).json({ error: "Admin access required." });
+    return;
+  }
   next();
 }
 

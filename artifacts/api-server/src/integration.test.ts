@@ -1056,6 +1056,119 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       expect(res.body.unreadWhatsApp).toBe(baseUnread + 1);
       expect(res.body.whatsappPendingApproval).toBe(basePending + 1);
     });
+
+    // PENDING-2 fix (May 14): mobile T1 executive tokens were getting 403 on
+    // /admin/stats because requireAdmin only accepted role="admin" (dashboard
+    // shape). After unification, requireAdmin accepts both "admin" (dashboard
+    // T1 translation) and "executive" (mobile T1 role) — semantically the
+    // same tier-1 founder accounts. Coordinator/manager/legal/operations
+    // still rejected (DASH.7 confirms coordinator stays out).
+    it("A5b /admin/stats accepts mobile T1 executive token (PENDING-2 regression)", async () => {
+      const res = await request(app)
+        .get("/api/admin/stats")
+        .set("Authorization", `Bearer ${t1Token}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body).toBe("object");
+    });
+
+    // PENDING-5 fix (May 14): /admin/users now aggregates legacy users +
+    // system_users so all team members appear in TeamManagementCard.
+    // Pre-aggregation: card showed only Anna (legacy users row); the 5
+    // system_users team members (Liza, Karan, Marjorie, Yana plus Manish)
+    // were invisible. After aggregation: emails dedupe; sourceTable field
+    // tells frontend which table backed each row so edit/delete affordances
+    // can be conditionally shown.
+    it("A5c /admin/users aggregates legacy users + system_users with sourceTable field", async () => {
+      // Insert a marker system_users row we can detect in the response.
+      const markerEmail = `agg-marker-${Date.now()}@eej-test.local`;
+      const markerHash = `${"a".repeat(32)}:${"b".repeat(128)}`;
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('Agg Marker', $1, $2, 'T3', 'Recruitment Marker', 'Operations') RETURNING id`,
+        [markerEmail, markerHash],
+      );
+      const markerId = ins.rows[0].id;
+
+      try {
+        const res = await request(app)
+          .get("/api/admin/users")
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.users)).toBe(true);
+
+        // Marker row appears with translated role + sourceTable
+        const markerRow = res.body.users.find((u: { email: string }) => u.email === markerEmail);
+        expect(markerRow).toBeDefined();
+        expect(markerRow.role).toBe("manager"); // T3 → manager
+        expect(markerRow.sourceTable).toBe("system_users");
+
+        // Every row has sourceTable (no undefined leaking through)
+        for (const u of res.body.users as Array<{ sourceTable?: string }>) {
+          expect(["users", "system_users"].includes(u.sourceTable ?? "")).toBe(true);
+        }
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [markerId]);
+      }
+    });
+
+    it("A5d /admin/users dedupes on email collision; legacy users row wins (preserves PATCH/DELETE id)", async () => {
+      // Seed an email in BOTH tables — legacy row should win on collision.
+      const collisionEmail = `collide-${Date.now()}@eej-test.local`;
+      const hash = `${"c".repeat(32)}:${"d".repeat(128)}`;
+
+      const legacyIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (name, email, role, site, password_hash, tenant_id)
+         VALUES ('Legacy Side', $1, 'coordinator', NULL, $2, 'production') RETURNING id`,
+        [collisionEmail, hash],
+      );
+      const legacyId = legacyIns.rows[0].id;
+
+      const sysIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('System Side', $1, $2, 'T3', 'Ops', 'Operations') RETURNING id`,
+        [collisionEmail, hash],
+      );
+      const sysId = sysIns.rows[0].id;
+
+      try {
+        const res = await request(app)
+          .get("/api/admin/users")
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+
+        const matches = (res.body.users as Array<{ email: string; id: string; sourceTable: string; name: string }>)
+          .filter(u => u.email === collisionEmail);
+        expect(matches.length).toBe(1); // deduped
+        expect(matches[0].id).toBe(legacyId); // legacy id won
+        expect(matches[0].sourceTable).toBe("users");
+        expect(matches[0].name).toBe("Legacy Side"); // legacy row's name
+      } finally {
+        await pool.query(`DELETE FROM users WHERE id = $1`, [legacyId]);
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [sysId]);
+      }
+    });
+
+    it("A5e /admin/users filters out T4 candidate-tier system_users rows (workers, not team)", async () => {
+      const t4Email = `t4-team-test-${Date.now()}@eej-test.local`;
+      const hash = `${"e".repeat(32)}:${"f".repeat(128)}`;
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('T4 Candidate', $1, $2, 'T4', 'Worker', 'Worker') RETURNING id`,
+        [t4Email, hash],
+      );
+      const t4Id = ins.rows[0].id;
+
+      try {
+        const res = await request(app)
+          .get("/api/admin/users")
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        const found = (res.body.users as Array<{ email: string }>).find(u => u.email === t4Email);
+        expect(found).toBeUndefined();
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [t4Id]);
+      }
+    });
   }
 );
 

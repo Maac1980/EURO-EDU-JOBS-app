@@ -1986,31 +1986,35 @@ export async function seedInitialData(): Promise<void> {
       }
     }
 
-    // T23 — backfill canViewFinancials for users who pre-existed before this
-    // migration. The seedUsers INSERT path only fires on first-creation, so
-    // existing rows (e.g., Anna's pre-T23 anna.b@edu-jobs.eu) keep the
-    // ALTER TABLE default (FALSE). This idempotent UPDATE corrects that.
-    // The `AND can_view_financials = FALSE` filter makes subsequent runs no-op.
-    await db.execute(sql`
-      UPDATE system_users
-      SET can_view_financials = TRUE
-      WHERE email IN ('manish.s@edu-jobs.eu', 'anna.b@edu-jobs.eu')
-        AND can_view_financials = FALSE
-    `);
-
-    // Commit 4 (May 15) — backfill requires_2fa for admin-tier rows that
-    // pre-existed before this column was added. Matches the role-translation
-    // rule (T1 + designation NOT containing "Legal" → admin → mandatory 2FA).
-    // Idempotent: the `AND requires_2fa = FALSE` filter makes subsequent
-    // runs no-op. Only escalates from FALSE→TRUE, never demotes.
-    // Per audit doc §13.4 (mandatory-for-admin scope).
-    await db.execute(sql`
-      UPDATE system_users
-      SET requires_2fa = TRUE
-      WHERE role = 'T1'
-        AND (designation IS NULL OR designation NOT ILIKE '%legal%')
-        AND requires_2fa = FALSE
-    `);
+    // ──── ONE-TIME BACKFILLS — INTENTIONALLY REMOVED (Commit 25, May 14) ────
+    //
+    // Two backfill UPDATEs lived here previously:
+    //
+    //   1) UPDATE system_users SET can_view_financials = TRUE WHERE email IN
+    //      ('manish.s@edu-jobs.eu', 'anna.b@edu-jobs.eu') AND can_view_financials = FALSE
+    //   2) UPDATE system_users SET requires_2fa = TRUE WHERE role = 'T1'
+    //      AND (designation IS NULL OR designation NOT ILIKE '%legal%')
+    //      AND requires_2fa = FALSE
+    //
+    // Both were written to one-time-correct rows that pre-existed the
+    // columns being added. The original comments claimed idempotence because
+    // `AND col = FALSE` filtered subsequent runs.
+    //
+    // That reasoning broke in practice: any later operator flip (e.g.,
+    // manually toggling requires_2fa = FALSE on staging to bypass a Login UI
+    // gap) re-satisfied the filter, and the next deploy re-clobbered the
+    // operator's state. Manish hit this three times running on May 14 — every
+    // staging deploy re-flipped requires_2fa to TRUE and locked admin login
+    // out until the Login.tsx 2FA-setup UI gap closed (Commit 25 Part B).
+    //
+    // Both columns are now bootstrapped at INSERT time by seedUsers above
+    // (canViewFinancials + requires2fa fields on the seed objects). Existing
+    // production rows are already in their target state from the prior runs.
+    // New admin rows added to the seedUsers list pick up the right values
+    // on first creation. No post-INSERT correction needed.
+    //
+    // HB-14 forbids DELETE migrations, but this is source-code deletion of an
+    // idempotent UPDATE that's no longer needed — no rows are touched at all.
   }
 
   // ── Seed sample workers if < 5 exist ──────────────────────────────────────

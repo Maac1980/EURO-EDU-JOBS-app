@@ -428,45 +428,26 @@ export function WorkerProfilePanel({
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="px-5 pt-4 pb-4 border-b border-white/10 bg-slate-800/50">
-              {/* Top row: avatar + name + action buttons */}
-              <div className="flex items-center gap-3">
+            {/* Header — restructured into three visual clusters with breathing room
+                between them (walkthrough finding #1-remainder + #11). Pre-fix the
+                avatar / name+badges / actions were all in one horizontal flex row,
+                which squished the name-and-badges column narrow whenever the
+                action-buttons cluster had 6+ icons (after commit 12's upload
+                buttons). The narrow column truncated the worker name to "A…" and
+                made the Full Cockpit button render in a ~120px-wide portrait shape
+                that Manish reported as "vertical." Now: row 1 = avatar + name +
+                action-icons; row 2 = chip cluster (specialization, status, score);
+                row 3 = Full Cockpit horizontal button (its own row, wide rectangle). */}
+            <div className="px-5 pt-4 pb-4 border-b border-white/10 bg-slate-800/50 space-y-3">
+              {/* Row 1: avatar + name (wraps if long) + action icon buttons */}
+              <div className="flex items-start gap-3">
                 {/* Avatar / Initials */}
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-black uppercase flex-shrink-0" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.3)", color: "#E9FF70" }}>
                   {worker.name.split(" ").map((n: string) => n[0]).join("").slice(0, 3)}
                 </div>
-                {/* Name + badges */}
+                {/* Name — no truncate; wraps to second line if long */}
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-black text-white leading-tight truncate">{worker.name}</h2>
-                  <div className="flex items-center flex-wrap gap-1.5 mt-1">
-                    {worker.specialization && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/10 text-gray-300 border border-white/10">
-                        {worker.specialization}
-                      </span>
-                    )}
-                    <StatusBadge status={worker.complianceStatus} />
-                    {(() => {
-                      const score = calcComplianceScore(worker);
-                      const color = scoreColor(score);
-                      const bg = scoreBg(score);
-                      return (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: bg, color, border: `1px solid ${color}40` }}>
-                          {score}/100
-                        </span>
-                      );
-                    })()}
-                  </div>
-                  {onOpenCockpit && workerId && (
-                    <button
-                      onClick={() => onOpenCockpit(workerId)}
-                      className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-500 border border-blue-400 transition-all hover:brightness-110 active:scale-95"
-                      style={{ boxShadow: "0 2px 12px rgba(59,130,246,0.35)" }}
-                      title="Open the unified worker cockpit (AI summary, all 11 panels, Ask AI about appeal, deep-link nav)"
-                    >
-                      Full Cockpit →
-                    </button>
-                  )}
+                  <h2 className="text-xl font-black text-white leading-tight break-words">{worker.name}</h2>
                 </div>
                 {/* Action buttons */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -551,6 +532,46 @@ export function WorkerProfilePanel({
                   </button>
                 </div>
               </div>
+
+              {/* Row 2: chip cluster (specialization + status + score) — separated
+                  from row 1 so the name has the horizontal space to wrap, and
+                  the chips have visual breathing room without competing with
+                  action icons. */}
+              <div className="flex items-center flex-wrap gap-2">
+                {worker.specialization && (
+                  <span className="px-2.5 py-1 rounded text-[10px] font-mono bg-white/10 text-gray-300 border border-white/10">
+                    {worker.specialization}
+                  </span>
+                )}
+                <StatusBadge status={worker.complianceStatus} />
+                {(() => {
+                  const score = calcComplianceScore(worker);
+                  const color = scoreColor(score);
+                  const bg = scoreBg(score);
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black" style={{ background: bg, color, border: `1px solid ${color}40` }}>
+                      {score}/100
+                    </span>
+                  );
+                })()}
+              </div>
+
+              {/* Row 3: Full Cockpit button — its OWN row, horizontal rectangle
+                  full width of the panel. Pre-fix this lived inside the name
+                  column at w-full of a narrow flex-1, rendering ~120px wide
+                  (portrait shape). Now it has the full panel width to span,
+                  reads unambiguously as a primary action button. */}
+              {onOpenCockpit && workerId && (
+                <button
+                  onClick={() => onOpenCockpit(workerId)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-500 border border-blue-400 transition-all hover:brightness-110 active:scale-95"
+                  style={{ boxShadow: "0 2px 12px rgba(59,130,246,0.35)" }}
+                  title="Open the unified worker cockpit (AI summary, all 11 panels, Ask AI about appeal, deep-link nav)"
+                >
+                  Full Cockpit →
+                </button>
+              )}
+
               {/* IBAN display strip (when not editing) */}
               {!isEditing && (worker as any).iban && (
                 <div className="mt-3 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: "rgba(233,255,112,0.05)", border: "1px solid rgba(233,255,112,0.15)" }}>

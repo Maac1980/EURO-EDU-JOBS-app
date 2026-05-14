@@ -20,6 +20,7 @@ import {
   X, AlertTriangle, FileText, Briefcase, StickyNote, Wallet, ShieldCheck,
   Sparkles, Clock, Mail, Phone, MapPin, Pencil, Check, MessageCircle,
   ArrowDownLeft, ArrowUpRight, Scale, Loader2, Copy, History,
+  Maximize2, Minimize2,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -303,6 +304,13 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
   const [phoneDraft, setPhoneDraft] = useState("");
   const [contactSaving, setContactSaving] = useState(false);
 
+  // Fullscreen toggle (walkthrough finding #12). Default size widened to
+  // max-w-5xl. Fullscreen expands to the whole viewport below the 52px
+  // top nav. Resets to false whenever the cockpit is closed and re-opened
+  // for a different worker — fullscreen is a per-session decision, not
+  // sticky across worker switches.
+  const [fullscreen, setFullscreen] = useState(false);
+
   const isOpen = !!workerId;
 
   // Resolve panel role from dashboard auth + designation
@@ -357,6 +365,7 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
       setAiSummary(null);
       setLegalAnswer(null);
       setEditingContact(false);
+      setFullscreen(false);
       firedForRef.current = null;
       return;
     }
@@ -903,15 +912,25 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — full inset when fullscreen (covers the 52px top nav too),
+          otherwise inset below the 52px nav. */}
       <div
         onClick={onClose}
-        className="fixed inset-0 top-[52px] bg-black/60 backdrop-blur-sm z-[205] transition-opacity duration-300"
+        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[205] transition-opacity duration-300 ${
+          fullscreen ? "" : "top-[52px]"
+        }`}
       />
 
-      {/* Cockpit slide-over (wider than WorkerProfilePanel — 11 panels needs the room) */}
+      {/* Cockpit slide-over — walkthrough finding #12: default widened from
+          max-w-3xl (768px) to max-w-5xl (1024px), with a Maximize toggle in
+          the header to expand to full viewport. When fullscreen the
+          container spans inset-0 (whole viewport including top nav area). */}
       <div
-        className="fixed right-0 top-[52px] bottom-0 w-full max-w-3xl bg-slate-950 border-l border-white/10 shadow-2xl z-[210] overflow-y-auto transform transition-transform duration-300 ease-out translate-x-0"
+        className={
+          fullscreen
+            ? "fixed inset-0 w-full bg-slate-950 shadow-2xl z-[210] overflow-y-auto transform transition-all duration-300 ease-out translate-x-0"
+            : "fixed right-0 top-[52px] bottom-0 w-full max-w-5xl bg-slate-950 border-l border-white/10 shadow-2xl z-[210] overflow-y-auto transform transition-all duration-300 ease-out translate-x-0"
+        }
       >
         {/* Header */}
         <div className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-xl border-b border-white/10 px-6 py-4">
@@ -1000,13 +1019,23 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
                 </>
               ) : null}
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
-              aria-label="Close cockpit"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={() => setFullscreen(!fullscreen)}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                title={fullscreen ? "Exit fullscreen" : "Maximize cockpit to fullscreen"}
+              >
+                {fullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                aria-label="Close cockpit"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 

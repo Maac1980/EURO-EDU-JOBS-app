@@ -60,8 +60,13 @@ interface CockpitWorker {
   [k: string]: unknown;
 }
 
-interface CockpitTrcCase { id: string; status?: string; type?: string; voivodeship?: string;
-  appointment_date?: string; decision_date?: string; renewal_deadline?: string;
+// trc_cases is returned via raw SELECT c.* — column names are snake_case
+// per migrate.ts:1380-1402. Cockpit aggregator at workers.ts:548-557 aliases
+// the document-completion counts inline (camelCase aliases). Everything else
+// is the raw schema column name.
+interface CockpitTrcCase { id: string; status?: string; permit_type?: string; voivodeship?: string;
+  appointment_date?: string; actual_decision_date?: string; expected_decision_date?: string;
+  renewal_deadline?: string;
   total_documents?: number; uploaded_documents?: number; missing_documents?: number;
   [k: string]: unknown; }
 
@@ -77,8 +82,12 @@ interface CockpitNote { id: string; content?: string; author?: string;
 interface CockpitPayroll { id: string; periodMonth?: string; hourlyRate?: string;
   totalHours?: string | number; netPay?: string | number; [k: string]: unknown; }
 
+// audit_entries returned via raw SQL `SELECT * FROM audit_entries` —
+// snake_case column names per migrate.ts:136-146. No JS-side aliasing.
 interface CockpitAudit { id: string; action?: string; field?: string; actor?: string;
-  timestamp?: string; newValue?: unknown; [k: string]: unknown; }
+  timestamp?: string; new_value?: unknown; old_value?: unknown;
+  worker_id?: string; worker_name?: string;
+  [k: string]: unknown; }
 
 interface CockpitReasoning { id: string; decision_type?: string; input_summary?: string;
   output?: unknown; confidence?: number; decided_action?: string;
@@ -517,10 +526,10 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
             {data.trcCase ? (
               <>
                 <Row label="Status" value={data.trcCase.status} />
-                <Row label="Type" value={data.trcCase.type} />
+                <Row label="Type" value={data.trcCase.permit_type} />
                 <Row label="Voivodeship" value={data.trcCase.voivodeship} />
                 <Row label="Appointment" value={fmtDate(data.trcCase.appointment_date)} />
-                <Row label="Decision" value={fmtDate(data.trcCase.decision_date)} />
+                <Row label="Decision" value={fmtDate(data.trcCase.actual_decision_date)} />
                 <Row label="Renewal deadline" value={fmtDate(data.trcCase.renewal_deadline)} />
                 <Row label="Documents" value={`${data.trcCase.uploaded_documents ?? 0} / ${data.trcCase.total_documents ?? 0} uploaded`} />
                 {Number(data.trcCase.missing_documents ?? 0) > 0 && (
@@ -640,12 +649,33 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
         );
 
       case "notes": {
-        const merged = [
-          ...data.notes.worker.map(n => ({ ...n, source: "worker" as const })),
-          ...data.notes.trc.map(n => ({ ...n, source: "trc" as const })),
+        // Two heterogeneous note sources:
+        //   - data.notes.worker: from worker_notes via Drizzle. JS keys are
+        //     camelCase per Drizzle mapping. Schema (migrate.ts:174-180):
+        //     id, worker_id, content, updated_by, updated_at. No author
+        //     field, no created_at — only updated_by + updated_at.
+        //   - data.notes.trc: from trc_case_notes via raw SQL `SELECT *`.
+        //     Column names are snake_case. Schema (migrate.ts:1419-1425):
+        //     id, case_id, author, content, created_at. No updated_at.
+        // Normalize both into a unified shape before sort + render.
+        const merged: Array<{ id: string; content: string; who: string; when: string; source: "worker" | "trc" }> = [
+          ...data.notes.worker.map(n => ({
+            id: String(n.id),
+            content: String(n.content ?? ""),
+            who: String((n as unknown as { updatedBy?: string }).updatedBy ?? "Unknown"),
+            when: String((n as unknown as { updatedAt?: string }).updatedAt ?? ""),
+            source: "worker" as const,
+          })),
+          ...data.notes.trc.map(n => ({
+            id: String(n.id),
+            content: String(n.content ?? ""),
+            who: String((n as unknown as { author?: string }).author ?? "Unknown"),
+            when: String((n as unknown as { created_at?: string }).created_at ?? ""),
+            source: "trc" as const,
+          })),
         ].sort((a, b) => {
-          const da = new Date(a.updatedAt ?? a.createdAt ?? 0).getTime();
-          const db = new Date(b.updatedAt ?? b.createdAt ?? 0).getTime();
+          const da = a.when ? new Date(a.when).getTime() : 0;
+          const db = b.when ? new Date(b.when).getTime() : 0;
           return db - da;
         });
         return (
@@ -664,7 +694,7 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
                   <li key={`${n.source}-${n.id}`} className="rounded bg-slate-800/40 p-2">
                     <p className="text-sm text-white leading-snug">{n.content}</p>
                     <p className="text-[10px] text-gray-500 font-mono mt-1">
-                      {n.author ?? n.authorEmail ?? "Unknown"} · {fmtDateTime(n.updatedAt ?? n.createdAt)}
+                      {n.who} · {fmtDateTime(n.when)}
                       {n.source === "trc" && " · TRC"}
                     </p>
                   </li>

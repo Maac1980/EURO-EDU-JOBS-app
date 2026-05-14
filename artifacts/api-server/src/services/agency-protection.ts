@@ -85,7 +85,9 @@ router.get("/pass/:workerId", publicLimiter, async (req, res) => {
           company: "Euro Edu Jobs Sp. z o.o.",
           phone: "+48 XXX XXX XXX",
           email: "anna.b@edu-jobs.eu",
-          website: "https://eej-jobs-api.replit.app",
+          // Replit→Fly migration left this pointing at the dead Replit host.
+          // Match the pattern from platform-features.ts:132.
+          website: process.env.BASE_URL ?? "https://eej-jobs-api.fly.dev",
         },
       },
       generatedAt: new Date().toISOString(),

@@ -411,10 +411,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Language toggle */}
-          {/* Copy Recruitment Link — for Facebook Ads */}
+          {/* Copy Recruitment Link — for Facebook Ads.
+              Pre-fix #15: hardcoded https://eej-jobs-api.replit.app/apply
+              (the dead Replit host, returns 404). Use window.location.origin
+              so the button copies whatever host the dashboard is currently
+              served from — staging → staging, prod → prod, robust across
+              future host changes. */}
           <button
             onClick={() => {
-              navigator.clipboard.writeText("https://eej-jobs-api.replit.app/apply").then(() => {
+              navigator.clipboard.writeText(`${window.location.origin}/apply`).then(() => {
                 setAdLinkCopied(true);
                 setTimeout(() => setAdLinkCopied(false), 3000);
               });

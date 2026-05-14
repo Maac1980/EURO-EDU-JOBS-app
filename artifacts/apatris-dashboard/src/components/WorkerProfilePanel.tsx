@@ -192,6 +192,13 @@ export function WorkerProfilePanel({
   const [copyingLink, setCopyingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [sendingWA, setSendingWA] = useState(false);
+  // PENDING-1 (May 14) — upload-link surfacing. The /worker/:id/update
+  // self-upload page + backend + AI pipeline exist since April 14
+  // (commit 039adb5). Team-side "Copy link" + "Send via WhatsApp" buttons
+  // were the missing piece. Mirrors the portal-link pattern below.
+  const [copyingUploadLink, setCopyingUploadLink] = useState(false);
+  const [uploadLinkCopied, setUploadLinkCopied] = useState(false);
+  const [sendingUploadWA, setSendingUploadWA] = useState(false);
   const [isPipOpen, setIsPipOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [noteContent, setNoteContent] = useState("");
@@ -223,6 +230,68 @@ export function WorkerProfilePanel({
       toast({ title: "WhatsApp failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
       setSendingWA(false);
+    }
+  };
+
+  // PENDING-1 — copy the self-upload URL to clipboard. No token needed;
+  // the /worker/:id/update endpoint is public by design (workers reach
+  // it via WhatsApp without an app account).
+  const handleCopyUploadLink = async () => {
+    if (!workerId) return;
+    setCopyingUploadLink(true);
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const uploadUrl = `${window.location.origin}${base}/worker/${workerId}/update`;
+      await navigator.clipboard.writeText(uploadUrl);
+      setUploadLinkCopied(true);
+      toast({
+        title: "\u2713 Upload link copied!",
+        description: "Share with the worker to collect their documents.",
+        variant: "success" as any,
+      });
+      setTimeout(() => setUploadLinkCopied(false), 3000);
+    } catch (err) {
+      toast({
+        title: "Failed to copy link",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingUploadLink(false);
+    }
+  };
+
+  // PENDING-1 — send the self-upload URL to the worker via WhatsApp.
+  // Backend endpoint posts a Polish-language message with the URL to the
+  // worker's phone (Twilio). Body includes `origin` so server composes
+  // the right host URL.
+  const handleSendUploadWhatsApp = async () => {
+    if (!workerId) return;
+    setSendingUploadWA(true);
+    try {
+      const token = sessionStorage.getItem("eej_token");
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const origin = `${window.location.origin}${base}`;
+      const res = await fetch(`${base}/api/workers/${workerId}/send-upload-link-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ origin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      toast({
+        title: "\u2713 Upload link sent",
+        description: `Document-upload link delivered to ${data.sentTo}`,
+        variant: "success" as any,
+      });
+    } catch (err) {
+      toast({
+        title: "WhatsApp failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingUploadWA(false);
     }
   };
 
@@ -426,9 +495,37 @@ export function WorkerProfilePanel({
                         disabled={copyingLink}
                         className="p-2 rounded-full transition-colors disabled:opacity-50"
                         style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
-                        title="Copy worker portal link"
+                        title="Copy worker portal link (time-tracking, 30-day token)"
                       >
                         {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
+                      </button>
+                      {/* PENDING-1 (May 14) — document-upload link surfacing. */}
+                      <button
+                        onClick={handleSendUploadWhatsApp}
+                        disabled={sendingUploadWA}
+                        className="p-2 rounded-full transition-colors disabled:opacity-50"
+                        style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.4)" }}
+                        title={worker?.phone ? "Send document-upload link via WhatsApp" : "No phone number on file"}
+                      >
+                        {sendingUploadWA
+                          ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                          : <MessageCircle className="w-4 h-4 text-blue-400" />}
+                      </button>
+                      <button
+                        onClick={handleCopyUploadLink}
+                        disabled={copyingUploadLink}
+                        className="p-2 rounded-full transition-colors disabled:opacity-50"
+                        style={{
+                          background: uploadLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.1)",
+                          border: uploadLinkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(59,130,246,0.4)",
+                        }}
+                        title="Copy document-upload link (worker submits passport / TRC / BHP / contract)"
+                      >
+                        {copyingUploadLink
+                          ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                          : uploadLinkCopied
+                            ? <Check className="w-4 h-4 text-green-400" />
+                            : <Upload className="w-4 h-4 text-blue-400" />}
                       </button>
                       <button
                         onClick={() => {

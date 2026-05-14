@@ -1375,6 +1375,60 @@ router.patch("/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async
   }
 });
 
+// POST /workers/:id/send-upload-link-whatsapp — PENDING-1 (May 14).
+// Sends the worker their /worker/:workerId/update self-upload URL via
+// WhatsApp. Liza/Karan/Marj/Yana use this when an existing worker needs
+// to add or refresh missing documents — TRC scan, BHP certificate, etc.
+// The /worker/:workerId/update landing page + backend + AI pipeline
+// were built April 14 (commit 039adb5); this surface is the team-side
+// entry point that was missing.
+//
+// Mirrors /portal/send-whatsapp/:recordId pattern in routes/portal.ts.
+// Upload URL is currently public (no token); security tightening to a
+// per-link signed token is queued as iteration item.
+router.post("/workers/:id/send-upload-link-whatsapp", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+    return res.status(503).json({ error: "WhatsApp not configured." });
+  }
+  try {
+    const tenantId = requireTenant(req);
+    const workerId = String(req.params.id);
+    const [worker] = await db.select().from(schema.workers).where(
+      and(eq(schema.workers.id, workerId), eq(schema.workers.tenantId, tenantId)),
+    );
+    if (!worker) return res.status(404).json({ error: "Worker not found." });
+    if (!worker.phone) return res.status(400).json({ error: "Worker has no phone number." });
+
+    // Compose URL: prefer APP_URL (production), fall back to client-supplied
+    // origin in body (dev/staging) so the message points at the right host.
+    const origin = (req.body?.origin as string | undefined)?.replace(/\/$/, "")
+                ?? (process.env.APP_URL ?? "").replace(/\/$/, "");
+    if (!origin) {
+      return res.status(500).json({ error: "Server has no APP_URL and no origin provided." });
+    }
+    const uploadUrl = `${origin}/worker/${workerId}/update`;
+
+    // Polish-language body (Ukrainian/Polish workers are the majority per
+    // STRATEGIC_RECOMMENDATIONS day-17 docs). Future: localize per worker
+    // nationality once template translation is set up (FUTURE.md item).
+    const { sendWhatsAppMessage } = await import("../lib/alerter.js");
+    const waBody = `Cze\u015b\u0107 ${worker.name}\n\nPrze\u015blij swoje dokumenty (paszport, TRC, badania, BHP, umowa):\n${uploadUrl}\n\n\u2014 EURO EDU JOBS`;
+    await sendWhatsAppMessage(worker.phone, waBody);
+
+    appendAuditEntry({
+      workerId,
+      actor: req.user?.email ?? "unknown",
+      field: "UPLOAD_LINK_SENT",
+      newValue: { phone: worker.phone, url: uploadUrl },
+      action: "SEND_WHATSAPP",
+    });
+
+    return res.json({ success: true, sentTo: worker.phone, workerName: worker.name, url: uploadUrl });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to send WhatsApp" });
+  }
+});
+
 // DELETE /workers/:id
 router.delete("/workers/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {

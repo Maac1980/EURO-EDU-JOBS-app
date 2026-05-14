@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode, FileEdit } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode, FileEdit, Send } from "lucide-react";
 import { calcComplianceScore, scoreColor, scoreBg } from "@/lib/complianceScore";
 import { PIPInspectionModal } from "./PIPInspectionModal";
 import { WorkerQRModal } from "./WorkerQRModal";
@@ -439,104 +439,115 @@ export function WorkerProfilePanel({
                 action-icons; row 2 = chip cluster (specialization, status, score);
                 row 3 = Full Cockpit horizontal button (its own row, wide rectangle). */}
             <div className="px-5 pt-4 pb-4 border-b border-white/10 bg-slate-800/50 space-y-3">
-              {/* Row 1: avatar + name (wraps if long) + action icon buttons */}
-              <div className="flex items-start gap-3">
-                {/* Avatar / Initials */}
+              {/* Row 1: avatar + name + X close ONLY. Pre-fix #13: action buttons
+                  shared this row, eating ~280px of the 448px panel width — name
+                  column shrank to ~26px and `break-words` forced per-character
+                  vertical wrap of "Ahmed Al-Rashid". Fix: actions move to their
+                  own row (row 2), name uses whitespace-nowrap + ellipsis instead
+                  of wrap (Manish's explicit spec). */}
+              <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-black uppercase flex-shrink-0" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.3)", color: "#E9FF70" }}>
                   {worker.name.split(" ").map((n: string) => n[0]).join("").slice(0, 3)}
                 </div>
-                {/* Name — no truncate; wraps to second line if long */}
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-black text-white leading-tight break-words">{worker.name}</h2>
-                </div>
-                {/* Action buttons */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {!isEditing && (
-                    <>
-                      <button
-                        onClick={() => setShowQR(true)}
-                        className="p-2 rounded-full transition-colors"
-                        style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.3)" }}
-                        title="Show worker QR code"
-                      >
-                        <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
-                      </button>
-                      <button
-                        onClick={handleSendPortalWhatsApp}
-                        disabled={sendingWA}
-                        className="p-2 rounded-full transition-colors disabled:opacity-50"
-                        style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}
-                        title={worker?.phone ? "Send portal link via WhatsApp" : "No phone number on file — add in Airtable first"}
-                      >
-                        {sendingWA
-                          ? <Loader2 className="w-4 h-4 animate-spin text-green-400" />
-                          : <MessageCircle className="w-4 h-4 text-green-400" />}
-                      </button>
-                      <button
-                        onClick={handleCopyPortalLink}
-                        disabled={copyingLink}
-                        className="p-2 rounded-full transition-colors disabled:opacity-50"
-                        style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
-                        title="Copy worker portal link (time-tracking, 30-day token)"
-                      >
-                        {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
-                      </button>
-                      {/* PENDING-1 (May 14) — document-upload link surfacing. */}
-                      <button
-                        onClick={handleSendUploadWhatsApp}
-                        disabled={sendingUploadWA}
-                        className="p-2 rounded-full transition-colors disabled:opacity-50"
-                        style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.4)" }}
-                        title={worker?.phone ? "Send document-upload link via WhatsApp" : "No phone number on file"}
-                      >
-                        {sendingUploadWA
-                          ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                          : <MessageCircle className="w-4 h-4 text-blue-400" />}
-                      </button>
-                      <button
-                        onClick={handleCopyUploadLink}
-                        disabled={copyingUploadLink}
-                        className="p-2 rounded-full transition-colors disabled:opacity-50"
-                        style={{
-                          background: uploadLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.1)",
-                          border: uploadLinkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(59,130,246,0.4)",
-                        }}
-                        title="Copy document-upload link (worker submits passport / TRC / BHP / contract)"
-                      >
-                        {copyingUploadLink
-                          ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                          : uploadLinkCopied
-                            ? <Check className="w-4 h-4 text-green-400" />
-                            : <Upload className="w-4 h-4 text-blue-400" />}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditSpec(worker.specialization || "");
-                          setEditProfession(worker.specialization || "");
-                          setEditSiteLocation((worker as any).siteLocation || "");
-                          setEditIban((worker as any).iban || "");
-                          setIsEditing(true);
-                        }}
-                        className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
-                        title={t("panel.editWorkerDetails")}
-                      >
-                        <Pencil className="w-4 h-4 text-amber-400" />
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={onClose}
-                    className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-                  >
-                    <X className="w-5 h-5 text-gray-300" />
-                  </button>
-                </div>
+                <h2
+                  className="flex-1 min-w-0 text-xl font-black text-white leading-tight overflow-hidden text-ellipsis"
+                  style={{ whiteSpace: "nowrap", writingMode: "horizontal-tb", wordBreak: "normal", overflowWrap: "normal" }}
+                  title={worker.name}
+                >
+                  {worker.name}
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors flex-shrink-0"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-gray-300" />
+                </button>
               </div>
 
-              {/* Row 2: chip cluster (specialization + status + score) — separated
-                  from row 1 so the name has the horizontal space to wrap, and
-                  the chips have visual breathing room without competing with
-                  action icons. */}
+              {/* Row 2: action buttons in their own horizontal strip — flex-wrap
+                  so they reflow on narrow widths instead of compressing row 1.
+                  Two WhatsApp actions use distinct icons (MessageCircle green for
+                  portal-link / Send blue for upload-link) — Manish flagged the
+                  duplicate-icon as a UX bug in #13. */}
+              {!isEditing && (
+                <div className="flex items-center flex-wrap gap-1.5">
+                  <button
+                    onClick={() => setShowQR(true)}
+                    className="p-2 rounded-full transition-colors"
+                    style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.3)" }}
+                    title="Show worker QR code"
+                  >
+                    <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
+                  </button>
+                  <button
+                    onClick={handleSendPortalWhatsApp}
+                    disabled={sendingWA}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}
+                    title={worker?.phone ? "Send portal link via WhatsApp" : "No phone number on file — add in Airtable first"}
+                  >
+                    {sendingWA
+                      ? <Loader2 className="w-4 h-4 animate-spin text-green-400" />
+                      : <MessageCircle className="w-4 h-4 text-green-400" />}
+                  </button>
+                  <button
+                    onClick={handleCopyPortalLink}
+                    disabled={copyingLink}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
+                    title="Copy worker portal link (time-tracking, 30-day token)"
+                  >
+                    {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
+                  </button>
+                  {/* Send icon (paper plane) — distinct from MessageCircle above.
+                      Both trigger WhatsApp, but action is different: this one
+                      sends the document-upload link (passport / TRC / BHP /
+                      contract), the green MessageCircle sends the portal link. */}
+                  <button
+                    onClick={handleSendUploadWhatsApp}
+                    disabled={sendingUploadWA}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.4)" }}
+                    title={worker?.phone ? "Send document-upload link via WhatsApp" : "No phone number on file"}
+                  >
+                    {sendingUploadWA
+                      ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      : <Send className="w-4 h-4 text-blue-400" />}
+                  </button>
+                  <button
+                    onClick={handleCopyUploadLink}
+                    disabled={copyingUploadLink}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{
+                      background: uploadLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.1)",
+                      border: uploadLinkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(59,130,246,0.4)",
+                    }}
+                    title="Copy document-upload link (worker submits passport / TRC / BHP / contract)"
+                  >
+                    {copyingUploadLink
+                      ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      : uploadLinkCopied
+                        ? <Check className="w-4 h-4 text-green-400" />
+                        : <Upload className="w-4 h-4 text-blue-400" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditSpec(worker.specialization || "");
+                      setEditProfession(worker.specialization || "");
+                      setEditSiteLocation((worker as any).siteLocation || "");
+                      setEditIban((worker as any).iban || "");
+                      setIsEditing(true);
+                    }}
+                    className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
+                    title={t("panel.editWorkerDetails")}
+                  >
+                    <Pencil className="w-4 h-4 text-amber-400" />
+                  </button>
+                </div>
+              )}
+
+              {/* Row 3: chip cluster (specialization + status + score). */}
               <div className="flex items-center flex-wrap gap-2">
                 {worker.specialization && (
                   <span className="px-2.5 py-1 rounded text-[10px] font-mono bg-white/10 text-gray-300 border border-white/10">
@@ -556,11 +567,7 @@ export function WorkerProfilePanel({
                 })()}
               </div>
 
-              {/* Row 3: Full Cockpit button — its OWN row, horizontal rectangle
-                  full width of the panel. Pre-fix this lived inside the name
-                  column at w-full of a narrow flex-1, rendering ~120px wide
-                  (portrait shape). Now it has the full panel width to span,
-                  reads unambiguously as a primary action button. */}
+              {/* Row 4: Full Cockpit button — its own row, full-width rectangle. */}
               {onOpenCockpit && workerId && (
                 <button
                   onClick={() => onOpenCockpit(workerId)}

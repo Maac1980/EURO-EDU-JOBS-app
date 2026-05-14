@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { AlertTriangle, ShieldAlert, FileCheck2, Bell, Clock, CheckCircle2, DollarSign, Search, X, Stethoscope, HardHat } from "lucide-react";
-import { COMPLIANCE_ALERTS } from "@/data/mockData";
+// PENDING-4 (May 14): COMPLIANCE_ALERTS mock fallback removed per case
+// law CASE_LAW_002 — fallback data paths must fail loud (empty state),
+// not silent (inert mock cards). When `candidates.length === 0` the
+// alert lists render the existing "No matches" empty UI instead.
 import { useCandidates } from "@/lib/candidateContext";
 import type { Candidate } from "@/data/mockData";
 import type { Role } from "@/types";
@@ -63,19 +66,15 @@ function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
     return items;
   });
 
-  // Live candidate data carries the worker id so each alert card can deep-link
-  // into the cockpit. Mock-data fallback rows have no id; their cards click
-  // through to nothing (cursor stays default).
-  const visaExpiring = candidates.length > 0
-    ? candidates
-        .filter(c => c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60)
-        .map(c => ({ id: c.id, name: c.name, daysLeft: c.visaDaysLeft!, type: c.visaType ?? "Visa" }))
-    : (COMPLIANCE_ALERTS.visaExpiring as Array<{ id?: string; name: string; daysLeft: number; type: string }>);
-  const missingPassports = candidates.length > 0
-    ? candidates
-        .filter(c => c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected")))
-        .map(c => ({ id: c.id, name: c.name, missing: "Passport / ID" }))
-    : (COMPLIANCE_ALERTS.missingPassports as Array<{ id?: string; name: string; missing: string }>);
+  // Each alert card carries the candidate id so click → opens the cockpit.
+  // No candidates loaded = empty alerts (genuine state), not inert mock cards
+  // (case law CASE_LAW_002 — fallback data paths must fail loud).
+  const visaExpiring = candidates
+    .filter(c => c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60)
+    .map(c => ({ id: c.id, name: c.name, daysLeft: c.visaDaysLeft!, type: c.visaType ?? "Visa" }));
+  const missingPassports = candidates
+    .filter(c => c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected")))
+    .map(c => ({ id: c.id, name: c.name, missing: "Passport / ID" }));
 
   const q = query.toLowerCase();
   const filteredVisa    = visaExpiring.filter(a => !q || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q));
@@ -219,35 +218,23 @@ function LegalAlerts({ candidates }: { candidates: Candidate[] }) {
 
   const q = query.toLowerCase();
 
-  // Each issue carries the candidate id when sourced from real data so the
-  // card can deep-link to the cockpit. Mock-data fallback rows lack an id;
-  // their cards are inert (no cursor change).
+  // Each issue carries the candidate id so the card can deep-link to the
+  // cockpit. No candidates loaded = empty allIssues array, rendered as the
+  // existing empty state (case law CASE_LAW_002 — fail loud, not silent).
   const allIssues: { id?: string; name: string; issue: string; days: number | null; severity: "critical" | "warning" | "pending" }[] = [];
 
-  if (candidates.length > 0) {
-    candidates.forEach(c => {
-      if (c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60) {
-        allIssues.push({ id: c.id, name: c.name, issue: `${c.visaType ?? "Visa"} expiring`, days: c.visaDaysLeft, severity: c.visaDaysLeft <= 10 ? "critical" : "warning" });
-      }
-      if (c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected"))) {
-        allIssues.push({ id: c.id, name: c.name, issue: "Passport / ID missing", days: null, severity: "critical" });
-      }
-      const wp = c.documents.find(d => d.name.toLowerCase().includes("work permit"));
-      if (wp && wp.status !== "approved") {
-        allIssues.push({ id: c.id, name: c.name, issue: "Work permit pending", days: null, severity: "pending" });
-      }
-    });
-  } else {
-    COMPLIANCE_ALERTS.visaExpiring.forEach(a => {
-      allIssues.push({ name: a.name, issue: `${a.type} expiring`, days: a.daysLeft, severity: a.daysLeft <= 10 ? "critical" : "warning" });
-    });
-    COMPLIANCE_ALERTS.missingPassports.forEach(a => {
-      allIssues.push({ name: a.name, issue: a.missing, days: null, severity: "critical" });
-    });
-    COMPLIANCE_ALERTS.workPermits.filter(p => p.status === "pending").forEach(a => {
-      allIssues.push({ name: a.name, issue: "Work permit pending", days: null, severity: "pending" });
-    });
-  }
+  candidates.forEach(c => {
+    if (c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60) {
+      allIssues.push({ id: c.id, name: c.name, issue: `${c.visaType ?? "Visa"} expiring`, days: c.visaDaysLeft, severity: c.visaDaysLeft <= 10 ? "critical" : "warning" });
+    }
+    if (c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected"))) {
+      allIssues.push({ id: c.id, name: c.name, issue: "Passport / ID missing", days: null, severity: "critical" });
+    }
+    const wp = c.documents.find(d => d.name.toLowerCase().includes("work permit"));
+    if (wp && wp.status !== "approved") {
+      allIssues.push({ id: c.id, name: c.name, issue: "Work permit pending", days: null, severity: "pending" });
+    }
+  });
 
   candidates.forEach(c => {
     const d1 = daysUntil(c.bhpExpiry);

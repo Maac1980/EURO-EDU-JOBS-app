@@ -439,8 +439,14 @@ export function WorkerCockpit({ workerId, onClose }: Props) {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(body.error ?? "Legal answer unavailable");
       }
-      const json = await res.json() as LegalAnswerResponse;
-      setLegalAnswer(json);
+      // legal-answer-engine.ts:346 returns `res.json({ answer })` — the
+      // structured fields (plain_answer / legal_basis / next_actions /
+      // confidence / etc.) are nested under .answer. Unwrap here so the
+      // render block (which reads legalAnswer.plain_answer etc. at root)
+      // sees real values, not undefined. Matches the established
+      // LegalCommandCenter.tsx:149 unwrap pattern: setLegalAnswer(data.answer).
+      const json = await res.json() as { answer: LegalAnswerResponse };
+      setLegalAnswer(json.answer);
     } catch (e) {
       setLegalError(e instanceof Error ? e.message : "Network error");
     } finally {

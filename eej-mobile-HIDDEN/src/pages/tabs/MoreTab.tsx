@@ -1,9 +1,11 @@
+import { useState } from "react";
 import {
   Briefcase, Columns3, Calendar, FileText, Receipt,
   Scale, Search, FileCheck, MapPin, Calculator,
   User, Settings, UserPlus, DollarSign,
   CalendarDays, Clock, BarChart3, Award, TrendingUp,
   Building2, CreditCard, Shield, Lock, Globe,
+  Link2, Check,
 } from "lucide-react";
 import type { ActiveTab, Role } from "@/types";
 import { useAuth } from "@/lib/auth";
@@ -109,6 +111,20 @@ export default function MoreTab({ onNavigate }: Props) {
   const role: Role = (user?.role as Role) ?? "operations";
   const visible = MODULES.filter((m) => m.roles.includes(role));
 
+  // Recruitment-link copy — mirrors the dashboard "Ad Link" button (commit 24
+  // #15). Uses window.location.origin so staging copies staging and prod
+  // copies prod; survives any future host changes. Only shown to staff who
+  // would actually share the link — candidates don't recruit candidates.
+  const [adLinkCopied, setAdLinkCopied] = useState(false);
+  const canShareRecruitmentLink = role === "executive" || role === "operations" || role === "legal";
+  const copyRecruitmentLink = () => {
+    const url = `${window.location.origin}/apply`;
+    navigator.clipboard.writeText(url).then(() => {
+      setAdLinkCopied(true);
+      setTimeout(() => setAdLinkCopied(false), 2500);
+    }).catch(() => {});
+  };
+
   return (
     <div className="tab-page">
       <div className="tab-greeting">
@@ -118,6 +134,55 @@ export default function MoreTab({ onNavigate }: Props) {
         </div>
         <div style={{ fontSize: 11, color: "#9CA3AF" }}>{visible.length} available to you</div>
       </div>
+
+      {/* Recruitment-link card — primary CTA above the module grid.
+          One-tap copy; pastes into WhatsApp/email to share the public
+          /apply form with prospective workers. */}
+      {canShareRecruitmentLink && (
+        <button
+          type="button"
+          onClick={copyRecruitmentLink}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "14px 16px",
+            marginBottom: 12,
+            borderRadius: 14,
+            background: adLinkCopied ? "#ECFDF5" : "#EFF6FF",
+            border: `1.5px solid ${adLinkCopied ? "#6EE7B7" : "#BFDBFE"}`,
+            cursor: "pointer",
+            textAlign: "left",
+            transition: "background 0.15s",
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              background: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {adLinkCopied
+              ? <Check size={20} color="#10B981" strokeWidth={2.5} />
+              : <Link2 size={20} color="#2563EB" strokeWidth={2} />}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: adLinkCopied ? "#065F46" : "#1E3A8A" }}>
+              {adLinkCopied ? "Copied — paste into WhatsApp" : "Copy Recruitment Link"}
+            </div>
+            <div style={{ fontSize: 11, color: adLinkCopied ? "#047857" : "#3B82F6", marginTop: 2 }}>
+              Public /apply form — CV + passport intake
+            </div>
+          </div>
+        </button>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {visible.map(({ id, label, sub, Icon, color, bg }) => (

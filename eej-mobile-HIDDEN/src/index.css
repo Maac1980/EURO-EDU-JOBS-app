@@ -1115,10 +1115,19 @@
 ═══════════════════════════════════════════ */
 
 .detail-overlay {
-  position: absolute;
+  /* Pre-fix #16/#17: `position: absolute` made the overlay cover only its
+     positioned ancestor (the tab-page, which is itself scroll-clipped and
+     sits above a sticky bottom-nav). On a scrolled tab-page the overlay
+     followed the scroll origin, placing the sheet's X close button at an
+     un-tappable offscreen y-coordinate. Fixed positioning ties the overlay
+     to the viewport, so the sheet — and its close button — sit in the
+     visible area regardless of scroll position.
+     z-index 200 puts the overlay above the bottom-nav so neither the nav
+     nor the underlying tab content can intercept taps on the X. */
+  position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.5);
-  z-index: 100;
+  z-index: 200;
   display: flex;
   align-items: flex-end;
   backdrop-filter: blur(2px);
@@ -1128,7 +1137,10 @@
   width: 100%;
   background: #ffffff;
   border-radius: 24px 24px 0 0;
-  max-height: 88%;
+  /* dvh respects mobile-browser dynamic viewports (URL bar showing/hiding) —
+     prevents the sheet from being taller than what the user can actually see
+     when the browser chrome collapses. */
+  max-height: 88dvh;
   overflow-y: auto;
   padding: 0 20px 20px;
   -webkit-overflow-scrolling: touch;
@@ -1683,13 +1695,24 @@
   max-height: 96vh !important;
 }
 
-/* Header */
+/* Header — sticky so the X close button stays tappable as the user scrolls
+   through long worker profiles (commit 26 fix #17). The horizontal padding
+   matches the sheet's content margins; the negative top margin compensates
+   for `.detail-handle`'s 14px top margin so the sticky band hugs the top of
+   the viewport once the handle scrolls away. */
 .wp-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0 16px 14px;
+  padding: 8px 16px 14px;
   gap: 10px;
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 5;
+  /* Hairline shadow that fades in once the user scrolls and content sits
+     beneath the sticky band — visual cue that the header is floating. */
+  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.6);
 }
 .wp-header-left {
   display: flex;

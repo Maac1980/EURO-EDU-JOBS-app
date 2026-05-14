@@ -53,16 +53,86 @@ router.patch("/admin/profile", authenticateToken, requireAdmin, async (req, res)
 
 // ── Team / User Management ────────────────────────────────────────────────────
 
+// Translate a system_users row to dashboard role taxonomy. Mirrors
+// roleFromSystemUser() in routes/auth.ts (kept inline here to avoid
+// cross-route imports). T4 candidate-tier filtered out — they're
+// workers, not team members, and don't belong in the admin team card.
+function dashRoleFromSystemUser(role: string, designation: string | null): "admin" | "coordinator" | "manager" | null {
+  const d = (designation ?? "").toLowerCase();
+  if (role === "T1") return d.includes("legal") ? "coordinator" : "admin";
+  if (role === "T2") return "coordinator";
+  if (role === "T3") return "manager";
+  return null;
+}
+
 router.get("/admin/users", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const tenantId = requireTenant(req);
-    const users = await db.select({
+
+    // Legacy users table (Anna's pre-T23 admin row; future legacy entries).
+    const legacyUsers = await db.select({
       id: schema.users.id,
       email: schema.users.email,
       name: schema.users.name,
       role: schema.users.role,
       site: schema.users.site,
     }).from(schema.users).where(eq(schema.users.tenantId, tenantId));
+
+    // system_users table (T23 team: Manish, Anna, Liza, Karan, Marjorie, Yana
+    // + historical Marta, Piotr). Has no tenant column — implicitly production.
+    // Translate role to dashboard taxonomy (T1+Legal→coordinator, T1→admin,
+    // T2→coordinator, T3→manager; T4 filtered out as worker-tier, not team).
+    const sysUsers = await db.select({
+      id: schema.systemUsers.id,
+      email: schema.systemUsers.email,
+      name: schema.systemUsers.name,
+      role: schema.systemUsers.role,
+      designation: schema.systemUsers.designation,
+    }).from(schema.systemUsers);
+
+    // Aggregate + dedupe by lowercased email. On collision (Anna, Manish exist
+    // in both tables after T23 seed), legacy users-table row wins because it
+    // carries the id that PATCH/DELETE /admin/users/:id operates on. sourceTable
+    // field tells the frontend which row backed the entry — system_users rows
+    // are currently read-only from this card (edit via /eej/auth flows).
+    type AggregatedUser = {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+      site: string | null;
+      sourceTable: "users" | "system_users";
+    };
+    const byEmail = new Map<string, AggregatedUser>();
+
+    // Add system_users first so legacy rows can override on collision.
+    for (const u of sysUsers) {
+      const translated = dashRoleFromSystemUser(u.role, u.designation);
+      if (!translated) continue; // T4 candidate-tier filtered
+      const key = u.email.toLowerCase();
+      byEmail.set(key, {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: translated,
+        site: null,
+        sourceTable: "system_users",
+      });
+    }
+    // Legacy users override (carries the canonical id for PATCH/DELETE).
+    for (const u of legacyUsers) {
+      const key = u.email.toLowerCase();
+      byEmail.set(key, {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        site: u.site,
+        sourceTable: "users",
+      });
+    }
+
+    const users = Array.from(byEmail.values()).sort((a, b) => a.name.localeCompare(b.name));
     return res.json({ users });
   } catch {
     return res.status(500).json({ error: "Could not load users." });

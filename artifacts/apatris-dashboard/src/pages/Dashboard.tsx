@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { StatCard } from "@/components/StatCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WorkerProfilePanel } from "@/components/WorkerProfilePanel";
+import { WorkerCockpit } from "@/components/WorkerCockpit";
 import { NotifyDialog, RenewDialog } from "@/components/ActionDialogs";
 import { ComplianceReportModal } from "@/components/ComplianceReportModal";
 import { BulkUploadModal } from "@/components/BulkUploadModal";
@@ -210,6 +211,7 @@ export default function Dashboard() {
   const [pipelineFilter, setPipelineFilter] = useState("");
   const [voivodeshipFilter, setVoivodeshipFilter] = useState("");
 
+  const [cockpitWorkerId, setCockpitWorkerId] = useState<string | null>(null);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("worker") || null;
@@ -1916,12 +1918,18 @@ export default function Dashboard() {
 
       <CommandPalette onSelectWorker={(id) => setSelectedWorkerId(id)} />
 
-      <WorkerProfilePanel 
+      <WorkerProfilePanel
         workerId={selectedWorkerId}
         initialEditMode={panelEditMode}
-        onClose={() => { setSelectedWorkerId(null); setPanelEditMode(false); }} 
+        onClose={() => { setSelectedWorkerId(null); setPanelEditMode(false); }}
         onRenew={(w) => { setSelectedWorkerId(null); setPanelEditMode(false); setActionWorker(w); setRenewOpen(true); }}
         onNotify={(w) => { setSelectedWorkerId(null); setPanelEditMode(false); setActionWorker(w); setNotifyOpen(true); }}
+        onOpenCockpit={(id) => { setSelectedWorkerId(null); setCockpitWorkerId(id); }}
+      />
+
+      <WorkerCockpit
+        workerId={cockpitWorkerId}
+        onClose={() => setCockpitWorkerId(null)}
       />
 
       <CandidateEditPanel

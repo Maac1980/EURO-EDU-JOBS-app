@@ -18,6 +18,14 @@ interface WorkerProfilePanelProps {
   onClose: () => void;
   onRenew: (worker: any) => void;
   onNotify: (worker: any) => void;
+  /**
+   * Opens the unified worker cockpit (11-panel view) for the same worker.
+   * Coexistence with this slide-over: this panel keeps admin affordances
+   * (portal-link send, document uploads, PIP modal, QR modal); cockpit
+   * provides the unified read view + AI summary + thread-3 legal Q&A.
+   * Option (i) full replacement queued as iteration item post-walkthrough.
+   */
+  onOpenCockpit?: (workerId: string) => void;
 }
 
 function DocRow({ label, date }: { label: string; date?: string | null }) {
@@ -166,6 +174,7 @@ export function WorkerProfilePanel({
   onClose,
   onRenew,
   onNotify,
+  onOpenCockpit,
 }: WorkerProfilePanelProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -379,6 +388,15 @@ export function WorkerProfilePanel({
                       );
                     })()}
                   </div>
+                  {onOpenCockpit && workerId && (
+                    <button
+                      onClick={() => onOpenCockpit(workerId)}
+                      className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-blue-300 bg-blue-500/15 border border-blue-500/30 hover:bg-blue-500/25 transition-colors"
+                      title="Open the unified worker cockpit (AI summary, all panels, deep-link nav)"
+                    >
+                      View full cockpit →
+                    </button>
+                  )}
                 </div>
                 {/* Action buttons */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">

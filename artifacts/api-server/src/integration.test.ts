@@ -4843,9 +4843,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
 
     it("DS.16b upload: 404 for worker in a different tenant", async () => {
       // userToken is scoped to tenantId='test'. Create a worker in 'other-tenant'.
+      // Two separate queries — pg's simple query protocol returns an ARRAY of
+      // results for multi-statement queries, not a single {rows, ...} object.
+      // The combined-statement form caused "Cannot read properties of undefined
+      // (reading '0')" on other.rows[0].id because `other` was the array, not
+      // a single result. CE.3 below uses the correct two-query pattern.
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant') ON CONFLICT (slug) DO NOTHING`,
+      );
       const other = await pool.query<{ id: string }>(
-        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant') ON CONFLICT (slug) DO NOTHING;
-         INSERT INTO workers (name, tenant_id) VALUES ('Cross-Tenant Worker', 'other-tenant') RETURNING id`,
+        `INSERT INTO workers (name, tenant_id) VALUES ('Cross-Tenant Worker', 'other-tenant') RETURNING id`,
       );
       const otherId = other.rows[0].id;
       try {

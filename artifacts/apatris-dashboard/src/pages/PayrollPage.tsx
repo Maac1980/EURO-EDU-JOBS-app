@@ -508,14 +508,18 @@ export default function PayrollPage() {
     setZUSRates(r);
   };
 
-  const { data, isLoading, refetch } = useQuery<{ workers: PayrollWorker[] }>({
+  const { data, isLoading, isError, error: queryError, refetch } = useQuery<{ workers: PayrollWorker[] }>({
     queryKey: ["payroll-current"],
     queryFn: async () => {
       const res = await fetch(`${import.meta.env.BASE_URL}api/payroll/current`, { headers: authHeaders() });
-      if (!res.ok) throw new Error("Failed to load payroll data");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
       return res.json();
     },
     staleTime: 30_000,
+    retry: 1,
   });
 
   const saveMutation = useMutation({
@@ -1154,10 +1158,29 @@ export default function PayrollPage() {
                   Array.from({ length: 10 }).map((_, i) => (
                     <PayrollRowSkeleton key={i} cols={showZUS && isAdmin ? 11 : 7} />
                   ))
+                ) : isError ? (
+                  // Tier 1 #2: error state distinct from empty. Pre-fix, a 404
+                  // on /api/payroll/current rendered identically to "no
+                  // workers seeded" — that masking ended the moment Manish
+                  // saw "No workers found" with the route actually broken.
+                  <tr>
+                    <td colSpan={showZUS && isAdmin ? 11 : 7} className="px-5 py-12 text-center font-mono text-sm">
+                      <div className="text-red-400 font-bold mb-1">Could not load payroll data</div>
+                      <div className="text-xs text-gray-500 mb-3">
+                        {queryError instanceof Error ? queryError.message : "Unknown error"}
+                      </div>
+                      <button
+                        onClick={() => refetch()}
+                        className="px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 hover:bg-yellow-500/30"
+                      >
+                        Retry
+                      </button>
+                    </td>
+                  </tr>
                 ) : filteredWorkers.length === 0 ? (
                   <tr>
                     <td colSpan={showZUS && isAdmin ? 11 : 7} className="px-5 py-12 text-center text-gray-500 font-mono text-sm">
-                      {payrollSearch ? "No workers match your search" : "No workers found"}
+                      {payrollSearch ? "No workers match your search" : "No workers found for this month"}
                     </td>
                   </tr>
                 ) : (

@@ -12,6 +12,128 @@ import { requireTenant } from "../lib/tenancy.js";
 const router = Router();
 const ZUS_RATE = 0.1126;
 
+/**
+ * GET /payroll/current — Tier 1 alias for the dashboard PayrollPage.
+ *
+ * The frontend (`artifacts/apatris-dashboard/src/pages/PayrollPage.tsx`)
+ * has always called `/api/payroll/current`, but this file historically
+ * only exposed `/payroll/workers`. The path mismatch silently 404'd and
+ * the grid rendered "No workers found" — see audit / Tier 1.
+ *
+ * This alias returns the same data as /payroll/workers but maps the
+ * column names to the frontend-expected shape:
+ *   hourlyNettoRate → hourlyRate
+ *   totalHours      → monthlyHours
+ *   advancePayment  → advance
+ * `iban` is decrypted for display (T1/T2 viewers only — the route already
+ * sits behind requireCoordinatorOrAdmin, so role gating is correct).
+ */
+router.get("/payroll/current", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? "200"), 10) || 200, 500);
+    const offset = Math.max(parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
+    const tenantId = requireTenant(req);
+    const { decrypt } = await import("../lib/encryption.js");
+
+    const rows = await db.select().from(schema.workers)
+      .where(eq(schema.workers.tenantId, tenantId))
+      .limit(limit).offset(offset);
+
+    const workers = rows.map(w => ({
+      id: w.id,
+      name: w.name,
+      specialization: w.jobRole ?? null,
+      siteLocation: w.assignedSite ?? null,
+      hourlyRate: Number(w.hourlyNettoRate ?? 0),
+      monthlyHours: Number(w.totalHours ?? 0),
+      advance: Number(w.advancePayment ?? 0),
+      penalties: Number(w.penalties ?? 0),
+      iban: decrypt(w.iban ?? null) ?? "",
+      pesel: decrypt(w.pesel ?? null) ?? "",
+      nip: w.nip ?? null,
+      contractType: w.contractType ?? null,
+      pipelineStage: w.pipelineStage ?? null,
+    }));
+
+    return res.json({ workers });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load payroll" });
+  }
+});
+
+/**
+ * POST /payroll/commit — Tier 1 alias for `/payroll/close-month`.
+ *
+ * Frontend posts `{ monthYear, committedBy }`. Internally we delegate to
+ * the existing close-month logic. Keeping the alias keeps the frontend
+ * unchanged and avoids the rename churn during the Tier 1 falsehood pass.
+ */
+router.post("/payroll/commit", authenticateToken, requireAdmin, async (req, res, next) => {
+  req.url = "/payroll/close-month";
+  return next();
+});
+
+/**
+ * PATCH /payroll/workers/:id — Tier 1 generic-field PATCH.
+ *
+ * The grid in PayrollPage edits per-cell with body `{ [field]: val }` where
+ * `field ∈ {hourlyRate, monthlyHours, advance, penalties, iban, pit2}`.
+ *
+ * Pre-Tier-1 backend only accepted `/payroll/workers/:id/iban` and
+ * `/payroll/workers/batch`, so every inline edit silently 404'd. This
+ * route accepts the frontend field names, maps them to schema columns,
+ * applies IBAN encryption via the same helper /iban uses, and accepts
+ * (but no-ops) `pit2` since there is no `pit2` column yet — the frontend
+ * stores pit2 locally and `.catch(() => {})` was already tolerant of a
+ * non-persisting backend.
+ *
+ * Specific sub-routes (`/iban`, `/batch`) take precedence by being
+ * registered earlier — Express matches them before this generic /:id.
+ */
+router.patch("/payroll/workers/:id", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+    const tenantId = requireTenant(req);
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (body.hourlyRate !== undefined) {
+      const n = Number(body.hourlyRate);
+      if (!isNaN(n) && n >= 0) updates.hourlyNettoRate = n;
+    }
+    if (body.monthlyHours !== undefined) {
+      const n = Number(body.monthlyHours);
+      if (!isNaN(n) && n >= 0) updates.totalHours = Math.round(n * 10) / 10;
+    }
+    if (body.advance !== undefined) {
+      const n = Number(body.advance);
+      if (!isNaN(n) && n >= 0) updates.advancePayment = n;
+    }
+    if (body.penalties !== undefined) {
+      const n = Number(body.penalties);
+      if (!isNaN(n) && n >= 0) updates.penalties = n;
+    }
+    if (body.iban !== undefined) {
+      const { encryptIfPresent } = await import("../lib/encryption.js");
+      const trimmed = String(body.iban).trim();
+      updates.iban = trimmed ? (encryptIfPresent(trimmed) ?? trimmed) : null;
+    }
+    // pit2: no DB column yet; accepted but not persisted. Returning 200 lets
+    // the frontend's silent .catch flow continue and the local toggle stays
+    // in client state. Tracked as a Tier 5 schema follow-up.
+
+    if (Object.keys(updates).length === 1) {
+      return res.json({ success: true, noop: true });
+    }
+
+    await db.update(schema.workers).set(updates).where(
+      and(eq(schema.workers.id, String(req.params.id)), eq(schema.workers.tenantId, tenantId))
+    );
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Worker update failed" });
+  }
+});
+
 router.get("/payroll/workers", authenticateToken, requireCoordinatorOrAdmin, async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);

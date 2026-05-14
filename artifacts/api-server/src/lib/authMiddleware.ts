@@ -82,7 +82,20 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 
 export function requireCoordinatorOrAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
-  if (req.user.role === "manager") {
+  const role = req.user.role as string;
+
+  // Explicit reject: T4 candidate-tier (mobile workers logged in as themselves)
+  // should NEVER edit worker records, contracts, invoices, payroll, etc. from
+  // any surface. Pre-May-14 the gate was deny-list-only (rejected just
+  // "manager") and let candidate fall through to next() — caught by CE.2
+  // integration test, fixed here as a security-flavored hardening across the
+  // 25 routes using this gate.
+  if (role === "candidate") {
+    res.status(403).json({ error: "Coordinator or Admin access required." });
+    return;
+  }
+
+  if (role === "manager") {
     // Dashboard auth unification (May 14): T3→manager users (Karan, Marjorie,
     // Yana) carry canEditWorkers=true on system_users. Manager-tier users
     // pass this gate iff the flag is explicitly true. Admin and coordinator
@@ -94,6 +107,14 @@ export function requireCoordinatorOrAdmin(req: Request, res: Response, next: Nex
     res.status(403).json({ error: "Coordinator or Admin access required." });
     return;
   }
+
+  // admin, coordinator (dashboard); executive, legal, operations (mobile T1/T2/T3
+  // pre-translation surfaces) all fall through. The 25 callsites of this gate
+  // are accessed from both dashboard AND mobile; the executive/legal/operations
+  // pass-through preserves mobile-side worker edits (Anna's inline cockpit
+  // contact edit, Liza's TRC actions, Karan's recruitment data entry).
+  // Allow-list pattern was considered and rejected as too narrow — would have
+  // broken mobile flows currently working.
   next();
 }
 

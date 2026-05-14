@@ -225,11 +225,59 @@ REGULATORY_CRON=0 7 * * *
 
 ## EXECUTION STYLE (MUST FOLLOW)
 - Read CLAUDE.md before starting any task
-- Execute without stopping
+- Execute without stopping within a task — but tier boundaries are gated (see `/goal USAGE DOCTRINE` below)
 - Test before pushing to GitHub
 - Always push AND fly deploy (not just git push): `~/.fly/bin/flyctl deploy -a eej-jobs-api`
 - Commit after each logical unit, not in one big batch
 - If something fails, fix it and continue — don't stop to ask
+
+## WORKING CONVENTIONS (durable — applies every session)
+- **Prompt format:** every instruction carries IF / WHY / FOR WHAT — the reasoning travels with the instruction
+- Every prompt opens with a TO/FROM/SUBJECT-style header identifying who it's for
+- Every command, URL, SQL block, and code snippet goes in its own copy-paste code box. No exceptions
+- **One prompt at a time** — never two parallel work-prompts in flight. When multiple items exist, one stepped prompt covering them, sequenced — not multiple separate prompts
+- A PENDING SCOPE TRACKER is maintained and pasted at the end of work prompts — persistent capture surviving drift and compaction
+- **"Always implement what you learn"** — corrections become permanent immediately, applied in the next instance, not the third
+- Explanations kill time — prompts and responses stay to the point
+- **Time is in Manish's hand.** No calendar narration ("tonight", "tomorrow", "this morning"). Sessions are bounded by laptop-open / laptop-shut, not clocks. EOD is the physical act of Manish closing the laptop — chat-Claude may recommend ending, only Manish decides
+- **Estimates are NEVER given in human-developer hours** — execution is near-instant; the real constraint is Manish's thinking, review, and routing bandwidth. Scope is expressed as work units / milestones, not clock time
+
+## TEAM STRUCTURE
+- Three roles:
+  - **Manish** — architect (decides, detects, routes)
+  - **chat-Claude** — drafts prompts, applies systemic pressure, holds the tracker
+  - **Claude Code** — executes AND reviews / suggests / pushes back (closest to the code)
+- Current process: **Claude Code's suggestions are the default path.** chat-Claude does not inject competing preferences on the work plan. Manish + chat-Claude may suggest, framed as a question ("what do you think if we do X") — not a directive
+- **Manish detects, chat-Claude architects.** Manish should not be asked to make architecture decisions — he is the detection and direction layer; chat-Claude makes the architect calls
+- No Holmes / no separate structural-review seat — that was the APATRIS-era setup. Claude Code now does review and suggestion directly
+
+## /goal USAGE DOCTRINE
+- `/goal` is used for substantial remediation work with a verifiable end state
+- **ONE /goal per tier / per scoped batch** — never one mega-goal across an entire backlog
+- Every `/goal` carries:
+  - (a) concrete numbered acceptance criteria the evaluator can check from surfaced output
+  - (b) an explicit turn cap as a safety net
+  - (c) a scope/constraint section stating what NOT to touch
+- The `/goal` evaluator cannot call tools and cannot see staging. It only judges what Claude Code surfaces in conversation. **Therefore `/goal` completion is NOT the same as "verified working"**
+- **Two-layer verification:**
+  - **Layer 1** — what the `/goal` evaluator + Claude Code can verify (compiles, tests pass, endpoint returns 200, `git ls-files --deleted` empty)
+  - **Layer 2** — what only Manish can verify (the feature actually works when clicked on staging)
+- A `/goal` completing satisfies Layer 1 only. **Manish's staging detection is Layer 2 and is mandatory between tiers**
+- **Workflow:** one `/goal` completes → Claude Code reports → Manish detects on staging → next tier's `/goal`. Never chain tiers without the Manish-detection gate
+
+## TOOLING NOTES
+- **Agent View** (`claude agents`) is the monitoring surface during long `/goal` runs — running / blocked-on-Manish / done
+- Use `claude agents --cwd <path>` to scope the session list — EEJ and APATRIS live in separate directories
+- `/loop` (time-interval re-run) is distinct from `/goal` (run-until-condition). Remediation work uses `/goal`, not `/loop`
+- `claude project purge` is destructive — never run without `--dry-run` first
+
+## PRE-DEPLOY DISCIPLINE
+- `git ls-files --deleted` must return empty before any deploy — flyctl packages the local filesystem, not git HEAD; CI-green does not mean deploy-safe
+- CI green is **CHECKED** on GitHub Actions, never assumed
+- `fly.staging.toml`: `auto_stop_machines = false` (set in commit `afdacc3` — staging machines must not idle-stop mid-work)
+
+## HARD BOUNDARIES
+- Hard Boundaries 1-16 remain pre-conditional gates and hold at all times
 
 ## VALIDATION FRAMEWORK (RUN AFTER EVERY BUILD)
 After every build, run this validation before saying "done":

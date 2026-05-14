@@ -112,6 +112,41 @@ friction.
 
 ---
 
+## 5. Dashboard TypeScript strictness gap (6 pre-existing files)
+
+**Deferred:** the dashboard's strict `tsc --noEmit` reports errors in
+six files that pre-date the May 13-14 work:
+- `src/pages/CrmPipeline.tsx` (TS2367 string-literal comparison)
+- `src/pages/Dashboard.tsx` (TS2741 missing `queryKey` in
+  `useQuery` options)
+- `src/pages/DocumentTemplates.tsx` (TS2367)
+- `src/pages/GeofenceMap.tsx` (TS2367 ×2)
+- `src/pages/LegalQueue.tsx` (TS2367)
+- `src/pages/SystemTest.tsx` (TS2322 status-string assignment)
+
+**Why deferred:** Vite build succeeds because esbuild is more lenient
+than strict `tsc`. The errors don't block production. Fixing them
+requires touching files outside the tuesday-cockpit-build scope and
+risks introducing regressions in surfaces the May 18 walkthrough won't
+exercise. The cockpit work (commit 7) and follow-on May 14 work
+explicitly stayed away from imports of these files; no new errors were
+introduced.
+
+**Trigger to revisit, whichever first:**
+- Next dashboard refactor that touches any of the six files for any
+  reason (do the strict-mode fix as a paired commit before the
+  refactor lands)
+- 60 days post May 18 (= 2026-07-17)
+- CI tightening pass — if/when the team decides `tsc --noEmit` should
+  block CI green for the dashboard package, these six errors must be
+  fixed first or CI breaks immediately
+
+**Estimated effort:** 1-2 hours; mechanical type-narrowing or option
+shape corrections. Low complexity, blocked only by "fix-without-need"
+hesitation.
+
+---
+
 ## How to use this file
 
 - Reading this file is part of the EOD discipline (term 6/8). If a trigger

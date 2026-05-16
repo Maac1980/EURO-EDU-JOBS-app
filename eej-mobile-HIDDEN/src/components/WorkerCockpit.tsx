@@ -506,6 +506,14 @@ export default function WorkerCockpit({ workerId, viewerRole, onClose, onOpenMod
         }
         openLabel="Open permit →"
       >
+        {/* P3c — three honest states, no contradictions with the alert strip:
+            1. Full application record exists → show its details.
+            2. No application record BUT worker has workPermitExpiry set →
+               surface that date here too, with a note. Previously this case
+               rendered "No work permit on file" while the alert strip above
+               said "Work permit EXPIRED" (sourced from the same field) —
+               a direct contradiction for the user.
+            3. Nothing on file anywhere → original empty state. */}
         {data.workPermit ? (
           <>
             <Row label="Type" value={data.workPermit.permitType ?? data.workPermit.permit_type} />
@@ -513,6 +521,12 @@ export default function WorkerCockpit({ workerId, viewerRole, onClose, onOpenMod
             <Row label="Submitted" value={fmtDate(data.workPermit.submittedAt ?? data.workPermit.submitted_at)} />
             <Row label="Decision" value={fmtDate(data.workPermit.decisionDate ?? data.workPermit.decision_date)} />
             <Row label="Expiry" value={fmtDate(data.workPermit.expiryDate ?? data.workPermit.expiry_date ?? w.workPermitExpiry)} />
+          </>
+        ) : w.workPermitExpiry ? (
+          <>
+            <Row label="Application" value="Not on file" />
+            <Row label="Expiry on worker record" value={fmtDate(w.workPermitExpiry)} />
+            <Empty msg="Expiry date is set on the worker record but no permit application has been filed. The alert above reflects that date — file an application to track type, status, and decision." />
           </>
         ) : (
           <Empty msg="No work permit on file." />

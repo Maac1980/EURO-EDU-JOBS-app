@@ -128,15 +128,21 @@ export default function DocumentScanFlow({ onClose, onApplied, preselectedWorker
               ) : (
                 <>
                   <Upload size={28} strokeWidth={1.8} />
-                  <div className="ds-drop-title">Choose a document image</div>
-                  <div className="ds-drop-sub">JPEG, PNG, WebP · up to 20 MB</div>
+                  <div className="ds-drop-title">Choose a document</div>
+                  <div className="ds-drop-sub">JPEG, PNG, WebP, HEIC, GIF, PDF, DOCX · up to 20 MB</div>
                 </>
               )}
             </button>
+            {/* P5 — accept widened to match the documented backend support
+                surface (HEIC for iPhone photos, PDF/DOCX for shared
+                contract files). Note: the current /workers/scan-document
+                handler only normalizes JPEG/PNG/WebP — see report for the
+                backend-widen requirement that must land before non-image
+                uploads succeed end-to-end. */}
             <input
               ref={inputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/jpg"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/gif,application/pdf,.docx"
               capture="environment"
               style={{ display: "none" }}
               onChange={(e) => {
@@ -145,12 +151,18 @@ export default function DocumentScanFlow({ onClose, onApplied, preselectedWorker
               }}
             />
             <div className="ds-actions">
-              <button
-                className="ds-secondary"
-                onClick={() => inputRef.current?.click()}
-              >
-                <Camera size={14} strokeWidth={2.2} /> Re-pick
-              </button>
+              {/* P5 — Re-pick button only meaningful AFTER a file is chosen.
+                  Before that, its action is identical to the main drop area
+                  ("Choose a document"), so showing it confuses what the
+                  user is being asked to do. Show only when `file` exists. */}
+              {file && (
+                <button
+                  className="ds-secondary"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <Camera size={14} strokeWidth={2.2} /> Re-pick
+                </button>
+              )}
               <button
                 className="ds-primary"
                 disabled={!file}

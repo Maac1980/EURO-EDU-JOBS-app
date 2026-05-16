@@ -137,12 +137,19 @@ html, body, #root { margin: 0; padding: 0; height: 100vh; width: 100vw; overflow
 body { overscroll-behavior: none; }
 
 /* ══ APP SHELL ══ */
-.app-shell-root { display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden; }
+/* Tier 1 closeout #33 — full-viewport architecture. height:100dvh follows
+   the dynamic viewport (mobile URL-bar collapse). overflow:hidden bounds
+   the shell so child scroll containers (each page) behave correctly. */
+.app-shell-root { display: flex; flex-direction: column; height: 100vh; height: 100dvh; width: 100vw; overflow: hidden; }
 
+/* Tier 1 closeout #30 — top bar fixed when content scrolls. Pinned via
+   flex (first child of column shell), plus explicit sticky+z-index for
+   robustness if a future page introduces its own scroll context. */
 .app-top-bar {
   height: 52px; flex-shrink: 0; width: 100%; background: #0b101e;
   border-bottom: 2px solid #d4e84b; display: flex; align-items: stretch;
-  z-index: 200; box-shadow: 0 2px 12px rgba(0,0,0,0.4); position: relative;
+  z-index: 200; box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  position: sticky; top: 0;
 }
 .app-top-bar::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:#d4e84b; }
 

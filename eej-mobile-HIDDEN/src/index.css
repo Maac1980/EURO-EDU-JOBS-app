@@ -56,8 +56,15 @@
    APP SHELL — phone frame on desktop
 ═══════════════════════════════════════════ */
 
+/* Tier 1 closeout #33 — full-viewport page architecture.
+   100dvh follows the dynamic viewport (URL bar collapse on mobile browsers),
+   100vh as fallback for older agents. height (not min-height) forces the
+   container to OWN the viewport — children's overflow:auto then works
+   correctly inside a bounded box, rather than the container growing with
+   content. */
 .eej-screen {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   background: #F0F2F5;
   display: flex;
   align-items: flex-start;
@@ -75,7 +82,8 @@
 .eej-container {
   width: 100%;
   max-width: 430px;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   background: #ffffff;
   display: flex;
   flex-direction: column;
@@ -86,8 +94,9 @@
 
 @media (min-width: 520px) {
   .eej-container {
-    min-height: 760px;
+    height: 90vh;
     max-height: 900px;
+    min-height: 760px;
     border-radius: 32px;
     box-shadow: 0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
   }
@@ -250,12 +259,23 @@
    DASHBOARD
 ═══════════════════════════════════════════ */
 
+/* Tier 1 closeout #30 — top bar stays visible when content scrolls.
+   Already pinned via flex (.eej-container is a column with the header at
+   the top). Adding sticky + z-index makes it robust against any future
+   layout change that might intercept (e.g. a sub-module wrapping itself
+   in its own scroll container). */
 .dash-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px 18px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  /* iOS PWA safe area for notch — keeps the visible header below the
+     status bar in installed mode. */
+  padding-top: max(18px, env(safe-area-inset-top, 0px));
 }
 
 .dash-header-left {
@@ -398,12 +418,22 @@
    BOTTOM NAVIGATION
 ═══════════════════════════════════════════ */
 
+/* Tier 1 closeout #28 — bottom nav pinned to viewport.
+   Already last child of .eej-container flex column (so naturally at bottom),
+   but in installed-PWA mode the dynamic viewport changes can let it scroll
+   away with content if any parent loses the height constraint. Explicit
+   sticky + bottom:0 + z-index makes it bullet-proof across browser and
+   PWA. safe-area-inset-bottom keeps the tap targets above the home
+   indicator on iPhone X+. */
 .bottom-nav {
   display: flex;
   align-items: stretch;
   border-top: 1px solid #E5E7EB;
   background: #ffffff;
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 

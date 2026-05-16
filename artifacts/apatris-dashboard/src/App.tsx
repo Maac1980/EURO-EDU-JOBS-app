@@ -116,6 +116,29 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * Tier 1 closeout #32 — scroll resets to top on every route change.
+ * Wouter doesn't ship scroll-restoration; each page is the scroll
+ * container (.app-content-wrapper > * { overflow-y: auto }), so we reset
+ * the wrapper's scrollTop on location change. Mounted once at the Router
+ * level so every page inherits.
+ */
+function ScrollResetOnRouteChange() {
+  const [location] = useLocation();
+  useEffect(() => {
+    const wrapper = document.querySelector(".app-content-wrapper");
+    if (wrapper) {
+      // The page itself is wrapper's first child and has overflow-y:auto.
+      const page = wrapper.firstElementChild as HTMLElement | null;
+      if (page) page.scrollTop = 0;
+      else (wrapper as HTMLElement).scrollTop = 0;
+    }
+    // Body fallback for any page that scrolls the document itself.
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
+
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
@@ -137,6 +160,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <AppShell>
+      <ScrollResetOnRouteChange />
       <GlobalDropZone>
       <Switch>
         <Route path="/login">

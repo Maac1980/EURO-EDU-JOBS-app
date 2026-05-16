@@ -1,5 +1,5 @@
 import { KnowledgeCenter } from "@/components/KnowledgeCenter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { BottomNav } from "@/components/BottomNav";
 import { ToastContainer } from "@/components/Toast";
@@ -74,55 +74,18 @@ function getBadgeCounts(role: Role, candidates: { status: string; visaDaysLeft?:
   return {};
 }
 
-// Tier 1 closeout #22 — back-navigation gap fix.
-// Mobile tabs that are reachable via the bottom-nav (home/candidates/upload/
-// alerts/more) don't need a back button — the bottom-nav itself is the
-// "back path." Every OTHER tab is reached from MoreTab and lacked any
-// visible back affordance — users had to know to tap "More" in the
-// bottom-nav to return. This set is the audit's surface list.
+// Tier 1 closeout #22/#31 — back-navigation in the persistent top bar.
+// The bottom-nav tabs (home/candidates/upload/alerts/more) are top-level
+// destinations and don't show a back button. Every other tab is a drill-
+// down and shows the back button in the persistent .dash-header (NOT a
+// separate bar — eliminates the per-page scroll-context that broke #16).
+// History-aware: pops a navigation stack maintained by activeTab changes,
+// so the user returns to the previous tab (typically MoreTab if reached
+// from there, but supports deeper nav).
 const BOTTOM_NAV_TABS = new Set<ActiveTab>(["home", "candidates", "upload", "alerts", "more"]);
 
 function isSubModule(tab: ActiveTab): boolean {
   return !BOTTOM_NAV_TABS.has(tab);
-}
-
-function SubModuleBackBar({ onBack }: { onBack: () => void }) {
-  return (
-    <div
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-        background: "#FFFFFF",
-        borderBottom: "1px solid #E5E7EB",
-        padding: "10px 12px",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      <button
-        type="button"
-        onClick={onBack}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "8px 12px",
-          background: "#F3F4F6",
-          border: "1px solid #E5E7EB",
-          borderRadius: 8,
-          fontSize: 13,
-          fontWeight: 600,
-          color: "#374151",
-          cursor: "pointer",
-        }}
-      >
-        <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
-        <span>Back to More</span>
-      </button>
-    </div>
-  );
 }
 
 // Tab routing — all 24 modules. Build: 2026-03-31
@@ -193,8 +156,47 @@ export default function Dashboard() {
 function DashboardInner() {
   const { user, logout } = useAuth();
   const { candidates } = useCandidates();
-  const [activeTab, setActiveTab] = useState<ActiveTab>("home");
+  const [activeTab, setActiveTabRaw] = useState<ActiveTab>("home");
+  const [navStack, setNavStack] = useState<ActiveTab[]>([]);
   const [notifCount, setNotifCount] = useState(0);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+
+  // Tier 1 closeout #22/#31 — wrap setActiveTab to maintain a back-stack.
+  // When navigating to a new tab, push the current onto the stack (deduped).
+  // Bottom-nav switches replace the stack (top-level destinations).
+  const setActiveTab = (next: ActiveTab) => {
+    setActiveTabRaw((current) => {
+      if (current === next) return current;
+      if (BOTTOM_NAV_TABS.has(next)) {
+        setNavStack([]);
+      } else {
+        setNavStack((s) => [...s, current]);
+      }
+      return next;
+    });
+  };
+
+  const goBack = () => {
+    setNavStack((s) => {
+      if (s.length === 0) {
+        setActiveTabRaw("more");
+        return s;
+      }
+      const prev = s[s.length - 1];
+      setActiveTabRaw(prev);
+      return s.slice(0, -1);
+    });
+  };
+
+  // Tier 1 closeout #32 — scroll resets to top on tab change. The tab
+  // content scrolls inside its own container (.tab-page); we reset the
+  // wrapper's scrollTop on every activeTab change so no view inherits the
+  // previous view's scroll position.
+  useEffect(() => {
+    if (contentScrollRef.current) contentScrollRef.current.scrollTop = 0;
+    // Also reset window in case any portion of the page scrolls the body.
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, [activeTab]);
 
   useEffect(() => {
     fetchNotifications()
@@ -221,7 +223,29 @@ function DashboardInner() {
 
         <header className="dash-header" style={{ background: accentColor }}>
           <div className="dash-header-left">
-            <div className="dash-logo-sm">EEJ</div>
+            {/* Tier 1 closeout #31 — back button lives in the persistent
+                top bar (not a separate per-page bar). Only rendered on
+                drill-down tabs; bottom-nav tabs are top-level. Hit area
+                ≥44×44 per Apple HIG. */}
+            {isSubModule(activeTab) ? (
+              <button
+                type="button"
+                onClick={goBack}
+                aria-label="Back"
+                style={{
+                  width: 40, height: 40, borderRadius: 10,
+                  background: "rgba(255,255,255,0.18)", border: "none",
+                  color: "#fff", cursor: "pointer", flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 22, fontWeight: 700, lineHeight: 1,
+                  WebkitTapHighlightColor: "rgba(255,255,255,0.25)",
+                }}
+              >
+                ‹
+              </button>
+            ) : (
+              <div className="dash-logo-sm">EEJ</div>
+            )}
             <div className="dash-header-text">
               <div className="dash-header-title">
                 {user.shortName}
@@ -265,11 +289,11 @@ function DashboardInner() {
           </div>
         </header>
 
-        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {/* Tier 1 closeout #22 — back-bar for sub-modules reached from
-              MoreTab. Bottom-nav tabs (home/candidates/upload/alerts/more)
-              don't show it; everything else does. */}
-          {isSubModule(activeTab) && <SubModuleBackBar onBack={() => setActiveTab("more")} />}
+        <div ref={contentScrollRef} style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {/* Tier 1 closeout #22/#31 — back-bar was a separate per-page
+              sticky band. Now lives in the persistent .dash-header (always
+              visible) so there's a single fixed top across the app — see
+              the goBack button on the header above. */}
           <ErrorBoundary>
             <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} onNavigate={setActiveTab} />
           </ErrorBoundary>

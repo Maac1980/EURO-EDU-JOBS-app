@@ -1,5 +1,5 @@
 import { KnowledgeCenter } from "@/components/KnowledgeCenter";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { BottomNav } from "@/components/BottomNav";
 import { ToastContainer } from "@/components/Toast";
@@ -159,7 +159,6 @@ function DashboardInner() {
   const [activeTab, setActiveTabRaw] = useState<ActiveTab>("home");
   const [navStack, setNavStack] = useState<ActiveTab[]>([]);
   const [notifCount, setNotifCount] = useState(0);
-  const contentScrollRef = useRef<HTMLDivElement>(null);
 
   // Tier 1 closeout #22/#31 — wrap setActiveTab to maintain a back-stack.
   // When navigating to a new tab, push the current onto the stack (deduped).
@@ -188,13 +187,17 @@ function DashboardInner() {
     });
   };
 
-  // Tier 1 closeout #32 — scroll resets to top on tab change. The tab
-  // content scrolls inside its own container (.tab-page); we reset the
-  // wrapper's scrollTop on every activeTab change so no view inherits the
-  // previous view's scroll position.
+  // Audit finding B (2026-05-16) — the prior commit's ref-based scroll
+  // reset targeted the WRAPPER div (overflow:hidden, doesn't scroll)
+  // instead of .tab-page (overflow-y:auto, the actual scroll container).
+  // Setting scrollTop on a non-scrolling element is a no-op.
+  //
+  // Fix: pass key={activeTab} to <TabContent> below so React remounts
+  // the tab on every change. The new .tab-page mounts with scrollTop=0
+  // by definition — fresh DOM element. No effect, no ref, no race.
+  // window.scrollTo is kept as a defensive document-level reset for any
+  // page that scrolls the body.
   useEffect(() => {
-    if (contentScrollRef.current) contentScrollRef.current.scrollTop = 0;
-    // Also reset window in case any portion of the page scrolls the body.
     if (typeof window !== "undefined") window.scrollTo(0, 0);
   }, [activeTab]);
 
@@ -289,13 +292,14 @@ function DashboardInner() {
           </div>
         </header>
 
-        <div ref={contentScrollRef} style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {/* Tier 1 closeout #22/#31 — back-bar was a separate per-page
-              sticky band. Now lives in the persistent .dash-header (always
-              visible) so there's a single fixed top across the app — see
-              the goBack button on the header above. */}
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {/* Tier 1 closeout #22/#31 — back-bar in the persistent .dash-header.
+              Audit-2026-05-16 finding B fix: key={activeTab} forces React to
+              remount TabContent on every tab change. The new .tab-page mounts
+              fresh at scrollTop=0 — no ref-based reset needed (the prior ref
+              targeted the wrong overflow:hidden wrapper). */}
           <ErrorBoundary>
-            <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} onNavigate={setActiveTab} />
+            <TabContent key={activeTab} role={user.role} tab={activeTab} candidateId={user.candidateId} onNavigate={setActiveTab} />
           </ErrorBoundary>
         </div>
 

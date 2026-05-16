@@ -61,7 +61,14 @@
    100vh as fallback for older agents. height (not min-height) forces the
    container to OWN the viewport — children's overflow:auto then works
    correctly inside a bounded box, rather than the container growing with
-   content. */
+   content.
+
+   Audit-2026-05-16 finding D — mobile-on-desktop phone-frame visual cue.
+   At ≥520px (desktop browser), give the surrounding "desktop space" a
+   distinct dark background so the centered 430px phone-frame reads as a
+   simulator on a desktop page, not a stretched mobile UI. At mobile
+   widths (<520px) the background is invisible because the container fills
+   the viewport edge-to-edge. */
 .eej-screen {
   height: 100vh;
   height: 100dvh;
@@ -74,6 +81,12 @@
 
 @media (min-width: 520px) {
   .eej-screen {
+    /* Audit finding D — visible surround so the phone-frame stands out
+       against the desktop chrome. Subtle gradient gives depth without
+       brand interference. */
+    background:
+      radial-gradient(ellipse at top, rgba(212, 232, 75, 0.04), transparent 60%),
+      #0e1626;
     padding: 24px 0;
     align-items: center;
   }
@@ -98,7 +111,12 @@
     max-height: 900px;
     min-height: 760px;
     border-radius: 32px;
-    box-shadow: 0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
+    /* Audit finding D — sharpen the device-frame look on desktop.
+       Wider+darker shadow + a hairline phone-bezel border so the
+       container reads as "phone on a desk" rather than "narrow webpage". */
+    box-shadow: 0 32px 90px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(255, 255, 255, 0.08),
+                inset 0 0 0 1px rgba(0, 0, 0, 0.04);
   }
 }
 
@@ -4082,22 +4100,30 @@ select.wp-edit-input {
    Unified worker page. Sheet/modal style overlay. Role-adaptive panel order.
    See: components/WorkerCockpit.tsx
 */
+/* Audit finding A — was position:absolute, identical bug to .ds-overlay.
+   The WorkerCockpit "View Full Profile" trigger on a scrolled candidate
+   list rendered behind the bottom-nav. Switched to position:fixed +
+   max-height: 96dvh so the sheet always covers the visible viewport. */
 .wc-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 100;
+  z-index: 9000;
   display: flex;
   align-items: flex-end;
+  justify-content: center;
   backdrop-filter: blur(2px);
 }
 .wc-sheet {
   width: 100%;
+  max-width: 430px;             /* match .eej-container phone-frame width */
   background: #ffffff;
   border-radius: 24px 24px 0 0;
   max-height: 96vh;
+  max-height: 96dvh;
   overflow-y: auto;
   padding: 14px 0 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
   animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   position: relative;
@@ -4878,22 +4904,31 @@ select.wp-edit-input {
    AI extracts entities → user picks match (or creates new) → applied.
    See: components/DocumentScanFlow.tsx
 */
+/* Audit finding A — was position:absolute, so a scrolled tab-page
+   anchored this overlay to the scrolled-bottom (not the viewport),
+   causing the "Scan a document tile opens below the bottom bar"
+   symptom. Switched to position:fixed + max-height: 92dvh so the
+   sheet always reaches into the visible viewport from the bottom. */
 .ds-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.55);
-  z-index: 110;
+  z-index: 9000;
   display: flex;
   align-items: flex-end;
+  justify-content: center;
   backdrop-filter: blur(2px);
 }
 .ds-sheet {
   width: 100%;
+  max-width: 430px;             /* match .eej-container phone-frame width */
   background: #FFFFFF;
   border-radius: 24px 24px 0 0;
   max-height: 92vh;
+  max-height: 92dvh;
   overflow-y: auto;
   padding: 14px 0 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
   animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   position: relative;
 }

@@ -67,13 +67,21 @@ export function BottomNav({ role, active, onChange, badgeCounts = {} }: BottomNa
             onClick={() => onChange(id)}
             style={{ position: "relative" }}
           >
-            <span style={{ position: "relative", display: "inline-flex" }}>
+            {/* P4 — dedicated classes on the icon wrapper and label so the
+                CSS rule `.bottom-nav-label` doesn't bleed into the badge.
+                Before this change, `.bottom-nav-item span` (specificity
+                0,1,1) won over `.nav-badge` (0,1,0) and forced the badge
+                text to font-size:10px / weight:700 / letter-spacing:0.04em
+                / uppercase — and when the tab was active, the badge text
+                also went navy-on-red. That caused the visible "icon-label
+                collision" and "HOME label garbled" symptoms. */}
+            <span className="bottom-nav-icon">
               {icon(isActive)}
               {count > 0 && (
                 <span className="nav-badge">{count > 9 ? "9+" : count}</span>
               )}
             </span>
-            <span>{t(i18nKey)}</span>
+            <span className="bottom-nav-label">{t(i18nKey)}</span>
           </button>
         );
       })}

@@ -540,14 +540,24 @@
   color: #1B2A4A;
 }
 
-.bottom-nav-item span {
+/* P4 — scoped to the dedicated label class (not `span`, which captured
+   the icon wrapper and the nested .nav-badge text). Previously the
+   selector specificity 0,1,1 beat .nav-badge (0,1,0) and overrode the
+   badge's intended font-size:9px / weight:800 / no letter-spacing, and
+   the .active span rule recoloured the badge text navy-on-red. */
+.bottom-nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.bottom-nav-label {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.bottom-nav-item.active span {
+.bottom-nav-item.active .bottom-nav-label {
   color: #1B2A4A;
 }
 

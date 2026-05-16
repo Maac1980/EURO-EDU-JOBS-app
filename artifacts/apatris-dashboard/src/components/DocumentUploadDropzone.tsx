@@ -39,9 +39,12 @@ export function DocumentUploadDropzone({
   disabled = false,
   busy = false,
   busyLabel = "Processing…",
-  accept = ".pdf,.jpg,.jpeg,.png,.webp",
+  // Upload-pipeline /goal: accept everything the backend can normalize.
+  // The browser file picker uses this attr for filtering; the backend's
+  // document-format normalizer is the authoritative gate.
+  accept = ".pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.docx,.doc,.txt",
   label = "Drop a document or click to choose",
-  hint = "PDF, JPG, PNG — AI reads identity automatically",
+  hint = "PDF, photo (JPG/PNG/HEIC), Word — AI reads identity automatically",
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);

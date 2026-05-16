@@ -63,22 +63,46 @@ Return JSON only:
 
 If a field is not visible, set value to null and confidence to 0.`;
 
-async function extractWithVision(imageBase64: string, mimeType: string): Promise<any> {
+async function extractWithVision(imageBase64: string, mimeType: string, fileName?: string): Promise<any> {
+  // Upload-pipeline /goal: route through the universal format normalizer so
+  // /smart-doc/process accepts PDF/HEIC/DOCX/etc. the same way smart-ingest
+  // does. Without this, the AI-first identity-extraction path in
+  // DocumentWorkflow would still 400 on non-image input.
+  const { normalizeForClaudeVision, mapErrorToFriendlyResponse, FriendlyError } = await import("./document-format.js");
+  let normalized;
+  try {
+    normalized = await normalizeForClaudeVision(imageBase64, mimeType, fileName);
+  } catch (err) {
+    if (err instanceof FriendlyError) {
+      return { error: err.message, userMessage: err.message, code: err.code };
+    }
+    const mapped = mapErrorToFriendlyResponse(err);
+    return { error: mapped.body.error, userMessage: mapped.body.userMessage, code: mapped.body.code };
+  }
+  const arr = Array.isArray(normalized) ? normalized : [normalized];
+
   try {
     const mod = await import("@anthropic-ai/sdk");
     const client = new mod.default({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const contentBlocks: Array<Record<string, unknown>> = arr.map((n) =>
+      n.kind === "image"
+        ? { type: "image", source: { type: "base64", media_type: n.mediaType, data: n.base64 } }
+        : { type: "text", text: `[Document content${n.pageCount ? ` — ${n.pageCount} page(s)` : ""}, source: ${n.sourceFormat}]\n\n${n.text}` }
+    );
+    contentBlocks.push({ type: "text", text: EXTRACTION_PROMPT });
+
     const resp = await client.messages.create({
       model: "claude-sonnet-4-20250514", max_tokens: 1200,
-      messages: [{ role: "user", content: [
-        { type: "image", source: { type: "base64", media_type: mimeType as any, data: imageBase64 } },
-        { type: "text", text: EXTRACTION_PROMPT },
-      ]}],
+      messages: [{ role: "user", content: contentBlocks as any }],
     });
     const text = resp.content[0].type === "text" ? resp.content[0].text : "{}";
     const match = text.match(/\{[\s\S]*\}/);
-    return match ? JSON.parse(match[0]) : { error: "Could not parse" };
+    return match ? JSON.parse(match[0]) : { error: "AI response could not be parsed", userMessage: "We couldn't read the AI's response. Please try again." };
   } catch (err: any) {
-    return { error: err.message };
+    // Log raw error server-side, return friendly userMessage to caller.
+    const mapped = mapErrorToFriendlyResponse(err);
+    console.warn(`[smart-doc/process] Claude call failed: ${mapped.body.code} — ${mapped.body.error?.slice(0, 200)}`);
+    return { error: mapped.body.error, userMessage: mapped.body.userMessage, code: mapped.body.code };
   }
 }
 
@@ -187,14 +211,20 @@ router.post("/intake/full-pipeline", authenticateToken, async (req, res) => {
 // ── POST /api/smart-doc/process — main processing endpoint ──────────────
 router.post("/smart-doc/process", authenticateToken, async (req, res) => {
   try {
-    const { image, mimeType } = req.body as { image?: string; mimeType?: string };
-    if (!image) return res.status(400).json({ error: "Base64 image data required" });
+    const { image, mimeType, fileName } = req.body as { image?: string; mimeType?: string; fileName?: string };
+    if (!image) return res.status(400).json({ error: "Base64 image data required", userMessage: "We didn't receive any file content. Please try again.", code: "EMPTY_FILE" });
 
     const mime = mimeType ?? "image/jpeg";
-    const extracted = await extractWithVision(image, mime);
+    const extracted = await extractWithVision(image, mime, fileName);
 
     if (extracted.error) {
-      return res.status(500).json({ error: extracted.error });
+      // Upload-pipeline /goal: never leak raw API errors. extractWithVision
+      // now returns userMessage + code populated by document-format.ts.
+      return res.status(415).json({
+        error: extracted.error,
+        userMessage: extracted.userMessage ?? "We couldn't read this file. Please try a clearer photo, a PDF, or a JPG.",
+        code: extracted.code ?? "AI_UNKNOWN",
+      });
     }
 
     const fields = extracted.fields ?? {};

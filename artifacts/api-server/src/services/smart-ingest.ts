@@ -23,6 +23,7 @@ import { authenticateToken } from "../lib/authMiddleware.js";
 import { evaluateLegalStatus, type LegalInput, type LegalOutput } from "./legal-decision-engine.js";
 import { syncToGraph } from "./knowledge-graph.js";
 import { recordFact } from "./intelligence-router.js";
+import { normalizeForClaudeVision, mapErrorToFriendlyResponse, FriendlyError, type NormalizedContent } from "./document-format.js";
 
 const router = Router();
 
@@ -152,7 +153,25 @@ router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
     if (wRows.rows.length === 0) return res.status(404).json({ error: "Worker not found" });
     const w = wRows.rows[0] as any;
 
-    // ── Step 2: AI Document Analysis (Claude Vision) ────────────────────────
+    // ── Step 2: Universal format normalization → Claude content blocks ──────
+    //
+    // Upload-pipeline /goal: accept PDF, HEIC, DOCX, plus the native
+    // JPG/PNG/GIF/WebP. Image formats pass through as { type: "image" };
+    // text-based formats (PDF text layer, DOCX, plain text) become
+    // { type: "text" } blocks instead. The Claude Messages API handles
+    // both kinds of content in the same content array — multi-modal by
+    // design.
+    let normalized: NormalizedContent | NormalizedContent[];
+    try {
+      normalized = await normalizeForClaudeVision(image, mime, name);
+    } catch (err) {
+      const mapped = mapErrorToFriendlyResponse(err);
+      // Log full error server-side, return friendly response to client.
+      console.warn(`[smart-ingest] normalization failed: ${mapped.body.code} — ${mapped.body.error}`);
+      return res.status(mapped.httpStatus).json(mapped.body);
+    }
+    const normalizedArr: NormalizedContent[] = Array.isArray(normalized) ? normalized : [normalized];
+
     let analysis: any = {};
     let aiError: string | null = null;
 
@@ -160,15 +179,21 @@ router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
       const mod = await import("@anthropic-ai/sdk");
       const client = new mod.default({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+      // Build the content array: each normalized item becomes one block,
+      // plus the analysis-prompt text block at the end.
+      const contentBlocks: Array<Record<string, unknown>> = normalizedArr.map((n) =>
+        n.kind === "image"
+          ? { type: "image", source: { type: "base64", media_type: n.mediaType, data: n.base64 } }
+          : { type: "text", text: `[Document content${n.pageCount ? ` — ${n.pageCount} page(s)` : ""}, source: ${n.sourceFormat}]\n\n${n.text}` }
+      );
+      contentBlocks.push({ type: "text", text: `${ANALYSIS_PROMPT}\n\nWorker context: ${w.name}, ${w.nationality ?? "N/A"}, PESEL: ${w.pesel ?? "N/A"}, Current permit expires: ${w.trc_expiry ?? w.work_permit_expiry ?? "N/A"}` });
+
       const resp = await client.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 2000,
         messages: [{
           role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mime as any, data: image } },
-            { type: "text", text: `${ANALYSIS_PROMPT}\n\nWorker context: ${w.name}, ${w.nationality ?? "N/A"}, PESEL: ${w.pesel ?? "N/A"}, Current permit expires: ${w.trc_expiry ?? w.work_permit_expiry ?? "N/A"}` },
-          ],
+          content: contentBlocks as any,
         }],
       });
 
@@ -176,8 +201,20 @@ router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
     } catch (err: any) {
-      aiError = err.message;
-      analysis = { doc_type: "UNKNOWN", confidence: 0, rationale: "AI analysis failed", extracted_data: {} };
+      // Log the raw Anthropic error server-side so we can debug, but DO
+      // NOT let the raw error message reach the user. We continue with a
+      // graceful unknown-doc result so the downstream pipeline (legal
+      // impact, draft, persist) still runs. The client gets back
+      // analysis.doc_type = "UNKNOWN" + a rationale that signals failure.
+      const mapped = mapErrorToFriendlyResponse(err);
+      aiError = mapped.body.userMessage;
+      console.warn(`[smart-ingest] Claude call failed: ${mapped.body.code} — ${mapped.body.error?.slice(0, 200)}`);
+      analysis = {
+        doc_type: "UNKNOWN",
+        confidence: 0,
+        rationale: aiError,
+        extracted_data: {},
+      };
     }
 
     const docType: DocTypeKey = (analysis.doc_type && analysis.doc_type in DOC_TYPES)

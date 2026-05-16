@@ -132,8 +132,10 @@ export default function DocumentWorkflow() {
           body: JSON.stringify({ image: base64, mimeType, workerId: overrideWorkerId, fileName: file.name }),
         });
         if (!r.ok) {
-          const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
-          throw new Error(body.error ?? `HTTP ${r.status}`);
+          // Upload-pipeline /goal: server returns { error, code, userMessage }.
+          // Prefer userMessage (the human-readable string) over raw error.
+          const body = await r.json().catch(() => ({ userMessage: `HTTP ${r.status}` }));
+          throw new Error(body.userMessage ?? body.error ?? `HTTP ${r.status}`);
         }
         const worker = workers.find(w => w.id === overrideWorkerId);
         setConfirmation({
@@ -151,11 +153,11 @@ export default function DocumentWorkflow() {
       const idRes = await fetch(`${API}/smart-doc/process`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ image: base64, mimeType }),
+        body: JSON.stringify({ image: base64, mimeType, fileName: file.name }),
       });
       if (!idRes.ok) {
-        const body = await idRes.json().catch(() => ({ error: `HTTP ${idRes.status}` }));
-        throw new Error(body.error ?? `Identity extraction failed (HTTP ${idRes.status})`);
+        const body = await idRes.json().catch(() => ({ userMessage: `HTTP ${idRes.status}` }));
+        throw new Error(body.userMessage ?? body.error ?? `Identity extraction failed (HTTP ${idRes.status})`);
       }
       const idData = await idRes.json() as {
         documentType?: string;
@@ -183,8 +185,8 @@ export default function DocumentWorkflow() {
           body: JSON.stringify({ image: base64, mimeType, workerId: matched.id, fileName: file.name }),
         });
         if (!r.ok) {
-          const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
-          throw new Error(body.error ?? `Ingest failed (HTTP ${r.status})`);
+          const body = await r.json().catch(() => ({ userMessage: `HTTP ${r.status}` }));
+          throw new Error(body.userMessage ?? body.error ?? `Ingest failed (HTTP ${r.status})`);
         }
         setConfirmation({
           kind: "matched",

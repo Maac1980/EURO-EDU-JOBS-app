@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { ActiveTab, Role } from "@/types";
 import { useAuth } from "@/lib/auth";
+import { recruitmentApplyUrl } from "@/lib/shareLink";
 
 interface Props {
   onNavigate: (tab: ActiveTab) => void;
@@ -112,13 +113,14 @@ export default function MoreTab({ onNavigate }: Props) {
   const visible = MODULES.filter((m) => m.roles.includes(role));
 
   // Recruitment-link copy — mirrors the dashboard "Ad Link" button (commit 24
-  // #15). Uses window.location.origin so staging copies staging and prod
-  // copies prod; survives any future host changes. Only shown to staff who
-  // would actually share the link — candidates don't recruit candidates.
+  // #15). URL via lib/shareLink.recruitmentApplyUrl() so the env override
+  // (VITE_SHARE_BASE_URL, P3b) governs both this tile and the share dialog.
+  // Only shown to staff who would actually share the link — candidates don't
+  // recruit candidates.
   const [adLinkCopied, setAdLinkCopied] = useState(false);
   const canShareRecruitmentLink = role === "executive" || role === "operations" || role === "legal";
   const copyRecruitmentLink = () => {
-    const url = `${window.location.origin}/apply`;
+    const url = recruitmentApplyUrl();
     navigator.clipboard.writeText(url).then(() => {
       setAdLinkCopied(true);
       setTimeout(() => setAdLinkCopied(false), 2500);

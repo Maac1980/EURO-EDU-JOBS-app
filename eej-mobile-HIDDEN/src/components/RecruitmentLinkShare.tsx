@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link2, Check, MessageCircle, MessageSquare, Mail, Copy, Share2, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { recruitmentApplyUrl } from "@/lib/shareLink";
 
 /**
  * Mobile sibling of the dashboard RecruitmentLinkShare. Same behavior — opens
@@ -11,8 +12,10 @@ import { useI18n } from "@/lib/i18n";
  *
  * Tier 1 closeout #18 (mobile-visible) + #21 (shared rename + send actions).
  *
- * Security: URL is `${window.location.origin}/apply` — no hardcoded hosts,
- * no token. The /apply page is intentionally public.
+ * Security: URL is resolved by lib/shareLink.recruitmentApplyUrl() — either
+ * VITE_SHARE_BASE_URL (build-time env, e.g. prod canonical host) or
+ * `${window.location.origin}/apply` (fallback). No hardcoded hosts, no token.
+ * The /apply page is intentionally public.
  */
 
 type Variant = "tile" | "card";
@@ -44,7 +47,7 @@ export default function RecruitmentLinkShare({ variant = "card" }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const url = `${window.location.origin}/apply`;
+  const url = recruitmentApplyUrl();
   const msg = messages(activeLang, url);
 
   const copyUrl = () => {

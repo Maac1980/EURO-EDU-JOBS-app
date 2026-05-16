@@ -103,6 +103,17 @@
   position: relative;
   overflow: hidden;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
+
+  /* Pass 3 architectural rule — shell-bounded overlay positioning.
+     Every modal/sheet/overlay positions between var(--shell-header-height)
+     at the top and var(--shell-bottom-nav-height) at the bottom, so the
+     persistent header (.dash-header) and bottom-nav (.bottom-nav) stay
+     visible. Values account for iOS safe areas (notch/home indicator).
+     Header: 18+40+18 = ~76px rendered. Nav: bottom-nav-item 12+24+14 = ~50px
+     plus the border — call it 60px. Both include safe-area-inset for PWA
+     installed mode. */
+  --shell-header-height: calc(76px + env(safe-area-inset-top, 0px));
+  --shell-bottom-nav-height: calc(60px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 520px) {
@@ -277,11 +288,9 @@
    DASHBOARD
 ═══════════════════════════════════════════ */
 
-/* Tier 1 closeout #30 — top bar stays visible when content scrolls.
-   Already pinned via flex (.eej-container is a column with the header at
-   the top). Adding sticky + z-index makes it robust against any future
-   layout change that might intercept (e.g. a sub-module wrapping itself
-   in its own scroll container). */
+/* Tier 1 closeout #30 + Pass 3 architectural rule — top bar stays
+   visible above every overlay. z-index raised 100→200 so the persistent
+   shell is ALWAYS above the bounded overlays (z:50). */
 .dash-header {
   display: flex;
   align-items: center;
@@ -290,7 +299,7 @@
   flex-shrink: 0;
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 200;
   /* iOS PWA safe area for notch — keeps the visible header below the
      status bar in installed mode. */
   padding-top: max(18px, env(safe-area-inset-top, 0px));
@@ -443,6 +452,9 @@
    sticky + bottom:0 + z-index makes it bullet-proof across browser and
    PWA. safe-area-inset-bottom keeps the tap targets above the home
    indicator on iPhone X+. */
+/* Pass 3 architectural rule — bottom nav z-index raised 100→200 so the
+   persistent shell sits above every overlay (z:50). The user always
+   sees the nav. */
 .bottom-nav {
   display: flex;
   align-items: stretch;
@@ -451,7 +463,7 @@
   flex-shrink: 0;
   position: sticky;
   bottom: 0;
-  z-index: 100;
+  z-index: 200;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -1159,36 +1171,69 @@
 }
 
 /* ═══════════════════════════════════════════
+   PASS 3 — CANONICAL SHELL-BOUNDED OVERLAY
+   See docs/UX_FOUNDATION_AUDIT_PASS3_2026_05_16.md
+   Used by any new overlay/sheet/modal/drawer in the mobile app.
+   Existing .detail-overlay / .ds-overlay / .wc-overlay share the
+   same positioning rules — this class is the explicit default for
+   inline-style overlays that previously rolled their own.
+═══════════════════════════════════════════ */
+.shell-overlay {
+  position: fixed;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ═══════════════════════════════════════════
    PHASE 3 — CANDIDATE DETAIL SHEET
 ═══════════════════════════════════════════ */
 
+/* Pass 3 architectural rule (UX_FOUNDATION_AUDIT_PASS3_2026_05_16.md).
+   Was inset:0 z:200 (full-viewport, covered shell). Now bounded between
+   .dash-header (z:200) and .bottom-nav (z:200) via CSS vars set on
+   .eej-container. Centered within the 430px phone frame on desktop. */
 .detail-overlay {
-  /* Pre-fix #16/#17: `position: absolute` made the overlay cover only its
-     positioned ancestor (the tab-page, which is itself scroll-clipped and
-     sits above a sticky bottom-nav). On a scrolled tab-page the overlay
-     followed the scroll origin, placing the sheet's X close button at an
-     un-tappable offscreen y-coordinate. Fixed positioning ties the overlay
-     to the viewport, so the sheet — and its close button — sit in the
-     visible area regardless of scroll position.
-     z-index 200 puts the overlay above the bottom-nav so neither the nav
-     nor the underlying tab content can intercept taps on the X. */
   position: fixed;
-  inset: 0;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
   background: rgba(0,0,0,0.5);
-  z-index: 200;
+  z-index: 50;
   display: flex;
   align-items: flex-end;
+  justify-content: center;
   backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .detail-sheet {
   width: 100%;
+  /* Pass 3 — sheet is bounded by the overlay (max-width:430px), so
+     width:100% here = max 430px on desktop. Explicit max-width matches
+     .ds-sheet/.wc-sheet for clarity. */
+  max-width: 430px;
   background: #ffffff;
   border-radius: 24px 24px 0 0;
-  /* dvh respects mobile-browser dynamic viewports (URL bar showing/hiding) —
-     prevents the sheet from being taller than what the user can actually see
-     when the browser chrome collapses. */
-  max-height: 88dvh;
+  /* The overlay's vertical bounds (top:header-height, bottom:nav-height)
+     limit how tall this sheet can be — the dvh cap is now just a safety
+     net for unusual scenarios. */
+  max-height: 100%;
   overflow-y: auto;
   padding: 0 20px 20px;
   -webkit-overflow-scrolling: touch;
@@ -4100,30 +4145,36 @@ select.wp-edit-input {
    Unified worker page. Sheet/modal style overlay. Role-adaptive panel order.
    See: components/WorkerCockpit.tsx
 */
-/* Audit finding A — was position:absolute, identical bug to .ds-overlay.
-   The WorkerCockpit "View Full Profile" trigger on a scrolled candidate
-   list rendered behind the bottom-nav. Switched to position:fixed +
-   max-height: 96dvh so the sheet always covers the visible viewport. */
+/* Pass 3 architectural rule — same shell-bounded pattern as .detail-overlay.
+   Pass 2 (67a84d9) made this position:fixed inset:0 z:9000 (covered shell).
+   Pass 3 bounds it between header and bottom-nav, centered in the 430px
+   frame, with z-index BELOW the shell. */
 .wc-overlay {
   position: fixed;
-  inset: 0;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 9000;
+  z-index: 50;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .wc-sheet {
   width: 100%;
-  max-width: 430px;             /* match .eej-container phone-frame width */
+  max-width: 430px;
   background: #ffffff;
   border-radius: 24px 24px 0 0;
-  max-height: 96vh;
-  max-height: 96dvh;
+  /* Overlay bounds limit height; max-height is a safety net only. */
+  max-height: 100%;
   overflow-y: auto;
   padding: 14px 0 20px;
-  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
   animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   position: relative;
@@ -4904,31 +4955,34 @@ select.wp-edit-input {
    AI extracts entities → user picks match (or creates new) → applied.
    See: components/DocumentScanFlow.tsx
 */
-/* Audit finding A — was position:absolute, so a scrolled tab-page
-   anchored this overlay to the scrolled-bottom (not the viewport),
-   causing the "Scan a document tile opens below the bottom bar"
-   symptom. Switched to position:fixed + max-height: 92dvh so the
-   sheet always reaches into the visible viewport from the bottom. */
+/* Pass 3 architectural rule — same shell-bounded pattern. Pass 2 made
+   this fixed inset:0 z:9000 (covered shell). Pass 3 bounds between
+   header and bottom-nav, centered in the 430px frame, z below shell. */
 .ds-overlay {
   position: fixed;
-  inset: 0;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
   background: rgba(0,0,0,0.55);
-  z-index: 9000;
+  z-index: 50;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .ds-sheet {
   width: 100%;
-  max-width: 430px;             /* match .eej-container phone-frame width */
+  max-width: 430px;
   background: #FFFFFF;
   border-radius: 24px 24px 0 0;
-  max-height: 92vh;
-  max-height: 92dvh;
+  max-height: 100%;
   overflow-y: auto;
   padding: 14px 0 20px;
-  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
   animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   position: relative;
 }

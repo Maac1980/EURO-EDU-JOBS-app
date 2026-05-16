@@ -97,19 +97,19 @@ export default function RecruitmentLinkShare({ variant = "card" }: Props) {
 
       {dialogOpen && (
         <div
+          /* Pass 3 architectural rule — uses the canonical .shell-overlay
+             class so the dialog sits between header + bottom-nav, centered
+             in the 430px phone-frame. Previously inline position:fixed
+             inset:0 z:9999 covered the persistent shell (Manish's
+             "opens at bottom + slightly wider than frame" report). */
+          className="shell-overlay"
           onClick={() => setDialogOpen(false)}
-          style={{
-            position: "fixed", inset: 0, zIndex: 9999,
-            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
-            display: "flex", alignItems: "flex-end", justifyContent: "center",
-            padding: 0,
-          }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
               background: "#fff", borderRadius: "20px 20px 0 0",
-              maxWidth: 480, width: "100%",
+              maxWidth: 430, width: "100%",
               boxShadow: "0 -8px 32px rgba(0,0,0,0.2)",
               padding: "20px 20px 32px",
             }}

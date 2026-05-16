@@ -406,7 +406,10 @@ function CreateCaseModal({ onClose, onCreated }: { onClose: () => void; onCreate
   };
 
   return (
-    <div style={overlayStyle}>
+    /* Pass 3 architectural rule — use canonical .shell-overlay
+       so the modal sits between header + bottom-nav within the
+       430px frame. */
+    <div className="shell-overlay" style={{ alignItems: "center" }}>
       <div style={modalStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: "#1B2A4A" }}>New TRC Case</div>

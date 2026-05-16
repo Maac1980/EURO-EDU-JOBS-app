@@ -136,7 +136,10 @@ export default function ShiftScheduleTab() {
       </button>
 
       {showCreate && (
-        <div style={overlay}>
+        /* Pass 3 architectural rule — use canonical .shell-overlay
+           so the modal sits between header + bottom-nav within the
+           430px frame. */
+        <div className="shell-overlay" style={{ alignItems: "center" }}>
           <div style={{ ...card, maxWidth: 340, width: "90%" }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: NAVY, marginBottom: 12 }}>New Shift</div>
             <label style={lbl}>Site</label>

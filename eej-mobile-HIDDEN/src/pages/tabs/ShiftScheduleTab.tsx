@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Clock, Plus, ChevronLeft, ChevronRight, Loader2, Users, MapPin } from "lucide-react";
 import { useToast } from "@/lib/toast";
+import { siteToVoivodeship } from "@/lib/voivodeship";
 
 const NAVY = "#1B2A4A";
 const YELLOW = "#FFD600";
@@ -72,19 +73,26 @@ export default function ShiftScheduleTab() {
       {todayShifts.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 6 }}>Today's Active Shifts</div>
-          {todayShifts.map(s => (
-            <div key={s.id} style={{ ...card, borderLeft: `4px solid ${SITE_COLORS[s.site] || NAVY}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>{s.site}</div>
-                  <div style={{ fontSize: 11, color: "#6B7280" }}>{s.slot} | {SLOTS.find(x => x.label === s.slot)?.range}</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6B7280" }}>
-                  <Users size={14} /> {s.workers.length}
+          {todayShifts.map(s => {
+            /* P3d — voivodeship derived from site name so the UI doesn't
+               need a separate column to surface region. */
+            const voi = siteToVoivodeship(s.site);
+            return (
+              <div key={s.id} style={{ ...card, borderLeft: `4px solid ${SITE_COLORS[s.site] || NAVY}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>{s.site}</div>
+                    <div style={{ fontSize: 11, color: "#6B7280" }}>
+                      {voi && <span>{voi} · </span>}{s.slot} | {SLOTS.find(x => x.label === s.slot)?.range}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6B7280" }}>
+                    <Users size={14} /> {s.workers.length}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -115,12 +123,17 @@ export default function ShiftScheduleTab() {
                     <div key={slot.label} style={{ background: slot.bg, borderRadius: 8, padding: "6px 10px", marginBottom: 4, fontSize: 12 }}>
                       <span style={{ fontWeight: 700, color: slot.color }}>{slot.label}</span>
                       <span style={{ color: "#6B7280", marginLeft: 6 }}>{slot.range}</span>
-                      {ss.length > 0 ? ss.map(s => (
-                        <div key={s.id} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
-                          <MapPin size={12} color={SITE_COLORS[s.site] || "#888"} />{s.site}
-                          <Users size={12} color="#6B7280" />{s.workers.length}
-                        </div>
-                      )) : <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>No shifts</div>}
+                      {ss.length > 0 ? ss.map(s => {
+                        /* P3d — voivodeship from site name (UI derivation). */
+                        const voi = siteToVoivodeship(s.site);
+                        return (
+                          <div key={s.id} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 11, flexWrap: "wrap" }}>
+                            <MapPin size={12} color={SITE_COLORS[s.site] || "#888"} />{s.site}
+                            {voi && <span style={{ color: "#9CA3AF" }}>· {voi}</span>}
+                            <Users size={12} color="#6B7280" />{s.workers.length}
+                          </div>
+                        );
+                      }) : <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>No shifts</div>}
                     </div>
                   );
                 })}

@@ -33,6 +33,7 @@ import {
 } from "@/lib/api";
 import DocumentScanFlow from "./DocumentScanFlow";
 import { setDeepLinkWorker } from "@/lib/navContext";
+import { resolveVoivodeship } from "@/lib/voivodeship";
 
 interface Props {
   workerId: string;
@@ -441,17 +442,32 @@ export default function WorkerCockpit({ workerId, viewerRole, onClose, onOpenMod
         />
       ) : null,
 
-    identity: (
-      <Panel icon={<MapPin size={14} strokeWidth={2.2} />} title="Identity">
-        <Row label="Job role" value={w.jobRole ?? w.specialization} />
-        <Row label="Nationality" value={w.nationality} />
-        <Row label="Site" value={w.assignedSite ?? w.siteLocation} />
-        <Row label="Voivodeship" value={w.voivodeship} />
-        <Row label="Visa type" value={w.visaType} />
-        <Row label="PESEL" value={w.pesel} mono />
-        <Row label="Pipeline stage" value={w.pipelineStage} />
-      </Panel>
-    ),
+    identity: (() => {
+      /* P3d — voivodeship reconciles explicit column + site-derived
+         fallback. When the explicit column is null but the assigned
+         site carries a known Polish city token (e.g. "Warsaw Factory
+         A"), display the derived voivodeship with "(from site)" so
+         the user knows it isn't authoritative. Mirrors P3c's "be
+         honest about the source" approach. */
+      const siteValue = w.assignedSite ?? w.siteLocation;
+      const voi = resolveVoivodeship(w.voivodeship, siteValue);
+      const voiDisplay = voi.value
+        ? voi.source === "derived"
+          ? `${voi.value} (from site)`
+          : voi.value
+        : null;
+      return (
+        <Panel icon={<MapPin size={14} strokeWidth={2.2} />} title="Identity">
+          <Row label="Job role" value={w.jobRole ?? w.specialization} />
+          <Row label="Nationality" value={w.nationality} />
+          <Row label="Site" value={siteValue} />
+          <Row label="Voivodeship" value={voiDisplay} />
+          <Row label="Visa type" value={w.visaType} />
+          <Row label="PESEL" value={w.pesel} mono />
+          <Row label="Pipeline stage" value={w.pipelineStage} />
+        </Panel>
+      );
+    })(),
 
     trc: (
       <Panel

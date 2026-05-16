@@ -7,8 +7,9 @@ import {
   FileSignature, FileCheck, MapPin, BarChart3, Sparkles,
   Shield, Search, CalendarDays, Clock, Award, TrendingUp,
   Globe, Building2, UserPlus, Briefcase, Receipt, FileText, Stamp,
-  LayoutGrid, ChevronDown, X, ArrowLeft, Link2, Check,
+  LayoutGrid, ChevronDown, X, ArrowLeft,
 } from "lucide-react";
+import { RecruitmentLinkShare } from "./RecruitmentLinkShare";
 
 // ── Grouped Navigation ──────────────────────────────────────────────────────
 
@@ -192,7 +193,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toggleLang = () => i18n.changeLanguage(currentLang === "pl" ? "en" : "pl");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
-  const [adLinkCopied, setAdLinkCopied] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -410,30 +410,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
-          {/* Language toggle */}
-          {/* Copy Recruitment Link — for Facebook Ads.
-              Pre-fix #15: hardcoded https://eej-jobs-api.replit.app/apply
-              (the dead Replit host, returns 404). Use window.location.origin
-              so the button copies whatever host the dashboard is currently
-              served from — staging → staging, prod → prod, robust across
-              future host changes. */}
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/apply`).then(() => {
-                setAdLinkCopied(true);
-                setTimeout(() => setAdLinkCopied(false), 3000);
-              });
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-colors"
-            style={{
-              background: adLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.1)",
-              borderColor: adLinkCopied ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)",
-              color: adLinkCopied ? "#22c55e" : "#60A5FA",
-            }}
-            title="Copy recruitment form link for Facebook Ads"
-          >
-            {adLinkCopied ? <><Check className="w-3 h-3" /> Copied for Ads</> : <><Link2 className="w-3 h-3" /> Ad Link</>}
-          </button>
+          {/* Recruitment Link — Tier 1 closeout #21. Was "Ad Link" (copy-only,
+              mislabeled). Now opens a Share dialog (Copy / WhatsApp / SMS /
+              Email). The shared component (RecruitmentLinkShare.tsx) is also
+              mounted on Dashboard home and the mobile app, so all three
+              surfaces present a single consistent affordance. */}
+          <RecruitmentLinkShare variant="compact" />
 
           <button
             onClick={toggleLang}

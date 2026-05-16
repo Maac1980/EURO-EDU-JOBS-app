@@ -13,6 +13,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useTranslation } from "react-i18next";
 
 import { StatCard } from "@/components/StatCard";
+import { RecruitmentLinkShare } from "@/components/RecruitmentLinkShare";
 import { ComplianceTrendChart } from "@/components/ComplianceTrendChart";
 import { AuditTrailPanel } from "@/components/AuditTrailPanel";
 import { PayrollRunPage } from "@/components/PayrollRunPage";
@@ -297,6 +298,10 @@ export default function Dashboard() {
         <button onClick={() => setLocation("/workers")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#3B82F6", color: "#ffffff", border: "none", fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer", boxShadow: "0 2px 12px rgba(59,130,246,0.35)" }}>
           <Users size={14} /> Workers →
         </button>
+        {/* Tier 1 closeout #21: visible Recruitment Link tile on home — was
+            previously only the small corner button in AppShell. Opens the
+            shared Share dialog (Copy / WhatsApp / SMS / Email). */}
+        <RecruitmentLinkShare variant="tile" />
         {!appInstalled && (
           <button onClick={handleInstallApp} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 6, background: "#1e2028", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer" }}>
             <Smartphone size={14} /> Install App

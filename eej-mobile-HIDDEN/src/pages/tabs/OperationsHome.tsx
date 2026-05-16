@@ -6,6 +6,7 @@ import { fetchApplications, fetchClients, type ClientRow } from "@/lib/api";
 import WorkerCockpit from "@/components/WorkerCockpit";
 import DocumentScanFlow from "@/components/DocumentScanFlow";
 import AddCandidateModal from "@/components/AddCandidateModal";
+import RecruitmentLinkShare from "@/components/RecruitmentLinkShare";
 import type { Candidate } from "@/data/mockData";
 import type { ActiveTab } from "@/types";
 
@@ -91,6 +92,9 @@ export default function OperationsHome({ onNavigate }: Props = {}) {
           <div className="tab-greeting-name">Recruitment Hub</div>
         </div>
       </div>
+
+      {/* Tier 1 closeout #18/#21 — visible Recruitment Link share. */}
+      <RecruitmentLinkShare />
 
       <div className="ops-kpi-strip">
         <div className="ops-kpi-item">

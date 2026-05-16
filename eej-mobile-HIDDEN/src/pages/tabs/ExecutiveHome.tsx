@@ -27,6 +27,7 @@ import DocumentScanFlow from "@/components/DocumentScanFlow";
 import type { ModuleId } from "@/components/PlatformModules";
 import type { ActiveTab } from "@/types";
 import { fetchRegulatorySummary, searchImmigration, fetchAdminStats, fetchNotifications, fetchWorkers } from "@/lib/api";
+import RecruitmentLinkShare from "@/components/RecruitmentLinkShare";
 
 interface Props {
   onNavigate?: (tab: ActiveTab) => void;
@@ -167,6 +168,11 @@ export default function ExecutiveHome({ onNavigate }: Props) {
         </div>
         <ChevronRight size={14} strokeWidth={2.2} />
       </button>
+
+      {/* Tier 1 closeout #18/#21 — visible Recruitment Link share on home,
+          not just buried in MoreTab. */}
+      <RecruitmentLinkShare />
+
 
       {statsError && (
         <div

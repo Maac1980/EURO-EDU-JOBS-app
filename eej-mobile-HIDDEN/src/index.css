@@ -327,7 +327,11 @@
 
 /* Tier 1 closeout #30 + Pass 3 architectural rule — top bar stays
    visible above every overlay. z-index raised 100→200 so the persistent
-   shell is ALWAYS above the bounded overlays (z:50). */
+   shell is ALWAYS above the bounded overlays (z:50).
+   P1 — landscape iPhone notch reservation on the left/right edges so
+   content doesn't sit under the camera cluster when the device is
+   rotated. Combined with viewport-fit=cover in index.html, this makes
+   the safe-area-inset-* values actually fire on real devices. */
 .dash-header {
   display: flex;
   align-items: center;
@@ -337,9 +341,9 @@
   position: sticky;
   top: 0;
   z-index: 200;
-  /* iOS PWA safe area for notch — keeps the visible header below the
-     status bar in installed mode. */
   padding-top: max(18px, env(safe-area-inset-top, 0px));
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
 }
 
 .dash-header-left {
@@ -491,7 +495,10 @@
    indicator on iPhone X+. */
 /* Pass 3 architectural rule — bottom nav z-index raised 100→200 so the
    persistent shell sits above every overlay (z:50). The user always
-   sees the nav. */
+   sees the nav.
+   P1 — left/right insets for landscape iPhone notch. tab items still
+   span the full row (flex children stretch) but the row inset itself
+   keeps the bottom-nav-item touch targets out of the notch zone. */
 .bottom-nav {
   display: flex;
   align-items: stretch;
@@ -502,6 +509,8 @@
   bottom: 0;
   z-index: 200;
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 @media (min-width: 520px) {

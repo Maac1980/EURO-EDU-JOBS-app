@@ -1159,14 +1159,40 @@
   height: 4px;
   background: #E5E7EB;
   border-radius: 2px;
-  margin: 14px auto 20px;
+  margin: 14px auto 12px;
+  /* Sticks to top of sheet so the user always has a visible drag handle. */
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  /* White background masks content scrolling underneath. The pseudo-element
+     extends the white background flush with the sheet's padding edges so the
+     handle doesn't appear to float over content. */
+  background-clip: padding-box;
 }
 
+/* Tier 1 closeout #16/#17 — real fix.
+   Pre-fix attempt (commit 25) made .wp-header sticky, but the LIVE mobile
+   worker-profile component is CandidateDetail.tsx which uses .detail-header
+   (NOT .wp-header). The sticky/z-index work never reached the surface Manish
+   was looking at. This sticks .detail-header itself so the X close button
+   stays at the top of the visible area at every scroll position.
+   The detail-sheet's overflow-y:auto creates the scroll context; position:
+   sticky inside that context pins the header band to the visible top.
+   z-index 7 puts it above .detail-handle (z-index 6) so the X never gets
+   covered by the drag bar during the slide-up animation. */
 .detail-header {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 14px;
+  margin: 0 -20px 14px;          /* extend full sheet width for the sticky band */
+  padding: 8px 20px 12px;        /* match the .detail-sheet inset */
+  position: sticky;
+  top: 16px;                     /* sit just below .detail-handle */
+  z-index: 7;
+  background: #ffffff;
+  /* Hairline shadow shown once any content scrolls beneath, signalling the
+     band is floating. Mobile Safari respects this with no jank. */
+  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.6);
 }
 .detail-avatar {
   width: 52px;
@@ -1185,8 +1211,8 @@
 .detail-role     { font-size: 13px; color: #6B7280; margin-top: 2px; }
 .detail-location { font-size: 12px; color: #9CA3AF; margin-top: 4px; }
 .detail-close {
-  width: 32px;
-  height: 32px;
+  width: 36px;                      /* bumped from 32 — Apple HIG ≥44 hit-target */
+  height: 36px;
   border-radius: 50%;
   border: 1.5px solid #E5E7EB;
   background: #F9FAFB;
@@ -1197,6 +1223,17 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  position: relative;               /* establishes own stacking context */
+  z-index: 1;                       /* above any sibling decorations */
+  /* The ::after expands the tap area without changing visual size — closes
+     #17 by giving the X a generous invisible hit target (~48px×48px) so
+     fat-finger taps don't fall on neighboring elements. */
+  -webkit-tap-highlight-color: rgba(107, 114, 128, 0.15);
+}
+.detail-close::after {
+  content: "";
+  position: absolute;
+  inset: -6px;                      /* 12px outward expansion = 48×48 hit area */
 }
 
 .detail-contact-strip {

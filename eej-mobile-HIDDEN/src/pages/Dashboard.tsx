@@ -74,6 +74,57 @@ function getBadgeCounts(role: Role, candidates: { status: string; visaDaysLeft?:
   return {};
 }
 
+// Tier 1 closeout #22 — back-navigation gap fix.
+// Mobile tabs that are reachable via the bottom-nav (home/candidates/upload/
+// alerts/more) don't need a back button — the bottom-nav itself is the
+// "back path." Every OTHER tab is reached from MoreTab and lacked any
+// visible back affordance — users had to know to tap "More" in the
+// bottom-nav to return. This set is the audit's surface list.
+const BOTTOM_NAV_TABS = new Set<ActiveTab>(["home", "candidates", "upload", "alerts", "more"]);
+
+function isSubModule(tab: ActiveTab): boolean {
+  return !BOTTOM_NAV_TABS.has(tab);
+}
+
+function SubModuleBackBar({ onBack }: { onBack: () => void }) {
+  return (
+    <div
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        background: "#FFFFFF",
+        borderBottom: "1px solid #E5E7EB",
+        padding: "10px 12px",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onBack}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "8px 12px",
+          background: "#F3F4F6",
+          border: "1px solid #E5E7EB",
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: 600,
+          color: "#374151",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
+        <span>Back to More</span>
+      </button>
+    </div>
+  );
+}
+
 // Tab routing — all 24 modules. Build: 2026-03-31
 function TabContent({ role, tab, candidateId, onNavigate }: { role: Role; tab: ActiveTab; candidateId?: string; onNavigate: (t: ActiveTab) => void }) {
   if (tab === "calculator") return <NetPerHourTab />;
@@ -215,6 +266,10 @@ function DashboardInner() {
         </header>
 
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {/* Tier 1 closeout #22 — back-bar for sub-modules reached from
+              MoreTab. Bottom-nav tabs (home/candidates/upload/alerts/more)
+              don't show it; everything else does. */}
+          {isSubModule(activeTab) && <SubModuleBackBar onBack={() => setActiveTab("more")} />}
           <ErrorBoundary>
             <TabContent role={user.role} tab={activeTab} candidateId={user.candidateId} onNavigate={setActiveTab} />
           </ErrorBoundary>

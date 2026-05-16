@@ -20,6 +20,7 @@ import type { Candidate, CandidateDocument, DocReviewStatus } from "@/data/mockD
 import { useToast } from "@/lib/toast";
 import { uploadWorkerDocument } from "@/lib/api";
 import WorkerCockpit from "@/components/WorkerCockpit";
+import WorkerComplianceSections from "@/components/WorkerComplianceSections";
 
 const DETAIL_UPLOAD_SLOTS = [
   { id: "passport",    label: "Passport / ID Card" },
@@ -245,6 +246,9 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
               );
             })}
           </div>
+
+          {/* Tier 1 closeout #20 — UPO + Schengen sections (owner-side view) */}
+          <WorkerComplianceSections workerId={candidate.id} />
 
           <div style={{ height: 32 }} />
         </div>

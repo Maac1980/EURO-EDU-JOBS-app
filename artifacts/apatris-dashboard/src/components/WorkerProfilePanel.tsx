@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode, FileEdit, Send } from "lucide-react";
 import { calcComplianceScore, scoreColor, scoreBg } from "@/lib/complianceScore";
+import { WorkerComplianceSections } from "./WorkerComplianceSections";
 import { PIPInspectionModal } from "./PIPInspectionModal";
 import { WorkerQRModal } from "./WorkerQRModal";
 import { format, parseISO } from "date-fns";
@@ -769,6 +770,9 @@ export function WorkerProfilePanel({
                   </div>
                 </div>
               </div>
+
+              {/* Tier 1 closeout #20 — owner-side UPO + Schengen viewer. */}
+              {workerId && <WorkerComplianceSections workerId={workerId} />}
 
               {/* Polish Legal Info */}
               {((worker as any).pesel || (worker as any).nip || (worker as any).zusStatus || (worker as any).visaType || (worker as any).rodoConsentDate || (worker as any).iso9606Process) && (

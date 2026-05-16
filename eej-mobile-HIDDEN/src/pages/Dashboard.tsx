@@ -45,8 +45,15 @@ import MyUPOTab from "./tabs/MyUPOTab";
 import MySchengenTab from "./tabs/MySchengenTab";
 import { useCandidates } from "@/lib/candidateContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { fetchNotifications } from "@/lib/api";
 import { LangToggle } from "@/components/LangToggle";
+/* P3a — fetchNotifications import removed from Dashboard. The bell badge
+   previously subscribed to GET /notifications (returned "2") while the
+   bottom-nav ALERTS badge subscribed to candidate-derived getBadgeCounts
+   (returned "7") — two different counts for what looks like one signal.
+   The bell now reads from the same getBadgeCounts result as the bottom-nav
+   badge, and the bell click navigates to that same tab. fetchNotifications
+   is still exported from lib/api and still consumed by ExecutiveHome.tsx
+   for its own notifications widget — that surface is unchanged. */
 
 const ROLE_COLOR: Record<Role, string> = {
   executive:  "#1B2A4A",
@@ -158,7 +165,8 @@ function DashboardInner() {
   const { candidates } = useCandidates();
   const [activeTab, setActiveTabRaw] = useState<ActiveTab>("home");
   const [navStack, setNavStack] = useState<ActiveTab[]>([]);
-  const [notifCount, setNotifCount] = useState(0);
+  /* P3a — notifCount state removed. Bell badge now derives from badgeCounts
+     below (single source of truth shared with BottomNav). */
 
   // Tier 1 closeout #22/#31 — wrap setActiveTab to maintain a back-stack.
   // When navigating to a new tab, push the current onto the stack (deduped).
@@ -201,22 +209,24 @@ function DashboardInner() {
     if (typeof window !== "undefined") window.scrollTo(0, 0);
   }, [activeTab]);
 
-  useEffect(() => {
-    fetchNotifications()
-      .then((n) => setNotifCount(n.length))
-      .catch(() => {});
-    // Poll every 60 seconds for new notifications
-    const interval = setInterval(() => {
-      fetchNotifications().then((n) => setNotifCount(n.length)).catch(() => {});
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  /* P3a — the fetchNotifications polling effect was removed. Its only
+     consumer was notifCount → bell badge, and that subscription is now
+     unified with the bottom-nav badge below. */
 
   if (!user) return null;
 
   const accentColor = ROLE_COLOR[user.role];
   const tierLabel   = ROLE_TIER[user.role];
   const badgeCounts = getBadgeCounts(user.role, candidates);
+  /* P3a — bell badge + click target unified with bottom-nav badge.
+     getBadgeCounts puts the role's attention count on `alerts` for
+     executive/legal/candidate and on `home` for operations. The bell
+     mirrors whichever the role uses, and the bell click navigates to
+     that same tab — so the bell number and the bottom-nav number always
+     agree, and tapping the bell always lands you on the page that
+     itemizes the same alerts. */
+  const bellTab: ActiveTab = badgeCounts.alerts !== undefined ? "alerts" : "home";
+  const bellCount = badgeCounts[bellTab] ?? 0;
 
   return (
     <div className="eej-screen">
@@ -260,7 +270,7 @@ function DashboardInner() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <LangToggle />
             <button
-              onClick={() => setActiveTab("applications")}
+              onClick={() => setActiveTab(bellTab)}
               title="Notifications"
               style={{
                 background: "none",
@@ -272,7 +282,7 @@ function DashboardInner() {
               }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
-              {notifCount > 0 && (
+              {bellCount > 0 && (
                 <span style={{
                   position: "absolute", top: -2, right: -4,
                   background: "#EF4444", color: "#fff",
@@ -282,7 +292,7 @@ function DashboardInner() {
                   alignItems: "center", justifyContent: "center",
                   padding: "0 3px",
                 }}>
-                  {notifCount > 99 ? "99+" : notifCount}
+                  {bellCount > 99 ? "99+" : bellCount}
                 </span>
               )}
             </button>

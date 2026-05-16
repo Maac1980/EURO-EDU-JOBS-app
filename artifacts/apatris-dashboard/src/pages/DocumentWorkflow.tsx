@@ -241,6 +241,24 @@ export default function DocumentWorkflow() {
     setLocation(`/workers?worker=${encodeURIComponent(workerId)}`);
   };
 
+  /** Audit finding F (2026-05-16) — when /smart-doc/process returns no
+   * confident match, the Case C modal previously offered no action and
+   * looked like the upload had failed even though the AI succeeded. This
+   * handler routes the user to /workers with the extracted identity
+   * stashed in sessionStorage, so AddWorkerModal there can pre-fill the
+   * fields. Closes the journey rather than dead-ending the user. */
+  const handleCreateNewFromExtract = (identity: ExtractedIdentity) => {
+    setConfirmation(null);
+    try {
+      sessionStorage.setItem("eej_worker_prefill", JSON.stringify(identity));
+    } catch { /* sessionStorage may be unavailable in some embeds */ }
+    toast({
+      title: "Extracted data saved",
+      description: "Opening worker page — use 'Add Worker' to create a profile with the extracted fields.",
+    });
+    setLocation(`/workers`);
+  };
+
   const approve = async (id: string) => {
     try {
       const r = await fetch(`${API}/documents/smart-ingest/${id}/approve`, {
@@ -423,12 +441,15 @@ export default function DocumentWorkflow() {
         </div>
       )}
 
-      {/* Tier 1 closeout #27 — keystone confirmation modal */}
+      {/* Tier 1 closeout #27 — keystone confirmation modal.
+          Audit finding F: onCreateNew is now wired so Case C no longer
+          dead-ends when AI returns no candidate match. */}
       <UploadConfirmationModal
         open={!!confirmation}
         result={confirmation}
         onClose={() => setConfirmation(null)}
         onSelectWorker={handleSelectWorker}
+        onCreateNew={handleCreateNewFromExtract}
         onViewProfile={handleViewProfile}
       />
     </div>

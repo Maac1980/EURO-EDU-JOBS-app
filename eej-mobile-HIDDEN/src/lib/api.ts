@@ -345,8 +345,14 @@ export async function scanDocument(file: File): Promise<ScanResponse> {
     body: form,
   });
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({ error: `Scan failed (${res.status})` }));
-    throw new Error(errBody.error ?? `Scan failed (${res.status})`);
+    /* P5 — backend now returns {error, code, userMessage} per
+       mapErrorToFriendlyResponse. Prefer userMessage (human-friendly)
+       over error (raw API string) for the thrown message, so the
+       DocumentScanFlow error step shows e.g. "This PDF looks like a
+       scan with no extractable text. Please re-upload it as a JPG..."
+       instead of an Anthropic SDK error or generic "Scan failed". */
+    const errBody = await res.json().catch(() => ({ userMessage: `Scan failed (${res.status})` }));
+    throw new Error(errBody.userMessage ?? errBody.error ?? `Scan failed (${res.status})`);
   }
   return res.json() as Promise<ScanResponse>;
 }

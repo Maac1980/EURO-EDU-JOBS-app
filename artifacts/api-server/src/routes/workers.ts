@@ -956,14 +956,33 @@ interface ScannedEntities {
   confidence: number;
 }
 
+/**
+ * P5 backend-widen: route uploads through normalizeForClaudeVision so the
+ * file picker's HEIC / PDF / DOCX / GIF support is end-to-end. JPEG/PNG/
+ * WebP/GIF pass through as image; HEIC is decoded to JPEG; PDF and DOCX
+ * become text blocks the model reads alongside the prompt.
+ *
+ * FriendlyError from the normalizer propagates up to the route handler,
+ * which maps it via mapErrorToFriendlyResponse so the frontend gets a
+ * shaped {error, code, userMessage} body with the right HTTP status.
+ * Scanned image-only PDFs hit PDF_SCAN_NOT_SUPPORTED — a 415 with a
+ * "re-upload as photo" message, the path chat-Claude flagged.
+ */
 async function extractEntitiesFromDocument(
   fileBuffer: Buffer,
   mimeType: string,
+  fileName?: string,
 ): Promise<ScannedEntities | null> {
-  const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-  if (!imageTypes.includes(mimeType)) return null;
+  if (!process.env.ANTHROPIC_API_KEY) return null;
 
-  const prompt = `Analyse this document image. Return ONLY valid JSON in this exact shape:
+  const { normalizeForClaudeVision } = await import("../services/document-format.js");
+  const { anthropic } = await import("../lib/ai.js");
+
+  const base64 = fileBuffer.toString("base64");
+  const normalized = await normalizeForClaudeVision(base64, mimeType, fileName);
+  const items = Array.isArray(normalized) ? normalized : [normalized];
+
+  const prompt = `Analyse this document. Return ONLY valid JSON in this exact shape:
 {
   "docType": "passport" | "trc" | "work_permit" | "bhp" | "contract" | "cv" | "medical" | "other",
   "personName": "full name as written on document, or null",
@@ -987,16 +1006,30 @@ Polish-specific document types:
 If the document type is unclear, use "other" and put your best guess in additionalFields.documentTypeGuess.
 Return ONLY the JSON object, no preamble.`;
 
-  const base64 = fileBuffer.toString("base64");
-  const result = await analyzeImage(base64, mimeType, prompt);
-  if (!result) return null;
+  // Build content blocks the same way smart-document.ts does — image blocks
+  // for visual inputs, text blocks for normalized PDF/DOCX text.
+  const contentBlocks: Array<Record<string, unknown>> = items.map((n) =>
+    n.kind === "image"
+      ? { type: "image", source: { type: "base64", media_type: n.mediaType, data: n.base64 } }
+      : { type: "text", text: `[Document content${n.pageCount ? ` — ${n.pageCount} page(s)` : ""}, source: ${n.sourceFormat}]\n\n${n.text}` },
+  );
+  contentBlocks.push({ type: "text", text: prompt });
+
   try {
-    const match = result.match(/\{[\s\S]*\}/);
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1200,
+      messages: [{ role: "user", content: contentBlocks as any }],
+    });
+    const textBlock = response.content.find((b: any) => b.type === "text");
+    const text = textBlock?.type === "text" ? textBlock.text : "{}";
+    const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
-    const parsed = JSON.parse(match[0]) as ScannedEntities;
-    return parsed;
-  } catch {
-    return null;
+    return JSON.parse(match[0]) as ScannedEntities;
+  } catch (err) {
+    // Re-throw so the route can map via mapErrorToFriendlyResponse instead
+    // of swallowing the failure as "null entities."
+    throw err;
   }
 }
 
@@ -1065,10 +1098,12 @@ router.post(
       const file = req.file;
       if (!file) return res.status(400).json({ error: "No file uploaded (field name 'file')." });
 
-      const entities = await extractEntitiesFromDocument(file.buffer, file.mimetype);
+      const entities = await extractEntitiesFromDocument(file.buffer, file.mimetype, file.originalname);
       if (!entities) {
         return res.status(422).json({
-          error: "Could not extract entities from this document. Verify ANTHROPIC_API_KEY and that the file is a clear image (JPEG/PNG).",
+          error: "Could not extract entities from this document.",
+          code: "EXTRACTION_EMPTY",
+          userMessage: "We couldn't read this document. Verify the file is clear, or contact support if it keeps happening.",
         });
       }
 
@@ -1122,9 +1157,12 @@ router.post(
         meta: { extractedAt: new Date().toISOString() },
       });
     } catch (err) {
-      return res.status(500).json({
-        error: err instanceof Error ? err.message : "Document scan failed",
-      });
+      // P5 backend-widen — map FriendlyError (and Anthropic SDK errors) to a
+      // shaped {error, code, userMessage} body so the mobile UI can render
+      // the friendly text instead of "Document scan failed".
+      const { mapErrorToFriendlyResponse } = await import("../services/document-format.js");
+      const mapped = mapErrorToFriendlyResponse(err);
+      return res.status(mapped.httpStatus).json(mapped.body);
     }
   },
 );

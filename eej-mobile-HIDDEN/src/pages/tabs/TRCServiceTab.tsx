@@ -471,10 +471,9 @@ const inputStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 3, display: "block",
 };
-const overlayStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000,
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-};
+/* P2 — removed dead `overlayStyle` const (legacy Pass-3 migration leftover).
+   The modal renders via `<div className="shell-overlay">` above; this inline
+   style hasn't been referenced since the Pass 3 refactor. */
 const modalStyle: React.CSSProperties = {
   background: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 400,
   maxHeight: "85vh", overflowY: "auto",

@@ -112,6 +112,17 @@ export default function RecruitmentLinkShare({ variant = "card" }: Props) {
               maxWidth: 430, width: "100%",
               boxShadow: "0 -8px 32px rgba(0,0,0,0.2)",
               padding: "20px 20px 32px",
+              /* P2 — mirrors .detail-sheet (index.css:1271). Pass 3 bounds
+                 the OVERLAY between header + nav; without these two rules
+                 the sheet can exceed that bound, and because the overlay's
+                 own overflow-y:auto + align-items:flex-end default the
+                 scroll to top, the footer "You can edit the message before
+                 sending." sits below the visible overlay area on small
+                 viewports. Sheet now scrolls internally — overlay stays
+                 the bounded surface, sheet stays the scrollable surface. */
+              maxHeight: "100%",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>

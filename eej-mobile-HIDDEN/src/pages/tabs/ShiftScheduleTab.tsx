@@ -169,7 +169,8 @@ export default function ShiftScheduleTab() {
 const card: React.CSSProperties = { background: "#fff", borderRadius: 14, border: "1.5px solid #E5E7EB", padding: "12px 14px", marginBottom: 6 };
 const navBtn: React.CSSProperties = { background: "#fff", border: "1.5px solid #E5E7EB", borderRadius: 10, padding: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 const fabStyle: React.CSSProperties = { position: "fixed", bottom: 80, right: 20, width: 48, height: 48, borderRadius: 24, background: NAVY, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" };
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 };
+/* P2 — removed dead `overlay` const (legacy Pass-3 migration leftover). The
+   create-shift modal renders via `<div className="shell-overlay">` above. */
 const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2, display: "block", marginTop: 8 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13, outline: "none" };
 const btnStyle: React.CSSProperties = { flex: 1, padding: "10px 0", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer" };

@@ -21,6 +21,7 @@ import { useToast } from "@/lib/toast";
 import { uploadWorkerDocument } from "@/lib/api";
 import WorkerCockpit from "@/components/WorkerCockpit";
 import WorkerComplianceSections from "@/components/WorkerComplianceSections";
+import WorkerDocumentsList from "@/components/WorkerDocumentsList";
 
 const DETAIL_UPLOAD_SLOTS = [
   { id: "passport",    label: "Passport / ID Card" },
@@ -249,6 +250,9 @@ export default function CandidateDetail({ candidate, onClose, seeFinancials = fa
 
           {/* Tier 1 closeout #20 — UPO + Schengen sections (owner-side view) */}
           <WorkerComplianceSections workerId={candidate.id} />
+
+          {/* Tier 1 closeout #25 — real documents list from smart_documents */}
+          <WorkerDocumentsList workerId={candidate.id} />
 
           <div style={{ height: 32 }} />
         </div>

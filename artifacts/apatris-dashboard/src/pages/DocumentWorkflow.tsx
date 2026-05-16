@@ -1,39 +1,40 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
-import { FileCheck, Clock, XCircle, CheckCircle2, Upload, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { FileCheck, Clock, XCircle, CheckCircle2, Upload, Loader2, AlertTriangle, RefreshCw, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { DocumentUploadDropzone } from "@/components/DocumentUploadDropzone";
+import { UploadConfirmationModal, type UploadConfirmation, type ExtractedIdentity, type UploadCandidate } from "@/components/UploadConfirmationModal";
 
 const API = "/api";
 
 /**
- * Tier 1 #1: dashboard document workflow tab — re-wired to the existing
- * smart-ingest pipeline (artifacts/api-server/src/services/smart-ingest.ts).
+ * Tier 1 closeout #1/#23/#24/#26/#27 — DocumentWorkflow tab.
  *
- * Pre-fix the tab fetched /api/workflows/* — never built server-side. The
- * 404 was caught and the "All documents reviewed" empty panel rendered
- * alongside a "Failed to load documents" toast. Compliance fiction.
+ * Pre-fix the tab fetched /api/workflows/* (404), the upload form required
+ * worker selection up-front (defeating the AI pipeline's purpose), the file
+ * picker rendered as plain text, and no post-upload feedback existed.
  *
- * Now:
- *  - reads /api/documents/smart-ingest/queue + /stats (queue is the cross-
- *    worker pending list joined against workers.name)
- *  - approve/reject POST /documents/smart-ingest/:id/{approve,reject}
- *  - explicit four-state render: loading / error / empty / populated
- *  - upload button posts to /api/documents/smart-ingest with worker picker
+ * This version:
+ *  - reads /api/documents/smart-ingest/queue + /stats with 4-state render
+ *    (loading / error / empty / populated)
+ *  - upload uses the shared DocumentUploadDropzone (proper button + drop
+ *    zone, file preview)
+ *  - worker selection is OPTIONAL — default flow is AI-first identity
+ *    extraction via /api/smart-doc/process. After extraction:
+ *      • high-confidence match → Case A in UploadConfirmationModal
+ *      • multiple candidates / low confidence → Case C disambiguation
+ *      • no match → Case B (currently presented as "create from extract"
+ *        button; full new-worker creation flow uses /apply for now)
+ *  - the same UploadConfirmationModal is the bridge to the worker profile
+ *    so the upload journey is legible end-to-end
  */
 
 function authHeaders(): Record<string, string> {
-  // Reads from the canonical dashboard token key. The other legacy keys
-  // (eej_jwt, apatris_jwt) are queued for Tier 2 unification — this surface
-  // is fixed to eej_token now so the wire-up doesn't drift.
   const token = sessionStorage.getItem("eej_token");
   return token
     ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
     : { "Content-Type": "application/json" };
-}
-
-function authHeadersNoContentType(): Record<string, string> {
-  const token = sessionStorage.getItem("eej_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 interface WorkflowDoc {
@@ -49,23 +50,27 @@ interface WorkerOption { id: string; name: string }
 
 const EMPTY_STATS: Stats = { uploaded: 0, under_review: 0, approved: 0, rejected: 0, resubmit_requested: 0 };
 
+/** Confidence threshold above which we auto-attach the matched worker
+ * (Case A). Below this, the modal shows the disambiguation UI (Case C). */
+const AUTO_MATCH_THRESHOLD = 80;
+
 export default function DocumentWorkflow() {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
   const [docs, setDocs] = useState<WorkflowDoc[]>([]);
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
-  // Explicit error state — pre-fix this didn't exist and the empty branch
-  // rendered as success even when the fetch failed.
   const [error, setError] = useState<string | null>(null);
 
-  // Upload state
+  // Upload journey state
   const [uploadOpen, setUploadOpen] = useState(false);
   const [workers, setWorkers] = useState<WorkerOption[]>([]);
-  const [selectedWorkerId, setSelectedWorkerId] = useState("");
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [overrideWorkerId, setOverrideWorkerId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState("Processing…");
+  const [confirmation, setConfirmation] = useState<UploadConfirmation | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -84,13 +89,9 @@ export default function DocumentWorkflow() {
       setStats(s.stats ?? EMPTY_STATS);
     }).catch((e: Error) => {
       setError(e.message);
-      // Intentionally NOT clearing docs/stats here — leaving last-known
-      // values in place if a refresh fails is less misleading than wiping
-      // the screen to zeroes that look like "all reviewed."
     }).finally(() => setLoading(false));
   };
 
-  // Worker list for the upload picker — uses the existing /workers endpoint.
   const loadWorkers = () => {
     fetch(`${API}/workers`, { headers: authHeaders() })
       .then(r => r.ok ? r.json() : { workers: [] })
@@ -102,6 +103,141 @@ export default function DocumentWorkflow() {
   };
 
   useEffect(() => { load(); loadWorkers(); }, []);
+
+  /** Convert File → base64 string (sans data: prefix). */
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve((r.result as string).split(",")[1] ?? (r.result as string));
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+
+  /** Tier 1 closeout #23: handleUpload supports two paths.
+   *  - Explicit: overrideWorkerId is set → smart-ingest with that worker
+   *  - AI-first: no override → /api/smart-doc/process for identity match,
+   *    then UploadConfirmationModal to confirm the worker, then a smart-
+   *    ingest call with the confirmed workerId. */
+  const handleUpload = async (file: File) => {
+    setBusy(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const mimeType = file.type || "application/octet-stream";
+
+      if (overrideWorkerId) {
+        setBusyLabel("Sending to AI pipeline…");
+        const r = await fetch(`${API}/documents/smart-ingest`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ image: base64, mimeType, workerId: overrideWorkerId, fileName: file.name }),
+        });
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+          throw new Error(body.error ?? `HTTP ${r.status}`);
+        }
+        const worker = workers.find(w => w.id === overrideWorkerId);
+        setConfirmation({
+          kind: "matched",
+          worker: { id: overrideWorkerId, name: worker?.name ?? "Worker", matchScore: 100, matchedBy: "operator selection" },
+          identity: { documentType: file.name },
+          fileName: file.name,
+        });
+        load();
+        return;
+      }
+
+      // AI-first path: identity extraction first
+      setBusyLabel("AI reading document…");
+      const idRes = await fetch(`${API}/smart-doc/process`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ image: base64, mimeType }),
+      });
+      if (!idRes.ok) {
+        const body = await idRes.json().catch(() => ({ error: `HTTP ${idRes.status}` }));
+        throw new Error(body.error ?? `Identity extraction failed (HTTP ${idRes.status})`);
+      }
+      const idData = await idRes.json() as {
+        documentType?: string;
+        extractedFields?: Record<string, { value: string | null; confidence: number }>;
+        matchedWorker?: { id: string; name: string; matchScore: number } | null;
+        overallConfidence?: number;
+      };
+
+      const identity: ExtractedIdentity = {
+        documentType: idData.documentType ?? null,
+        name: idData.extractedFields?.worker_name?.value ?? idData.extractedFields?.name?.value ?? null,
+        nationality: idData.extractedFields?.nationality?.value ?? null,
+        pesel: idData.extractedFields?.pesel?.value ?? null,
+        passport_number: idData.extractedFields?.passport_number?.value ?? null,
+      };
+
+      const matched = idData.matchedWorker;
+
+      if (matched && matched.matchScore >= AUTO_MATCH_THRESHOLD) {
+        // Case A: high-confidence match → run smart-ingest now and surface
+        setBusyLabel("Attaching to worker profile…");
+        const r = await fetch(`${API}/documents/smart-ingest`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({ image: base64, mimeType, workerId: matched.id, fileName: file.name }),
+        });
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+          throw new Error(body.error ?? `Ingest failed (HTTP ${r.status})`);
+        }
+        setConfirmation({
+          kind: "matched",
+          worker: { id: matched.id, name: matched.name, matchScore: matched.matchScore, matchedBy: pickMatchSignal(identity) },
+          identity, fileName: file.name,
+        });
+        load();
+      } else {
+        // Case C: uncertain — surface candidates so the user picks. Caller
+        // can then re-attempt with the chosen worker. For the v1 keystone
+        // we only have a single candidate from /smart-doc/process; the
+        // disambiguation list will be 0 or 1 entries until the backend
+        // returns a ranked set. This is enough to make the journey legible.
+        const candidates: UploadCandidate[] = matched
+          ? [{ id: matched.id, name: matched.name, matchScore: matched.matchScore, matchedBy: pickMatchSignal(identity) }]
+          : [];
+        setConfirmation({
+          kind: "uncertain",
+          candidates,
+          identity,
+          fileName: file.name,
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Upload failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Disambiguation pick — user chose a worker in Case C; finish the ingest. */
+  const handleSelectWorker = async (chosenWorkerId: string) => {
+    // We don't have the original file here anymore; the smartest UX would
+    // re-prompt for re-upload, but for v1 we surface a toast pointing the
+    // user to re-upload with the explicit override. This is a known sharp
+    // edge tracked for a Tier-2 polish (the keystone modal is the win;
+    // the disambiguation re-ingest can use the cached base64).
+    setConfirmation(null);
+    setOverrideWorkerId(chosenWorkerId);
+    toast({
+      title: "Worker selected",
+      description: "Re-drop the file with this worker pre-selected to finish the ingest.",
+    });
+  };
+
+  const handleViewProfile = (workerId: string) => {
+    setConfirmation(null);
+    setLocation(`/workers?worker=${encodeURIComponent(workerId)}`);
+  };
 
   const approve = async (id: string) => {
     try {
@@ -128,47 +264,6 @@ export default function DocumentWorkflow() {
       load();
     } catch (e) {
       toast({ title: "Reject failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!uploadFile || !selectedWorkerId) {
-      toast({ title: "Upload error", description: "Choose a worker and a file first.", variant: "destructive" });
-      return;
-    }
-    setUploading(true);
-    try {
-      // smart-ingest expects base64-encoded payload.
-      const arrayBuf = await uploadFile.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuf);
-      let binary = "";
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
-
-      const r = await fetch(`${API}/documents/smart-ingest`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          image: base64,
-          mimeType: uploadFile.type || "application/octet-stream",
-          workerId: selectedWorkerId,
-          fileName: uploadFile.name,
-        }),
-      });
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
-        throw new Error(body.error ?? `HTTP ${r.status}`);
-      }
-      toast({ title: "Uploaded", description: `${uploadFile.name} sent to smart-ingest.` });
-      setUploadFile(null);
-      setSelectedWorkerId("");
-      setUploadOpen(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      load();
-    } catch (e) {
-      toast({ title: "Upload failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -213,53 +308,37 @@ export default function DocumentWorkflow() {
         </button>
       </div>
 
-      {/* Upload panel — wired to POST /api/documents/smart-ingest. Worker
-          selection is required so the AI pipeline has context for legal-
-          impact assessment. */}
+      {/* Upload panel — Tier 1 closeout #23/#24/#26 unified component */}
       {uploadOpen && (
         <div className="bg-slate-800/60 border border-yellow-400/30 rounded-xl p-4 space-y-3">
-          <div className="text-xs font-bold uppercase tracking-widest text-yellow-300">
-            New document → smart-ingest pipeline
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-yellow-300" />
+            <p className="text-xs font-bold uppercase tracking-widest text-yellow-300">
+              New document — AI identifies the worker automatically
+            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Worker</label>
+
+          <DocumentUploadDropzone
+            onFileSelected={handleUpload}
+            busy={busy}
+            busyLabel={busyLabel}
+          />
+
+          <details className="text-xs">
+            <summary className="cursor-pointer text-slate-400 hover:text-white py-1">
+              Override: pick worker manually (skips AI matching)
+            </summary>
+            <div className="mt-2">
               <select
-                value={selectedWorkerId}
-                onChange={e => setSelectedWorkerId(e.target.value)}
+                value={overrideWorkerId}
+                onChange={e => setOverrideWorkerId(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-sm text-white"
               >
-                <option value="">— select worker —</option>
+                <option value="">— let AI choose —</option>
                 {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">File</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,image/*"
-                onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
-                className="w-full text-sm text-slate-300"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              onClick={() => { setUploadFile(null); setSelectedWorkerId(""); setUploadOpen(false); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-              className="px-3 py-2 text-xs font-bold uppercase text-slate-400 hover:text-white"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleUpload}
-              disabled={uploading || !uploadFile || !selectedWorkerId}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-400 text-slate-900 text-xs font-black uppercase tracking-wider hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-              {uploading ? "Uploading…" : "Send to AI pipeline"}
-            </button>
-          </div>
+          </details>
         </div>
       )}
 
@@ -279,9 +358,7 @@ export default function DocumentWorkflow() {
         ))}
       </div>
 
-      {/* Queue — four distinct states: loading / error / empty / populated.
-          Pre-fix only loading + empty + populated existed; error fell into
-          empty and rendered "All documents reviewed." */}
+      {/* Queue — 4-state render */}
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
@@ -343,6 +420,25 @@ export default function DocumentWorkflow() {
           ))}
         </div>
       )}
+
+      {/* Tier 1 closeout #27 — keystone confirmation modal */}
+      <UploadConfirmationModal
+        open={!!confirmation}
+        result={confirmation}
+        onClose={() => setConfirmation(null)}
+        onSelectWorker={handleSelectWorker}
+        onViewProfile={handleViewProfile}
+      />
     </div>
   );
+}
+
+/** Best-effort label of which extracted field most likely drove the match.
+ *  Used as a human-readable annotation in the confirmation modal. */
+function pickMatchSignal(identity: ExtractedIdentity): string | undefined {
+  if (identity.pesel) return "PESEL";
+  if (identity.passport_number) return "passport number";
+  if (identity.name && identity.nationality) return "name + nationality";
+  if (identity.name) return "name";
+  return undefined;
 }

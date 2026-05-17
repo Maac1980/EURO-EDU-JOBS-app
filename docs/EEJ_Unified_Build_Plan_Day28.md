@@ -12,7 +12,7 @@
 
 ## Section 1 — Executive summary
 
-EEJ is post-P5 + P6-survey closed. The next-block question is where to focus build effort given (a) APATRIS has 14 worker-side primitives EEJ doesn't (mood/wellness AMBER, leave/messages/hours/push/coordinator-home GREEN); (b) Manish's worker-side roadmap defines 9 feature areas A-I with explicit W1/W2/W3 priority tiers; (c) the existing Tier 2-5 hardening backlog still has ~15 items including the upload-robustness pass, scaffold-404 backends, and static-mock tabs. The unified plan sequences **Tier 2 hardening first** (close P5-adjacent gaps, no new surface area), **then Tier W1 worker-essentials** (hours + late/absence one-tap + documents-with-push — three highest-leverage worker surfaces, all GREEN on Polish-legal), **then Tier 3 scaffold-404 backends** in parallel (build, don't hide), **then Tier W2 worker expansion** (no-show engine + leave + complaints + worker-AI), **then Tier 4 mocks** + **Tier 5 schema cleanup**, with **Tier W3 reliability/points + scenario simulator deferred** until KRAZ-defense risk is fully understood. Polish-legal-risk flag on every worker-side item; AMBER items design-checked before scope-locking; RED items deferred outright.
+EEJ is post-P5 + P6-survey closed. The Day 28 revision (this version) captures **every feature in the plan as part of the future build — nothing parked, nothing deferred-indefinitely.** The plan sequences **Phase 10 Operational Hygiene in parallel with Phase 1 Tier 2 hardening** (Neon rotation, Fly secret rotation, readonly role, CI credential), then **Phase 9 Mobile Install Testing** (validation pass on real iPhone + Android), then **Phase 2 Tier W1 worker essentials** (hours + late/absence + docs-with-push — three highest-leverage worker surfaces, all GREEN on Polish-legal), **Phase 3 Tier 3 scaffold-404 backends** (build, don't hide), **Phase 4 Tier W2 worker expansion** (no-show engine + leave + complaints + worker-AI), **Phase 8 Live Chat (#34)** (in-app real-time chat for worker↔team and applicant↔team — XL premium-tier SaaS surface), **Phase 5 Tier 4 mocks**, **Phase 6 Tier 5 schema cleanup**, **Phase 7 Tier W3 KRAZ-defense gated** (reliability/points with explicit prerequisite "KRAZ classification settled"; scenario simulator with prerequisite "W1+W2 in production"), and **Phase 11 Mood/Wellness** (post-W3, design-pass-required, legal-advisor-reviewed). Polish-legal-risk flag on every worker-side item; AMBER items design-checked before scope-locking; RED items reframed as Phase 11 with explicit gating. Architecture A is locked — every cross-codebase reference is "build in EEJ; APATRIS implements from EEJ as reference later."
 
 ---
 
@@ -21,29 +21,50 @@ EEJ is post-P5 + P6-survey closed. The next-block question is where to focus bui
 Sequence (top = build next):
 
 ```
-1.  Tier 2 hardening                  (close ~15 items; no new surface)
-        ↓
-2.  Tier W1 worker essentials         (3 surfaces: Hours, Late/absence, Docs-with-push)
-        ↓
-3.  Tier 3 scaffold-404 backends      (6 endpoints — Analytics, GPS, ContractHub, Skills, Shifts, Calendar)
-        ↓
-4.  Tier W2 worker expansion          (No-show engine, Leave, Complaints, Worker-AI)
-        ↓
-5.  Tier 4 static-mock tabs           (Updates, Salary, PayTransparency, AlertsRecent, OpsPipeline)
-        ↓
-6.  Tier 5 schema/enum cleanup        (pipeline stages, job roles, voivodeships, etc.)
-        ↓
-7.  Tier W3 deferred                  (Reliability/points, Scenario simulator)
+[Phase 1 Tier 2 hardening]  ║ in parallel ║  [Phase 10 Operational Hygiene]
+   (~15 hardening items)    ║             ║  (Neon rotation, Fly secrets,
+                            ║             ║   CI credentials, readonly role)
+                                ↓
+                  Phase 9 — Mobile Install Testing
+                  (iPhone + Android PWA validation — gate to W1)
+                                ↓
+                  Phase 2 — Tier W1 worker essentials
+                  (Hours, Late/absence, Docs-with-push)
+                                ↓
+                  Phase 3 — Tier 3 scaffold-404 backends
+                  (Analytics, GPS, ContractHub, Skills, Shifts, Calendar)
+                                ↓
+                  Phase 4 — Tier W2 worker expansion
+                  (No-show engine, Leave, Complaints, Worker-AI)
+                                ↓
+                  Phase 8 — Live Chat (#34)
+                  (Worker↔team + Applicant↔team in-app chat — XL premium)
+                                ↓
+                  Phase 5 — Tier 4 static-mock tabs
+                  (Updates, Salary, PayTransparency, AlertsRecent, OpsPipeline)
+                                ↓
+                  Phase 6 — Tier 5 schema/enum cleanup
+                                ↓
+                  Phase 7 — Tier W3 KRAZ-defense gated
+                  (W3.1 Reliability/points — gated on KRAZ classification;
+                   W3.2 Scenario simulator — gated on W1+W2 in prod)
+                                ↓
+                  Phase 11 — Mood/Wellness (post-W3, design-pass-required)
+                  (Mood entries, Wellness, Voice — legal-advisor-reviewed
+                   opt-in/anonymized/no-manager-visibility design)
 ```
 
 Reasoning for the order:
-- **Tier 2 first** because each P0-P6 commit assumed Tier 2 was waiting; hardening cleans up the floor before adding rooms.
-- **Tier W1 second** (not Tier 3) because Manish's roadmap explicitly tags Hours / Late-absence / Docs as "highest leverage." Tier 3 scaffold-404 surfaces are lying to users today (they 404), but they're staff-side; Tier W1 is worker-side and Manish ships worker-side first per the post-P3-of-Day-27 prompt.
-- **Tier 3 third** because the scaffold-404s are blocking staff workflows the existing user base relies on. Building these out unblocks Karan/Marj/Yana.
-- **Tier W2 fourth** — after the W1 core is stable, expand with no-show engine + leave + complaints. No-show engine is the heaviest single item; better land after the W1 hours/GPS primitive is in production for shape data.
-- **Tier 4 fifth** — static-mock cleanup is honesty work, but lower urgency than functional gaps.
-- **Tier 5 sixth** — schema/enum consolidation is "rates" work; pays dividends across all surfaces but has no user-facing urgency.
-- **Tier W3 last** — reliability/points carries Polish-legal HURT risk; scenario simulator is large scope. Both should land after KRAZ defense is established.
+- **Phase 1 Tier 2 + Phase 10 parallel** — operational hygiene (Neon password rotation flagged this morning, Fly secrets re-rotation, CI credential, readonly role) cannot wait for feature work. Runs alongside Tier 2 hardening on a separate execution thread.
+- **Phase 9 between Phase 1 and Phase 2** — real-device PWA testing validates findings #16/#17/#18 BEFORE adding worker-side surface area on top of them. Catches viewport / X-reachability / recruitment-link surface issues that would otherwise compound through Tier W1.
+- **Phase 2 Tier W1 third** (not Tier 3) because Manish's roadmap explicitly tags Hours / Late-absence / Docs as "highest leverage." Tier 3 scaffold-404 surfaces are lying to users today (they 404), but they're staff-side; Tier W1 is worker-side and Manish ships worker-side first per the post-P3-of-Day-27 prompt.
+- **Phase 3 Tier 3 fourth** because the scaffold-404s are blocking staff workflows the existing user base relies on. Building these out unblocks Karan/Marj/Yana.
+- **Phase 4 Tier W2 fifth** — after the W1 core is stable, expand with no-show engine + leave + complaints. No-show engine is the heaviest single item; better land after the W1 hours/GPS primitive is in production for shape data.
+- **Phase 8 Live Chat sixth** — placed after W2 because complaint system (W2.3) shares mechanics (threads, attachments, escalation routing). Live Chat reuses those primitives + adds the real-time transport layer. Placing it before Tier 4/5 honesty work prioritizes the premium-SaaS-tier feature for paying agencies.
+- **Phase 5 Tier 4 seventh** — static-mock cleanup is honesty work, but lower urgency than functional gaps and the premium chat feature.
+- **Phase 6 Tier 5 eighth** — schema/enum consolidation is "rates" work; pays dividends across all surfaces but has no user-facing urgency.
+- **Phase 7 Tier W3 ninth — KRAZ-defense gated, NOT deferred indefinitely.** W3.1 Reliability/points has explicit prerequisite "KRAZ classification settled" — when that prerequisite resolves, W3.1 builds. W3.2 Scenario simulator has prerequisite "W1+W2 in production for shape-data."
+- **Phase 11 Mood/Wellness last — post-W3, design-pass-required, NOT deferred indefinitely.** Capture as future build with explicit gate: opt-in + anonymized + no-manager-visibility design pass reviewed by legal advisor BEFORE scoping execution.
 
 ---
 
@@ -52,6 +73,8 @@ Reasoning for the order:
 ### Phase 1 — Tier 2 hardening (no new surface area)
 
 From CLAUDE.md `## CURRENT PRIORITY LIST` + post-P5 candidates queued during P0-P6 reviews.
+
+> **Runs in parallel with Phase 10 — Operational Hygiene** (see below). Phase 10 is operator/secrets work on a separate execution thread; Phase 1 is feature-code work. They share no critical path.
 
 | Item | Scope | Polish-legal | Effort |
 |---|---|---|---|
@@ -72,6 +95,23 @@ From CLAUDE.md `## CURRENT PRIORITY LIST` + post-P5 candidates queued during P0-
 | 2.15 Audit-log enrichment | Note sourceFormat in `[encrypted]` → kind mapping (P5 follow-on cosmetic) | GREEN | S |
 
 **Acceptance for Phase 1 completion:** all 15 items committed, CI green, Layer 2 walkthrough on staging passes for at least the user-facing ones (2.1, 2.2, 2.9, 2.10).
+
+### Phase 9 — Mobile Install Testing (validation gate between Tier 2 and Tier W1)
+
+NOT a build phase. A structured validation pass on real iPhone + Android PWA installs that gates worker-side work. Surfaces findings that may trigger additional fixes BEFORE Phase 2 adds new worker-side surface area.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Validate post-P0-P6 mobile fixes on real devices. Confirm findings #16 (mobile profile viewport fit), #17 (mobile X reachability — close-button tap zone), #18 (mobile recruitment link surface) actually work on physical phones, not just desktop devtools. |
+| **Scope** | iPhone (Safari PWA install — current-gen + older notched device if available) + Android (Chrome PWA install — current-gen + budget device). Test the post-P0-P6 commit (HEAD `af76ed3` at Day 28). |
+| **What gets tested** | All P0-P6 fixes — P0 horizontal-overflow guard, P1 viewport-fit=cover + safe-area-insets, P2 Share Link footer text clipping, P3a bell badge unification, P3b VITE_SHARE_BASE_URL fallback, P3c work-permit reconciliation panel, P3d voivodeship derivation, P4 bottom-nav icon-label collision, P5 scan-document widened formats. Plus rotation, status-bar overlay, home-screen icon, push permission prompt behavior. |
+| **Outputs** | Findings list per-device (works / partially works / regression / new bug). Triage into "blocks Phase 2 W1" vs "log as Tier-2-followup" vs "design note." |
+| **Who** | Manish-led (open question: solo or with team — Liza/Karan/Marj/Yana). Real workers' devices are out of scope unless explicitly invited. |
+| **Polish-legal-risk** | N/A (testing) |
+| **Effort** | S — 1-2 structured testing sessions. |
+| **Architecture A note** | EEJ-only. APATRIS does its own mobile install testing on its own surfaces. |
+
+**Acceptance for Phase 9 completion:** findings document committed (`docs/Mobile_Install_Testing_Day_X.md`); any "blocks Phase 2 W1" findings have follow-up commits queued; Manish signs off proceed-to-Phase-2 OR proceed-to-Tier-2-followup.
 
 ### Phase 2 — Tier W1 worker essentials (highest-leverage 3 surfaces)
 
@@ -94,6 +134,7 @@ From Manish's prompt: "Tier W1 (build first — highest leverage): Hours-logging
 | **Effort** | L |
 
 APATRIS reference: `lib/init-db.ts:2250` (hours_log shape), `TimesheetTab.tsx` (UI pattern). Adapt, don't copy — APATRIS table uses TEXT month + worker_name; EEJ should use Drizzle pgTable + worker_id FK + tenant_id.
+**Architecture A:** build in EEJ; APATRIS implements from EEJ as reference later.
 
 #### W1.2 Late/absence one-tap notification
 
@@ -112,6 +153,7 @@ APATRIS reference: `lib/init-db.ts:2250` (hours_log shape), `TimesheetTab.tsx` (
 | **Effort** | M |
 
 APATRIS reference: no direct equivalent (mood/wellness AMBER is different intent). Net-new design.
+**Architecture A:** build in EEJ; APATRIS implements from EEJ as reference later.
 
 #### W1.3 Documents/expiry alerts with push
 
@@ -130,6 +172,7 @@ APATRIS reference: no direct equivalent (mood/wellness AMBER is different intent
 | **Effort** | M |
 
 APATRIS reference: `lib/init-db.ts:540` (push_subscriptions shape), `services/push-sender.service.ts` (send pattern with VAPID).
+**Architecture A:** build in EEJ; APATRIS implements from EEJ as reference later.
 
 ### Phase 3 — Tier 3 scaffold-404 backends
 
@@ -163,13 +206,14 @@ From Manish: "Tier W2 (build after W1 stable): No-show detection engine, Leave/h
 | **Effort** | L (depends on W1.1 hours-entry data + W1.2 attendance-event data) |
 
 APATRIS reference: `services/escalation-engine.service.ts:18-147` (case SLA escalation pattern; reuse the deadline+stage primitive).
+**Architecture A:** build in EEJ; APATRIS implements from EEJ as reference later.
 
 #### W2.2 Leave/holiday balance with approval flow (Manish Section C)
 
 | Field | Detail |
 |---|---|
 | **Purpose** | Polish Labor Code Art. 152 statutory leave management. Worker requests; coordinator approves; balance auto-decremented; bonus logic for low-take. |
-| **Minimum implementation** | Direct port from APATRIS `leave_requests` table + `LeaveTab.tsx` + `routes/self-service/leave`. Adapt: Drizzle pgTable + tenant_id FK + worker_id FK. |
+| **Minimum implementation** | Direct port from APATRIS `leave_requests` table + `LeaveTab.tsx` + `routes/self-service/leave`. Adapt: Drizzle pgTable + tenant_id FK + worker_id FK. **Architecture A:** build in EEJ; APATRIS implements from EEJ as reference later (even though EEJ ports the shape from APATRIS first, the EEJ-adapted version becomes the canonical reference going forward). |
 | **Data model** | New `leave_requests` table (worker_id, leave_type, start_date, end_date, days, status, reason, notice_timing_days, requested_at, decided_at, decided_by). New `leave_balances` table or per-worker leave_balance JSONB column. |
 | **API** | POST `/api/leave/request`, GET `/api/leave/worker/:id`, PATCH `/api/leave/:id/approve|reject`, GET `/api/leave/balance/:workerId` |
 | **UI** | Mobile LeaveTab (request form + history). Coordinator queue tab. |
@@ -206,6 +250,43 @@ APATRIS reference: `services/escalation-engine.service.ts:18-147` (case SLA esca
 | **Polish-legal-risk** | **GREEN** with guardrails: AI must not give legal advice (only EEJ-internal info); must not access other workers' data; must log every interaction |
 | **Effort** | M |
 
+### Phase 8 — Live Chat (#34)
+
+In-app real-time chat. Two surfaces: **worker↔team** (existing workers asking coordinators questions) and **applicant↔team** (cold applicants asking pre-recruitment questions, especially international workers considering visa moves). For future SaaS, this is a premium-tier feature for paying agencies. Position: after Tier W2 (complaint system shares mechanics — threads, attachments, escalation routing); before Tier W3 KRAZ-defense gates.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Real-time text chat between (a) authenticated workers and their coordinator/manager, and (b) anonymous/email-only applicants and the recruitment team. Reduces email/whatsapp friction for both internal coordination and cold-recruitment funnel. |
+| **Minimum implementation** | Three table set: `chat_threads` (id, type ENUM `worker_team|applicant_team`, subject, status, created_at, last_message_at, assigned_to NULL); `chat_messages` (id, thread_id FK, sender_type ENUM `worker|applicant|staff|system`, sender_id NULL for anonymous applicants, content, attachments JSONB, created_at, read_at); `chat_participants` (thread_id FK, participant_type ENUM `worker|applicant|staff`, participant_id NULL for anonymous, added_at, last_seen_at). Real-time transport via WebSocket or polling (see ARCHITECTURE DECISION below). |
+| **User roles** | Worker (mobile chat tab — own threads only); Applicant (public `/apply` chat widget — own thread only, identified by email + magic-link token); Staff inbox (operations/legal/executive — sees all threads filtered by role + assignment); Admin (configure routing rules, premium tier toggle). |
+| **Expected behavior** | Worker opens chat tab → sees their threads with coordinator → tap thread → type/send → coordinator gets push + sees in dashboard inbox. Applicant on `/apply` page sees "Have a question? Chat with our team" button → opens chat widget → email-identified thread created → staff inbox routes by language/topic. |
+| **Data model** | New: `chat_threads`, `chat_messages`, `chat_participants` tables. Drizzle pgTable + tenant_id FK on all three. Attachments stored in R2 (existing). Message content encrypted at rest (mirror `whatsapp_messages` encryption pattern from `schema.ts:241`). |
+| **API** | REST surface: POST `/api/chat/threads` (create, worker or applicant), POST `/api/chat/threads/:id/messages` (send), GET `/api/chat/threads/me` (worker's own threads), GET `/api/chat/threads/staff?role=&status=&assigned=` (staff inbox), PATCH `/api/chat/threads/:id/assign`, PATCH `/api/chat/threads/:id/status`. Real-time: see ARCHITECTURE DECISION. |
+| **UI** | Three surfaces: (1) Mobile `LiveChatTab.tsx` for workers (thread list + per-thread message view); (2) Public widget on `/apply` page (collapsible chat bubble, email-gated entry, magic-link continuity); (3) Dashboard `ChatInbox.tsx` for staff (Slack/Intercom-style — threads list left, conversation pane right, assignment + status controls, internal-note sidebar). |
+| **AI** | Optional / Phase 2: Claude auto-categorizes incoming messages by topic + language; suggests reply templates to staff; escalates flagged messages (urgent: "I'm injured," "I have no documents", legal-trigger words) to manager. AI surface guardrails: never auto-reply to worker/applicant without staff approval; never expose other workers' data; log every AI suggestion + whether staff accepted. |
+| **Notifications** | Push on new message (worker side); email-fallback push if worker push not subscribed; staff push for assigned threads; urgent-escalation alerts (AI-flagged) push to managers. All channels logged via the Phase 2 notification.service router (W1.3). |
+| **Polish-legal-risk** | **GREEN** — in-app communication channel; HELP defense (workers reporting to coordinator). Caveats: applicant-side anonymous-to-named conversion must respect GDPR consent (clear data-use disclosure at entry); chat content retention policy needs definition (suggested: 2-year retention then anonymized; aligns with Polish employment record retention norms). |
+| **Effort** | **XL** — multi-surface (worker mobile + applicant public + staff dashboard), real-time transport infrastructure decision, three tables, ~12 endpoints, AI categorization layer. |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. EEJ leads this primitive — APATRIS has no equivalent (per Phase 1 audit `(d)` flags on messages/voice). |
+
+#### ARCHITECTURE DECISION REQUIRED (Phase 8 entry gate)
+
+Real-time transport choice. Four candidates, must pick ONE before scoping execution:
+
+| Option | Pros | Cons | Effort impact |
+|---|---|---|---|
+| **(A) Pusher** | Managed service; SDK mature; free tier ample for early premium-tier users | Adds vendor dependency; monthly cost at scale | Fastest to MVP |
+| **(B) Ably** | Similar to Pusher; better Polish data residency options | Same vendor-dependency concern | Similar to A |
+| **(C) Self-hosted Socket.IO** | No vendor cost; full control; fits Fly.io deployment model | Operational overhead (sticky sessions, scaling, presence tracking); team must manage | Larger initial; lower long-term |
+| **(D) Anthropic MCP transport** | Aligns with existing Claude infrastructure; novel | Unproven for this use case; MCP is server-tool transport, may not fit chat patterns | Research-heavy; high risk |
+
+**Recommendation pending Manish + chat-Claude:** (A) Pusher for premium-tier MVP, migrate to (C) Self-hosted if vendor cost becomes blocker at scale. Tracked as open question Q11.
+
+#### Phase 8 prerequisites
+- Phase 1 W1.3 push infrastructure (Phase 2) — chat uses it for new-message alerts
+- Phase 4 W2.3 complaint system (Phase 4) — shares thread/attachment/assignment mechanics (chat reuses the same patterns at table-design level)
+- Architecture decision above resolved
+
 ### Phase 5 — Tier 4 static-mock tabs
 
 From CLAUDE.md. Honest empty-state where DB doesn't have data; wire to real data where it does.
@@ -232,21 +313,63 @@ From CLAUDE.md. Single source of truth for:
 
 All GREEN.
 
-### Phase 7 — Tier W3 deferred (KRAZ-defense gates)
+### Phase 7 — Tier W3 KRAZ-defense gated
 
-From Manish: "Tier W3 (build cautiously or last): Reliability/points summary (Polish labor law penalty risk), Scenario simulator/legal test suite (big scope, real but later)."
+From Manish: "Tier W3 (build cautiously or last): Reliability/points summary (Polish labor law penalty risk), Scenario simulator/legal test suite (big scope, real but later)." Reframed in this revision: **both items are part of the future build, NOT deferred indefinitely** — each has an explicit prerequisite that, when resolved, unblocks execution.
 
 #### W3.1 Reliability/points summary (Manish — penalty/reward system)
 
-| Polish-legal-risk | **AMBER → potentially RED** |
-| Reasoning | A reliability score that drives penalty (lower pay, fewer shifts, blacklist) reads as employee-monitoring under Polish labor code. Reads as agency-dispatch behavior — HURTS KRAZ defense. |
-| Decision | **Defer until KRAZ classification is settled.** Even then, design only as worker-visible self-improvement metric (no manager penalty surface). |
+| Field | Detail |
+|---|---|
+| **Purpose** | Worker-visible reliability metric that drives improvement loops (and at some scale, drives manager-side workforce decisions if KRAZ classification permits). |
+| **Polish-legal-risk** | **AMBER → potentially RED** depending on design — surfacing to manager + driving penalties HURTS KRAZ defense; worker-self-visible improvement metric is HELP. |
+| **Prerequisite (explicit gate)** | **KRAZ classification settled.** Until APATRIS's Lubuski UW response resolves the KRAZ classification question (or Polish authorities issue clarifying guidance on Article 13(1)(7) of the 2025 Act), don't ship a reliability surface that can be read as agency-dispatch behavior. |
+| **When prerequisite resolves** | Design pass: worker-visible only (no manager penalty surface, no shift-distribution input), opt-in display, anonymized when surfaced in aggregate. Then build: `worker_reliability_events` table (event_type, timestamp, weight), `worker_reliability_score` view (rolling 90-day weighted sum), mobile tab `MyReliabilityTab.tsx`. |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. |
+| **Effort** | M (when unblocked) |
 
 #### W3.2 Scenario simulator / legal test suite (Manish Section I)
 
-| Polish-legal-risk | **GREEN** (internal testing) |
-| Reasoning | APATRIS has the `test_scenarios` + `test_scenario_runs` tables ready to port. Big scope but internal — no external surface. |
-| Decision | **Defer to Tier W3 last per Manish.** Port APATRIS shape when prioritized. |
+| Field | Detail |
+|---|---|
+| **Purpose** | Generate synthetic worker profiles, simulate thousands of no-show + absence events, verify alerts/penalties/escalation engines behave per Polish labor compliance, test edge cases (legitimate medical exceptions vs unauthorized absences). |
+| **Polish-legal-risk** | **GREEN** — internal testing infrastructure, no external surface. |
+| **Prerequisite (explicit gate)** | **Tier W1 + W2 in production for shape-data.** The simulator validates the engines built in W2.1 (no-show detection), W2.2 (leave), W1.1 (hours), W1.2 (attendance events). Building it before those engines are stable means simulating against shifting targets. |
+| **When prerequisite resolves** | Port APATRIS `test_scenarios` + `test_scenario_runs` table shape (`lib/init-db.ts:3456-3471`), adapt to Drizzle pgTable, build scenario-generator service that creates synthetic workers + events + runs them through the live engines, compare output vs expected (matches `routes/test-scenarios.ts` pattern). |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later (even though EEJ ports APATRIS's table shape first, the EEJ-adapted version becomes canonical). |
+| **Effort** | L (when unblocked) |
+
+### Phase 10 — Operational Hygiene (runs in parallel with Phase 1 Tier 2)
+
+Production-prep operational work. NOT feature work — operator/secrets/infrastructure. Runs on a separate execution thread from Phase 1 so feature work doesn't block on credential rotation and vice versa. **All items GREEN on Polish-legal-risk.** See Section 9 for the consolidated runbook.
+
+| Item | Scope | Polish-legal | Effort |
+|---|---|---|---|
+| 10.1 Rotate Neon `neondb_owner` password | Literal credential leaked in chat history this morning (Day 28); rotate via Neon console, update all consumers, verify | GREEN | S — but HIGH priority |
+| 10.2 Re-rotate Fly secrets on BOTH apps | After 10.1 lands, rotate `eej-api` (staging) and `eej-jobs-api` (production) — DATABASE_URL + JWT_SECRET + EEJ_ENCRYPTION_KEY at minimum | GREEN | S |
+| 10.3 Provision readonly Neon role + `DATABASE_URL_READONLY` on staging | New Neon role with `SELECT`-only grants on `public` schema; add `DATABASE_URL_READONLY` as a Fly secret on `eej-api`; readonly consumers (reports, analytics, Sentry pull) switch to it | GREEN | M |
+| 10.4 Staging Neon branch renewal before May 23 | Neon free-tier branches auto-delete after 14 days; staging branch expires 2026-05-23. Either: (a) renew + reconfirm, (b) upgrade Neon plan to make staging branch permanent, (c) script auto-renewal | GREEN | S — but TIME-BOXED |
+| 10.5 CI test environment DATABASE_URL credential | Today's CI failures are this — same Neon root cause as 10.1. Rotate CI's `DATABASE_URL` in GitHub Actions secrets after 10.1 lands | GREEN | S |
+| 10.6 Sentry NODE-EXPRESS-8 alerter SELECT-all-columns hardening | Currently in Tier 2 (Item 2.4). **Decision: keep in Tier 2** — the alerter query hardening is feature-code work that's better grouped with the other Tier 2 SQL hygiene items. Phase 10 leaves a pointer so it's not forgotten. | GREEN | S (counted in Tier 2) |
+| 10.7 Production audit-tier work | `eej-jobs-api` may also need the staging-style architectural fences and protections (e.g. same RBAC enforcement, same encryption posture, same audit-log invariants). Survey first; implement what gaps surface. | GREEN | M (after survey) |
+
+**Acceptance for Phase 10 completion:** 10.1-10.5 + 10.7 done; CI green; `flyctl secrets list -a eej-api` shows rotated values; readonly role queryable from `eej-api` machine SSH session; staging Neon branch persists past 2026-05-23.
+
+**Why parallel to Phase 1:** operational hygiene must not be blocked by feature backlog; same goes the other way. Different execution threads, different evaluators, no shared critical path.
+
+### Phase 11 — Mood/Wellness (post-W3, design-pass-required)
+
+Captured as future build — **not deferred indefinitely.** APATRIS has the primitives (`mood_entries` table, `MoodTab.tsx`, `WellnessTab.tsx`, `voice_checkins` table per Phase 1 audit findings W1/W2/W3/W14). EEJ can incorporate them ONLY after KRAZ defense is settled AND an opt-in/anonymized/no-manager-visibility design pass is reviewed by a legal advisor.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Worker wellbeing self-reporting (mood scores, wellness check-ins, optional voice notes) — a HELP-aligned surface IF designed correctly (worker self-care, not management surveillance). |
+| **Polish-legal-risk (default)** | **AMBER** for mood/wellness; **AMBER→RED** for voice biometrics. Reframed as "design-pass-required" — meaning the AMBER flag is dropped to GREEN only after the design-pass criteria below are met. |
+| **Prerequisite (explicit gate, both required)** | (a) KRAZ classification settled (same as W3.1); (b) design pass reviewed by legal advisor against the three design-pass criteria below |
+| **Design-pass criteria** | (1) **Opt-in:** worker explicitly enables the feature; default OFF; (2) **Anonymized aggregation:** if surfaced to manager, only as anonymized rollup (site-level / team-level averages, never per-worker); (3) **No manager visibility on raw entries:** raw mood entries / voice transcripts are worker-only or accessible only to a designated wellness lead role (not the worker's coordinator); (4) **Retention policy:** explicit retention window (suggested: 90 days for raw entries, indefinite for opt-in anonymized aggregates); (5) **Voice biometric handling:** if voice_checkins ship, full Polish RODO consent flow + transcript-only retention (drop raw audio after transcription). |
+| **Items in scope** | 11.1 `mood_entries` (weekly self-report); 11.2 `MoodTab.tsx` (worker UI); 11.3 `WellnessTab.tsx` (worker UI); 11.4 `voice_checkins` (only if criterion 5 satisfied; otherwise defer further). |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. (EEJ ports APATRIS's schema shape first.) |
+| **Effort** | M for 11.1-11.3 combined when unblocked; +M for 11.4 if shipped. |
 
 ---
 
@@ -254,38 +377,43 @@ From Manish: "Tier W3 (build cautiously or last): Reliability/points summary (Po
 
 | APATRIS item | Phase 1 audit class | Lands in unified plan |
 |---|---|---|
-| W4/W5 messages + MessagingTab | (b) incorporate | Phase 4 W2.3 complaint system (sibling to messaging) — separate later if needed |
+| W4/W5 messages + MessagingTab | (b) incorporate | Phase 4 W2.3 complaint system (shared thread mechanics) + Phase 8 Live Chat (real-time transport on top) |
 | W6/W7 leave_requests + LeaveTab | (b) incorporate | Phase 4 W2.2 |
 | W8/W9 hours_log + TimesheetTab | (b) incorporate | Phase 2 W1.1 |
-| W10 GpsCheckinTab worker-side | (b) incorporate | Phase 2 W1.1 (GPS is embedded in hours-log submit) |
-| W11 ManagerHome 306-LOC | (b) incorporate | Phase 2-4 coordinator-tier UI grows as W1+W2 land |
+| W10 GpsCheckinTab worker-side | (b) incorporate | Phase 2 W1.1 (GPS embedded in hours-log submit) |
+| W11 ManagerHome 306-LOC | (b) incorporate | Phase 2-4 coordinator-tier UI grows as W1+W2 land; full inbox in Phase 8 |
 | W12 push_subscriptions + push-sender | (b) incorporate | Phase 2 W1.3 |
-| W13 notification_log | (b) consider | Phase 1 verify EEJ `eej_notification_log` covers; otherwise port |
-| E1 escalation-engine.service | (b) reference | Phase 4 W2.1 no-show engine |
+| W13 notification_log | (b) consider | Phase 1 verify EEJ `eej_notification_log` covers; otherwise port via Phase 2 W1.3 |
+| E1 escalation-engine.service | (b) reference | Phase 4 W2.1 no-show engine; reused in Phase 8 chat urgent-escalation routing |
 | E2 deadline-engine.service | (b) reference | Phase 1 2.9 + Phase 2 W1.3 |
-| E4 test_scenarios + routes | (b) incorporate | Phase 7 W3.2 |
-| E5 worker-legal-view.service | (b) reference | Could back EEJ's scaffolded MyUPO/MySchengen — covered by Phase 1 hardening if needed; otherwise Phase 3 |
+| E4 test_scenarios + routes | (b) incorporate | **Phase 7 W3.2 — KRAZ-defense gated** (prerequisite: W1+W2 in production) |
+| E5 worker-legal-view.service | (b) reference | Phase 3 scaffold-404 backends — back EEJ's MyUPO/MySchengen (Tier 1 fix from CLAUDE.md priority list) |
 | E6 notification.service router | (b) incorporate | Phase 2 W1.3 (channel-routing infra) |
-| C1 site-coordinators route + coordinator role | (b) incorporate | Phase 2-4 — needs CLAUDE.md RBAC review (coordinator-tier vs operations-tier) |
-| W1/W2/W3 mood / wellness / voice | (d) flag | Deferred; design pass needed before scoping |
-| W14 voice_checkins | (d) flag → RED if biometric | Deferred |
-| C4 face-auth | (d) RED | Deferred outright |
+| C1 site-coordinators route + coordinator role | (b) incorporate | Phase 2-4 — needs CLAUDE.md RBAC review (coordinator-tier vs operations-tier; see Q7) |
+| W1/W2/W3 mood / wellness | (d) flag | **Phase 11 — post-W3 design-pass-required** (NOT deferred indefinitely; gate = KRAZ settled + 3 design-pass criteria) |
+| W14 voice_checkins | (d) flag → biometric | **Phase 11 sub-item 11.4** — ships only if design-pass criterion 5 (voice biometric handling: full Polish RODO consent + transcript-only retention) is satisfied; otherwise defer further |
+| C4 face-auth | (d) RED | Out of scope (Section 5) |
 | Audit #3 ai-audit dedicated route | (b) incorporate | Phase 1 2.x (small, fits hardening) |
 | Audit #4 per-worker activity-log route | (b) incorporate | Phase 1 2.x |
+| **Net-new (no APATRIS source)** — Live Chat (#34) | N/A (EEJ-leads) | **Phase 8** — EEJ builds the primitive; APATRIS implements from EEJ as reference later |
+| **Net-new** — Mobile install testing | N/A (validation, not feature) | **Phase 9** — gates Phase 2 W1 |
+| **Net-new** — Operational hygiene runbook | N/A (operator work) | **Phase 10** — parallel with Phase 1 |
 
 ---
 
 ## Section 5 — Explicitly OUT of scope (and why)
 
-- **Merging EEJ with APATRIS codebase.** Architecture A locked. Cross-codebase mirrors are individual surgical ports, not consolidation.
-- **APATRIS legal-* surface** (legal-cases, legal-brief, legal-evidence-ocr, legal-copilot, legal-status, legal-research, legal-immigration-command, etc.). EEJ doesn't fight Lubuski UW summons; this is APATRIS's KRAZ defense.
+This list is intentionally **shorter** than the Day 28 v1 — items previously here as "deferred" are now captured in Phases 7/11 with explicit prerequisites. Items below are truly out-of-scope (APATRIS-specific surfaces that don't apply to EEJ's business shape, or maximum-risk items).
+
+- **Merging EEJ with APATRIS codebase.** Architecture A locked. Cross-codebase ports are surgical; nothing flows back from EEJ to APATRIS automatically (APATRIS implements from EEJ as reference on their own schedule).
+- **APATRIS legal-* surface** (legal-cases, legal-brief, legal-evidence-ocr, legal-copilot, legal-status, legal-research, legal-immigration-command). EEJ doesn't fight Lubuski UW summons; this is APATRIS's KRAZ defense.
 - **APATRIS PIP-inspection-report / authority-response infra.** Specific to APATRIS's run-in with Polish authorities. EEJ has lighter legal posture (recruitment + worker management; not running cross-border outsourcing).
 - **APATRIS MOS package / posted-workers / A1 form infra.** EEJ doesn't post workers across borders today.
-- **APATRIS multi-tenant SaaS scaffolding** (whitelabel, saas-billing). EEJ is single-tenant per CLAUDE.md tenancy notes.
-- **APATRIS fines / fraud / churn / ROI analytics.** APATRIS-specific business surfaces.
-- **Biometric anything** (face-auth, voice-checkins). Polish RODO / GDPR maximum risk.
-- **Reliability/points penalty engine** unless KRAZ defense is settled (Tier W3 deferred).
-- **P6 Tier A token consolidation** unless Manish confirms scope (275 file touches; surveyed in P6 but no edit per "wait for confirmation"). Plan re-surfaces this as a Phase 6 sub-item only if confirmed.
+- **APATRIS multi-tenant SaaS scaffolding** (whitelabel, saas-billing). EEJ is single-tenant per CLAUDE.md tenancy notes. (Premium-tier SaaS positioning of Phase 8 Live Chat is a separate forward decision — out-of-scope HERE refers to the multi-tenant tenant-isolation infrastructure.)
+- **APATRIS fines / fraud / churn / ROI analytics.** APATRIS-specific business surfaces driven by their portfolio shape, not EEJ's.
+- **Face-auth biometric login (APATRIS C4).** Polish RODO / GDPR maximum risk; no acceptable EEJ use case.
+- **Reliability/points implemented WITHOUT KRAZ-classification gate.** Captured in Phase 7 W3.1 with explicit prerequisite — never built before that prerequisite resolves.
+- **Mood/wellness/voice implemented WITHOUT design-pass review.** Captured in Phase 11 with explicit 5-criteria design-pass gate — never built before legal advisor signs off.
 
 ---
 
@@ -301,6 +429,9 @@ From Manish: "Tier W3 (build cautiously or last): Reliability/points summary (Po
 8. **P6 brand-token consolidation:** approve Tier A (theme.ts approach, 275 file touches over time) — lands in Phase 6 Tier 5? Or hold further?
 9. **Cross-codebase mirror priority:** Phase 1 2.11/2.12 mirror dashboard sibling — Manish-priority or "as time permits"?
 10. **Layer 2 walkthrough cadence:** between every phase, or end-of-phase only? Existing pattern was per-block (P0-P5); plan currently assumes end-of-phase.
+11. **Phase 8 Live Chat WebSocket infrastructure choice:** Pusher / Ably / self-hosted Socket.IO / Anthropic MCP transport (per Phase 8 ARCHITECTURE DECISION block)? Recommendation pending: Pusher for premium-tier MVP, migrate to self-hosted Socket.IO if vendor cost becomes blocker at scale.
+12. **Phase 9 Mobile install testing — Manish solo or with team (Liza/Karan/Marj/Yana)?** Solo = faster, less coordination; team = better device coverage + role-specific findings (e.g. Yana on Ukrainian-language flows, Karan on operations-tier surfaces).
+13. **Phase 10 Neon password rotation timing:** rotate NOW (before further work to limit blast radius of the leaked credential) or end-of-Tier-2 (after hardening lands so rotation only fires once)? Recommendation: rotate NOW (10.1 + 10.2 + 10.5) — the credential leak is a today-class risk and Tier 2 hardening doesn't touch DB credentials.
 
 ---
 
@@ -478,9 +609,86 @@ OUT OF SCOPE (per the Day 28 unified plan):
 
 ---
 
+## Section 9 — Operational Hygiene runbook (Phase 10 consolidated)
+
+Step-by-step for the parallel operational-hygiene thread. Designed to be runnable by Manish without further prompting; checkpoints flagged for chat-Claude review.
+
+### Pre-run state (today)
+- Neon `neondb_owner` password leaked in chat history (Day 28 morning) — must rotate
+- Fly secrets on `eej-api` (staging) + `eej-jobs-api` (production) reference the leaked credential via `DATABASE_URL`
+- CI `DATABASE_URL` in GitHub Actions secrets — same credential, currently causing test failures
+- Staging Neon branch auto-deletes 2026-05-23 (6 days from today's revision date 2026-05-17)
+- No readonly Neon role exists; all consumers use the same `neondb_owner` super-grant credential
+- `eej-jobs-api` production audit-tier work uncertain — needs survey
+
+### Step 1 — Rotate Neon `neondb_owner` password (10.1, HIGH priority)
+1. Log into Neon console (manish@edu-jobs.eu account)
+2. Project → Roles → `neondb_owner` → Reset password
+3. Copy new password to clipboard (do NOT paste into chat / docs / commit)
+4. Build new `DATABASE_URL` string locally; verify it connects via `psql` from your laptop
+5. **Checkpoint:** report new connection works; chat-Claude confirms before proceeding to Step 2
+
+### Step 2 — Rotate Fly secrets (10.2)
+1. `flyctl secrets set -a eej-api DATABASE_URL=postgresql://...` (new credential from Step 1)
+2. Wait for `eej-api` rolling restart, verify `https://eej-api.fly.dev/api/healthz` → 200
+3. `flyctl secrets set -a eej-jobs-api DATABASE_URL=postgresql://...` (same new credential)
+4. Wait for `eej-jobs-api` rolling restart, verify `https://eej-jobs-api.fly.dev/api/healthz` → 200
+5. While rotating, also rotate JWT_SECRET + EEJ_ENCRYPTION_KEY on both apps **only if** Manish accepts the trade-off (rotating JWT_SECRET logs everyone out; rotating EEJ_ENCRYPTION_KEY breaks decryption of existing PESEL/IBAN records — DO NOT rotate EEJ_ENCRYPTION_KEY without a re-encryption migration plan)
+6. **Checkpoint:** both apps healthy; staging + prod login still works; chat-Claude confirms before Step 3
+
+### Step 3 — Rotate CI credential (10.5)
+1. GitHub repo → Settings → Secrets and variables → Actions → `DATABASE_URL` → Update with new credential
+2. Re-run last failing CI job; verify green
+3. **Checkpoint:** CI green; chat-Claude confirms
+
+### Step 4 — Provision readonly Neon role (10.3)
+1. Neon console → Roles → Create role `eej_readonly` with password
+2. SQL on the staging branch: `GRANT USAGE ON SCHEMA public TO eej_readonly; GRANT SELECT ON ALL TABLES IN SCHEMA public TO eej_readonly; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO eej_readonly;`
+3. Verify: `psql` as `eej_readonly`, run `SELECT 1; UPDATE workers SET name='x' WHERE 1=0;` → second should error with permission denied
+4. `flyctl secrets set -a eej-api DATABASE_URL_READONLY=postgresql://eej_readonly:...`
+5. Code change tracked separately — readonly consumers (reports, analytics, Sentry pull jobs) switched to `DATABASE_URL_READONLY` env var (incremental migration, not part of this Step 4)
+6. **Checkpoint:** readonly role exists + queryable + correctly denied writes
+
+### Step 5 — Staging Neon branch renewal (10.4) — TIME-BOXED to 2026-05-23
+1. Neon console → Branches → `staging` → Check expiry date
+2. Pick one: (a) Refresh the branch (resets the 14-day timer), (b) Upgrade Neon plan to Pro for permanent branches (paid), (c) Add a script that auto-refreshes via Neon API on day 12 of the cycle
+3. Recommendation: (b) Pro plan — eliminates the recurring chore and 6-day cliff
+4. **Checkpoint:** staging branch persists past 2026-05-23
+
+### Step 6 — Production audit-tier survey (10.7)
+1. Compare `eej-jobs-api` against the same fences/protections Manish applied to `eej-api`:
+   - Encryption posture (`EEJ_ENCRYPTION_KEY` set; `lib/encryption.ts` paths covered)
+   - RBAC enforcement (every protected route has `authenticateToken` + role check)
+   - Audit-log invariants (INSERT-only on `audit_entries`)
+   - Tenant isolation (every tenanted query uses `requireTenant` + `scopedWhere`)
+   - CORS allowlist (no wildcards)
+   - Stripe webhook signature verification
+2. Report gaps; implement fixes; commit per gap
+3. **Checkpoint:** survey doc committed; gaps closed or queued
+
+### Phase 10 completion
+- 10.1 / 10.2 / 10.3 / 10.4 / 10.5 done; 10.7 surveyed and triaged; 10.6 left in Tier 2 with a Phase 10 pointer
+- `flyctl secrets list -a eej-api` shows rotated values (timestamps post Step 2)
+- CI green over at least 3 consecutive runs
+- Readonly role queryable from `eej-api` machine SSH session (`flyctl ssh console -a eej-api` → `psql $DATABASE_URL_READONLY -c "SELECT 1"`)
+- Staging Neon branch persists past 2026-05-23
+
+---
+
 ## Status
 
 - **Phase 1 audit:** committed `26012a6`
-- **Phase 2 unified plan:** this document, committing next.
-- **Phase 3 next-step prompt:** drafted above (Section 8), NOT auto-sent.
-- **Awaiting Manish:** open questions in Section 6 + Section 8 chat-Claude-check items before execution starts.
+- **Phase 2 unified plan v1:** committed `c0e68f9`
+- **Phase 2 unified plan v2 (this revision — adds Phases 8-11 + Section 9):** this document, committing next.
+- **Phase 3 next-step prompt:** drafted in Section 8, NOT auto-sent.
+- **Awaiting Manish:** open questions Q1-Q13 in Section 6 + Section 8 chat-Claude-check items before execution starts.
+
+---
+
+## 5-element self-review (per methodology template)
+
+1. **What changed.** Day 28 plan revised to capture every feature as part of the future build — nothing parked, nothing deferred-indefinitely. Added Phase 8 (Live Chat #34), Phase 9 (Mobile Install Testing), Phase 10 (Operational Hygiene parallel with Tier 2), Phase 11 (Mood/Wellness post-W3). Reframed Phase 7 W3 from "deferred" to "KRAZ-defense gated" with explicit prerequisites. Added APATRIS-porting note ("build in EEJ; APATRIS implements from EEJ as reference later") to W1.1, W1.2, W1.3, W2.1, W2.2, W3.1, W3.2, Phase 8, Phase 11. Updated Section 4 cross-reference with new rows. Shrunk Section 5 OUT-of-scope to truly-out items (face-auth biometric, APATRIS-specific business surfaces). Added Q11/Q12/Q13 to Section 6. Added Section 9 — six-step Operational Hygiene runbook.
+2. **Why this scope.** Manish + chat-Claude explicitly required nothing be parked. Previous draft had W3 framed as "deferred" and mood/wellness as "out of scope" — both are now part of the plan with explicit gating prerequisites, so the operator can see exactly what unblocks each. Live Chat (#34) added as a premium-tier feature for paying agencies. Operational hygiene split into its own parallel phase because the Neon credential leak today is a today-class risk that cannot wait for feature work.
+3. **Verification mechanism.** Every new phase has acceptance criteria + Polish-legal-risk flag + Architecture A note + APATRIS-source-reference where applicable. Section 9 runbook is step-by-step with explicit checkpoints. Section 6 open questions cover the architecture decisions that must resolve before Phase 8 execution + the Phase 9 testing-team scope + the Phase 10 timing decision.
+4. **What was NOT verified.** Phase 8 effort estimate (XL) is a rough order-of-magnitude — could be larger depending on Phase 8 ARCHITECTURE DECISION outcome (self-hosted Socket.IO is significantly bigger than Pusher integration). Phase 10.7 production audit-tier survey scope is unknown until the survey runs. Phase 11 design-pass criteria (5 items listed) are draft — legal advisor may add or modify them. Phase 9 testing matrix doesn't enumerate every P0-P6 sub-fix because the post-P0-P6 commit hash is the source of truth; testing reads from that.
+5. **Risks.** (i) Phase 8 Live Chat scope creep — XL is honest but bigger if AI auto-categorization Phase 2 absorbs scope from MVP. Mitigation: ARCHITECTURE DECISION gate before scoping execution. (ii) Phase 10.1 + 10.2 + 10.5 rotation order matters — rotating Fly secrets before Neon password is rotated leaks the new secret to whoever still has the old password. Section 9 enforces order Step 1 → Step 2 → Step 3 explicitly. (iii) Phase 11 design-pass criteria may shift after legal review; the gate is the legal review itself, not the current criteria draft. (iv) Phase 7 W3.1 prerequisite "KRAZ classification settled" depends on APATRIS's legal posture resolving — EEJ doesn't control that timeline; W3.1 could remain gated indefinitely if APATRIS's KRAZ resolution drifts.

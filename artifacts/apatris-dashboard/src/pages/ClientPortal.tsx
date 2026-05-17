@@ -37,7 +37,7 @@ export default function ClientPortal() {
   const { t } = useTranslation();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const pageName = "ClientPortal";
+  const pageName: string = "ClientPortal"; // Item 2.16 — widen literal for shared-template comparisons
   const Icon = ICONS[pageName] ?? Shield;
 
   useEffect(() => {

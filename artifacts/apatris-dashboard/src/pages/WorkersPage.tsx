@@ -154,7 +154,17 @@ export default function WorkersPage() {
     specialization: specialization || undefined,
     status: status || undefined,
   }, {
-    query: { refetchInterval: 15_000 },
+    // Item 2.16 — TanStack Query options type requires queryKey alongside
+    // refetchInterval. Include filter params so per-filter cache identity
+    // matches the invalidateQueries call below (line ~227).
+    query: {
+      queryKey: getGetWorkersQueryKey({
+        search: search || undefined,
+        specialization: specialization || undefined,
+        status: status || undefined,
+      }),
+      refetchInterval: 15_000,
+    },
   });
 
   const uniqueClients = Array.from(

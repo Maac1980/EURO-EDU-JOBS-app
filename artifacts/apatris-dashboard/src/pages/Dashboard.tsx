@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { useGetWorkers, useGetWorkerStats } from "@workspace/api-client-react";
+import { useGetWorkers, useGetWorkerStats, getGetWorkersQueryKey } from "@workspace/api-client-react";
 import {
   Users, AlertTriangle, ShieldAlert, Clock,
   LogOut, RefreshCcw, Pencil, MapPin, UserCheck, UserMinus, Building2,
@@ -215,7 +215,11 @@ export default function Dashboard() {
   // ExpiryCalendar, deployment site breakdown). The /workers grid moved to
   // WorkersPage.tsx in commit 23 — TanStack Query dedupes the request across pages.
   const { data: workersData } = useGetWorkers({}, {
-    query: { refetchInterval: 15_000 },
+    // Item 2.16 — TanStack Query options type requires queryKey alongside
+    // refetchInterval; use the generated getGetWorkersQueryKey helper
+    // (same one used by invalidateQueries in WorkersPage:227 for cache
+    // identity).
+    query: { queryKey: getGetWorkersQueryKey({}), refetchInterval: 15_000 },
   });
 
   const { data: stats } = useGetWorkerStats();

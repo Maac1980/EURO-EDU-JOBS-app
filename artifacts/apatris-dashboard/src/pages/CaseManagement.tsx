@@ -37,7 +37,12 @@ export default function CaseManagement() {
   const { t } = useTranslation();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const pageName = "CaseManagement";
+  // Item 2.16 — typed as `string` (not the literal "CaseManagement") so the
+  // shared-template comparisons below (pageName === "InspectionReport" etc.)
+  // typecheck even though the runtime branch is statically known dead. The
+  // template is shared with sibling legal pages; keeping the comparison
+  // shape costs nothing at runtime and avoids per-page divergence.
+  const pageName: string = "CaseManagement";
   const Icon = ICONS[pageName] ?? Shield;
 
   useEffect(() => {

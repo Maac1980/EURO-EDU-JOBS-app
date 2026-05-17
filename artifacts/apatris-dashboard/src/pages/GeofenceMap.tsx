@@ -15,7 +15,10 @@ const PAGE_CONFIG: Record<string, { title: string; endpoint: string; icon: any }
 
 export default function GeofenceMap() {
   const { t } = useTranslation();
-  const config = PAGE_CONFIG["GeofenceMap"];
+  // Item 2.16 — widen literal to `string` so shared-template comparisons
+  // typecheck (see twin in AiCopilotChat.tsx / CrmPipeline.tsx).
+  const pageName: string = "GeofenceMap";
+  const config = PAGE_CONFIG[pageName];
   const Icon = config?.icon ?? Shield;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +48,7 @@ export default function GeofenceMap() {
         <Icon className="w-6 h-6 text-primary" /> {config?.title ?? "GeofenceMap"}
       </h1>
 
-      {"GeofenceMap" === "AiCopilotChat" ? (
+      {pageName === "AiCopilotChat" ? (
         <div className="space-y-4">
           <div className="bg-card border border-border rounded-xl p-5">
             <div className="flex gap-3">
@@ -65,7 +68,7 @@ export default function GeofenceMap() {
             </div>
           )}
         </div>
-      ) : "GeofenceMap" === "CrmPipeline" ? (
+      ) : pageName === "CrmPipeline" ? (
         <div className="grid grid-cols-5 gap-3">
           {["lead", "proposal", "negotiation", "won", "active"].map(stage => (
             <div key={stage} className="bg-card border border-border rounded-xl p-3">
@@ -83,7 +86,7 @@ export default function GeofenceMap() {
             </div>
           ))}
         </div>
-      ) : "GeofenceMap" === "GeofenceMap" ? (
+      ) : pageName === "GeofenceMap" ? (
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="space-y-3">
             {(data?.sites ?? []).map((s: any) => (

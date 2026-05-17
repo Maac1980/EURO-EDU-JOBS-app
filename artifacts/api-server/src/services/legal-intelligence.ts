@@ -201,17 +201,17 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
     const hasRejection = !!(rejectionText?.trim());
     const providerStatus = { perplexity: "not_called", claude: "not_called" };
 
-    // Perplexity research
-    let research = "";
-    let sources: string[] = [];
-    const perp = await callPerplexity(
-      "Research Polish administrative appeal procedures for immigration decisions. Cite official sources.",
-      hasRejection ? `Appeal procedures for: ${rejectionText.substring(0, 500)}` : "General TRC appeal procedures under KPA Art. 127"
-    );
-    research = perp.answer; sources = perp.sources;
-    providerStatus.perplexity = perp.answer.startsWith("[") ? "error" : "success";
-
-    // Claude analysis
+    // Item 2.A — Perplexity research + Claude analysis run concurrently.
+    // Both are independent: Perplexity researches general appeal procedures
+    // (uses rejectionText or KPA Art. 127 fallback), Claude analyzes the
+    // worker context for grounds/evidence/articles (uses the `context`
+    // string only — does NOT read perp.answer). Saves the slower of the two
+    // (~15-30s) off appeal-route wait time.
+    //
+    // Both callPerplexity and callClaude catch their own errors internally
+    // (Item 2.2 pattern — return "[Perplexity error: ...]" / "[AI error: ...]"
+    // string contracts), so Promise.all will NOT reject and providerStatus
+    // tracking still fires correctly after each promise resolves.
     let appealGrounds: string[] = [];
     let missingEvidence: string[] = [];
     let lawyerNote = "";
@@ -223,10 +223,23 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
 
     const context = `Worker: ${w.name}, ${w.nationality ?? "N/A"}\nPermit: ${w.trc_expiry ?? w.work_permit_expiry ?? "N/A"}\n${hasRejection ? `Rejection: ${rejectionText.substring(0, 2000)}` : "No rejection text."}`;
 
-    const aiRaw = await callClaude(
-      `${context}\n\nAnalyze and return JSON: {appealGrounds:[], missingEvidence:[], lawyerReviewNote:"", appealOutline:"", workerExplanation:"", clientExplanation:"", relevantArticles:[{article:"",relevance:""}]}.\n${hasRejection ? "" : "No rejection text — provide general guidance only."}`,
-      "You are a Polish immigration law analyst. DRAFT only. Never guarantee success. Never invent articles.", 2500
-    );
+    const [perp, aiRaw] = await Promise.all([
+      callPerplexity(
+        "Research Polish administrative appeal procedures for immigration decisions. Cite official sources.",
+        hasRejection ? `Appeal procedures for: ${rejectionText.substring(0, 500)}` : "General TRC appeal procedures under KPA Art. 127"
+      ),
+      callClaude(
+        `${context}\n\nAnalyze and return JSON: {appealGrounds:[], missingEvidence:[], lawyerReviewNote:"", appealOutline:"", workerExplanation:"", clientExplanation:"", relevantArticles:[{article:"",relevance:""}]}.\n${hasRejection ? "" : "No rejection text — provide general guidance only."}`,
+        "You are a Polish immigration law analyst. DRAFT only. Never guarantee success. Never invent articles.", 2500
+      ),
+    ]);
+
+    // Perplexity result
+    const research = perp.answer;
+    const sources = perp.sources;
+    providerStatus.perplexity = perp.answer.startsWith("[") ? "error" : "success";
+
+    // Claude result
     providerStatus.claude = aiRaw.startsWith("[AI") ? "error" : "success";
 
     try {

@@ -53,16 +53,86 @@ router.patch("/admin/profile", authenticateToken, requireAdmin, async (req, res)
 
 // ── Team / User Management ────────────────────────────────────────────────────
 
+// Translate a system_users row to dashboard role taxonomy. Mirrors
+// roleFromSystemUser() in routes/auth.ts (kept inline here to avoid
+// cross-route imports). T4 candidate-tier filtered out — they're
+// workers, not team members, and don't belong in the admin team card.
+function dashRoleFromSystemUser(role: string, designation: string | null): "admin" | "coordinator" | "manager" | null {
+  const d = (designation ?? "").toLowerCase();
+  if (role === "T1") return d.includes("legal") ? "coordinator" : "admin";
+  if (role === "T2") return "coordinator";
+  if (role === "T3") return "manager";
+  return null;
+}
+
 router.get("/admin/users", authenticateToken, requireAdmin, async (req, res) => {
   try {
     const tenantId = requireTenant(req);
-    const users = await db.select({
+
+    // Legacy users table (Anna's pre-T23 admin row; future legacy entries).
+    const legacyUsers = await db.select({
       id: schema.users.id,
       email: schema.users.email,
       name: schema.users.name,
       role: schema.users.role,
       site: schema.users.site,
     }).from(schema.users).where(eq(schema.users.tenantId, tenantId));
+
+    // system_users table (T23 team: Manish, Anna, Liza, Karan, Marjorie, Yana
+    // + historical Marta, Piotr). Has no tenant column — implicitly production.
+    // Translate role to dashboard taxonomy (T1+Legal→coordinator, T1→admin,
+    // T2→coordinator, T3→manager; T4 filtered out as worker-tier, not team).
+    const sysUsers = await db.select({
+      id: schema.systemUsers.id,
+      email: schema.systemUsers.email,
+      name: schema.systemUsers.name,
+      role: schema.systemUsers.role,
+      designation: schema.systemUsers.designation,
+    }).from(schema.systemUsers);
+
+    // Aggregate + dedupe by lowercased email. On collision (Anna, Manish exist
+    // in both tables after T23 seed), legacy users-table row wins because it
+    // carries the id that PATCH/DELETE /admin/users/:id operates on. sourceTable
+    // field tells the frontend which row backed the entry — system_users rows
+    // are currently read-only from this card (edit via /eej/auth flows).
+    type AggregatedUser = {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+      site: string | null;
+      sourceTable: "users" | "system_users";
+    };
+    const byEmail = new Map<string, AggregatedUser>();
+
+    // Add system_users first so legacy rows can override on collision.
+    for (const u of sysUsers) {
+      const translated = dashRoleFromSystemUser(u.role, u.designation);
+      if (!translated) continue; // T4 candidate-tier filtered
+      const key = u.email.toLowerCase();
+      byEmail.set(key, {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: translated,
+        site: null,
+        sourceTable: "system_users",
+      });
+    }
+    // Legacy users override (carries the canonical id for PATCH/DELETE).
+    for (const u of legacyUsers) {
+      const key = u.email.toLowerCase();
+      byEmail.set(key, {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        site: u.site,
+        sourceTable: "users",
+      });
+    }
+
+    const users = Array.from(byEmail.values()).sort((a, b) => a.name.localeCompare(b.name));
     return res.json({ users });
   } catch {
     return res.status(500).json({ error: "Could not load users." });
@@ -331,6 +401,50 @@ router.get("/admin/stats", authenticateToken, requireFinancialAccess, requireAdm
   } catch (err) {
     console.error("[admin/stats]", err);
     return res.status(500).json({ error: "Could not load executive stats." });
+  }
+});
+
+// GET /admin/ai-reasoning — list AI decisions across the tenant.
+// Each row records why AI did what it did (document_extraction, field_update,
+// worker_auto_create, ai_summary, etc.) with confidence, reviewer, source.
+// Liza / Anna visit this when a Voivodeship questions an AI-driven update —
+// this is the legal evidence trail. Append-only on the table; this endpoint
+// is read-only.
+//
+// Filters: decisionType, decidedAction, workerId (free-text in query string).
+router.get("/admin/ai-reasoning", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+    const decisionType = typeof req.query.decisionType === "string" ? req.query.decisionType : null;
+    const decidedAction = typeof req.query.decidedAction === "string" ? req.query.decidedAction : null;
+    const workerId = typeof req.query.workerId === "string" ? req.query.workerId : null;
+    const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
+
+    const result = await db.execute(sql`
+      SELECT r.id, r.decision_type, r.input_summary, r.output, r.confidence,
+             r.decided_action, r.reviewed_by, r.model, r.created_at,
+             r.worker_id, w.name AS worker_name
+      FROM ai_reasoning_log r
+      LEFT JOIN workers w ON w.id = r.worker_id
+      WHERE r.tenant_id = ${tenantId}
+        AND (${decisionType}::text IS NULL OR r.decision_type = ${decisionType})
+        AND (${decidedAction}::text IS NULL OR r.decided_action = ${decidedAction})
+        AND (${workerId}::uuid IS NULL OR r.worker_id = ${workerId}::uuid)
+      ORDER BY r.created_at DESC
+      LIMIT ${limit}
+    `);
+
+    return res.json({
+      entries: result.rows,
+      meta: {
+        count: result.rows.length,
+        filters: { decisionType, decidedAction, workerId },
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to load AI reasoning log",
+    });
   }
 });
 

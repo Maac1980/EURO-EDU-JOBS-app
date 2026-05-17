@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Globe, Clock, AlertTriangle } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 export default function PostedDeadlines() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);

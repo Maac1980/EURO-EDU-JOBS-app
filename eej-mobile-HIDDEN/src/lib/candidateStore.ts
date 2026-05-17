@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Candidate } from "@/data/mockData";
-import { apiFetchCandidates, apiCreateCandidate } from "./apiClient";
+import { apiFetchCandidates, apiCreateCandidate, ApiError } from "./apiClient";
 
 type StoreResult = {
   candidates: Candidate[];
@@ -22,9 +22,18 @@ export function useCandidateStore(): StoreResult {
       const live = await apiFetchCandidates();
       setCandidates(live);
     } catch (err) {
-      console.warn("[candidateStore] API unavailable:", err);
+      console.warn("[candidateStore] API error:", err);
       setCandidates([]);
-      setError("Could not connect to server.");
+      // Distinguish auth failure from connection failure so users (and future
+      // debuggers) aren't misled. Pre-fix #14 the generic "cannot connect"
+      // string masked a 401 caused by missing Authorization header.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setError("Session expired — please log in again.");
+      } else if (err instanceof ApiError) {
+        setError(`Server returned ${err.status}. Please try again.`);
+      } else {
+        setError("Could not connect to server.");
+      }
     } finally {
       setLoading(false);
     }

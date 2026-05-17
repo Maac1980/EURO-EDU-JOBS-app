@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi, type Mock } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi, type Mock } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
 import type { Pool } from "pg";
@@ -49,6 +49,22 @@ vi.mock("twilio", async (importActual) => {
     twiml: ns.twiml,
     RequestClient: ns.RequestClient,
     RestException: ns.RestException,
+  };
+});
+
+// Mock the AI lib so document-scan tests can run without ANTHROPIC_API_KEY
+// and without making real network calls. Individual tests override the mock
+// per-case via analyzeImageMock.mockResolvedValueOnce(...).
+const { analyzeImageMock, analyzeTextMock } = vi.hoisted(() => ({
+  analyzeImageMock: vi.fn<(...args: unknown[]) => Promise<string | null>>(),
+  analyzeTextMock: vi.fn<(...args: unknown[]) => Promise<string | null>>(),
+}));
+vi.mock("./lib/ai.js", async (importActual) => {
+  const actual: any = await importActual();
+  return {
+    ...actual,
+    analyzeImage: analyzeImageMock,
+    analyzeText: analyzeTextMock,
   };
 });
 
@@ -1039,6 +1055,119 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       expect(typeof res.body.whatsappPendingApproval).toBe("number");
       expect(res.body.unreadWhatsApp).toBe(baseUnread + 1);
       expect(res.body.whatsappPendingApproval).toBe(basePending + 1);
+    });
+
+    // PENDING-2 fix (May 14): mobile T1 executive tokens were getting 403 on
+    // /admin/stats because requireAdmin only accepted role="admin" (dashboard
+    // shape). After unification, requireAdmin accepts both "admin" (dashboard
+    // T1 translation) and "executive" (mobile T1 role) — semantically the
+    // same tier-1 founder accounts. Coordinator/manager/legal/operations
+    // still rejected (DASH.7 confirms coordinator stays out).
+    it("A5b /admin/stats accepts mobile T1 executive token (PENDING-2 regression)", async () => {
+      const res = await request(app)
+        .get("/api/admin/stats")
+        .set("Authorization", `Bearer ${t1Token}`);
+      expect(res.status).toBe(200);
+      expect(typeof res.body).toBe("object");
+    });
+
+    // PENDING-5 fix (May 14): /admin/users now aggregates legacy users +
+    // system_users so all team members appear in TeamManagementCard.
+    // Pre-aggregation: card showed only Anna (legacy users row); the 5
+    // system_users team members (Liza, Karan, Marjorie, Yana plus Manish)
+    // were invisible. After aggregation: emails dedupe; sourceTable field
+    // tells frontend which table backed each row so edit/delete affordances
+    // can be conditionally shown.
+    it("A5c /admin/users aggregates legacy users + system_users with sourceTable field", async () => {
+      // Insert a marker system_users row we can detect in the response.
+      const markerEmail = `agg-marker-${Date.now()}@eej-test.local`;
+      const markerHash = `${"a".repeat(32)}:${"b".repeat(128)}`;
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('Agg Marker', $1, $2, 'T3', 'Recruitment Marker', 'Operations') RETURNING id`,
+        [markerEmail, markerHash],
+      );
+      const markerId = ins.rows[0].id;
+
+      try {
+        const res = await request(app)
+          .get("/api/admin/users")
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.users)).toBe(true);
+
+        // Marker row appears with translated role + sourceTable
+        const markerRow = res.body.users.find((u: { email: string }) => u.email === markerEmail);
+        expect(markerRow).toBeDefined();
+        expect(markerRow.role).toBe("manager"); // T3 → manager
+        expect(markerRow.sourceTable).toBe("system_users");
+
+        // Every row has sourceTable (no undefined leaking through)
+        for (const u of res.body.users as Array<{ sourceTable?: string }>) {
+          expect(["users", "system_users"].includes(u.sourceTable ?? "")).toBe(true);
+        }
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [markerId]);
+      }
+    });
+
+    it("A5d /admin/users dedupes on email collision; legacy users row wins (preserves PATCH/DELETE id)", async () => {
+      // Seed an email in BOTH tables — legacy row should win on collision.
+      const collisionEmail = `collide-${Date.now()}@eej-test.local`;
+      const hash = `${"c".repeat(32)}:${"d".repeat(128)}`;
+
+      const legacyIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (name, email, role, site, password_hash, tenant_id)
+         VALUES ('Legacy Side', $1, 'coordinator', NULL, $2, 'production') RETURNING id`,
+        [collisionEmail, hash],
+      );
+      const legacyId = legacyIns.rows[0].id;
+
+      const sysIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('System Side', $1, $2, 'T3', 'Ops', 'Operations') RETURNING id`,
+        [collisionEmail, hash],
+      );
+      const sysId = sysIns.rows[0].id;
+
+      try {
+        const res = await request(app)
+          .get("/api/admin/users")
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+
+        const matches = (res.body.users as Array<{ email: string; id: string; sourceTable: string; name: string }>)
+          .filter(u => u.email === collisionEmail);
+        expect(matches.length).toBe(1); // deduped
+        expect(matches[0].id).toBe(legacyId); // legacy id won
+        expect(matches[0].sourceTable).toBe("users");
+        expect(matches[0].name).toBe("Legacy Side"); // legacy row's name
+      } finally {
+        await pool.query(`DELETE FROM users WHERE id = $1`, [legacyId]);
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [sysId]);
+      }
+    });
+
+    it("A5e /admin/users filters out T4 candidate-tier system_users rows (workers, not team)", async () => {
+      const t4Email = `t4-team-test-${Date.now()}@eej-test.local`;
+      const hash = `${"e".repeat(32)}:${"f".repeat(128)}`;
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('T4 Candidate', $1, $2, 'T4', 'Worker', 'Worker') RETURNING id`,
+        [t4Email, hash],
+      );
+      const t4Id = ins.rows[0].id;
+
+      try {
+        const res = await request(app)
+          .get("/api/admin/users")
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        const found = (res.body.users as Array<{ email: string }>).find(u => u.email === t4Email);
+        expect(found).toBeUndefined();
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [t4Id]);
+      }
     });
   }
 );
@@ -2827,6 +2956,39 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
     let lizaToken: string;
     let yanaToken: string;
     let meToken: string;
+    // Dashboard auth unification (May 14) — DASH.1-DASH.10 fixtures
+    let manishDashId: string;
+    let manishDashEmail: string;
+    let manishDashPassword: string;
+    let karanDashId: string;
+    let karanDashEmail: string;
+    let karanDashPassword: string;
+    let yanaDashId: string;
+    let yanaDashEmail: string;
+    let yanaDashPassword: string;
+    let lizaDashId: string;
+    let lizaDashEmail: string;
+    let lizaDashPassword: string;
+    let annaDashSysId: string;
+    let annaDashSysEmail: string;
+    let annaDashSysPassword: string;
+    let annaDashUsersId: string;
+    let annaDashUsersPassword: string;
+    let legacyFallbackId: string;
+    let legacyFallbackEmail: string;
+    let legacyFallbackPassword: string;
+    let t4DashId: string;
+    let t4DashEmail: string;
+    let t4DashPassword: string;
+    let dashTargetWorkerId: string;
+    // 2FA migration to system_users (May 15, commit 5a) — TFA fixture
+    let tfaDashId: string;
+    let tfaDashEmail: string;
+    let tfaDashPassword: string;
+    // Mandatory-for-admin (commit 5b) — separate fixture so DASH.4 stays clean
+    let tfaMandatoryId: string;
+    let tfaMandatoryEmail: string;
+    let tfaMandatoryPassword: string;
 
     async function scryptHash(password: string): Promise<string> {
       const { randomBytes, scrypt } = await import("crypto");
@@ -2925,17 +3087,148 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
           canViewFinancials: true, nationalityScope: "Ukrainian" },
         process.env.JWT_SECRET!, { expiresIn: "5m" },
       );
+
+      // ── Dashboard auth unification (May 14) — DASH fixtures ───────────────
+      // Manish-like: T1 with designation NOT containing "legal" → translates to admin.
+      manishDashEmail = `manish-dash-${Date.now()}@eej-test.local`;
+      manishDashPassword = "manish-dash-pwd-12345678";
+      const manishDashHash = await scryptHash(manishDashPassword);
+      const manishDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Manish Dash Test', $1, $2, 'T1', 'Founder & Executive', 'Executive', TRUE, NULL, TRUE) RETURNING id`,
+        [manishDashEmail, manishDashHash],
+      );
+      manishDashId = manishDashIns.rows[0].id;
+
+      // Karan-like: T3 with canEditWorkers=true → translates to manager.
+      karanDashEmail = `karan-dash-${Date.now()}@eej-test.local`;
+      karanDashPassword = "karan-dash-pwd-12345678";
+      const karanDashHash = await scryptHash(karanDashPassword);
+      const karanDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Karan Dash Test', $1, $2, 'T3', 'Recruitment & People Operations', 'Operations', FALSE, NULL, TRUE) RETURNING id`,
+        [karanDashEmail, karanDashHash],
+      );
+      karanDashId = karanDashIns.rows[0].id;
+
+      // Yana-like: T3 with nationalityScope='Ukrainian' + canEditWorkers=true → manager.
+      yanaDashEmail = `yana-dash-${Date.now()}@eej-test.local`;
+      yanaDashPassword = "yana-dash-pwd-12345678";
+      const yanaDashHash = await scryptHash(yanaDashPassword);
+      const yanaDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Yana Dash Test', $1, $2, 'T3', 'Contracts & UA Liaison', 'Operations', FALSE, 'Ukrainian', TRUE) RETURNING id`,
+        [yanaDashEmail, yanaDashHash],
+      );
+      yanaDashId = yanaDashIns.rows[0].id;
+
+      // Liza-like: T1 with "legal" in designation → translates to coordinator.
+      lizaDashEmail = `liza-dash-${Date.now()}@eej-test.local`;
+      lizaDashPassword = "liza-dash-pwd-12345678";
+      const lizaDashHash = await scryptHash(lizaDashPassword);
+      const lizaDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Liza Dash Test', $1, $2, 'T1', 'Head of Legal & Client Relations', 'Legal & Compliance', FALSE, NULL, TRUE) RETURNING id`,
+        [lizaDashEmail, lizaDashHash],
+      );
+      lizaDashId = lizaDashIns.rows[0].id;
+
+      // Anna-like: present in BOTH tables with DIFFERENT passwords. DASH.5 logs in
+      // with system_users password (wins); DASH.5b logs in with users password
+      // (should fail — system_users row matches by email, password mismatch → 401,
+      // not 200 via fallback). Tenant 'test' so fixtures don't pollute production.
+      annaDashSysEmail = `anna-dash-${Date.now()}@eej-test.local`;
+      annaDashSysPassword = "anna-sys-pwd-12345678";
+      annaDashUsersPassword = "anna-users-pwd-different-87654321";
+      const annaDashSysHash = await scryptHash(annaDashSysPassword);
+      const annaDashUsersHash = await scryptHash(annaDashUsersPassword);
+      const annaDashSysIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('Anna Dash Test', $1, $2, 'T1', 'Executive Board & Finance', 'Executive', TRUE, NULL, TRUE) RETURNING id`,
+        [annaDashSysEmail, annaDashSysHash],
+      );
+      annaDashSysId = annaDashSysIns.rows[0].id;
+      const annaDashUsersIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (name, email, role, site, password_hash, tenant_id)
+         VALUES ('Anna Dash Test (legacy)', $1, 'manager', NULL, $2, 'test') RETURNING id`,
+        [annaDashSysEmail, annaDashUsersHash],
+      );
+      annaDashUsersId = annaDashUsersIns.rows[0].id;
+
+      // Legacy-only fallback fixture: exists in users table only, not in
+      // system_users. Login must succeed via the fallback path with role
+      // from users table (manager).
+      legacyFallbackEmail = `legacy-fallback-${Date.now()}@eej-test.local`;
+      legacyFallbackPassword = "legacy-pwd-12345678";
+      const legacyFallbackHash = await scryptHash(legacyFallbackPassword);
+      const legacyFallbackIns = await pool.query<{ id: string }>(
+        `INSERT INTO users (name, email, role, site, password_hash, tenant_id)
+         VALUES ('Legacy Fallback Test', $1, 'manager', NULL, $2, 'test') RETURNING id`,
+        [legacyFallbackEmail, legacyFallbackHash],
+      );
+      legacyFallbackId = legacyFallbackIns.rows[0].id;
+
+      // T4 candidate fixture for DASH.10 reject test.
+      t4DashEmail = `t4-dash-${Date.now()}@eej-test.local`;
+      t4DashPassword = "t4-dash-pwd-12345678";
+      const t4DashHash = await scryptHash(t4DashPassword);
+      const t4DashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('T4 Candidate Test', $1, $2, 'T4', 'Candidate', 'Candidate', FALSE, NULL, FALSE) RETURNING id`,
+        [t4DashEmail, t4DashHash],
+      );
+      t4DashId = t4DashIns.rows[0].id;
+
+      // Target worker for DASH.9 PATCH test (manager-tier with canEditWorkers=true
+      // must succeed; manager-tier without the flag must 403).
+      const dashWorkerIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality)
+         VALUES ('DASH Target Worker', '+48 555 990 003', 'test', 'Polish') RETURNING id`,
+      );
+      dashTargetWorkerId = dashWorkerIns.rows[0].id;
+
+      // 2FA on system_users (commit 5a) — dedicated fixture so TFA.* tests
+      // can mutate 2FA state without affecting DASH.* tests. T3 manager,
+      // opt-in 2FA (requires_2fa = FALSE; sets up via /2fa/setup flow).
+      tfaDashEmail = `tfa-dash-${Date.now()}@eej-test.local`;
+      tfaDashPassword = "tfa-dash-pwd-12345678";
+      const tfaDashHash = await scryptHash(tfaDashPassword);
+      const tfaDashIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers)
+         VALUES ('TFA Dash Test', $1, $2, 'T3', 'Recruitment Test', 'Operations', FALSE, NULL, TRUE) RETURNING id`,
+        [tfaDashEmail, tfaDashHash],
+      );
+      tfaDashId = tfaDashIns.rows[0].id;
+
+      // Mandatory-for-admin fixture (commit 5b) — T1 non-Legal designation
+      // (translates to admin role) with requires_2fa = TRUE. Separate from
+      // manishDashId so DASH.4 stays a clean role+canViewFinancials shape
+      // test without inheriting setup-required behavior.
+      tfaMandatoryEmail = `tfa-mandatory-${Date.now()}@eej-test.local`;
+      tfaMandatoryPassword = "tfa-mandatory-pwd-12345678";
+      const tfaMandatoryHash = await scryptHash(tfaMandatoryPassword);
+      const tfaMandatoryIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, nationality_scope, can_edit_workers, requires_2fa)
+         VALUES ('TFA Mandatory Admin Test', $1, $2, 'T1', 'Founder Test', 'Executive', TRUE, NULL, TRUE, TRUE) RETURNING id`,
+        [tfaMandatoryEmail, tfaMandatoryHash],
+      );
+      tfaMandatoryId = tfaMandatoryIns.rows[0].id;
     });
 
     afterAll(async () => {
       try {
         await pool.query(
           `DELETE FROM system_users WHERE id = ANY($1::uuid[])`,
-          [[lizaUserId, yanaUserId, changePasswordUserId, meUserId]],
+          [[lizaUserId, yanaUserId, changePasswordUserId, meUserId,
+            manishDashId, karanDashId, yanaDashId, lizaDashId, annaDashSysId, t4DashId, tfaDashId, tfaMandatoryId]],
+        );
+        await pool.query(
+          `DELETE FROM users WHERE id = ANY($1::uuid[])`,
+          [[annaDashUsersId, legacyFallbackId]],
         );
         await pool.query(
           `DELETE FROM workers WHERE id = ANY($1::uuid[])`,
-          [[ukrainianWorkerId, polishWorkerId]],
+          [[ukrainianWorkerId, polishWorkerId, dashTargetWorkerId]],
         );
       } finally {
         await pool.end();
@@ -3038,5 +3331,1808 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
       const res = await request(app).get("/api/eej/auth/me");
       expect(res.status).toBe(401);
     });
+
+    // ── Dashboard auth unification (May 14) — canEditWorkers column ─────────
+    // Additive migration: ALTER TABLE system_users ADD COLUMN IF NOT EXISTS
+    // can_edit_workers BOOLEAN NOT NULL DEFAULT TRUE. Existing rows backfilled
+    // by the DEFAULT clause; new inserts without explicit value get TRUE.
+    // T4 candidate-tier seeds (none currently) would set explicit FALSE.
+    it("T23.5 can_edit_workers column exists on system_users with NOT NULL DEFAULT TRUE", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, column_default, is_nullable, data_type
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'can_edit_workers'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("boolean");
+      expect(colInfo.rows[0].is_nullable).toBe("NO");
+      expect(colInfo.rows[0].column_default).toMatch(/true/i);
+    });
+
+    it("T23.5b system_users INSERT without can_edit_workers gets TRUE by default", async () => {
+      const email = `canedit-default-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{ id: string; can_edit_workers: boolean }>(
+        `INSERT INTO system_users (name, email, password_hash, role)
+         VALUES ('CanEdit Default Test', $1, 'unused-hash', 'T3')
+         RETURNING id, can_edit_workers`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].can_edit_workers).toBe(true);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
+
+    it("T23.5c system_users INSERT with can_edit_workers=false respects explicit value", async () => {
+      const email = `canedit-explicit-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{ id: string; can_edit_workers: boolean }>(
+        `INSERT INTO system_users (name, email, password_hash, role, can_edit_workers)
+         VALUES ('CanEdit Explicit Test', $1, 'unused-hash', 'T4', false)
+         RETURNING id, can_edit_workers`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].can_edit_workers).toBe(false);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
+
+    // ── 2FA migration to system_users (May 15, commit 4) — column existence ──
+    // Four additive columns: two_factor_secret (TEXT, nullable), two_factor_enabled
+    // (BOOLEAN NOT NULL DEFAULT FALSE), requires_2fa (BOOLEAN NOT NULL DEFAULT FALSE),
+    // recovery_codes_hashed (TEXT, nullable). Code that reads/writes them lands in
+    // commit 5. These tests assert only the DB-state shape.
+    it("T23.6 two_factor_secret column exists on system_users (TEXT nullable)", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'two_factor_secret'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("text");
+      expect(colInfo.rows[0].is_nullable).toBe("YES");
+    });
+
+    it("T23.6b two_factor_enabled column exists with NOT NULL DEFAULT FALSE", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'two_factor_enabled'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("boolean");
+      expect(colInfo.rows[0].is_nullable).toBe("NO");
+      expect(colInfo.rows[0].column_default).toMatch(/false/i);
+    });
+
+    it("T23.6c requires_2fa column exists with NOT NULL DEFAULT FALSE (mandatory-for-admin via backfill, not default)", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'requires_2fa'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("boolean");
+      expect(colInfo.rows[0].is_nullable).toBe("NO");
+      expect(colInfo.rows[0].column_default).toMatch(/false/i);
+    });
+
+    it("T23.6d recovery_codes_hashed column exists (TEXT nullable, stores JSON array)", async () => {
+      const colInfo = await pool.query(
+        `SELECT column_name, data_type, is_nullable
+         FROM information_schema.columns
+         WHERE table_name = 'system_users' AND column_name = 'recovery_codes_hashed'`
+      );
+      expect(colInfo.rowCount).toBe(1);
+      expect(colInfo.rows[0].data_type).toBe("text");
+      expect(colInfo.rows[0].is_nullable).toBe("YES");
+    });
+
+    it("T23.6e system_users INSERT without 2FA fields gets defaults (no secret, disabled, not required, no recovery codes)", async () => {
+      const email = `tfa-default-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{
+        id: string;
+        two_factor_secret: string | null;
+        two_factor_enabled: boolean;
+        requires_2fa: boolean;
+        recovery_codes_hashed: string | null;
+      }>(
+        `INSERT INTO system_users (name, email, password_hash, role)
+         VALUES ('TFA Default Test', $1, 'unused-hash', 'T3')
+         RETURNING id, two_factor_secret, two_factor_enabled, requires_2fa, recovery_codes_hashed`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].two_factor_secret).toBe(null);
+        expect(ins.rows[0].two_factor_enabled).toBe(false);
+        expect(ins.rows[0].requires_2fa).toBe(false);
+        expect(ins.rows[0].recovery_codes_hashed).toBe(null);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
+
+    it("T23.6f system_users INSERT with explicit 2FA values respects them (secret + enabled + required + codes)", async () => {
+      const email = `tfa-explicit-${Date.now()}@eej-test.local`;
+      const ins = await pool.query<{
+        id: string;
+        two_factor_secret: string;
+        two_factor_enabled: boolean;
+        requires_2fa: boolean;
+        recovery_codes_hashed: string;
+      }>(
+        `INSERT INTO system_users (name, email, password_hash, role, two_factor_secret, two_factor_enabled, requires_2fa, recovery_codes_hashed)
+         VALUES ('TFA Explicit Test', $1, 'unused-hash', 'T1', 'ABCD1234EFGH5678', true, true, '["salt1:hash1","salt2:hash2"]')
+         RETURNING id, two_factor_secret, two_factor_enabled, requires_2fa, recovery_codes_hashed`,
+        [email],
+      );
+      try {
+        expect(ins.rowCount).toBe(1);
+        expect(ins.rows[0].two_factor_secret).toBe("ABCD1234EFGH5678");
+        expect(ins.rows[0].two_factor_enabled).toBe(true);
+        expect(ins.rows[0].requires_2fa).toBe(true);
+        expect(JSON.parse(ins.rows[0].recovery_codes_hashed)).toEqual(["salt1:hash1", "salt2:hash2"]);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [ins.rows[0].id]);
+      }
+    });
+
+    // ── Dashboard auth unification (May 14) — DASH.1-DASH.10 tests ──────────
+    // Per Phase A audit doc §9. Tests cover: role translation (T1+legal→
+    // coordinator, T1→admin, T3→manager, T4→reject), JWT payload extension
+    // (canViewFinancials, nationalityScope, canEditWorkers, sourceTable),
+    // systemUsers-first ordering when email exists in both tables, defensive
+    // fallback to legacy users table.
+
+    it("DASH.1 Liza T1+Legal logs in via /auth/login → role=coordinator + canViewFinancials=false + sourceTable=system_users", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: lizaDashEmail, password: lizaDashPassword });
+      expect(res.status).toBe(200);
+      expect(typeof res.body.token).toBe("string");
+      expect(res.body.user).toMatchObject({
+        id: lizaDashId,
+        email: lizaDashEmail,
+        role: "coordinator",
+        canViewFinancials: false,
+        canEditWorkers: true,
+        sourceTable: "system_users",
+      });
+    });
+
+    it("DASH.2 Karan T3 logs in via /auth/login → role=manager + canEditWorkers=true + canViewFinancials=false", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: karanDashEmail, password: karanDashPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: karanDashId,
+        role: "manager",
+        canViewFinancials: false,
+        canEditWorkers: true,
+        sourceTable: "system_users",
+      });
+      expect(res.body.user.nationalityScope ?? null).toBe(null);
+    });
+
+    it("DASH.3 Yana T3 logs in → role=manager + nationalityScope=Ukrainian + canEditWorkers=true", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: yanaDashEmail, password: yanaDashPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: yanaDashId,
+        role: "manager",
+        nationalityScope: "Ukrainian",
+        canEditWorkers: true,
+        sourceTable: "system_users",
+      });
+    });
+
+    it("DASH.4 Manish T1 (non-legal designation) logs in → role=admin + canViewFinancials=true", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: manishDashId,
+        role: "admin",
+        canViewFinancials: true,
+        sourceTable: "system_users",
+      });
+    });
+
+    it("DASH.5 Anna in BOTH tables — system_users path wins, login with system_users password succeeds", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: annaDashSysEmail, password: annaDashSysPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: annaDashSysId, // system_users id, not the legacy users id
+        role: "admin",
+        sourceTable: "system_users",
+      });
+      // Explicit: this is NOT the legacy users row id
+      expect(res.body.user.id).not.toBe(annaDashUsersId);
+    });
+
+    it("DASH.5b Anna in BOTH tables — system_users wins ordering; users-table password is rejected (not silently fallen-through)", async () => {
+      // The users-table password is the WRONG password from system_users'
+      // perspective. systemUsers-first means we hit the system_users row,
+      // password mismatch → 401. We must NOT silently fall through to
+      // the users table and accept its password — that would defeat ordering.
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: annaDashSysEmail, password: annaDashUsersPassword });
+      expect(res.status).toBe(401);
+    });
+
+    it("DASH.5c Legacy users-only fixture logs in via fallback path → role from users table + sourceTable=users", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: legacyFallbackEmail, password: legacyFallbackPassword });
+      expect(res.status).toBe(200);
+      expect(res.body.user).toMatchObject({
+        id: legacyFallbackId,
+        role: "manager",
+        sourceTable: "users",
+      });
+    });
+
+    it("DASH.6 Unknown email (neither table) → 403 Access Denied", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: `nobody-${Date.now()}@nowhere.invalid`, password: "any-pwd-12345678" });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/Access Denied/);
+    });
+
+    it("DASH.7 Liza's coordinator token rejected on /api/admin/stats (requireAdmin gate)", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: lizaDashEmail, password: lizaDashPassword });
+      expect(loginRes.status).toBe(200);
+      const lizaCoordinatorToken = loginRes.body.token as string;
+
+      const res = await request(app).get("/api/admin/stats")
+        .set("Authorization", `Bearer ${lizaCoordinatorToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it("DASH.9 Karan's manager token passes requireCoordinatorOrAdmin gate when canEditWorkers=true", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: karanDashEmail, password: karanDashPassword });
+      expect(loginRes.status).toBe(200);
+      const karanManagerToken = loginRes.body.token as string;
+
+      // Karan's token from systemUsers path carries tenantId='production'
+      // (systemUsers has no tenant column; auth.ts hardcodes production).
+      // The dashTargetWorker is in tenant='test'. Route will return 404
+      // (worker not found in caller's tenant) — but reaching 404 means the
+      // requireCoordinatorOrAdmin gate PASSED. Without the canEditWorkers
+      // fix, the manager role would be rejected at the gate with 403.
+      // Asserting not-403 is the gate-behavior assertion.
+      const res = await request(app).patch(`/api/workers/${dashTargetWorkerId}`)
+        .set("Authorization", `Bearer ${karanManagerToken}`)
+        .send({ totalHours: "42.5" });
+      expect(res.status).not.toBe(403);
+    });
+
+    it("DASH.10 T4 candidate-tier login → 403 with mobile-app guidance message", async () => {
+      const res = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: t4DashEmail, password: t4DashPassword });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/mobile app/i);
+    });
+
+    // ── 2FA migration to system_users (May 15, commit 5a) — TFA.1-TFA.5 ─────
+    // End-to-end TOTP flow on the unified auth path. Setup → verify → status
+    // → login-requires-TOTP → disable. State carried forward across tests
+    // (sequential within this describe block; tfaDashId is dedicated to TFA.*
+    // so DASH.* tests don't perturb its 2FA state).
+    //
+    // The existing F.1-F.9 tests (on users-table path) still pass — they
+    // use a manager-shape JWT with no sourceTable, which defaults to "users"
+    // through the helpers and routes.
+
+    it("TFA.1 POST /2fa/setup as system_users user persists secret to system_users (NOT users)", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      expect(loginRes.status).toBe(200);
+      expect(loginRes.body.user.sourceTable).toBe("system_users");
+      const token = loginRes.body.token as string;
+
+      const setupRes = await request(app).post("/api/2fa/setup")
+        .set("Authorization", `Bearer ${token}`);
+      expect(setupRes.status).toBe(200);
+      expect(typeof setupRes.body.secret).toBe("string");
+      expect(setupRes.body.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+
+      // Secret persists to system_users — NOT to users (no row exists)
+      const sysRow = await pool.query<{ s: string | null; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(sysRow.rows[0].s).toBe(setupRes.body.secret);
+      expect(sysRow.rows[0].e).toBe(false);
+    });
+
+    it("TFA.2 POST /2fa/verify with real TOTP enables 2FA on system_users", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token as string;
+
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+
+      const verifyRes = await request(app).post("/api/2fa/verify")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ token: realToken });
+      expect(verifyRes.status).toBe(200);
+
+      const after = await pool.query<{ e: boolean }>(
+        `SELECT two_factor_enabled AS e FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      expect(after.rows[0].e).toBe(true);
+    });
+
+    it("TFA.3 GET /2fa/status on system_users user returns enabled=true after verify", async () => {
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      // Note: with 2FA now enabled (TFA.2), this login should require TOTP.
+      // But we're only testing /2fa/status here, which works against an
+      // already-issued token. So construct token via direct mint to bypass
+      // login's 2FA prompt for this isolated status test.
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const loginWithTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: realToken });
+      expect(loginWithTotp.status).toBe(200);
+      const token = loginWithTotp.body.token as string;
+
+      const statusRes = await request(app).get("/api/2fa/status")
+        .set("Authorization", `Bearer ${token}`);
+      expect(statusRes.status).toBe(200);
+      expect(statusRes.body.enabled).toBe(true);
+
+      // Confirm loginRes (the no-totp attempt) returned 202 — TFA.4 will
+      // assert this same shape in isolation, included here for tightness.
+      expect(loginRes.status).toBe(202);
+      expect(loginRes.body.requires2FA).toBe(true);
+    });
+
+    it("TFA.4 /auth/login on system_users user with 2FA enabled — 202 without TOTP, 200 with valid TOTP, 401 with bad TOTP", async () => {
+      // Without TOTP → 202 requires2FA
+      const noTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword });
+      expect(noTotp.status).toBe(202);
+      expect(noTotp.body.requires2FA).toBe(true);
+
+      // With bad TOTP → 401
+      const badTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: "000000" });
+      expect(badTotp.status).toBe(401);
+
+      // With real TOTP → 200 + token carries sourceTable=system_users
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const goodTotp = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: realToken });
+      expect(goodTotp.status).toBe(200);
+      expect(goodTotp.body.user.sourceTable).toBe("system_users");
+    });
+
+    it("TFA.5 POST /2fa/disable clears secret + enabled on system_users (not users)", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+      const stored = await pool.query<{ s: string }>(
+        `SELECT two_factor_secret AS s FROM system_users WHERE id = $1`, [tfaDashId],
+      );
+      const realToken = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: realToken });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token as string;
+
+      const realTokenForDisable = speakeasy.totp({ secret: stored.rows[0].s, encoding: "base32" });
+      const disableRes = await request(app).post("/api/2fa/disable")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ token: realTokenForDisable });
+      expect(disableRes.status).toBe(200);
+
+      const after = await pool.query<{ s: string | null; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(after.rows[0].s).toBeNull();
+      expect(after.rows[0].e).toBe(false);
+    });
+
+    // ── 2FA new capabilities (May 15, commit 5b) — TFA.6/7/8 ────────────────
+    // Recovery codes, admin reset, mandatory-for-admin enforcement. Builds on
+    // 5a's sourceTable dispatch foundation.
+
+    it("TFA.6 Recovery codes — generate returns 10 codes once; login consumes one (single-use)", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+
+      // Re-enable 2FA on tfaDashId (TFA.5 disabled it). Direct SQL to bypass
+      // the setup flow; we're not testing setup here.
+      const setupSecret = speakeasy.generateSecret({ name: "Recovery Test", length: 20 }).base32;
+      await pool.query(
+        `UPDATE system_users SET two_factor_secret = $1, two_factor_enabled = true WHERE id = $2`,
+        [setupSecret, tfaDashId],
+      );
+
+      // Login via TOTP to get a token
+      const loginTotp = speakeasy.totp({ secret: setupSecret, encoding: "base32" });
+      const loginRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, totpToken: loginTotp });
+      expect(loginRes.status).toBe(200);
+      const token = loginRes.body.token as string;
+
+      // Generate recovery codes
+      const genRes = await request(app).post("/api/2fa/recovery-codes/generate")
+        .set("Authorization", `Bearer ${token}`);
+      expect(genRes.status).toBe(200);
+      expect(Array.isArray(genRes.body.codes)).toBe(true);
+      expect(genRes.body.codes.length).toBe(10);
+      expect(genRes.body.codes[0]).toMatch(/^[0-9A-F]{4}-[0-9A-F]{4}$/);
+      const firstCode = genRes.body.codes[0] as string;
+
+      // Verify hashed codes persisted on system_users (not plaintext)
+      const dbRow = await pool.query<{ rch: string }>(
+        `SELECT recovery_codes_hashed AS rch FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      const hashedArray = JSON.parse(dbRow.rows[0].rch) as string[];
+      expect(hashedArray.length).toBe(10);
+      expect(hashedArray[0]).toMatch(/^[a-f0-9]+:[a-f0-9]+$/); // salt:hash pattern
+      expect(hashedArray[0]).not.toContain(firstCode); // plaintext NOT stored
+
+      // Use recovery code at login (instead of TOTP)
+      const useRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, recoveryCode: firstCode });
+      expect(useRes.status).toBe(200);
+      expect(useRes.body.user.sourceTable).toBe("system_users");
+
+      // Same code used again → 401 (consumed, single-use)
+      const reuseRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaDashEmail, password: tfaDashPassword, recoveryCode: firstCode });
+      expect(reuseRes.status).toBe(401);
+
+      // Array now has 9 codes (one consumed)
+      const afterRow = await pool.query<{ rch: string }>(
+        `SELECT recovery_codes_hashed AS rch FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(JSON.parse(afterRow.rows[0].rch).length).toBe(9);
+    });
+
+    it("TFA.7 Admin reset — admin clears another user's 2FA state (secret + enabled + recovery codes)", async () => {
+      // Manish admin login (manishDashId, requires_2fa=false, no 2FA enabled → straight 200)
+      const manishLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      expect(manishLogin.status).toBe(200);
+      expect(manishLogin.body.user.role).toBe("admin");
+      const adminToken = manishLogin.body.token as string;
+
+      // Confirm tfaDashId currently has 2FA + recovery codes (from TFA.6 setup)
+      const beforeRow = await pool.query<{ s: string | null; e: boolean; rch: string | null }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e, recovery_codes_hashed AS rch
+         FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(beforeRow.rows[0].e).toBe(true);
+      expect(beforeRow.rows[0].rch).not.toBeNull();
+
+      // Admin resets tfaDashId
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ targetUserId: tfaDashId, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(200);
+
+      // State cleared: secret null, enabled false, recovery codes null
+      const afterRow = await pool.query<{ s: string | null; e: boolean; rch: string | null }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e, recovery_codes_hashed AS rch
+         FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(afterRow.rows[0].s).toBeNull();
+      expect(afterRow.rows[0].e).toBe(false);
+      expect(afterRow.rows[0].rch).toBeNull();
+    });
+
+    it("TFA.7c Admin reset by email — admin uses targetEmail (commit 6 UX); resolves to userId server-side", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+      // Re-enable 2FA on tfaDashId for this test (TFA.7 cleared it)
+      const setupSecret = speakeasy.generateSecret({ name: "Reset by email", length: 20 }).base32;
+      await pool.query(
+        `UPDATE system_users SET two_factor_secret = $1, two_factor_enabled = true WHERE id = $2`,
+        [setupSecret, tfaDashId],
+      );
+
+      // Manish admin login
+      const manishLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      const adminToken = manishLogin.body.token as string;
+
+      // Reset by email (not userId)
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ targetEmail: tfaDashEmail, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(200);
+      expect(resetRes.body.targetUserId).toBe(tfaDashId); // server resolved email → userId
+
+      // State cleared
+      const afterRow = await pool.query<{ s: string | null; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaDashId],
+      );
+      expect(afterRow.rows[0].s).toBeNull();
+      expect(afterRow.rows[0].e).toBe(false);
+    });
+
+    it("TFA.7d Admin reset by email — unknown email returns 404 with clear message", async () => {
+      const manishLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: manishDashEmail, password: manishDashPassword });
+      const adminToken = manishLogin.body.token as string;
+
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ targetEmail: `nobody-${Date.now()}@nowhere.invalid`, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(404);
+      expect(resetRes.body.error).toMatch(/email|not found/i);
+    });
+
+    it("TFA.7b Admin reset — non-admin caller rejected with 403", async () => {
+      // Karan manager login
+      const karanLogin = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: karanDashEmail, password: karanDashPassword });
+      expect(karanLogin.status).toBe(200);
+      expect(karanLogin.body.user.role).toBe("manager");
+      const karanToken = karanLogin.body.token as string;
+
+      // Karan attempts to reset tfaDashId → 403 (requireAdmin gate)
+      const resetRes = await request(app).post("/api/2fa/admin-reset")
+        .set("Authorization", `Bearer ${karanToken}`)
+        .send({ targetUserId: tfaDashId, sourceTable: "system_users" });
+      expect(resetRes.status).toBe(403);
+    });
+
+    it("TFA.8 Mandatory-for-admin — first login no totp returns 202 + qrDataUrl; second login with totp completes setup and issues token", async () => {
+      const speakeasy = (await import("speakeasy")).default;
+
+      // First-pass: no totpToken → 202 setup required + QR
+      const firstRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaMandatoryEmail, password: tfaMandatoryPassword });
+      expect(firstRes.status).toBe(202);
+      expect(firstRes.body.requires2FASetup).toBe(true);
+      expect(firstRes.body.qrDataUrl).toMatch(/^data:image\/png;base64,/);
+      expect(typeof firstRes.body.secret).toBe("string");
+      const setupSecret = firstRes.body.secret as string;
+
+      // Verify provisional secret persisted but enabled still false
+      const midRow = await pool.query<{ s: string; e: boolean }>(
+        `SELECT two_factor_secret AS s, two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaMandatoryId],
+      );
+      expect(midRow.rows[0].s).toBe(setupSecret);
+      expect(midRow.rows[0].e).toBe(false);
+
+      // Second-pass: provide TOTP from the setup secret → completes setup, issues token
+      const totpToken = speakeasy.totp({ secret: setupSecret, encoding: "base32" });
+      const secondRes = await request(app).post("/api/auth/login")
+        .set("X-Forwarded-For", uniqueIp2())
+        .send({ email: tfaMandatoryEmail, password: tfaMandatoryPassword, totpToken });
+      expect(secondRes.status).toBe(200);
+      expect(secondRes.body.user.role).toBe("admin");
+      expect(typeof secondRes.body.token).toBe("string");
+
+      // Enabled=true persisted after second-pass
+      const finalRow = await pool.query<{ e: boolean }>(
+        `SELECT two_factor_enabled AS e FROM system_users WHERE id = $1`,
+        [tfaMandatoryId],
+      );
+      expect(finalRow.rows[0].e).toBe(true);
+    });
+
+    it("TFA.8b Mandatory-for-admin — invalid totp during setup returns 401, leaves enabled=false", async () => {
+      // Use a fresh fixture for this negative test — direct insert with
+      // requires_2fa=true, no existing secret. The previous test (TFA.8)
+      // completed setup on tfaMandatoryId, so it's no longer in setup-required
+      // state. We need a fresh user.
+      const negEmail = `tfa-mandatory-neg-${Date.now()}@eej-test.local`;
+      const negPassword = "tfa-neg-pwd-12345678";
+      const negHash = await scryptHash(negPassword);
+      const negIns = await pool.query<{ id: string }>(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name, can_view_financials, can_edit_workers, requires_2fa)
+         VALUES ('TFA Mandatory Neg', $1, $2, 'T1', 'Founder Neg', 'Executive', TRUE, TRUE, TRUE) RETURNING id`,
+        [negEmail, negHash],
+      );
+      const negId = negIns.rows[0].id;
+
+      try {
+        // First-pass: get setup QR
+        const firstRes = await request(app).post("/api/auth/login")
+          .set("X-Forwarded-For", uniqueIp2())
+          .send({ email: negEmail, password: negPassword });
+        expect(firstRes.status).toBe(202);
+
+        // Invalid TOTP → 401
+        const invalidRes = await request(app).post("/api/auth/login")
+          .set("X-Forwarded-For", uniqueIp2())
+          .send({ email: negEmail, password: negPassword, totpToken: "000000" });
+        expect(invalidRes.status).toBe(401);
+
+        // Enabled still false
+        const row = await pool.query<{ e: boolean }>(
+          `SELECT two_factor_enabled AS e FROM system_users WHERE id = $1`,
+          [negId],
+        );
+        expect(row.rows[0].e).toBe(false);
+      } finally {
+        await pool.query(`DELETE FROM system_users WHERE id = $1`, [negId]);
+      }
+    });
   }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Worker Cockpit — GET /workers/:id/cockpit aggregator endpoint.
+// One call returns worker + adjacent state (TRC, work permit, documents,
+// notes, payroll, jobs, audit, computed alerts). Tenant-scoped, PII masked.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "Worker Cockpit (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let workerId: string;
+    let otherTenantWorkerId: string;
+    let trcCaseId: string;
+    let userToken: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+
+      // Ensure the 'test' tenant exists (T23 tests reuse it; we're idempotent).
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('test', 'Test Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+
+      // Worker with an imminent TRC expiry (10 days out) → should produce a red alert.
+      const tenDaysOut = new Date(Date.now() + 10 * 86_400_000).toISOString().split("T")[0];
+      const wIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality, job_role, assigned_site, trc_expiry)
+         VALUES ('Cockpit Test Worker', '+48 555 990 100', 'test', 'Ukrainian',
+                 'Welder', 'Wroclaw-Test', $1)
+         RETURNING id`,
+        [tenDaysOut],
+      );
+      workerId = wIns.rows[0].id;
+
+      // Worker in a different tenant — cockpit must NOT return this one.
+      const otherIns = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, phone, tenant_id, nationality)
+         VALUES ('Other Tenant Worker', '+48 555 990 101', 'other-tenant', 'Polish')
+         RETURNING id`,
+      );
+      otherTenantWorkerId = otherIns.rows[0].id;
+
+      // TRC case linked to the worker — cockpit must surface it.
+      const trcIns = await pool.query<{ id: string }>(
+        `INSERT INTO trc_cases (worker_id, worker_name, nationality, permit_type, status, voivodeship)
+         VALUES ($1, 'Cockpit Test Worker', 'Ukrainian', 'TRC', 'under_review', 'dolnoslaskie')
+         RETURNING id`,
+        [workerId],
+      );
+      trcCaseId = trcIns.rows[0].id;
+
+      // One missing required TRC doc → cockpit alerts should mention it.
+      await pool.query(
+        `INSERT INTO trc_documents (case_id, document_type, document_name, is_required, is_uploaded)
+         VALUES ($1, 'identity', 'Passport scan', true, false)`,
+        [trcCaseId],
+      );
+
+      // A worker note → cockpit notes section should include it.
+      await pool.query(
+        `INSERT INTO worker_notes (worker_id, content, updated_by, updated_at)
+         VALUES ($1, 'Initial intake by Karan', 'karan.c@edu-jobs.eu', NOW())`,
+        [workerId],
+      );
+
+      const jwt = await import("jsonwebtoken");
+      userToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000c0c0",
+          id: "00000000-0000-0000-0000-00000000c0c0",
+          email: "cockpit-test@eej-test.local",
+          name: "Cockpit Test User",
+          role: "legal",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: false,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM trc_documents WHERE case_id = $1`, [trcCaseId]);
+        await pool.query(`DELETE FROM trc_cases WHERE id = $1`, [trcCaseId]);
+        await pool.query(`DELETE FROM worker_notes WHERE worker_id = $1`, [workerId]);
+        await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [
+          [workerId, otherTenantWorkerId],
+        ]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("WC.1 returns 200 with all top-level keys for a real worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty("worker");
+      expect(res.body).toHaveProperty("trcCase");
+      expect(res.body).toHaveProperty("workPermit");
+      expect(res.body).toHaveProperty("documents");
+      expect(res.body).toHaveProperty("notes");
+      expect(res.body.notes).toHaveProperty("worker");
+      expect(res.body.notes).toHaveProperty("trc");
+      expect(res.body).toHaveProperty("payroll");
+      expect(res.body).toHaveProperty("jobApplications");
+      expect(res.body).toHaveProperty("auditHistory");
+      expect(res.body).toHaveProperty("alerts");
+      expect(res.body).toHaveProperty("meta");
+      expect(res.body.meta).toHaveProperty("generatedAt");
+      expect(res.body.meta).toHaveProperty("viewerRole");
+    });
+
+    it("WC.2 surfaces the TRC case linked to the worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.trcCase).not.toBeNull();
+      expect(res.body.trcCase.status).toBe("under_review");
+      expect(res.body.trcCase.permit_type).toBe("TRC");
+      // Doc completion counts computed via sub-query.
+      expect(Number(res.body.trcCase.total_documents)).toBe(1);
+      expect(Number(res.body.trcCase.missing_documents)).toBe(1);
+    });
+
+    it("WC.3 includes worker notes and surfaces them in notes.worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.notes.worker)).toBe(true);
+      expect(res.body.notes.worker.length).toBeGreaterThan(0);
+      expect(res.body.notes.worker[0].content).toContain("Initial intake by Karan");
+    });
+
+    it("WC.4 computes a red alert for TRC expiring inside 30 days + amber for missing TRC docs", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      const alerts = res.body.alerts as Array<{ level: string; field: string; message: string }>;
+      const trcExpiryAlert = alerts.find((a) => a.field === "trcExpiry");
+      expect(trcExpiryAlert).toBeDefined();
+      expect(trcExpiryAlert!.level).toBe("red");
+      const missingDocsAlert = alerts.find((a) => a.field === "trcDocuments");
+      expect(missingDocsAlert).toBeDefined();
+      expect(missingDocsAlert!.level).toBe("amber");
+    });
+
+    it("WC.5 returns 404 for a worker in a different tenant (tenant isolation)", async () => {
+      // userToken is scoped to tenantId='test'. The other worker is in tenantId='other-tenant'.
+      const res = await request(app)
+        .get(`/api/workers/${otherTenantWorkerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("WC.6 returns 404 for non-existent worker UUID", async () => {
+      const res = await request(app)
+        .get(`/api/workers/00000000-0000-0000-0000-000000000000/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("WC.7 returns 401 without token", async () => {
+      const res = await request(app).get(`/api/workers/${workerId}/cockpit`);
+      expect(res.status).toBe(401);
+    });
+
+    it("WC.8 meta.viewerRole reflects the JWT role baked into the token", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.meta.viewerRole).toBe("legal");
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// roleToMobile — Liza routing fix. Designation containing "Legal" at T1
+// should route to appRole "legal" so Liza lands on LegalHome instead of
+// ExecutiveHome. Manish + Anna (T1 without "Legal" in designation) stay
+// on executive.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "roleToMobile: T1 designation-aware routing",
+  () => {
+    let pool: Pool;
+    let lizaEmail: string;
+    let annaEmail: string;
+    let lizaPwd = "liza-route-pwd-1234";
+    let annaPwd = "anna-route-pwd-1234";
+
+    async function scryptHash(password: string): Promise<string> {
+      const { randomBytes, scrypt } = await import("crypto");
+      const salt = randomBytes(16).toString("hex");
+      return new Promise((resolve, reject) => {
+        scrypt(password, salt, 64, (err, key) => {
+          if (err) reject(err);
+          else resolve(`${salt}:${key.toString("hex")}`);
+        });
+      });
+    }
+
+    let xff = 0;
+    const uniqueIp = () => {
+      xff += 1;
+      return `10.111.${Math.floor(xff / 254)}.${(xff % 254) + 1}`;
+    };
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      lizaEmail = `liza-route-${Date.now()}@eej-test.local`;
+      annaEmail = `anna-route-${Date.now()}@eej-test.local`;
+      await pool.query(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('Liza Route', $1, $2, 'T1', 'Head of Legal & Client Relations', 'Legal')`,
+        [lizaEmail, await scryptHash(lizaPwd)],
+      );
+      await pool.query(
+        `INSERT INTO system_users (name, email, password_hash, role, designation, short_name)
+         VALUES ('Anna Route', $1, $2, 'T1', 'Executive Board & Finance', 'Executive')`,
+        [annaEmail, await scryptHash(annaPwd)],
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM system_users WHERE email IN ($1, $2)`, [lizaEmail, annaEmail]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("RM.1 T1 + 'Legal' in designation routes to appRole=legal", async () => {
+      const res = await request(app)
+        .post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ email: lizaEmail, password: lizaPwd });
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("legal");
+      expect(res.body.user.tier).toBe(1);
+    });
+
+    it("RM.2 T1 without 'Legal' in designation stays on appRole=executive", async () => {
+      const res = await request(app)
+        .post("/api/eej/auth/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ email: annaEmail, password: annaPwd });
+      expect(res.status).toBe(200);
+      expect(res.body.user.role).toBe("executive");
+      expect(res.body.user.tier).toBe(1);
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Document scanning loop — POST /workers/scan-document + .../apply
+// AI extracts entities from an uploaded document, suggests worker matches,
+// then optionally applies the entities to a chosen (or newly-created) worker
+// and writes an ai_reasoning_log entry as the legal-evidence trail.
+//
+// analyzeImage is mocked at file scope so we don't burn Anthropic credits
+// or depend on ANTHROPIC_API_KEY in CI. Each test sets its own mock response.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "Document scanning (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let andriyId: string;     // existing worker name "Andriy Shevchenko" — should match strongly
+    let kowalskiId: string;   // unrelated existing worker — should not match
+    let userToken: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('test', 'Test Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+
+      const andriy = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, nationality, tenant_id)
+         VALUES ('Andriy Shevchenko', 'Ukrainian', 'test') RETURNING id`,
+      );
+      andriyId = andriy.rows[0].id;
+
+      const kow = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, nationality, tenant_id)
+         VALUES ('Mariusz Kowalski', 'Polish', 'test') RETURNING id`,
+      );
+      kowalskiId = kow.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      userToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000d0d0",
+          id: "00000000-0000-0000-0000-00000000d0d0",
+          email: "scan-test@eej-test.local",
+          name: "Scan Test User",
+          role: "legal",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: false,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(
+          `DELETE FROM ai_reasoning_log WHERE tenant_id = 'test' AND worker_id = ANY($1::uuid[])`,
+          [[andriyId, kowalskiId]],
+        );
+        // Also purge orphan reasoning rows (decision_type=document_extraction has worker_id=NULL).
+        await pool.query(
+          `DELETE FROM ai_reasoning_log WHERE tenant_id = 'test' AND decision_type = 'document_extraction'`,
+        );
+        await pool.query(`DELETE FROM workers WHERE id = ANY($1::uuid[])`, [[andriyId, kowalskiId]]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    beforeEach(() => {
+      analyzeImageMock.mockReset();
+    });
+
+    it("DS.1 returns 400 when no file uploaded", async () => {
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/no file/i);
+    });
+
+    it("DS.2 returns 401 without token", async () => {
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .attach("file", Buffer.from("fake-image-bytes"), "passport.jpg");
+      expect(res.status).toBe(401);
+    });
+
+    it("DS.3 returns 422 when AI extraction yields null (e.g. missing API key)", async () => {
+      analyzeImageMock.mockResolvedValueOnce(null);
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`)
+        .attach("file", Buffer.from("fake-image-bytes"), {
+          filename: "passport.jpg",
+          contentType: "image/jpeg",
+        });
+      expect(res.status).toBe(422);
+      expect(res.body.error).toMatch(/extract/i);
+    });
+
+    it("DS.4 happy path: extract entities, score matches, return top match strongly", async () => {
+      analyzeImageMock.mockResolvedValueOnce(JSON.stringify({
+        docType: "passport",
+        personName: "Andriy Shevchenko",
+        documentNumber: "AB1234567",
+        dateOfBirth: "1990-06-15",
+        nationality: "Ukrainian",
+        expiryDate: "2030-12-31",
+        issueDate: "2020-12-31",
+        issuingAuthority: "Ministry of Foreign Affairs of Ukraine",
+        additionalFields: {},
+        rawText: "PASSPORT UKRAINE...",
+        confidence: 0.92,
+      }));
+
+      const res = await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`)
+        .attach("file", Buffer.from("fake-image-bytes"), {
+          filename: "passport.jpg",
+          contentType: "image/jpeg",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.entities.docType).toBe("passport");
+      expect(res.body.entities.personName).toBe("Andriy Shevchenko");
+      expect(res.body.entities.confidence).toBe(0.92);
+      expect(res.body.matches.length).toBeGreaterThan(0);
+      // Andriy should be the top match.
+      expect(res.body.matches[0].id).toBe(andriyId);
+      expect(res.body.matches[0].score).toBeGreaterThan(0.5);
+      // Mariusz Kowalski (Polish, unrelated name) should not be in the matches.
+      expect(res.body.matches.find((m: any) => m.id === kowalskiId)).toBeUndefined();
+      // inputHash is a sha256 hex string.
+      expect(res.body.inputHash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("DS.5 reasoning log row written on extraction with decided_action=pending_review", async () => {
+      analyzeImageMock.mockResolvedValueOnce(JSON.stringify({
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-0000-1",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2027-03-15",
+        issueDate: null,
+        issuingAuthority: "Wojewoda Dolnoslaski",
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.85,
+      }));
+
+      await request(app)
+        .post("/api/workers/scan-document")
+        .set("Authorization", `Bearer ${userToken}`)
+        .attach("file", Buffer.from("trc-image-bytes"), {
+          filename: "trc.jpg",
+          contentType: "image/jpeg",
+        });
+
+      const reasoningRows = await pool.query(
+        `SELECT decision_type, decided_action, reviewed_by, model
+         FROM ai_reasoning_log
+         WHERE tenant_id = 'test' AND decision_type = 'document_extraction'
+         ORDER BY created_at DESC LIMIT 1`,
+      );
+      expect(reasoningRows.rows.length).toBeGreaterThan(0);
+      const row = reasoningRows.rows[0];
+      expect(row.decision_type).toBe("document_extraction");
+      expect(row.decided_action).toBe("pending_review");
+      expect(row.reviewed_by).toBe("scan-test@eej-test.local");
+      expect(row.model).toBe("claude-sonnet-4-6");
+    });
+
+    it("DS.6 apply: updates an existing worker's TRC expiry from extracted entities", async () => {
+      // Pre-condition: Andriy has no TRC expiry on file.
+      await pool.query(`UPDATE workers SET trc_expiry = NULL WHERE id = $1`, [andriyId]);
+
+      const entities = {
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-0000-1",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2027-03-15",
+        issueDate: null,
+        issuingAuthority: "Wojewoda Dolnoslaski",
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.85,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, workerId: andriyId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(false);
+      expect(res.body.workerId).toBe(andriyId);
+      expect(res.body.appliedFields).toContain("trcExpiry");
+
+      // Verify the field actually updated.
+      const updated = await pool.query<{ trc_expiry: string }>(
+        `SELECT trc_expiry FROM workers WHERE id = $1`, [andriyId],
+      );
+      // pg returns Date objects for DATE columns; ISO-stringify both sides.
+      const got = updated.rows[0].trc_expiry;
+      const gotIso = (got as unknown) instanceof Date
+        ? (got as unknown as Date).toISOString().slice(0, 10)
+        : String(got).slice(0, 10);
+      expect(gotIso).toBe("2027-03-15");
+    });
+
+    it("DS.7 apply with createNew=true creates a new worker in pipeline stage 'New'", async () => {
+      const entities = {
+        docType: "passport",
+        personName: "Test Auto Created",
+        documentNumber: "ZZ9999999",
+        dateOfBirth: "1995-01-01",
+        nationality: "Vietnamese",
+        expiryDate: null,
+        issueDate: null,
+        issuingAuthority: null,
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.7,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, createNew: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.created).toBe(true);
+      expect(res.body.workerId).toBeTruthy();
+
+      const newWorkerId = res.body.workerId;
+      const row = await pool.query<{ name: string; nationality: string; pipeline_stage: string }>(
+        `SELECT name, nationality, pipeline_stage FROM workers WHERE id = $1`, [newWorkerId],
+      );
+      expect(row.rows.length).toBe(1);
+      expect(row.rows[0].name).toBe("Test Auto Created");
+      expect(row.rows[0].nationality).toBe("Vietnamese");
+      expect(row.rows[0].pipeline_stage).toBe("New");
+
+      // Clean up the auto-created worker.
+      await pool.query(`DELETE FROM ai_reasoning_log WHERE worker_id = $1`, [newWorkerId]);
+      await pool.query(`DELETE FROM workers WHERE id = $1`, [newWorkerId]);
+    });
+
+    it("DS.8 apply respects allowOverwrite=false (conservative — no clobber)", async () => {
+      // Pre-condition: Andriy has a TRC expiry already set.
+      await pool.query(
+        `UPDATE workers SET trc_expiry = '2025-01-01' WHERE id = $1`, [andriyId],
+      );
+
+      const entities = {
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-NEW",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2099-12-31",
+        issueDate: null,
+        issuingAuthority: null,
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.8,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, workerId: andriyId, allowOverwrite: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.appliedFields).not.toContain("trcExpiry");
+
+      const row = await pool.query<{ trc_expiry: string }>(
+        `SELECT trc_expiry FROM workers WHERE id = $1`, [andriyId],
+      );
+      const got = row.rows[0].trc_expiry;
+      const gotIso = (got as unknown) instanceof Date
+        ? (got as unknown as Date).toISOString().slice(0, 10)
+        : String(got).slice(0, 10);
+      expect(gotIso).toBe("2025-01-01");
+    });
+
+    it("DS.9 apply respects allowOverwrite=true (overwrites existing value)", async () => {
+      await pool.query(
+        `UPDATE workers SET trc_expiry = '2025-01-01' WHERE id = $1`, [andriyId],
+      );
+
+      const entities = {
+        docType: "trc",
+        personName: "Andriy Shevchenko",
+        documentNumber: "KP-PL-NEW",
+        dateOfBirth: null,
+        nationality: "Ukrainian",
+        expiryDate: "2099-12-31",
+        issueDate: null,
+        issuingAuthority: null,
+        additionalFields: {},
+        rawText: null,
+        confidence: 0.8,
+      };
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ entities, workerId: andriyId, allowOverwrite: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.appliedFields).toContain("trcExpiry");
+
+      const row = await pool.query<{ trc_expiry: string }>(
+        `SELECT trc_expiry FROM workers WHERE id = $1`, [andriyId],
+      );
+      const got = row.rows[0].trc_expiry;
+      const gotIso = (got as unknown) instanceof Date
+        ? (got as unknown as Date).toISOString().slice(0, 10)
+        : String(got).slice(0, 10);
+      expect(gotIso).toBe("2099-12-31");
+    });
+
+    it("DS.10b cockpit returns aiReasoning array after a scan applies updates", async () => {
+      // Apply something to leave a reasoning row.
+      await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          entities: {
+            docType: "trc",
+            personName: "Andriy Shevchenko",
+            documentNumber: "KP-IT-1",
+            dateOfBirth: null,
+            nationality: "Ukrainian",
+            expiryDate: "2030-01-01",
+            issueDate: null,
+            issuingAuthority: null,
+            additionalFields: {},
+            rawText: null,
+            confidence: 0.9,
+          },
+          workerId: andriyId,
+          allowOverwrite: true,
+        });
+
+      const cockpit = await request(app)
+        .get(`/api/workers/${andriyId}/cockpit`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(cockpit.status).toBe(200);
+      expect(Array.isArray(cockpit.body.aiReasoning)).toBe(true);
+      expect(cockpit.body.aiReasoning.length).toBeGreaterThan(0);
+      const r = cockpit.body.aiReasoning[0];
+      expect(r).toHaveProperty("decision_type");
+      expect(r).toHaveProperty("decided_action");
+      expect(r).toHaveProperty("model");
+    });
+
+    it("DS.10 apply returns 404 for a worker in a different tenant", async () => {
+      // Insert a worker in 'other-tenant' (created earlier in cockpit tests).
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant')
+         ON CONFLICT (slug) DO NOTHING`,
+      );
+      const other = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, tenant_id) VALUES ('Stranger', 'other-tenant') RETURNING id`,
+      );
+
+      const res = await request(app)
+        .post("/api/workers/scan-document/apply")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          entities: {
+            docType: "trc",
+            personName: "Stranger",
+            documentNumber: null,
+            dateOfBirth: null,
+            nationality: null,
+            expiryDate: "2030-01-01",
+            issueDate: null,
+            issuingAuthority: null,
+            additionalFields: {},
+            rawText: null,
+            confidence: 0.5,
+          },
+          workerId: other.rows[0].id,
+        });
+
+      expect(res.status).toBe(404);
+      await pool.query(`DELETE FROM workers WHERE id = $1`, [other.rows[0].id]);
+    });
+
+    it("DS.11 AI summary returns role-tuned narrative + structured actions", async () => {
+      // AI now returns JSON with summary + actions array. The endpoint parses
+      // it and exposes both. Action types come from a fixed allow-list; the
+      // parser filters out invalid types.
+      analyzeTextMock.mockResolvedValueOnce(
+        JSON.stringify({
+          summary:
+            "Andriy's TRC expires in 8 days. Three required documents are still missing. Submit the renewal by 2026-05-20 to avoid lapse.",
+          actions: [
+            { label: "Scan new TRC card", actionType: "scan_document", priority: "high", reasoning: "TRC expires in 8 days." },
+            // send_whatsapp action carries a templateHint matching one of the
+            // seeded template names — cockpit will auto-select it in the picker.
+            { label: "Send TRC reminder", actionType: "send_whatsapp", priority: "med", reasoning: "Worker not responsive.", templateHint: "trc_expiry_reminder_pl" },
+            { label: "Open TRC case", actionType: "open_trc", priority: "low", reasoning: "Final filing review." },
+            { label: "Should be filtered", actionType: "invalid_type", priority: "high", reasoning: "should not appear" },
+          ],
+        }),
+      );
+
+      const res = await request(app)
+        .get(`/api/workers/${andriyId}/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary).toContain("Andriy");
+      expect(res.body.viewerRole).toBe("legal");
+      expect(res.body.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(Array.isArray(res.body.actions)).toBe(true);
+      // Three valid actions; invalid_type filtered out.
+      expect(res.body.actions).toHaveLength(3);
+      expect(res.body.actions[0].actionType).toBe("scan_document");
+      expect(res.body.actions[0].priority).toBe("high");
+      // Non-whatsapp actions never carry templateHint.
+      expect(res.body.actions[0].templateHint).toBeNull();
+      // The whatsapp action preserves the templateHint for cockpit auto-pick.
+      const waAction = res.body.actions.find((a: any) => a.actionType === "send_whatsapp");
+      expect(waAction.templateHint).toBe("trc_expiry_reminder_pl");
+      // The endpoint also writes a reasoning_log row.
+      const log = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM ai_reasoning_log
+         WHERE worker_id = $1 AND decision_type = 'ai_summary'`,
+        [andriyId],
+      );
+      expect(log.rows[0].cnt).toBeGreaterThan(0);
+    });
+
+    it("DS.11b AI summary tolerates plain-text response (no JSON parsing)", async () => {
+      // Earlier Claude responses might be plain text; the endpoint should
+      // still return the text as summary with an empty actions array.
+      analyzeTextMock.mockResolvedValueOnce("Plain text summary, no JSON.");
+      const res = await request(app)
+        .get(`/api/workers/${andriyId}/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.summary).toBe("Plain text summary, no JSON.");
+      expect(res.body.actions).toEqual([]);
+    });
+
+    it("DS.12 AI summary returns 503 when analyzeText returns null (key unset)", async () => {
+      analyzeTextMock.mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .get(`/api/workers/${andriyId}/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/ANTHROPIC_API_KEY/i);
+    });
+
+    it("DS.13 AI summary returns 404 for unknown worker", async () => {
+      const res = await request(app)
+        .get(`/api/workers/00000000-0000-0000-0000-000000000000/ai-summary`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("DS.14 note append: inserts a new row each call (append-only feed)", async () => {
+      const before = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM worker_notes WHERE worker_id = $1`,
+        [andriyId],
+      );
+
+      const r1 = await request(app)
+        .post(`/api/workers/${andriyId}/notes/append`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ content: "Called today, sending docs Friday." });
+      expect(r1.status).toBe(201);
+      expect(r1.body.note.content).toBe("Called today, sending docs Friday.");
+
+      const r2 = await request(app)
+        .post(`/api/workers/${andriyId}/notes/append`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ content: "Docs received, forwarding to lawyer." });
+      expect(r2.status).toBe(201);
+
+      const after = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM worker_notes WHERE worker_id = $1`,
+        [andriyId],
+      );
+      expect(after.rows[0].cnt).toBe(before.rows[0].cnt + 2);
+
+      // Cleanup added notes.
+      await pool.query(
+        `DELETE FROM worker_notes WHERE worker_id = $1 AND id IN ($2, $3)`,
+        [andriyId, r1.body.note.id, r2.body.note.id],
+      );
+    });
+
+    it("DS.15 note append: 400 when content empty or whitespace", async () => {
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/notes/append`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ content: "   " });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/content/i);
+    });
+
+    it("DS.16 admin/ai-reasoning: requires admin token (legal viewer gets 403)", async () => {
+      // userToken is for a legal-role user; requireAdmin should reject.
+      const res = await request(app)
+        .get("/api/admin/ai-reasoning")
+        .set("Authorization", `Bearer ${userToken}`);
+      expect([401, 403]).toContain(res.status);
+    });
+
+    it("DS.17a whatsapp/templates returns active templates only, scoped to tenant", async () => {
+      // Seed a couple of test-tenant templates, one active one inactive.
+      const tIns = await pool.query(
+        `INSERT INTO whatsapp_templates (tenant_id, name, language, body_preview, variables, active)
+         VALUES
+           ('test', 'test_active_template', 'en', 'Hello {{name}}', '["name"]'::jsonb, TRUE),
+           ('test', 'test_inactive_template', 'en', 'Inactive {{name}}', '["name"]'::jsonb, FALSE)
+         RETURNING id`,
+      );
+      try {
+        const res = await request(app)
+          .get("/api/whatsapp/templates")
+          .set("Authorization", `Bearer ${userToken}`);
+        expect(res.status).toBe(200);
+        const names = (res.body.templates ?? []).map((t: any) => t.name);
+        expect(names).toContain("test_active_template");
+        expect(names).not.toContain("test_inactive_template");
+        // Verify shape on the active one
+        const active = res.body.templates.find(
+          (t: any) => t.name === "test_active_template",
+        );
+        expect(active.bodyPreview).toBe("Hello {{name}}");
+        expect(active.variables).toEqual(["name"]);
+        expect(active.language).toBe("en");
+      } finally {
+        await pool.query(`DELETE FROM whatsapp_templates WHERE id = ANY($1::uuid[])`, [
+          tIns.rows.map((r: any) => r.id),
+        ]);
+      }
+    });
+
+    it("DS.16a upload: 401 without token", async () => {
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .attach("file", Buffer.from("fake"), { filename: "passport.jpg", contentType: "image/jpeg" });
+      expect(res.status).toBe(401);
+    });
+
+    it("DS.16b upload: 404 for worker in a different tenant", async () => {
+      // userToken is scoped to tenantId='test'. Create a worker in 'other-tenant'.
+      // Two separate queries — pg's simple query protocol returns an ARRAY of
+      // results for multi-statement queries, not a single {rows, ...} object.
+      // The combined-statement form caused "Cannot read properties of undefined
+      // (reading '0')" on other.rows[0].id because `other` was the array, not
+      // a single result. CE.3 below uses the correct two-query pattern.
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant') ON CONFLICT (slug) DO NOTHING`,
+      );
+      const other = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, tenant_id) VALUES ('Cross-Tenant Worker', 'other-tenant') RETURNING id`,
+      );
+      const otherId = other.rows[0].id;
+      try {
+        const res = await request(app)
+          .post(`/api/workers/${otherId}/upload`)
+          .set("Authorization", `Bearer ${userToken}`)
+          .field("docType", "passport")
+          .attach("file", Buffer.from("fake"), { filename: "passport.jpg", contentType: "image/jpeg" });
+        expect(res.status).toBe(404);
+      } finally {
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [otherId]);
+      }
+    });
+
+    it("DS.16c upload: 400 when no file attached", async () => {
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .field("docType", "passport");
+      expect(res.status).toBe(400);
+    });
+
+    it("DS.16d upload happy path: creates file_attachments row + returns metadata", async () => {
+      // Non-passport/contract/cv docType to skip the OCR mock requirement.
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .field("docType", "bhp")
+        .attach("file", Buffer.from("fake-bhp-cert"), {
+          filename: "bhp-cert.jpg",
+          contentType: "image/jpeg",
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.attachment).toBeDefined();
+      expect(res.body.attachment.workerId).toBe(andriyId);
+      expect(res.body.attachment.fieldName).toBe("bhp");
+      expect(res.body.attachment.filename).toBe("bhp-cert.jpg");
+      expect(res.body.attachment.mimeType).toBe("image/jpeg");
+      // Non-AI docType → no scan output.
+      expect(res.body.scanned).toBeFalsy();
+
+      // Verify row exists in DB.
+      const row = await pool.query<{ filename: string; field_name: string }>(
+        `SELECT filename, field_name FROM file_attachments WHERE id = $1`,
+        [res.body.attachment.id],
+      );
+      expect(row.rows[0].filename).toBe("bhp-cert.jpg");
+      expect(row.rows[0].field_name).toBe("bhp");
+
+      await pool.query(`DELETE FROM file_attachments WHERE id = $1`, [res.body.attachment.id]);
+    });
+
+    it("DS.16e upload passport: OCR auto-updates worker fields when AI extracts data", async () => {
+      // Reset Andriy's nationality so we can verify it changes.
+      await pool.query(`UPDATE workers SET nationality = NULL WHERE id = $1`, [andriyId]);
+
+      // analyzeImage is mocked at file scope; the upload endpoint calls it
+      // for docType=passport. Return a structured extraction.
+      analyzeImageMock.mockResolvedValueOnce(JSON.stringify({
+        name: "Andriy Shevchenko",
+        dateOfBirth: "1990-06-15",
+        passportExpiry: "2032-01-01",
+        passportNumber: "AB1234567",
+        nationality: "Ukrainian",
+      }));
+
+      const res = await request(app)
+        .post(`/api/workers/${andriyId}/upload`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .field("docType", "passport")
+        .attach("file", Buffer.from("fake-passport"), {
+          filename: "passport.jpg",
+          contentType: "image/jpeg",
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.attachment).toBeDefined();
+      expect(res.body.scanned).toBeTruthy();
+      expect(res.body.scanned.nationality).toBe("Ukrainian");
+
+      // Verify the worker row was auto-updated by the OCR result.
+      const w = await pool.query<{ nationality: string; work_permit_expiry: string }>(
+        `SELECT nationality, work_permit_expiry FROM workers WHERE id = $1`,
+        [andriyId],
+      );
+      expect(w.rows[0].nationality).toBe("Ukrainian");
+      const expiry = w.rows[0].work_permit_expiry;
+      const iso = (expiry as unknown) instanceof Date
+        ? (expiry as unknown as Date).toISOString().slice(0, 10)
+        : String(expiry).slice(0, 10);
+      expect(iso).toBe("2032-01-01");
+
+      await pool.query(`DELETE FROM file_attachments WHERE id = $1`, [res.body.attachment.id]);
+    });
+
+    it("DS.17 admin/ai-reasoning: returns combined entries with worker_name join", async () => {
+      // Admin token for the test tenant
+      const jwt = await import("jsonwebtoken");
+      const adminToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000a0a0",
+          id: "00000000-0000-0000-0000-00000000a0a0",
+          email: "admin-ar@eej-test.local",
+          name: "Admin AR",
+          role: "admin",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: true,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+
+      // Seed at least one reasoning row tied to Andriy so the join produces a name.
+      await pool.query(
+        `INSERT INTO ai_reasoning_log (decision_type, worker_id, input_summary, decided_action, model, tenant_id, confidence)
+         VALUES ('field_update', $1, 'integration test row', 'applied', 'claude-sonnet-4-6', 'test', 0.88)`,
+        [andriyId],
+      );
+
+      const res = await request(app)
+        .get("/api/admin/ai-reasoning?decisionType=field_update")
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.entries)).toBe(true);
+      const ours = res.body.entries.find(
+        (e: any) => e.input_summary === "integration test row",
+      );
+      expect(ours).toBeDefined();
+      expect(ours.worker_name).toBe("Andriy Shevchenko");
+      expect(ours.decided_action).toBe("applied");
+    });
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Daily-use worker mutations — the inline-edit paths the cockpit relies on.
+// Cockpit's contact edit goes to PATCH /workers/:id (existing endpoint, no
+// dedicated coverage). Note append + cockpit deep-link nav covered earlier;
+// these tests close the remaining gaps for the day's surfaces.
+// ─────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  "Cockpit edit flows (requires TEST_DATABASE_URL)",
+  () => {
+    let pool: Pool;
+    let workerId: string;
+    let executiveToken: string;
+    let candidateToken: string;
+
+    beforeAll(async () => {
+      const { Pool: PgPool } = await import("pg");
+      pool = new PgPool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("SELECT 1");
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('test', 'Test Tenant') ON CONFLICT (slug) DO NOTHING`,
+      );
+
+      const ins = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, email, phone, tenant_id, nationality)
+         VALUES ('Edit Test Worker', 'old.email@test.local', '+48 555 000 100', 'test', 'Polish') RETURNING id`,
+      );
+      workerId = ins.rows[0].id;
+
+      const jwt = await import("jsonwebtoken");
+      executiveToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000e1e1",
+          id: "00000000-0000-0000-0000-00000000e1e1",
+          email: "exec-edit@eej-test.local",
+          name: "Exec Edit",
+          role: "executive",
+          tier: 1,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: true,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+      candidateToken = jwt.default.sign(
+        {
+          sub: "00000000-0000-0000-0000-00000000e2e2",
+          id: "00000000-0000-0000-0000-00000000e2e2",
+          email: "cand-edit@eej-test.local",
+          name: "Cand Edit",
+          role: "candidate",
+          tier: 4,
+          tenantId: "test",
+          site: null,
+          canViewFinancials: false,
+          nationalityScope: null,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "5m" },
+      );
+    });
+
+    afterAll(async () => {
+      try {
+        await pool.query(`DELETE FROM audit_entries WHERE worker_id = $1`, [workerId]);
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [workerId]);
+      } finally {
+        await pool.end();
+      }
+    });
+
+    it("CE.1 PATCH /workers/:id updates phone + email (cockpit inline edit)", async () => {
+      const res = await request(app)
+        .patch(`/api/workers/${workerId}`)
+        .set("Authorization", `Bearer ${executiveToken}`)
+        .send({ email: "new.email@test.local", phone: "+48 555 999 100" });
+      expect(res.status).toBe(200);
+
+      const w = await pool.query<{ email: string; phone: string }>(
+        `SELECT email, phone FROM workers WHERE id = $1`,
+        [workerId],
+      );
+      expect(w.rows[0].email).toBe("new.email@test.local");
+      expect(w.rows[0].phone).toBe("+48 555 999 100");
+
+      // Audit entry written.
+      const audit = await pool.query<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM audit_entries WHERE worker_id = $1 AND action = 'update'`,
+        [workerId],
+      );
+      expect(audit.rows[0].cnt).toBeGreaterThan(0);
+    });
+
+    it("CE.2 PATCH /workers/:id requires coordinator-or-admin role (candidate forbidden)", async () => {
+      const res = await request(app)
+        .patch(`/api/workers/${workerId}`)
+        .set("Authorization", `Bearer ${candidateToken}`)
+        .send({ email: "should.not.land@test.local" });
+      // Candidate role doesn't have coordinator privileges.
+      expect([401, 403]).toContain(res.status);
+
+      const w = await pool.query<{ email: string }>(
+        `SELECT email FROM workers WHERE id = $1`,
+        [workerId],
+      );
+      expect(w.rows[0].email).not.toBe("should.not.land@test.local");
+    });
+
+    it("CE.3 PATCH /workers/:id 404 for worker in a different tenant", async () => {
+      await pool.query(
+        `INSERT INTO tenants (slug, name) VALUES ('other-tenant', 'Other Tenant') ON CONFLICT (slug) DO NOTHING`,
+      );
+      const other = await pool.query<{ id: string }>(
+        `INSERT INTO workers (name, tenant_id) VALUES ('Cross Tenant Edit', 'other-tenant') RETURNING id`,
+      );
+      try {
+        const res = await request(app)
+          .patch(`/api/workers/${other.rows[0].id}`)
+          .set("Authorization", `Bearer ${executiveToken}`)
+          .send({ email: "x@x.com" });
+        expect(res.status).toBe(404);
+      } finally {
+        await pool.query(`DELETE FROM workers WHERE id = $1`, [other.rows[0].id]);
+      }
+    });
+
+    it("CE.4 cockpit endpoint exposes whatsappMessages array (key present even when empty)", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${executiveToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.whatsappMessages)).toBe(true);
+      // Empty for this worker (no whatsapp_messages rows yet) but the key
+      // must always be present so the frontend renders the panel without
+      // optional-chaining everywhere.
+    });
+
+    it("CE.5 cockpit endpoint exposes aiReasoning array (key present even when empty)", async () => {
+      const res = await request(app)
+        .get(`/api/workers/${workerId}/cockpit`)
+        .set("Authorization", `Bearer ${executiveToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.aiReasoning)).toBe(true);
+    });
+  },
 );

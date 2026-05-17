@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Clock, Plus, ChevronLeft, ChevronRight, Loader2, Users, MapPin } from "lucide-react";
 import { useToast } from "@/lib/toast";
+import { siteToVoivodeship } from "@/lib/voivodeship";
 
 const NAVY = "#1B2A4A";
 const YELLOW = "#FFD600";
@@ -72,19 +73,26 @@ export default function ShiftScheduleTab() {
       {todayShifts.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, marginBottom: 6 }}>Today's Active Shifts</div>
-          {todayShifts.map(s => (
-            <div key={s.id} style={{ ...card, borderLeft: `4px solid ${SITE_COLORS[s.site] || NAVY}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>{s.site}</div>
-                  <div style={{ fontSize: 11, color: "#6B7280" }}>{s.slot} | {SLOTS.find(x => x.label === s.slot)?.range}</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6B7280" }}>
-                  <Users size={14} /> {s.workers.length}
+          {todayShifts.map(s => {
+            /* P3d — voivodeship derived from site name so the UI doesn't
+               need a separate column to surface region. */
+            const voi = siteToVoivodeship(s.site);
+            return (
+              <div key={s.id} style={{ ...card, borderLeft: `4px solid ${SITE_COLORS[s.site] || NAVY}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>{s.site}</div>
+                    <div style={{ fontSize: 11, color: "#6B7280" }}>
+                      {voi && <span>{voi} · </span>}{s.slot} | {SLOTS.find(x => x.label === s.slot)?.range}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#6B7280" }}>
+                    <Users size={14} /> {s.workers.length}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -115,12 +123,17 @@ export default function ShiftScheduleTab() {
                     <div key={slot.label} style={{ background: slot.bg, borderRadius: 8, padding: "6px 10px", marginBottom: 4, fontSize: 12 }}>
                       <span style={{ fontWeight: 700, color: slot.color }}>{slot.label}</span>
                       <span style={{ color: "#6B7280", marginLeft: 6 }}>{slot.range}</span>
-                      {ss.length > 0 ? ss.map(s => (
-                        <div key={s.id} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
-                          <MapPin size={12} color={SITE_COLORS[s.site] || "#888"} />{s.site}
-                          <Users size={12} color="#6B7280" />{s.workers.length}
-                        </div>
-                      )) : <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>No shifts</div>}
+                      {ss.length > 0 ? ss.map(s => {
+                        /* P3d — voivodeship from site name (UI derivation). */
+                        const voi = siteToVoivodeship(s.site);
+                        return (
+                          <div key={s.id} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4, fontSize: 11, flexWrap: "wrap" }}>
+                            <MapPin size={12} color={SITE_COLORS[s.site] || "#888"} />{s.site}
+                            {voi && <span style={{ color: "#9CA3AF" }}>· {voi}</span>}
+                            <Users size={12} color="#6B7280" />{s.workers.length}
+                          </div>
+                        );
+                      }) : <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>No shifts</div>}
                     </div>
                   );
                 })}
@@ -136,7 +149,10 @@ export default function ShiftScheduleTab() {
       </button>
 
       {showCreate && (
-        <div style={overlay}>
+        /* Pass 3 architectural rule — use canonical .shell-overlay
+           so the modal sits between header + bottom-nav within the
+           430px frame. */
+        <div className="shell-overlay" style={{ alignItems: "center" }}>
           <div style={{ ...card, maxWidth: 340, width: "90%" }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: NAVY, marginBottom: 12 }}>New Shift</div>
             <label style={lbl}>Site</label>
@@ -166,7 +182,8 @@ export default function ShiftScheduleTab() {
 const card: React.CSSProperties = { background: "#fff", borderRadius: 14, border: "1.5px solid #E5E7EB", padding: "12px 14px", marginBottom: 6 };
 const navBtn: React.CSSProperties = { background: "#fff", border: "1.5px solid #E5E7EB", borderRadius: 10, padding: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
 const fabStyle: React.CSSProperties = { position: "fixed", bottom: 80, right: 20, width: 48, height: 48, borderRadius: 24, background: NAVY, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" };
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 };
+/* P2 — removed dead `overlay` const (legacy Pass-3 migration leftover). The
+   create-shift modal renders via `<div className="shell-overlay">` above. */
 const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2, display: "block", marginTop: 8 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #E5E7EB", fontSize: 13, outline: "none" };
 const btnStyle: React.CSSProperties = { flex: 1, padding: "10px 0", borderRadius: 10, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer" };

@@ -14,6 +14,16 @@ export interface WorkerRiskScore {
   recommendations: string[]
   expiringDocuments: ExpiringDoc[]
   analysedAt: string
+  /**
+   * Item 2.2 — distinguishes AI-derived score from rule-based fallback.
+   *   'success'  = AI analysis returned and was used
+   *   'fallback' = AI analysis attempted but failed (SDK error / parse error)
+   *                — caller should consider surfacing "AI unavailable, showing
+   *                  rule-based assessment" badge
+   *   'no_key'   = ANTHROPIC_API_KEY not set; AI block skipped
+   * Optional field — undefined means score predates Item 2.2 instrumentation.
+   */
+  aiStatus?: 'success' | 'fallback' | 'no_key'
 }
 
 export interface ExpiringDoc {
@@ -82,6 +92,8 @@ export async function scoreWorkerRisk(worker: any): Promise<WorkerRiskScore> {
   const baseRisk: RiskLevel = redCount > 0 ? 'RED' : amberCount > 0 ? 'AMBER' : 'GREEN'
 
   // Use AI for deeper analysis if Anthropic key is available
+  // Item 2.2 — track which path produced the score (AI / fallback / no-key)
+  let aiStatus: 'success' | 'fallback' | 'no_key' = 'no_key'
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const userMessage = `Analyse this worker's compliance status and provide a risk assessment.
@@ -108,6 +120,7 @@ Red flags: ${redCount}, Amber warnings: ${amberCount}`
       const content = response.content[0]?.type === 'text' ? response.content[0].text : '{}'
       const aiResult = JSON.parse(content)
 
+      aiStatus = 'success'
       return {
         workerId: worker.id ?? worker.airtableId ?? 'unknown',
         workerName: worker.name ?? 'Unknown',
@@ -117,10 +130,16 @@ Red flags: ${redCount}, Amber warnings: ${amberCount}`
         recommendations: aiResult.recommendations ?? [],
         expiringDocuments,
         analysedAt: new Date().toISOString(),
+        aiStatus,
       }
     } catch (err) {
       logger.warn({ err }, 'Anthropic analysis failed, falling back to basic scoring')
+      aiStatus = 'fallback'
     }
+  } else {
+    // Item 2.2 — was silent skip; now logged so ops can see why scores
+    // came out rule-based across the board.
+    logger.warn('complianceAI: ANTHROPIC_API_KEY not set — scoring without AI')
   }
 
   // Fallback: rule-based scoring
@@ -143,6 +162,7 @@ Red flags: ${redCount}, Amber warnings: ${amberCount}`
     recommendations,
     expiringDocuments,
     analysedAt: new Date().toISOString(),
+    aiStatus, // Item 2.2 — 'fallback' if AI tried-and-failed, 'no_key' if not configured
   }
 }
 

@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { patchWorker, uploadWorkerDocument } from "@/lib/api";
 import {
   X,
   User,
@@ -149,7 +150,12 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>("identity");
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Tier 1 #4: uploadedFiles tracks per-slot upload state. Pre-fix this was
+  // local-only — the toast said "Profile saved successfully" while nothing
+  // hit the server. Now each entry is set ONLY after the server returns 2xx.
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
+  const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [email, setEmail] = useState(candidate.email || "");
@@ -188,28 +194,94 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
   const finalPayout = grossPay - advNum;
   const totalZUS    = grossPay * 0.1126;
 
-  function handleSave() {
-    const updated: Partial<Candidate> = {
+  /**
+   * Tier 1 #4: save now persists to Postgres via PATCH /api/workers/:id.
+   * Pre-fix this called onSave (in-memory) and toasted success regardless of
+   * what happened next. The "saved locally" banner has been removed because
+   * the new path actually persists. The success toast fires only after the
+   * server returns 2xx; failure surfaces an honest error toast and the
+   * editing UI stays open so the operator can retry instead of believing
+   * a phantom save.
+   */
+  async function handleSave() {
+    if (saving) return;
+    setSaving(true);
+
+    // Map mobile field names to the backend PATCH /workers/:id field map
+    // (see artifacts/api-server/src/routes/workers.ts:1297).
+    const payload: Record<string, unknown> = {
       email, phone, nationality, pesel, nip, iban, rodoConsentDate: rodoDate,
-      role, siteLocation, yearsOfExperience: experience, visaType,
-      contractType, contractEndDate, pipelineStage, placementType,
-      trcExpiry, workPermitExpiry, bhpExpiry, badaniaLekExpiry, oswiadczenieExpiry, udtCertExpiry,
+      specialization: role,       // backend maps specialization → jobRole
+      siteLocation,
+      yearsOfExperience: experience,
+      visaType, contractType, contractEndDate, pipelineStage, placementType,
+      trcExpiry, workPermitExpiry,
+      bhpStatus: bhpExpiry,       // backend column is bhpStatus
+      badaniaLekExpiry, oswiadczenieExpiry, udtCertExpiry,
       hourlyNettoRate: rateNum || undefined,
       totalHours: hoursNum || undefined,
       advancePayment: advNum || undefined,
       zusStatus,
     };
-    onSave?.(updated);
-    setEditing(false);
-    showToast("Profile saved successfully", "success");
+
+    // Drop undefined / empty strings — backend treats both as no-update.
+    for (const k of Object.keys(payload)) {
+      const v = payload[k];
+      if (v === undefined || v === null || v === "") delete payload[k];
+    }
+
+    try {
+      await patchWorker(candidate.id, payload);
+      // Bubble the updated subset to the parent (it manages the local
+      // candidate-list cache). Now the bubble is post-persist, so the cache
+      // stays consistent with the database.
+      onSave?.({
+        email, phone, nationality, pesel, nip, iban, rodoConsentDate: rodoDate,
+        role, siteLocation, yearsOfExperience: experience, visaType,
+        contractType, contractEndDate, pipelineStage, placementType,
+        trcExpiry, workPermitExpiry, bhpExpiry, badaniaLekExpiry, oswiadczenieExpiry, udtCertExpiry,
+        hourlyNettoRate: rateNum || undefined,
+        totalHours: hoursNum || undefined,
+        advancePayment: advNum || undefined,
+        zusStatus,
+      });
+      setEditing(false);
+      showToast("Profile saved", "success");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? `Save failed: ${err.message}` : "Save failed — could not reach server",
+        "error",
+      );
+      // Stay in editing mode so the operator can retry. No phantom success.
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleFileUpload(slotId: string, label: string, e: React.ChangeEvent<HTMLInputElement>) {
+  /**
+   * Tier 1 #4: uploads now POST to /api/workers/:id/upload via
+   * uploadWorkerDocument(). Pre-fix the handler only set local state and
+   * toasted success — files never reached R2 storage and the smart-ingest
+   * pipeline never ran. The slot's "Replace" state now reflects a real
+   * persisted attachment, not a client-side selection.
+   */
+  async function handleFileUpload(slotId: string, label: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
-    showToast(`Uploaded: ${file.name}`, "success");
-    e.target.value = "";
+    setUploadingSlot(slotId);
+    try {
+      await uploadWorkerDocument(candidate.id, slotId, file);
+      setUploadedFiles((prev) => ({ ...prev, [slotId]: file.name }));
+      showToast(`Uploaded: ${file.name}`, "success");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? `${label} upload failed: ${err.message}` : `${label} upload failed`,
+        "error",
+      );
+    } finally {
+      setUploadingSlot(null);
+      e.target.value = "";
+    }
   }
 
   function cancelEdit() {
@@ -296,16 +368,18 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
           </div>
         </div>
 
-        {/* Edit mode banner */}
+        {/* Edit mode banner. Tier 1 #4: copy now reflects reality — changes
+            persist to the server on Save. Pre-fix said "saved locally" which
+            contradicted the success toast that fired regardless. */}
         {editing && (
           <div className="wp-edit-banner">
             <Pencil size={13} color="#D97706" strokeWidth={2} style={{ flexShrink: 0 }} />
-            <span>Editing profile — changes are saved locally</span>
-            <button className="wp-save-btn" onClick={handleSave}>
+            <span>Editing profile — Save persists to the server</span>
+            <button className="wp-save-btn" onClick={handleSave} disabled={saving}>
               <Save size={13} strokeWidth={2.5} />
-              Save
+              {saving ? "Saving…" : "Save"}
             </button>
-            <button className="wp-cancel-btn" onClick={cancelEdit}>
+            <button className="wp-cancel-btn" onClick={cancelEdit} disabled={saving}>
               <XCircle size={13} strokeWidth={2.5} />
             </button>
           </div>
@@ -449,8 +523,13 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
                     <button
                       className={"wp-upload-btn" + (uploaded ? " wp-upload-btn--done" : "")}
                       onClick={() => fileRefs.current[id]?.click()}
+                      disabled={uploadingSlot === id}
                     >
-                      {uploaded ? <><CheckCircle2 size={12} strokeWidth={2.5} /> Replace</> : <><Upload size={12} strokeWidth={2.5} /> Upload</>}
+                      {uploadingSlot === id
+                        ? <><Upload size={12} strokeWidth={2.5} className="animate-spin" /> Uploading…</>
+                        : uploaded
+                          ? <><CheckCircle2 size={12} strokeWidth={2.5} /> Replace</>
+                          : <><Upload size={12} strokeWidth={2.5} /> Upload</>}
                     </button>
                     <input
                       type="file"
@@ -528,13 +607,13 @@ export default function WorkerProfileSheet({ candidate, seeFinancials, canEdit, 
         {/* Bottom save bar when editing */}
         {editing && (
           <div className="wp-bottom-bar">
-            <button className="wp-bottom-cancel" onClick={cancelEdit}>
+            <button className="wp-bottom-cancel" onClick={cancelEdit} disabled={saving}>
               <XCircle size={15} strokeWidth={2.5} />
               Cancel
             </button>
-            <button className="wp-bottom-save" onClick={handleSave}>
+            <button className="wp-bottom-save" onClick={handleSave} disabled={saving}>
               <CheckCircle2 size={15} strokeWidth={2.5} />
-              Save Profile
+              {saving ? "Saving…" : "Save Profile"}
             </button>
           </div>
         )}

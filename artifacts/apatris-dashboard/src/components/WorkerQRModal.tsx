@@ -59,8 +59,12 @@ export function WorkerQRModal({ worker, isOpen, onClose }: WorkerQRModalProps) {
 
   if (!isOpen || !worker) return null;
 
+  // z-[300] sits above WorkerProfilePanel's z-[210]. Pre-fix the QR modal
+  // opened at z-[60] which rendered it BEHIND the open WorkerProfilePanel
+  // slide-over — click registered, modal mounted, but invisible (walkthrough
+  // finding #10).
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={onClose}

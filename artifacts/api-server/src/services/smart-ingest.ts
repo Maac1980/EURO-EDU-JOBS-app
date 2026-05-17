@@ -23,6 +23,7 @@ import { authenticateToken } from "../lib/authMiddleware.js";
 import { evaluateLegalStatus, type LegalInput, type LegalOutput } from "./legal-decision-engine.js";
 import { syncToGraph } from "./knowledge-graph.js";
 import { recordFact } from "./intelligence-router.js";
+import { normalizeForClaudeVision, mapErrorToFriendlyResponse, FriendlyError, type NormalizedContent } from "./document-format.js";
 
 const router = Router();
 
@@ -152,7 +153,25 @@ router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
     if (wRows.rows.length === 0) return res.status(404).json({ error: "Worker not found" });
     const w = wRows.rows[0] as any;
 
-    // ── Step 2: AI Document Analysis (Claude Vision) ────────────────────────
+    // ── Step 2: Universal format normalization → Claude content blocks ──────
+    //
+    // Upload-pipeline /goal: accept PDF, HEIC, DOCX, plus the native
+    // JPG/PNG/GIF/WebP. Image formats pass through as { type: "image" };
+    // text-based formats (PDF text layer, DOCX, plain text) become
+    // { type: "text" } blocks instead. The Claude Messages API handles
+    // both kinds of content in the same content array — multi-modal by
+    // design.
+    let normalized: NormalizedContent | NormalizedContent[];
+    try {
+      normalized = await normalizeForClaudeVision(image, mime, name);
+    } catch (err) {
+      const mapped = mapErrorToFriendlyResponse(err);
+      // Log full error server-side, return friendly response to client.
+      console.warn(`[smart-ingest] normalization failed: ${mapped.body.code} — ${mapped.body.error}`);
+      return res.status(mapped.httpStatus).json(mapped.body);
+    }
+    const normalizedArr: NormalizedContent[] = Array.isArray(normalized) ? normalized : [normalized];
+
     let analysis: any = {};
     let aiError: string | null = null;
 
@@ -160,15 +179,21 @@ router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
       const mod = await import("@anthropic-ai/sdk");
       const client = new mod.default({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+      // Build the content array: each normalized item becomes one block,
+      // plus the analysis-prompt text block at the end.
+      const contentBlocks: Array<Record<string, unknown>> = normalizedArr.map((n) =>
+        n.kind === "image"
+          ? { type: "image", source: { type: "base64", media_type: n.mediaType, data: n.base64 } }
+          : { type: "text", text: `[Document content${n.pageCount ? ` — ${n.pageCount} page(s)` : ""}, source: ${n.sourceFormat}]\n\n${n.text}` }
+      );
+      contentBlocks.push({ type: "text", text: `${ANALYSIS_PROMPT}\n\nWorker context: ${w.name}, ${w.nationality ?? "N/A"}, PESEL: ${w.pesel ?? "N/A"}, Current permit expires: ${w.trc_expiry ?? w.work_permit_expiry ?? "N/A"}` });
+
       const resp = await client.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 2000,
         messages: [{
           role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mime as any, data: image } },
-            { type: "text", text: `${ANALYSIS_PROMPT}\n\nWorker context: ${w.name}, ${w.nationality ?? "N/A"}, PESEL: ${w.pesel ?? "N/A"}, Current permit expires: ${w.trc_expiry ?? w.work_permit_expiry ?? "N/A"}` },
-          ],
+          content: contentBlocks as any,
         }],
       });
 
@@ -176,8 +201,20 @@ router.post("/documents/smart-ingest", authenticateToken, async (req, res) => {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
     } catch (err: any) {
-      aiError = err.message;
-      analysis = { doc_type: "UNKNOWN", confidence: 0, rationale: "AI analysis failed", extracted_data: {} };
+      // Log the raw Anthropic error server-side so we can debug, but DO
+      // NOT let the raw error message reach the user. We continue with a
+      // graceful unknown-doc result so the downstream pipeline (legal
+      // impact, draft, persist) still runs. The client gets back
+      // analysis.doc_type = "UNKNOWN" + a rationale that signals failure.
+      const mapped = mapErrorToFriendlyResponse(err);
+      aiError = mapped.body.userMessage;
+      console.warn(`[smart-ingest] Claude call failed: ${mapped.body.code} — ${mapped.body.error?.slice(0, 200)}`);
+      analysis = {
+        doc_type: "UNKNOWN",
+        confidence: 0,
+        rationale: aiError,
+        extracted_data: {},
+      };
     }
 
     const docType: DocTypeKey = (analysis.doc_type && analysis.doc_type in DOC_TYPES)
@@ -547,6 +584,179 @@ router.patch("/documents/verify/:docId", authenticateToken, async (req, res) => 
     } catch { /* intelligence router is best-effort */ }
 
     return res.json({ success: true, status: "verified", syncedFields, graphSync: graphResult, intelligence: intelResult });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+//   DOCUMENT WORKFLOW QUEUE (Tier 1 #1 — wire the dashboard tab to real data)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// The dashboard DocumentWorkflow tab fetched /api/workflows/queue/pending,
+// /api/workflows/stats, /api/workflows/:id/approve, /api/workflows/:id/reject
+// — none of those routes existed server-side. The tab caught the 404s and
+// rendered a confident "All documents reviewed" panel WHILE simultaneously
+// firing a "Failed to load" toast. Compliance fiction.
+//
+// Decision (architect): do NOT build a parallel /workflows backend. Wire the
+// tab to the smart_documents table that the smart-ingest pipeline already
+// populates. These four routes are the bridge.
+//
+// Status values used (matching what smart-ingest.ts writes today):
+//   "analyzed"   — initial AI pass complete, awaiting human review
+//   "verified"   — human approved + synced to worker
+//   "rejected"   — human rejected
+//   The frontend's five-bucket UI maps onto:
+//     uploaded            → status = 'analyzed' AND draft_text IS NULL
+//     under_review        → status = 'analyzed' AND draft_text IS NOT NULL
+//     approved            → status = 'verified'
+//     rejected            → status = 'rejected'
+//     resubmit_requested  → status = 'resubmit_requested' (rare, set by reject-with-resubmit)
+//
+// Auth: all four routes require authenticateToken. Reviewer identity is
+// captured from req.user for the audit trail.
+
+router.get("/documents/smart-ingest/queue", authenticateToken, async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        sd.id,
+        sd.worker_id,
+        COALESCE(w.name, 'Unknown Worker') AS worker_name,
+        sd.doc_type,
+        sd.file_name,
+        sd.status,
+        sd.confidence,
+        sd.draft_text IS NOT NULL AS has_draft,
+        sd.created_at,
+        sd.updated_at,
+        (sd.ai_context->>'verifiedBy') AS reviewer_name,
+        (sd.ai_context->>'verifiedAt') AS reviewed_at,
+        (sd.ai_context->>'rejectionReason') AS rejection_reason,
+        (sd.extracted_data->>'expiry_date') AS expiry_date
+      FROM smart_documents sd
+      LEFT JOIN workers w ON w.id::text = sd.worker_id
+      WHERE sd.status NOT IN ('verified', 'rejected')
+      ORDER BY sd.created_at DESC
+      LIMIT 200
+    `);
+
+    // Map smart_documents status → frontend workflow status
+    const documents = rows.rows.map((r: any) => {
+      let workflowStatus = "uploaded";
+      if (r.status === "analyzed" && r.has_draft) workflowStatus = "under_review";
+      else if (r.status === "analyzed") workflowStatus = "uploaded";
+      else if (r.status === "resubmit_requested") workflowStatus = "resubmit_requested";
+      else workflowStatus = r.status;
+
+      return {
+        id: r.id,
+        workerName: r.worker_name,
+        documentType: String(r.doc_type ?? "UNKNOWN").replace(/_/g, " "),
+        status: workflowStatus,
+        fileName: r.file_name,
+        uploadedBy: "system", // smart-ingest doesn't track uploader yet
+        uploadedAt: r.created_at,
+        reviewerName: r.reviewer_name,
+        reviewedAt: r.reviewed_at,
+        reviewComment: null,
+        rejectionReason: r.rejection_reason,
+        version: 1,
+        expiryDate: r.expiry_date,
+      };
+    });
+
+    return res.json({ documents });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/documents/smart-ingest/stats", authenticateToken, async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT
+        SUM(CASE WHEN status = 'analyzed' AND draft_text IS NULL THEN 1 ELSE 0 END)::int AS uploaded,
+        SUM(CASE WHEN status = 'analyzed' AND draft_text IS NOT NULL THEN 1 ELSE 0 END)::int AS under_review,
+        SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END)::int AS approved,
+        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END)::int AS rejected,
+        SUM(CASE WHEN status = 'resubmit_requested' THEN 1 ELSE 0 END)::int AS resubmit_requested
+      FROM smart_documents
+    `);
+    const stats = rows.rows[0] ?? { uploaded: 0, under_review: 0, approved: 0, rejected: 0, resubmit_requested: 0 };
+    return res.json({ stats });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/documents/smart-ingest/:id/approve", authenticateToken, async (req, res) => {
+  try {
+    const docId = String(req.params.id);
+    const { comment } = req.body as { comment?: string };
+    const reviewer = (req as any).user?.name ?? (req as any).user?.email ?? "unknown";
+
+    const existing = await db.execute(sql`
+      SELECT id, ai_context FROM smart_documents WHERE id = ${docId}
+    `);
+    if (existing.rows.length === 0) return res.status(404).json({ error: "Document not found" });
+
+    const prevCtx = ((existing.rows[0] as any).ai_context ?? {}) as Record<string, unknown>;
+    const newCtx = {
+      ...prevCtx,
+      verified: true,
+      verifiedAt: new Date().toISOString(),
+      verifiedBy: reviewer,
+      reviewComment: comment ?? null,
+    };
+
+    await db.execute(sql`
+      UPDATE smart_documents
+      SET status = 'verified',
+          ai_context = ${JSON.stringify(newCtx)}::jsonb,
+          updated_at = NOW()
+      WHERE id = ${docId}
+    `);
+
+    return res.json({ success: true, status: "verified" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/documents/smart-ingest/:id/reject", authenticateToken, async (req, res) => {
+  try {
+    const docId = String(req.params.id);
+    const { reason } = req.body as { reason?: string };
+    if (!reason || !String(reason).trim()) {
+      return res.status(400).json({ error: "Rejection reason required" });
+    }
+    const reviewer = (req as any).user?.name ?? (req as any).user?.email ?? "unknown";
+
+    const existing = await db.execute(sql`
+      SELECT id, ai_context FROM smart_documents WHERE id = ${docId}
+    `);
+    if (existing.rows.length === 0) return res.status(404).json({ error: "Document not found" });
+
+    const prevCtx = ((existing.rows[0] as any).ai_context ?? {}) as Record<string, unknown>;
+    const newCtx = {
+      ...prevCtx,
+      rejected: true,
+      rejectedAt: new Date().toISOString(),
+      rejectedBy: reviewer,
+      rejectionReason: reason,
+    };
+
+    await db.execute(sql`
+      UPDATE smart_documents
+      SET status = 'rejected',
+          ai_context = ${JSON.stringify(newCtx)}::jsonb,
+          updated_at = NOW()
+      WHERE id = ${docId}
+    `);
+
+    return res.json({ success: true, status: "rejected" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

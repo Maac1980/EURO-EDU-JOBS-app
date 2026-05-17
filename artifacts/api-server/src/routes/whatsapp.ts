@@ -466,4 +466,34 @@ router.get("/whatsapp/messages", authenticateToken, requireT1T2, async (req, res
   }
 });
 
+// GET /whatsapp/templates — list active templates so the cockpit Quick-Send
+// UI knows what's available. Returns active templates for the caller's tenant
+// (or 'production' fallback per current data model).
+router.get("/whatsapp/templates", authenticateToken, requireT1T2, async (req, res) => {
+  try {
+    const tenantId = requireTenant(req);
+    const rows = await db
+      .select({
+        id: schema.whatsappTemplates.id,
+        name: schema.whatsappTemplates.name,
+        language: schema.whatsappTemplates.language,
+        bodyPreview: schema.whatsappTemplates.bodyPreview,
+        variables: schema.whatsappTemplates.variables,
+        active: schema.whatsappTemplates.active,
+      })
+      .from(schema.whatsappTemplates)
+      .where(
+        and(
+          eq(schema.whatsappTemplates.tenantId, tenantId),
+          eq(schema.whatsappTemplates.active, true),
+        ),
+      )
+      .orderBy(schema.whatsappTemplates.name);
+    return res.json({ templates: rows });
+  } catch (err) {
+    console.error("[whatsapp] GET /templates failed:", err instanceof Error ? err.message : err);
+    return res.status(500).json({ error: "Could not load WhatsApp templates." });
+  }
+});
+
 export default router;

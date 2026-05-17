@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Columns3 } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 const STAGES = ["New", "Screening", "Interview", "Offer", "Placed", "Active", "Released", "Blacklisted"];
 const COLORS: Record<string, string> = { New: "#3b82f6", Screening: "#8b5cf6", Interview: "#0ea5e9", Offer: "#f59e0b", Placed: "#10b981", Active: "#22c55e", Released: "#6b7280", Blacklisted: "#ef4444" };
 export default function ATSPipeline() {

@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { AlertTriangle, ShieldAlert, FileCheck2, Bell, Clock, CheckCircle2, DollarSign, Search, X, Stethoscope, HardHat } from "lucide-react";
-import { COMPLIANCE_ALERTS } from "@/data/mockData";
+// PENDING-4 (May 14): COMPLIANCE_ALERTS mock fallback removed per case
+// law CASE_LAW_002 — fallback data paths must fail loud (empty state),
+// not silent (inert mock cards). When `candidates.length === 0` the
+// alert lists render the existing "No matches" empty UI instead.
 import { useCandidates } from "@/lib/candidateContext";
 import type { Candidate } from "@/data/mockData";
 import type { Role } from "@/types";
+import WorkerCockpit from "@/components/WorkerCockpit";
 
 const TODAY = new Date();
 
@@ -48,30 +52,29 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
 /* ── T1 Executive Alerts ── */
 function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
   const [query, setQuery] = useState("");
+  const [openWorkerId, setOpenWorkerId] = useState<string | null>(null);
 
   const financialAlerts = candidates.filter(c =>
     c.zusStatus?.toLowerCase().includes("pending") || c.zusStatus?.toLowerCase().includes("incomplete")
   );
   const expiringDocs = candidates.flatMap(c => {
-    const items: { name: string; doc: string; days: number }[] = [];
+    const items: { id: string; name: string; doc: string; days: number }[] = [];
     const d1 = daysUntil(c.trcExpiry);
     const d2 = daysUntil(c.workPermitExpiry);
-    if (d1 !== null && d1 < 60) items.push({ name: c.name, doc: "TRC Residence Card", days: d1 });
-    if (d2 !== null && d2 < 60) items.push({ name: c.name, doc: "Work Permit",         days: d2 });
+    if (d1 !== null && d1 < 60) items.push({ id: c.id, name: c.name, doc: "TRC Residence Card", days: d1 });
+    if (d2 !== null && d2 < 60) items.push({ id: c.id, name: c.name, doc: "Work Permit", days: d2 });
     return items;
   });
 
-  // Compute alerts from live candidate data
-  const visaExpiring = candidates.length > 0
-    ? candidates
-        .filter(c => c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60)
-        .map(c => ({ name: c.name, daysLeft: c.visaDaysLeft!, type: c.visaType ?? "Visa" }))
-    : COMPLIANCE_ALERTS.visaExpiring;
-  const missingPassports = candidates.length > 0
-    ? candidates
-        .filter(c => c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected")))
-        .map(c => ({ name: c.name, missing: "Passport / ID" }))
-    : COMPLIANCE_ALERTS.missingPassports;
+  // Each alert card carries the candidate id so click → opens the cockpit.
+  // No candidates loaded = empty alerts (genuine state), not inert mock cards
+  // (case law CASE_LAW_002 — fallback data paths must fail loud).
+  const visaExpiring = candidates
+    .filter(c => c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60)
+    .map(c => ({ id: c.id, name: c.name, daysLeft: c.visaDaysLeft!, type: c.visaType ?? "Visa" }));
+  const missingPassports = candidates
+    .filter(c => c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected")))
+    .map(c => ({ id: c.id, name: c.name, missing: "Passport / ID" }));
 
   const q = query.toLowerCase();
   const filteredVisa    = visaExpiring.filter(a => !q || a.name.toLowerCase().includes(q) || a.type.toLowerCase().includes(q));
@@ -100,7 +103,12 @@ function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
       </div>
       <div className="alert-list">
         {filteredVisa.length === 0 ? <div className="alert-empty">No matches.</div> : filteredVisa.map((a, i) => (
-          <div key={i} className="alert-card amber-card">
+          <div
+            key={i}
+            className="alert-card amber-card"
+            style={a.id ? { cursor: "pointer" } : undefined}
+            onClick={() => a.id && setOpenWorkerId(a.id)}
+          >
             <div className="alert-card-left">
               <div className="alert-card-name">{a.name}</div>
               <div className="alert-card-meta">{a.type}</div>
@@ -119,7 +127,12 @@ function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
       </div>
       <div className="alert-list">
         {filteredMissing.length === 0 ? <div className="alert-empty">No matches.</div> : filteredMissing.map((a, i) => (
-          <div key={i} className="alert-card red-card">
+          <div
+            key={i}
+            className="alert-card red-card"
+            style={a.id ? { cursor: "pointer" } : undefined}
+            onClick={() => a.id && setOpenWorkerId(a.id)}
+          >
             <div className="alert-card-left">
               <div className="alert-card-name">{a.name}</div>
               <div className="alert-card-meta">{a.missing}</div>
@@ -142,8 +155,13 @@ function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
             </div>
             <CheckCircle2 size={16} color="#059669" strokeWidth={2.5} />
           </div>
-        ) : filteredFin.map((c, i) => (
-          <div key={i} className="alert-card" style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE" }}>
+        ) : filteredFin.map((c) => (
+          <div
+            key={c.id}
+            className="alert-card"
+            style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE", cursor: "pointer" }}
+            onClick={() => setOpenWorkerId(c.id)}
+          >
             <div className="alert-card-left">
               <div className="alert-card-name">{c.name}</div>
               <div className="alert-card-meta">{c.zusStatus}</div>
@@ -162,7 +180,12 @@ function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
           </div>
           <div className="alert-list">
             {filteredExpiry.sort((a, b) => a.days - b.days).map((item, i) => (
-              <div key={i} className="alert-card" style={{ background: "#FAFAFA", border: "1.5px solid #E5E7EB" }}>
+              <div
+                key={i}
+                className="alert-card"
+                style={{ background: "#FAFAFA", border: "1.5px solid #E5E7EB", cursor: "pointer" }}
+                onClick={() => setOpenWorkerId(item.id)}
+              >
                 <div className="alert-card-left">
                   <div className="alert-card-name">{item.name}</div>
                   <div className="alert-card-meta">{item.doc}</div>
@@ -177,6 +200,13 @@ function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
       )}
 
       <div style={{ height: 100 }} />
+
+      {openWorkerId && (
+        <WorkerCockpit
+          workerId={openWorkerId}
+          onClose={() => setOpenWorkerId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -184,44 +214,35 @@ function ExecutiveAlerts({ candidates }: { candidates: Candidate[] }) {
 /* ── T2 Legal Alerts — DIFFERENTIATED from LegalHome ── */
 function LegalAlerts({ candidates }: { candidates: Candidate[] }) {
   const [query, setQuery] = useState("");
+  const [openWorkerId, setOpenWorkerId] = useState<string | null>(null);
 
   const q = query.toLowerCase();
 
-  const allIssues: { name: string; issue: string; days: number | null; severity: "critical" | "warning" | "pending" }[] = [];
+  // Each issue carries the candidate id so the card can deep-link to the
+  // cockpit. No candidates loaded = empty allIssues array, rendered as the
+  // existing empty state (case law CASE_LAW_002 — fail loud, not silent).
+  const allIssues: { id?: string; name: string; issue: string; days: number | null; severity: "critical" | "warning" | "pending" }[] = [];
 
-  // Derive visa/passport/permit alerts from live candidates when available
-  if (candidates.length > 0) {
-    candidates.forEach(c => {
-      if (c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60) {
-        allIssues.push({ name: c.name, issue: `${c.visaType ?? "Visa"} expiring`, days: c.visaDaysLeft, severity: c.visaDaysLeft <= 10 ? "critical" : "warning" });
-      }
-      if (c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected"))) {
-        allIssues.push({ name: c.name, issue: "Passport / ID missing", days: null, severity: "critical" });
-      }
-      const wp = c.documents.find(d => d.name.toLowerCase().includes("work permit"));
-      if (wp && wp.status !== "approved") {
-        allIssues.push({ name: c.name, issue: "Work permit pending", days: null, severity: "pending" });
-      }
-    });
-  } else {
-    COMPLIANCE_ALERTS.visaExpiring.forEach(a => {
-      allIssues.push({ name: a.name, issue: `${a.type} expiring`, days: a.daysLeft, severity: a.daysLeft <= 10 ? "critical" : "warning" });
-    });
-    COMPLIANCE_ALERTS.missingPassports.forEach(a => {
-      allIssues.push({ name: a.name, issue: a.missing, days: null, severity: "critical" });
-    });
-    COMPLIANCE_ALERTS.workPermits.filter(p => p.status === "pending").forEach(a => {
-      allIssues.push({ name: a.name, issue: "Work permit pending", days: null, severity: "pending" });
-    });
-  }
+  candidates.forEach(c => {
+    if (c.visaDaysLeft !== undefined && c.visaDaysLeft > 0 && c.visaDaysLeft <= 60) {
+      allIssues.push({ id: c.id, name: c.name, issue: `${c.visaType ?? "Visa"} expiring`, days: c.visaDaysLeft, severity: c.visaDaysLeft <= 10 ? "critical" : "warning" });
+    }
+    if (c.documents.some(d => d.name.toLowerCase().includes("passport") && (d.status === "missing" || d.status === "rejected"))) {
+      allIssues.push({ id: c.id, name: c.name, issue: "Passport / ID missing", days: null, severity: "critical" });
+    }
+    const wp = c.documents.find(d => d.name.toLowerCase().includes("work permit"));
+    if (wp && wp.status !== "approved") {
+      allIssues.push({ id: c.id, name: c.name, issue: "Work permit pending", days: null, severity: "pending" });
+    }
+  });
 
   candidates.forEach(c => {
     const d1 = daysUntil(c.bhpExpiry);
     const d2 = daysUntil(c.badaniaLekExpiry);
     const d3 = daysUntil(c.oswiadczenieExpiry);
-    if (d1 !== null && d1 < 90) allIssues.push({ name: c.name, issue: "BHP Certificate expiring", days: d1, severity: d1 <= 30 ? "critical" : "warning" });
-    if (d2 !== null && d2 < 90) allIssues.push({ name: c.name, issue: "Medical Certificate expiring", days: d2, severity: d2 <= 30 ? "critical" : "warning" });
-    if (d3 !== null && d3 < 60) allIssues.push({ name: c.name, issue: "Oświadczenie expiring", days: d3, severity: d3 <= 14 ? "critical" : "warning" });
+    if (d1 !== null && d1 < 90) allIssues.push({ id: c.id, name: c.name, issue: "BHP Certificate expiring", days: d1, severity: d1 <= 30 ? "critical" : "warning" });
+    if (d2 !== null && d2 < 90) allIssues.push({ id: c.id, name: c.name, issue: "Medical Certificate expiring", days: d2, severity: d2 <= 30 ? "critical" : "warning" });
+    if (d3 !== null && d3 < 60) allIssues.push({ id: c.id, name: c.name, issue: "Oświadczenie expiring", days: d3, severity: d3 <= 14 ? "critical" : "warning" });
   });
 
   allIssues.sort((a, b) => {
@@ -272,7 +293,12 @@ function LegalAlerts({ candidates }: { candidates: Candidate[] }) {
       </div>
       <div className="alert-list">
         {filtered.length === 0 ? <div className="alert-empty">No matches.</div> : filtered.map((item, i) => (
-          <div key={i} className={"alert-card " + (item.severity === "critical" ? "red-card" : item.severity === "warning" ? "amber-card" : "")}>
+          <div
+            key={i}
+            className={"alert-card " + (item.severity === "critical" ? "red-card" : item.severity === "warning" ? "amber-card" : "")}
+            style={item.id ? { cursor: "pointer" } : undefined}
+            onClick={() => item.id && setOpenWorkerId(item.id)}
+          >
             <div className="alert-card-left">
               <div className="alert-card-name">{item.name}</div>
               <div className="alert-card-meta">{item.issue}</div>
@@ -354,6 +380,13 @@ function LegalAlerts({ candidates }: { candidates: Candidate[] }) {
       )}
 
       <div style={{ height: 100 }} />
+
+      {openWorkerId && (
+        <WorkerCockpit
+          workerId={openWorkerId}
+          onClose={() => setOpenWorkerId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -361,6 +394,7 @@ function LegalAlerts({ candidates }: { candidates: Candidate[] }) {
 /* ── T3 Operations Alerts ── */
 function OpsAlerts({ candidates }: { candidates: Candidate[] }) {
   const [query, setQuery] = useState("");
+  const [openWorkerId, setOpenWorkerId] = useState<string | null>(null);
   const needsDocs = candidates.filter(c => c.status === "missing" || c.status === "expiring");
   const q = query.toLowerCase();
   const filtered = needsDocs.filter(c => !q || c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q) || c.statusLabel.toLowerCase().includes(q));
@@ -386,7 +420,12 @@ function OpsAlerts({ candidates }: { candidates: Candidate[] }) {
         {filtered.length === 0
           ? <div className="alert-empty">No matches.</div>
           : filtered.map((c) => (
-          <div key={c.id} className="alert-card amber-card">
+          <div
+            key={c.id}
+            className="alert-card amber-card"
+            style={{ cursor: "pointer" }}
+            onClick={() => setOpenWorkerId(c.id)}
+          >
             <div className="alert-card-left">
               <div className="alert-card-name">{c.flag} {c.name}</div>
               <div className="alert-card-meta">{c.role} · {c.statusLabel}</div>
@@ -398,6 +437,13 @@ function OpsAlerts({ candidates }: { candidates: Candidate[] }) {
         ))}
       </div>
       <div style={{ height: 100 }} />
+
+      {openWorkerId && (
+        <WorkerCockpit
+          workerId={openWorkerId}
+          onClose={() => setOpenWorkerId(null)}
+        />
+      )}
     </div>
   );
 }

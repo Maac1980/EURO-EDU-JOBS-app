@@ -141,6 +141,27 @@ export const systemUsers = pgTable("system_users", {
   // nationalityScope: when set, filters worker-listing queries to that nationality.
   // NULL = no scope (default: see all). "Ukrainian" = Yana's UA-liaison scope.
   nationalityScope: text("nationality_scope"),
+  // Dashboard auth unification (May 14) — finer-grained gate than role for
+  // worker-edit access. T1/T2/T3 default TRUE (recruitment + ops do data entry);
+  // T4 candidate-tier seeds must set explicitly FALSE. Honored by
+  // requireCoordinatorOrAdmin middleware to allow T3→manager users to PATCH
+  // workers when this flag is set (Karan/Marj/Yana on dashboard rollout).
+  canEditWorkers: boolean("can_edit_workers").notNull().default(true),
+  // 2FA on system_users (May 15, commit 4 of dashboard auth unification).
+  // Previously TOTP lived on the legacy `users` table only. Migrating columns
+  // here so the unified auth path can verify 2FA against the same row that
+  // resolves the login. Implementation reads/writes added in commit 5.
+  // - two_factor_secret: speakeasy base32 secret, set during /2fa/setup
+  // - two_factor_enabled: user has completed setup + first verify
+  // - requires_2fa: mandatory enforcement flag. Backfilled TRUE for admin-tier
+  //   (T1 non-Legal designation per role-translation). Liza + T3 = FALSE
+  //   (opt-in for May 18). Reviewed via FUTURE.md §4 (broader mandate trigger).
+  // - recovery_codes_hashed: JSON array of scrypt-hashed codes for lost-phone
+  //   fallback. NULL = not generated yet. Codes consumed-on-use (commit 5).
+  twoFactorSecret: text("two_factor_secret"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  requires2fa: boolean("requires_2fa").notNull().default(false),
+  recoveryCodesHashed: text("recovery_codes_hashed"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -1145,4 +1166,41 @@ export const a1Certificates = pgTable("a1_certificates", {
   tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── AI Reasoning Log (provenance for AI-driven decisions) ────────────────────
+// Stores why the AI did what it did — separate from audit_entries which records
+// state changes. The reasoning log is the legal-evidence trail: if a worker's
+// fields were updated by AI-extracted document data, this table records the
+// source document, the extracted entities, the matching logic, the confidence
+// score, and the human reviewer (if any). Append-only.
+export const aiReasoningLog = pgTable("ai_reasoning_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // What kind of decision: "document_extraction", "entity_match", "field_update",
+  // "worker_auto_create", "ai_summary", "appeal_draft", etc.
+  decisionType: text("decision_type").notNull(),
+  // The worker this decision is about (nullable for new-worker creation events
+  // where the worker hasn't been created yet — workerId set after creation).
+  workerId: uuid("worker_id").references(() => workers.id, { onDelete: "set null" }),
+  // Free-form context about the input — e.g., "passport-scan", filename + size,
+  // or the prompt parameters. Should not contain raw PII.
+  inputSummary: text("input_summary"),
+  // Hash of the input for dedupe / reproduction (sha256 hex). Lets us detect
+  // re-runs of the same input without storing the input itself.
+  inputHash: text("input_hash"),
+  // What the AI produced — JSON-shaped output (extracted fields, decided action,
+  // suggested next steps). Tolerates schema evolution.
+  output: jsonb("output"),
+  // 0.0 - 1.0; how confident the AI was in this output. Null when N/A.
+  confidence: numeric("confidence", { precision: 4, scale: 3 }),
+  // What action this reasoning led to: "applied", "rejected", "pending_review",
+  // "auto_applied", "user_corrected". Lets us measure AI accuracy over time.
+  decidedAction: text("decided_action"),
+  // Email of the human who reviewed / approved the AI's output. Null if no
+  // human in the loop (e.g., auto-applied low-risk updates).
+  reviewedBy: text("reviewed_by"),
+  // The AI model name + version. Tracks which model produced what.
+  model: text("model"),
+  tenantId: text("tenant_id").notNull().default("production").references(() => tenants.slug, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

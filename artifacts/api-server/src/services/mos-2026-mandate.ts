@@ -13,6 +13,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { assertWorkerReadable } from "../lib/worker-scope.js";
 import { calculateSchengen90180 } from "./schengen-calculator.js";
 
 const router = Router();
@@ -291,6 +292,13 @@ router.post("/mos2026/upo", authenticateToken, async (req, res) => {
 router.get("/mos2026/upo/:workerId", authenticateToken, async (req, res) => {
   try {
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
+    // Tier 1 #3 hardening: the mobile MyUPOTab calls this with a URL workerId.
+    // Pre-fix, any authenticated user could read any worker's UPO records by
+    // passing a different id in the path. Staff bypass kept; workers can only
+    // read their own.
+    const guard = await assertWorkerReadable(req, wid);
+    if (!guard.ok) return res.status(guard.status).json({ error: guard.error });
+
     const rows = await db.execute(sql`
       SELECT * FROM upo_vault WHERE worker_id = ${wid} ORDER BY submission_date DESC
     `);

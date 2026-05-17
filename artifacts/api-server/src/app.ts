@@ -4,7 +4,13 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import router from "./routes/index.js";
+
+// __dirname doesn't exist in ESM mode (tsx dev). Derive it from import.meta.url
+// so the same source runs under both tsx (ESM dev) and esbuild's CJS bundle.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
@@ -13,7 +19,15 @@ app.set("trust proxy", 1);
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "https://eej-jobs-api.fly.dev,https://eej-jobs.app,https://admin.eej-jobs.app,http://localhost:5173,http://localhost:3000")
+// CORS allowlist. Staging (eej-api.fly.dev) added 2026-05-13 — first deploy
+// to staging surfaced that browser CORS rejection on same-origin module-
+// script loads with `crossorigin` attribute returns 500 to the browser
+// because production-only allowlist rejected staging's own Origin header.
+// Operational fix would be setting ALLOWED_ORIGINS env var on staging Fly;
+// code default updated here so any new staging-shape deploy from any branch
+// doesn't repeat the bug. Adding self-staging to the default is dormant on
+// prod (prod never receives traffic claiming staging origin).
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "https://eej-jobs-api.fly.dev,https://eej-api.fly.dev,https://eej-jobs.app,https://admin.eej-jobs.app,http://localhost:5173,http://localhost:3000")
   .split(",").map(o => o.trim()).filter(Boolean);
 app.use(cors({
   origin: (origin, cb) => {

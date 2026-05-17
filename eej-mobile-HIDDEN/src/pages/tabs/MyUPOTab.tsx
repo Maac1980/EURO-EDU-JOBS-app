@@ -1,89 +1,154 @@
-/**
- * My UPO — show worker's digital UPO receipt (replaces passport stamp).
- * Read-only proof of legal stay under Art. 108.
- */
-import { useState, useEffect } from "react";
-import { Shield, FileText, Loader2, CheckCircle2 } from "lucide-react";
+// My UPO — worker sees their digital UPO receipts (replaces passport stamp).
+// Art. 108 confirmation of legal stay during a pending TRC application.
+// Read-only proof — workers show this to border guards or PIP inspectors.
+import { useEffect, useState } from "react";
+import { Shield, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import { useMyWorker } from "@/lib/useMyWorker";
 
-const API = "/api";
+interface UPORecord {
+  id: string;
+  submission_number: string;
+  submission_date: string;
+  case_type: string;
+  authority?: string;
+  art108_locked?: boolean;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("eej_token_v2");
+  return token
+    ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+    : { "Content-Type": "application/json" };
+}
 
 export default function MyUPOTab() {
-  const [loading, setLoading] = useState(true);
-  const [records, setRecords] = useState<any[]>([]);
-  const [workerName, setWorkerName] = useState("");
+  const { worker, loading: workerLoading, error: workerError } = useMyWorker();
+  const [records, setRecords] = useState<UPORecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("eej_mobile_token") ?? sessionStorage.getItem("eej_token") ?? "";
-    fetch(`${API}/workers`, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } })
-      .then(r => r.json())
-      .then(json => {
-        const workers = json.workers ?? json ?? [];
-        if (workers.length > 0) {
-          const w = workers[0];
-          setWorkerName(w.name);
-          fetch(`${API}/mos2026/upo/${w.id}`, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } })
-            .then(r => r.ok ? r.json() : { records: [] })
-            .then(data => { setRecords(data.records ?? []); setLoading(false); })
-            .catch(() => setLoading(false));
-        } else { setLoading(false); };
-      })
-      .catch(() => setLoading(false));
-  }, []);
+    if (!worker) return;
+    setRecordsLoading(true);
+    setFetchError(null);
+    fetch(`/api/mos2026/upo/${encodeURIComponent(worker.id)}`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : { records: [] }))
+      .then((d) => setRecords((d?.records as UPORecord[]) ?? []))
+      .catch(() => setFetchError("Could not load UPO records."))
+      .finally(() => setRecordsLoading(false));
+  }, [worker?.id]);
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
+  if (workerLoading || (worker && recordsLoading)) {
+    return (
+      <div className="tab-page" style={{ padding: 40, textAlign: "center", color: "#9CA3AF" }}>
+        Loading your UPO records…
+      </div>
+    );
+  }
+
+  if (workerError || !worker) {
+    return (
+      <div className="tab-page" style={{ padding: 32, textAlign: "center", color: "#6B7280" }}>
+        <Shield size={32} color="#9CA3AF" strokeWidth={1.5} style={{ margin: "0 auto 12px" }} />
+        <div>{workerError ?? "Profile not found."}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-3">
-          <Shield className="w-8 h-8 text-green-600" />
+    <div className="tab-page">
+      <div className="tab-greeting">
+        <div>
+          <div className="tab-greeting-label">My UPO</div>
+          <div className="tab-greeting-name">Digital proof of legal stay</div>
         </div>
-        <h1 className="text-lg font-bold text-gray-900">My UPO Certificate</h1>
-        <p className="text-xs text-gray-500 mt-1">Digital proof of legal stay (replaces passport stamp)</p>
-        <p className="text-xs text-gray-400">{workerName}</p>
       </div>
 
+      <div className="wc-alert wc-alert-green-soft" style={{ marginBottom: 12, padding: 10 }}>
+        <Shield size={14} strokeWidth={2.2} />
+        <div style={{ flex: 1, fontSize: 12 }}>
+          UPO replaces the old passport stamp under Art. 108. Show this screen to border
+          guards or PIP inspectors as proof of legal stay during a pending case.
+        </div>
+      </div>
+
+      {fetchError && (
+        <div className="wc-alert wc-alert-amber" style={{ marginBottom: 12, padding: 10 }}>
+          <AlertTriangle size={14} strokeWidth={2.2} />
+          <span className="wc-alert-msg">{fetchError}</span>
+        </div>
+      )}
+
       {records.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center">
-          <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm font-medium text-gray-500">No UPO registered yet</p>
-          <p className="text-xs text-gray-400 mt-1">Contact your coordinator to register your UPO</p>
+        <div
+          style={{
+            padding: 30,
+            textAlign: "center",
+            border: "2px dashed #E5E7EB",
+            borderRadius: 12,
+            color: "#9CA3AF",
+            background: "#FAFAFA",
+          }}
+        >
+          <FileText size={28} color="#D1D5DB" strokeWidth={1.5} style={{ margin: "0 auto 8px" }} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#6B7280" }}>No UPO registered yet</div>
+          <div style={{ fontSize: 11, marginTop: 4 }}>
+            Your coordinator will register the UPO once your MOS case is filed.
+          </div>
         </div>
       ) : (
-        records.map((r: any) => (
-          <div key={r.id} className={`rounded-2xl p-5 ${r.art108_locked ? "bg-green-50 border-2 border-green-300" : "bg-white border border-gray-200"}`}>
-            {r.art108_locked && (
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                <span className="text-sm font-bold text-green-700">Art. 108 — Legal Stay Confirmed</span>
-              </div>
-            )}
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Submission Number</span>
-                <span className="text-sm font-mono font-bold text-gray-900">{r.submission_number}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Filing Date</span>
-                <span className="text-sm font-bold text-gray-900">{r.submission_date}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Case Type</span>
-                <span className="text-sm text-gray-700">{r.case_type}</span>
-              </div>
-              {r.authority && (
-                <div className="flex justify-between">
-                  <span className="text-xs text-gray-500">Authority</span>
-                  <span className="text-sm text-gray-700">{r.authority}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {records.map((r) => (
+            <div
+              key={r.id}
+              className="wc-panel"
+              style={
+                r.art108_locked
+                  ? { borderColor: "#6EE7B7", background: "#ECFDF5" }
+                  : undefined
+              }
+            >
+              <div className="wc-panel-header">
+                <div className="wc-panel-title">
+                  {r.art108_locked ? (
+                    <>
+                      <CheckCircle2 size={14} color="#059669" strokeWidth={2.2} />
+                      <span style={{ color: "#059669" }}>Art. 108 — Legal Stay Confirmed</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText size={14} strokeWidth={2.2} />
+                      <span>UPO Receipt</span>
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
+              <div className="wc-panel-body">
+                <div className="wc-row">
+                  <div className="wc-row-label">Submission #</div>
+                  <div className="wc-row-value wc-mono">{r.submission_number}</div>
+                </div>
+                <div className="wc-row">
+                  <div className="wc-row-label">Filed</div>
+                  <div className="wc-row-value">{r.submission_date}</div>
+                </div>
+                <div className="wc-row">
+                  <div className="wc-row-label">Case type</div>
+                  <div className="wc-row-value">{r.case_type}</div>
+                </div>
+                {r.authority && (
+                  <div className="wc-row">
+                    <div className="wc-row-label">Authority</div>
+                    <div className="wc-row-value">{r.authority}</div>
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="text-[10px] text-green-600 mt-3 text-center font-medium">
-              Show this screen to border guards or PIP inspectors as proof of legal stay
-            </p>
-          </div>
-        ))
+          ))}
+        </div>
       )}
+
+      <div style={{ height: 100 }} />
     </div>
   );
 }

@@ -14,7 +14,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, pass: string, totpToken?: string, emailOtp?: string) => Promise<{ success: boolean; requires2FA?: boolean; requiresEmailOtp?: boolean; error?: string }>;
+  login: (email: string, pass: string, totpToken?: string, emailOtp?: string) => Promise<{ success: boolean; requires2FA?: boolean; requires2FASetup?: boolean; qrDataUrl?: string; requiresEmailOtp?: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pass: string,
     totpToken?: string,
     emailOtp?: string
-  ): Promise<{ success: boolean; requires2FA?: boolean; requiresEmailOtp?: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; requires2FA?: boolean; requires2FASetup?: boolean; qrDataUrl?: string; requiresEmailOtp?: boolean; error?: string }> => {
     try {
       const res = await fetch(`${getApiBase()}/auth/login`, {
         method: "POST",
@@ -137,9 +137,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const data = await res.json() as {
         token?: string; user?: User; error?: string;
-        requires2FA?: boolean; requiresEmailOtp?: boolean;
+        requires2FA?: boolean; requires2FASetup?: boolean; qrDataUrl?: string;
+        requiresEmailOtp?: boolean;
       };
 
+      // Pre-Commit-25 Path 2 gap: this branch was missing entirely. Admin
+      // accounts with requires_2fa = TRUE and no 2FA secret yet got a 202 +
+      // requires2FASetup + qrDataUrl from the server (auth.ts:120), but the
+      // client fell through to "Invalid credentials." Surface it so Login.tsx
+      // can render the QR-scan step.
+      if (res.status === 202 && data.requires2FASetup) {
+        return { success: false, requires2FASetup: true, qrDataUrl: data.qrDataUrl };
+      }
       if (res.status === 202 && data.requires2FA) {
         return { success: false, requires2FA: true };
       }

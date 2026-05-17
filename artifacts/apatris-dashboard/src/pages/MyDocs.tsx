@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { FileText, Upload } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 export default function MyDocs() {
   const { user } = useAuth();
   const [docs, setDocs] = useState<any[]>([]);

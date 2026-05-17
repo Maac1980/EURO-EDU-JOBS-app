@@ -19,8 +19,8 @@ EEJ is a Polish labor compliance, recruitment, and workforce management platform
 
 ### Backend
 - **Runtime:** Node.js 24, TypeScript, Express 5
-- **Database:** PostgreSQL (Drizzle ORM, 22 tables)
-- **Auth:** JWT (15min tokens + refresh), Airtable user management, TOTP 2FA
+- **Database:** PostgreSQL (Drizzle ORM, **66 tables** — count verified from `lib/db/src/schema.ts` + `artifacts/api-server/src/db/schema.ts` `pgTable` exports)
+- **Auth:** JWT (15min access tokens + refresh), TOTP 2FA. Users live in Drizzle/Postgres `system_users`, seeded via `artifacts/api-server/src/db/migrate.ts` (`seedUsers` block). **Airtable is no longer in the live auth path** — historical only.
 - **Security:** Helmet, CORS, express-rate-limit
 - **AI:** Anthropic Claude (document OCR, compliance copilot), Perplexity (regulatory search)
 - **Email:** Brevo SMTP / Resend / Nodemailer
@@ -31,13 +31,22 @@ EEJ is a Polish labor compliance, recruitment, and workforce management platform
 - **Scheduling:** node-cron (daily regulatory scans, compliance alerts)
 - **Logging:** Pino, Sentry
 
-### Frontend (EEJ Mobile App)
-- **Location:** `eej-mobile-HIDDEN/`
+### Frontend — Dashboard (desktop / tablet)
+- **Location:** `artifacts/apatris-dashboard/` (directory name is historical — this is the EEJ dashboard, served at the site root by the Fly app)
+- **Framework:** React 19, Vite 8, TypeScript
+- **Styling:** Tailwind CSS 4, Radix UI components
+- **State:** TanStack React Query (with generated client at `lib/api-client-react/`), React Context for auth
+- **Routing:** Wouter (URL-based). `App.tsx` is the route table; `AppShell.tsx` provides the top nav, mega-menu, mobile bottom-bar
+- **Auth token:** `sessionStorage["eej_token"]` is the canonical key (note: a few legacy pages use `eej_jwt` / `apatris_jwt` — unification is a known Tier 2 cleanup)
+
+### Frontend — Mobile App (PWA)
+- **Location:** `eej-mobile-HIDDEN/` (the live source). `artifacts/eej-mobile/` is an older Replit artifact and is not the deployed mobile build.
 - **Framework:** React 19, Vite 8, TypeScript
 - **Styling:** Tailwind CSS 4, Radix UI components
 - **State:** TanStack React Query, React Context
 - **Routing:** State-based tab navigation (no URL routing)
 - **Design:** Mobile-first PWA (430px container)
+- **Auth token:** `localStorage["eej_token_v2"]` via `eej-mobile-HIDDEN/src/lib/api.ts` `authHeaders()` helper
 - **RBAC:** 4-tier (T1 Executive, T2 Legal, T3 Operations, T4 Candidate)
 
 ### Monorepo Structure
@@ -159,30 +168,33 @@ REGULATORY_CRON=0 7 * * *
 
 ## Database
 - PostgreSQL with Drizzle ORM
-- 22 tables including: workers, job_postings, job_applications, interviews, invoices, work_permit_applications, regulatory_updates, immigration_searches, gps_checkins, payroll_records, audit_entries, notifications
+- **66 tables** (count from `pgTable` exports in `lib/db/src/schema.ts` + `artifacts/api-server/src/db/schema.ts`). Key tables: `workers`, `system_users`, `job_postings`, `job_applications`, `interviews`, `invoices`, `work_permit_applications`, `regulatory_updates`, `immigration_searches`, `gps_checkins`, `payroll_records`, `audit_entries`, `notifications`, `trc_cases`, `border_crossings`, `smart_documents`, `clients`, `tenants`
 - Push schema: `cd lib/db && pnpm push`
 
 ## API Structure
-- 95+ endpoints across 26 route files in `artifacts/api-server/src/routes/`
-- Key route groups: auth, workers, jobs, applications, interviews, contracts, invoices, permits, regulatory, immigration, gps, payroll, compliance, gdpr, billing, admin, portal, notifications, audit
+- **~400 endpoints across 33 route files** in `artifacts/api-server/src/routes/` (route-file count exact; endpoint count counted from `router.<method>(` occurrences, approximate because some service files also register routes)
+- Key route groups: `auth`, `workers`, `jobs`, `applications`, `interviews`, `contracts`, `invoices`, `permits`, `regulatory`, `immigration`, `gps`, `payroll`, `compliance`, `gdpr`, `billing`, `admin`, `portal`, `notifications`, `audit`, `trc-service`, `legal-engine`, `legal-operations`, `intelligence-router`, `eej-mobile`, `eej-copilot`, `clients`, `twofa`, `smart-ingest` (in `services/`), `first-contact-verification` (in `services/`)
 
-## Airtable Integration
-- `System_Users` table for multi-tenant user management
-- 4 seed users: T1 Executive, T2 Legal, T3 Operations (password: EEJ2026!)
-- Fields: Name, Email, Password_Hash, Role, Designation, Short_Name
+## User Seeding
+- 7 seed system users in `artifacts/api-server/src/db/migrate.ts` `seedUsers` block (Manish, Anna, Liza, Karan, Marjorie, Yana, plus two historical accounts kept until Manish deactivates).
+- Seed password is read from `EEJ_SEED_PASSWORD` env (Fly secret) — **never hardcoded in source**.
+- `requires_2fa` and `can_view_financials` are baked in at INSERT time (commit `9808059` removed the re-clobbering UPDATE backfills — see `migrate.ts` comment block in the post-seedUsers region for history).
+- Airtable is **not** the auth source. The "Airtable Schema Sync" UI in the dashboard Settings tab is a stale remnant from an earlier integration and is on the Tier 2 cleanup list.
 
 ## Mobile App Navigation
-- Bottom nav: Home, Candidates, Jobs, Alerts, More
-- "More" menu grid links to: ATS Pipeline, Interviews, Contracts, Invoices, Regulatory Intelligence, Immigration Search, Work Permits, GPS Tracking, ZUS Calculator, Profile
-- State-based tab switching (no URL routing)
+- Bottom nav (`AppShell.tsx` `MOBILE_TABS`, post-commit 23): **Home, Workers, Payroll, Alerts, Permits, Contracts**, plus a "More" entry that opens the full module grid (`MoreTab.tsx`)
+- "More" menu grid links role-gated by `executive | legal | operations | candidate` — see `MoreTab.tsx` `MODULES` array for the full list (currently ~33 modules)
+- State-based tab switching (no URL routing). Modal sheets (e.g. `WorkerProfileSheet`) overlay the active tab
 
 ---
 
-## ROADMAP — Phase 1-3 Execution Plan
+## TEAM & SCOPE
 
 ### Owner: Manish Shetty
 ### Companies: EEJ (Euro Edu Jobs), Apatris, IWS, STPG
 ### Workers: 200+ foreign workers across Poland
+
+The current priority list is the audit-tier sequencing — see `## CURRENT PRIORITY LIST` at the bottom of this file. The earlier aspirational Phase 1-3 roadmap was removed in commit `<this commit>`; its content remains in git history if ever needed.
 
 ---
 
@@ -216,20 +228,71 @@ REGULATORY_CRON=0 7 * * *
 - Required Fly secrets: JWT_SECRET, DATABASE_URL, EEJ_ADMIN_PASSWORD, EEJ_ENCRYPTION_KEY, ANTHROPIC_API_KEY, PERPLEXITY_API_KEY, BREVO_SMTP_USER, BREVO_SMTP_PASS
 
 ## DECISION MAKING (MUST FOLLOW)
+Governs **how Claude Code presents work to Manish** — not how chat-Claude or Manish phrase suggestions back.
 - Never ask "shall I proceed?" or "which option do you prefer?"
 - Always pick the best option yourself and execute it
 - If genuinely ambiguous (50/50 with real consequences), state your choice and why in one line, then execute
-- Never present numbered options for the user to choose from
+- Never present numbered options for Manish to choose from
 - Never stop to ask for approval mid-task
 - Just build it
 
+*Note: this rule applies to Claude Code's own output. It does NOT conflict with chat-Claude or Manish framing inputs to Claude Code as questions ("what do you think if we do X") — see `## TEAM STRUCTURE`. The asymmetry is intentional: Claude Code is closest to the code and decides; chat-Claude + Manish are upstream and may probe.*
+
 ## EXECUTION STYLE (MUST FOLLOW)
 - Read CLAUDE.md before starting any task
-- Execute without stopping
+- Execute without stopping within a task — but tier boundaries are gated (see `/goal USAGE DOCTRINE` below)
 - Test before pushing to GitHub
 - Always push AND fly deploy (not just git push): `~/.fly/bin/flyctl deploy -a eej-jobs-api`
 - Commit after each logical unit, not in one big batch
 - If something fails, fix it and continue — don't stop to ask
+
+## WORKING CONVENTIONS (durable — applies every session)
+- **Prompt format:** every instruction carries IF / WHY / FOR WHAT — the reasoning travels with the instruction
+- Every prompt opens with a TO/FROM/SUBJECT-style header identifying who it's for
+- Every command, URL, SQL block, and code snippet goes in its own copy-paste code box. No exceptions
+- **One prompt at a time** — never two parallel work-prompts in flight. When multiple items exist, one stepped prompt covering them, sequenced — not multiple separate prompts
+- A PENDING SCOPE TRACKER is maintained and pasted at the end of work prompts — persistent capture surviving drift and compaction
+- **"Always implement what you learn"** — corrections become permanent immediately, applied in the next instance, not the third
+- Explanations kill time — prompts and responses stay to the point
+- **Time is in Manish's hand.** No calendar narration ("tonight", "tomorrow", "this morning"). Sessions are bounded by laptop-open / laptop-shut, not clocks. EOD is the physical act of Manish closing the laptop — chat-Claude may recommend ending, only Manish decides
+- **Estimates are NEVER given in human-developer hours** — execution is near-instant; the real constraint is Manish's thinking, review, and routing bandwidth. Scope is expressed as work units / milestones, not clock time
+
+## TEAM STRUCTURE
+- Three roles:
+  - **Manish** — architect (decides, detects, routes)
+  - **chat-Claude** — drafts prompts, applies systemic pressure, holds the tracker
+  - **Claude Code** — executes AND reviews / suggests / pushes back (closest to the code)
+- Current process: **Claude Code's suggestions are the default path.** chat-Claude does not inject competing preferences on the work plan. Manish + chat-Claude may suggest, framed as a question ("what do you think if we do X") — not a directive
+- **Manish detects, chat-Claude architects.** Manish should not be asked to make architecture decisions — he is the detection and direction layer; chat-Claude makes the architect calls
+- No Holmes / no separate structural-review seat — that was the APATRIS-era setup. Claude Code now does review and suggestion directly
+
+## /goal USAGE DOCTRINE
+- `/goal` is used for substantial remediation work with a verifiable end state
+- **ONE /goal per tier / per scoped batch** — never one mega-goal across an entire backlog
+- Every `/goal` carries:
+  - (a) concrete numbered acceptance criteria the evaluator can check from surfaced output
+  - (b) an explicit turn cap as a safety net
+  - (c) a scope/constraint section stating what NOT to touch
+- The `/goal` evaluator cannot call tools and cannot see staging. It only judges what Claude Code surfaces in conversation. **Therefore `/goal` completion is NOT the same as "verified working"**
+- **Two-layer verification:**
+  - **Layer 1** — what the `/goal` evaluator + Claude Code can verify (compiles, tests pass, endpoint returns 200, `git ls-files --deleted` empty)
+  - **Layer 2** — what only Manish can verify (the feature actually works when clicked on staging)
+- A `/goal` completing satisfies Layer 1 only. **Manish's staging detection is Layer 2 and is mandatory between tiers**
+- **Workflow:** one `/goal` completes → Claude Code reports → Manish detects on staging → next tier's `/goal`. Never chain tiers without the Manish-detection gate
+
+## TOOLING NOTES
+- **Agent View** (`claude agents`) is the monitoring surface during long `/goal` runs — running / blocked-on-Manish / done
+- Use `claude agents --cwd <path>` to scope the session list — EEJ and APATRIS live in separate directories
+- `/loop` (time-interval re-run) is distinct from `/goal` (run-until-condition). Remediation work uses `/goal`, not `/loop`
+- `claude project purge` is destructive — never run without `--dry-run` first
+
+## PRE-DEPLOY DISCIPLINE
+- `git ls-files --deleted` must return empty before any deploy — flyctl packages the local filesystem, not git HEAD; CI-green does not mean deploy-safe
+- CI green is **CHECKED** on GitHub Actions, never assumed
+- `fly.staging.toml`: `auto_stop_machines = false` (set in commit `afdacc3` — staging machines must not idle-stop mid-work)
+
+## HARD BOUNDARIES
+- Hard Boundaries 1-16 remain pre-conditional gates and hold at all times
 
 ## VALIDATION FRAMEWORK (RUN AFTER EVERY BUILD)
 After every build, run this validation before saying "done":
@@ -280,103 +343,39 @@ DO NOT say "build succeeded" or "everything works" without running this validati
 
 ---
 
-## PHASE 1 — WEEK 1: Core Business Tools (21 Features)
+## CURRENT PRIORITY LIST
 
-### 1. CRM Module
-- Client list: company name, NIP, contact person, email, phone
-- Deal pipeline: Lead → Proposal → Negotiation → Won → Active
-- Activity log per client
-- Link clients to workers
-- Dashboard widget showing pipeline value
+Canonical "what's next" surface. Drove by the pre-production audit. Each tier is one `/goal` per the `## /goal USAGE DOCTRINE` above. **Tier-to-tier transitions are gated by Manish staging detection** — never chain.
 
-### 2. Client Portal
-- Read-only access for clients to see worker compliance
-- Secure token-based access
+### Tier 1 — Compliance-critical falsehoods
+Surfaces that **lie about compliance state on real data** (worst class of bug for a labor-compliance platform). All must land before any tier they block.
+- **DocumentWorkflow** — wire to the existing smart-ingest pipeline (`artifacts/api-server/src/services/smart-ingest.ts:137`, `POST /api/documents/smart-ingest`); add explicit `error` branch to the render decision tree so "Failed to load" no longer renders as "All documents reviewed"
+- **PayrollPage** — frontend calls `/api/payroll/current`; backend has `/payroll/workers`. Path mismatch silently 404s and renders "No workers found." Add a route alias OR rename the frontend call + map field names (`hourlyNettoRate→hourlyRate`, `totalHours→monthlyHours`, `advancePayment→advance`). Also add a generic `PATCH /payroll/workers/:id` or rewire the four field-PATCH callers
+- **MyUPOTab / MySchengenTab** (mobile) — both fetch routes that don't exist server-side (`/api/mos2026/upo/:id`, `/api/schengen/worker/:id`). Build the backends — these are border-checkpoint legal-stay surfaces and "No UPO registered yet" empty state is dangerous fiction
+- **WorkerProfileSheet** (mobile modal) — banner says "saved locally" but toast says "Profile saved successfully"; uploads only set local state, never POST. Wire save + upload to real endpoints
 
-### 3. Worker Self-Service Portal
-- Workers login, see documents, submit hours, upload docs
+### Tier 2 — Dashboard connection hygiene
+One sweep across ~20 surfaces fixing the systemic pattern issues.
+- **Token-key unification** — pick one (`eej_token` recommended), shim/migrate the others (`eej_jwt`, `apatris_jwt`)
+- **Error-masquerading-as-empty sweep** — add `error` state to the render decision tree across all surfaces that currently do `.catch(() => setX([]))` without an error UI
+- **Replit-text purge** — user-visible strings like "Add to your Replit Secrets" replaced with current Fly-era guidance
 
-### 4. Google Workspace Integration
-- Gmail alerts, Calendar scheduling, Drive storage, Chat notifications
+### Tier 3 — Scaffold-404 surfaces
+Architect decision: **build the missing backends, don't hide the UI**. Each is its own scoped task.
+- `AnalyticsPage` (`/api/analytics/heatmap`, `/predictive`, `/report/pdf`)
+- `GpsTracking` (`/api/gps/active`, `/api/geofences`, `/api/gps/anomalies`)
+- `ContractHub` list (`/api/contracts`, `/api/poa`, `/api/contracts/:id/pdf`)
+- `SkillsAssessmentTab` (`/api/workers/:id/skills`)
+- `ShiftScheduleTab` (`/api/shifts`)
+- `WorkerCalendarTab` (`/api/workers/availability`)
 
-### 5. WhatsApp Alerts via Twilio
-- Document expiry reminders, payslip delivery, shift notifications
+### Tier 4 — Static-mock tabs
+Where the 66-table schema has data, wire to real data. Where it doesn't, honest empty-state. Claude Code reports the split for each.
+- `UpdatesTab` (mobile) — fictitious BuildPro updates
+- `SalaryBenchmarkTab` — synthetic "Q1 2026 Polish market" rates
+- `PayTransparencyTab` — synthetic gender/contract/nationality breakdowns
+- `AlertsTab` "Recently Resolved" hardcoded names with specific dates
+- `OperationsHome` `OPS_PIPELINE` / `B2B_CONTRACTS` mock fallback
 
-### 6. AI Contract Generator
-- Umowa Zlecenie / Umowa o Pracę from worker data, PDF with signatures
-
-### 7. Worker Matching AI
-- Match workers to client requests by skill, location, documents
-
-### 8. Predictive Compliance
-- 30/60/90 day expiry prediction, risk scoring, PIP readiness
-
-### 9. Salary Prediction AI
-- Market rate comparison, retention suggestions
-
-### 10. Legal Change Predictor
-- Monitor Dz.U., predict legislation impact
-
-### 11. Revenue Forecasting
-- Monthly revenue prediction, utilization tracking, margin analysis
-
-### 12. Onboarding Checklist
-- Step-by-step new worker setup with document collection
-
-### 13. Invoice Auto-Send
-- Monthly Faktura VAT generation and auto-send
-
-### 14. Salary Advance Request
-- Worker requests advance, manager approves, auto-deducted from payroll
-
-### 15. Voice Check-in
-- Twilio Voice API for phone-based check-in/out
-
-### 16. Worker Mood Tracker
-- Weekly pulse survey, site mood scores
-
-### 17. ESSPASS Integration
-- EU digital social security pass tracking
-
-### 18. ZUS/DRA Tax Filing Auto
-- Generate ZUS DRA declarations, XML export for e-Płatnik
-
-### 19. Multi-Country Support
-- Ireland, Germany, Czech Republic payroll and permits
-
-### 20. Site Safety AI
-- Photo scanning for PPE violations
-
-### 21. Competitor Price Monitor
-- Track market pricing, alert on changes
-
----
-
-## PHASE 2 — ENTERPRISE ARCHITECTURE
-
-### Model Routing
-- Gemini Flash for fast queries
-- Claude Sonnet for complex reasoning
-- Llama on AWS Bedrock for private data
-- Claude Vision for document scanning
-- Perplexity for real-time search
-
-### Sub-Agent Architecture
-- Parallel sub-agents: Compliance, Payroll, Immigration, Notification
-
-### AWS Bedrock
-- Private model hosting for PESEL/IBAN/passport data
-
-### Google Vertex AI
-- AutoML worker matching, demand forecasting, salary prediction
-
-### MCP Servers
-- google-workspace, twilio, stripe, neon, github
-
----
-
-## PHASE 3 — SaaS PLATFORM
-- Multi-tenant: any agency can sign up
-- Starter €199, Professional €499, Enterprise €999
-- White-label option
-- Public API + webhook system
+### Tier 5 — Hardcoded enums
+Single source of truth for pipeline stages, job roles (currently 13 welding-heavy entries), nationalities, voivodeships, status enums, contract types.

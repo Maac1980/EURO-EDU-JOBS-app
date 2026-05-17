@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, DollarSign, Building2 } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 function fmt(n: number) { return n.toLocaleString("en", { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
 export default function MarginAnalysis() {
   const [data, setData] = useState<any>(null);

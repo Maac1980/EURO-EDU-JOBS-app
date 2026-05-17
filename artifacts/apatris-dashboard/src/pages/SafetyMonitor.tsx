@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Shield, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 export default function SafetyMonitor() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);

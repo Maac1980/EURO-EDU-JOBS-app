@@ -40,15 +40,13 @@ Yana's worker-listing queries automatically filter to Ukrainian nationality. Oth
 1. Open EEJ mobile app (`eej-jobs-api.fly.dev` PWA install or browser)
 2. Enter your `@edu-jobs.eu` email + bootstrap password (Manish shares via secure channel — Signal, in-person, or password manager)
 3. Login succeeds; you land on your tier-specific home tab
-4. **Immediately rotate password:**
-   - In the app: settings → change password (UI surface; binds to `POST /api/eej/auth/change-password`)
-   - OR via API directly with your token:
-     ```
-     curl -X POST https://eej-jobs-api.fly.dev/api/eej/auth/change-password \
-       -H "Authorization: Bearer <your token>" \
-       -H "Content-Type: application/json" \
-       -d '{"currentPassword":"<bootstrap>","newPassword":"<your new password, 8+ chars>"}'
-     ```
+4. **Immediately rotate password (in the app — no curl needed any more):**
+   - Tap the bottom-nav **More** button → tap **Profile & Settings**
+   - In the Security section, tap **Change password**
+   - A yellow first-login banner reminds you what to do
+   - Enter your current bootstrap password, then a new password (8+ chars), then confirm
+   - Tap **Update password** — you'll get a success toast
+   - For the truly old-school: the API path still exists at `POST /api/eej/auth/change-password` with `{currentPassword, newPassword}` — but the in-app flow is the recommended route.
 5. Verify new password works by logging out + logging back in
 6. Notify Manish that rotation is complete; Manish will rotate `EEJ_SEED_PASSWORD` after all users complete first-login rotation (closes the bootstrap window)
 
@@ -105,6 +103,23 @@ After commit lands on master and deploys to production:
    Fetch IDs via `GET /api/eej/auth/users` (T1 only).
 
 6. **Rotate `EEJ_SEED_PASSWORD`** after all 6 users complete first-login rotation. This closes the bootstrap window — future seeded users (if any) would need a fresh bootstrap password.
+
+7. **Activate WhatsApp templates** — the migration seeds 7 templates with `active=FALSE` (Twilio Business Sender must approve each one before they can be used). Once approved in Twilio Console, flip active to TRUE via Neon Console SQL (or psql) — and append an entry to `docs/STATE_CHANGES_LOG.md` per #14 protocol:
+   ```sql
+   UPDATE whatsapp_templates
+   SET active = TRUE
+   WHERE name IN (
+     'application_received',
+     'permit_status_update',
+     'payment_reminder',
+     'trc_expiry_reminder_pl',
+     'trc_expiry_reminder_en',
+     'documents_missing_pl',
+     'documents_missing_en'
+   )
+   AND tenant_id = 'production';
+   ```
+   The four new templates (`trc_expiry_reminder_*`, `documents_missing_*`) power the cockpit's AI-suggested-action "Send WhatsApp" buttons — they remain hidden from the picker until activated.
 
 ---
 

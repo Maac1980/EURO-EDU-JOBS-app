@@ -43,12 +43,42 @@
 
 @layer base {
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* P0 — responsive viewport guard. Pass 3 clamped .eej-container at 430px
+     but html/body/#root had no horizontal-overflow guard, so any child with
+     a fixed width or unbreakable string could push past the device viewport
+     and trigger horizontal scroll (Manish's screenshots showed Executive
+     Overview header truncated at edges, dashboard tiles extending past
+     visible width). max-width:100vw + overflow-x:hidden at the root layer
+     is the defensive cap; the underlying offending child still wants
+     finding, but the guard prevents the symptom from reaching the user. */
+  html, body, #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
   body {
     font-family: var(--app-font-sans);
     background: #F9FAFB;
     color: #111827;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Images don't escape their parent (a common horizontal-overflow source). */
+  img, video, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Gentle body-level wrap policy: long unbreakable strings (URLs, IDs)
+     break at sensible boundaries rather than forcing horizontal scroll.
+     overflow-wrap: break-word is less aggressive than 'anywhere' —
+     respects word boundaries first, breaks mid-word only as last resort.
+     Phone numbers, codes, mono spans inside still render naturally. */
+  body {
+    overflow-wrap: break-word;
   }
 }
 
@@ -56,8 +86,29 @@
    APP SHELL — phone frame on desktop
 ═══════════════════════════════════════════ */
 
+/* Tier 1 closeout #33 — full-viewport page architecture.
+   100dvh follows the dynamic viewport (URL bar collapse on mobile browsers),
+   100vh as fallback for older agents. height (not min-height) forces the
+   container to OWN the viewport — children's overflow:auto then works
+   correctly inside a bounded box, rather than the container growing with
+   content.
+
+   Audit-2026-05-16 finding D — mobile-on-desktop phone-frame visual cue.
+   At ≥520px (desktop browser), give the surrounding "desktop space" a
+   distinct dark background so the centered 430px phone-frame reads as a
+   simulator on a desktop page, not a stretched mobile UI. At mobile
+   widths (<520px) the background is invisible because the container fills
+   the viewport edge-to-edge. */
 .eej-screen {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  /* P0 — viewport clamp at the mobile shell's outermost wrapper.
+     Body-level overflow-x:hidden is the global safety net; this is the
+     mobile-specific cap so the .eej-container's max-width:430px is the
+     authoritative width on real devices. */
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   background: #F0F2F5;
   display: flex;
   align-items: flex-start;
@@ -67,6 +118,12 @@
 
 @media (min-width: 520px) {
   .eej-screen {
+    /* Audit finding D — visible surround so the phone-frame stands out
+       against the desktop chrome. Subtle gradient gives depth without
+       brand interference. */
+    background:
+      radial-gradient(ellipse at top, rgba(212, 232, 75, 0.04), transparent 60%),
+      #0e1626;
     padding: 24px 0;
     align-items: center;
   }
@@ -75,21 +132,39 @@
 .eej-container {
   width: 100%;
   max-width: 430px;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   background: #ffffff;
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.06);
+
+  /* Pass 3 architectural rule — shell-bounded overlay positioning.
+     Every modal/sheet/overlay positions between var(--shell-header-height)
+     at the top and var(--shell-bottom-nav-height) at the bottom, so the
+     persistent header (.dash-header) and bottom-nav (.bottom-nav) stay
+     visible. Values account for iOS safe areas (notch/home indicator).
+     Header: 18+40+18 = ~76px rendered. Nav: bottom-nav-item 12+24+14 = ~50px
+     plus the border — call it 60px. Both include safe-area-inset for PWA
+     installed mode. */
+  --shell-header-height: calc(76px + env(safe-area-inset-top, 0px));
+  --shell-bottom-nav-height: calc(60px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 520px) {
   .eej-container {
-    min-height: 760px;
+    height: 90vh;
     max-height: 900px;
+    min-height: 760px;
     border-radius: 32px;
-    box-shadow: 0 32px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
+    /* Audit finding D — sharpen the device-frame look on desktop.
+       Wider+darker shadow + a hairline phone-bezel border so the
+       container reads as "phone on a desk" rather than "narrow webpage". */
+    box-shadow: 0 32px 90px rgba(0, 0, 0, 0.45),
+                0 0 0 1px rgba(255, 255, 255, 0.08),
+                inset 0 0 0 1px rgba(0, 0, 0, 0.04);
   }
 }
 
@@ -250,12 +325,25 @@
    DASHBOARD
 ═══════════════════════════════════════════ */
 
+/* Tier 1 closeout #30 + Pass 3 architectural rule — top bar stays
+   visible above every overlay. z-index raised 100→200 so the persistent
+   shell is ALWAYS above the bounded overlays (z:50).
+   P1 — landscape iPhone notch reservation on the left/right edges so
+   content doesn't sit under the camera cluster when the device is
+   rotated. Combined with viewport-fit=cover in index.html, this makes
+   the safe-area-inset-* values actually fire on real devices. */
 .dash-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px 18px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  padding-top: max(18px, env(safe-area-inset-top, 0px));
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
 }
 
 .dash-header-left {
@@ -398,13 +486,31 @@
    BOTTOM NAVIGATION
 ═══════════════════════════════════════════ */
 
+/* Tier 1 closeout #28 — bottom nav pinned to viewport.
+   Already last child of .eej-container flex column (so naturally at bottom),
+   but in installed-PWA mode the dynamic viewport changes can let it scroll
+   away with content if any parent loses the height constraint. Explicit
+   sticky + bottom:0 + z-index makes it bullet-proof across browser and
+   PWA. safe-area-inset-bottom keeps the tap targets above the home
+   indicator on iPhone X+. */
+/* Pass 3 architectural rule — bottom nav z-index raised 100→200 so the
+   persistent shell sits above every overlay (z:50). The user always
+   sees the nav.
+   P1 — left/right insets for landscape iPhone notch. tab items still
+   span the full row (flex children stretch) but the row inset itself
+   keeps the bottom-nav-item touch targets out of the notch zone. */
 .bottom-nav {
   display: flex;
   align-items: stretch;
   border-top: 1px solid #E5E7EB;
   background: #ffffff;
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 200;
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 @media (min-width: 520px) {
@@ -434,14 +540,24 @@
   color: #1B2A4A;
 }
 
-.bottom-nav-item span {
+/* P4 — scoped to the dedicated label class (not `span`, which captured
+   the icon wrapper and the nested .nav-badge text). Previously the
+   selector specificity 0,1,1 beat .nav-badge (0,1,0) and overrode the
+   badge's intended font-size:9px / weight:800 / no letter-spacing, and
+   the .active span rule recoloured the badge text navy-on-red. */
+.bottom-nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.bottom-nav-label {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.bottom-nav-item.active span {
+.bottom-nav-item.active .bottom-nav-label {
   color: #1B2A4A;
 }
 
@@ -1111,24 +1227,69 @@
 }
 
 /* ═══════════════════════════════════════════
+   PASS 3 — CANONICAL SHELL-BOUNDED OVERLAY
+   See docs/UX_FOUNDATION_AUDIT_PASS3_2026_05_16.md
+   Used by any new overlay/sheet/modal/drawer in the mobile app.
+   Existing .detail-overlay / .ds-overlay / .wc-overlay share the
+   same positioning rules — this class is the explicit default for
+   inline-style overlays that previously rolled their own.
+═══════════════════════════════════════════ */
+.shell-overlay {
+  position: fixed;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ═══════════════════════════════════════════
    PHASE 3 — CANDIDATE DETAIL SHEET
 ═══════════════════════════════════════════ */
 
+/* Pass 3 architectural rule (UX_FOUNDATION_AUDIT_PASS3_2026_05_16.md).
+   Was inset:0 z:200 (full-viewport, covered shell). Now bounded between
+   .dash-header (z:200) and .bottom-nav (z:200) via CSS vars set on
+   .eej-container. Centered within the 430px phone frame on desktop. */
 .detail-overlay {
-  position: absolute;
-  inset: 0;
+  position: fixed;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
   background: rgba(0,0,0,0.5);
-  z-index: 100;
+  z-index: 50;
   display: flex;
   align-items: flex-end;
+  justify-content: center;
   backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .detail-sheet {
   width: 100%;
+  /* Pass 3 — sheet is bounded by the overlay (max-width:430px), so
+     width:100% here = max 430px on desktop. Explicit max-width matches
+     .ds-sheet/.wc-sheet for clarity. */
+  max-width: 430px;
   background: #ffffff;
   border-radius: 24px 24px 0 0;
-  max-height: 88%;
+  /* The overlay's vertical bounds (top:header-height, bottom:nav-height)
+     limit how tall this sheet can be — the dvh cap is now just a safety
+     net for unusual scenarios. */
+  max-height: 100%;
   overflow-y: auto;
   padding: 0 20px 20px;
   -webkit-overflow-scrolling: touch;
@@ -1147,14 +1308,40 @@
   height: 4px;
   background: #E5E7EB;
   border-radius: 2px;
-  margin: 14px auto 20px;
+  margin: 14px auto 12px;
+  /* Sticks to top of sheet so the user always has a visible drag handle. */
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  /* White background masks content scrolling underneath. The pseudo-element
+     extends the white background flush with the sheet's padding edges so the
+     handle doesn't appear to float over content. */
+  background-clip: padding-box;
 }
 
+/* Tier 1 closeout #16/#17 — real fix.
+   Pre-fix attempt (commit 25) made .wp-header sticky, but the LIVE mobile
+   worker-profile component is CandidateDetail.tsx which uses .detail-header
+   (NOT .wp-header). The sticky/z-index work never reached the surface Manish
+   was looking at. This sticks .detail-header itself so the X close button
+   stays at the top of the visible area at every scroll position.
+   The detail-sheet's overflow-y:auto creates the scroll context; position:
+   sticky inside that context pins the header band to the visible top.
+   z-index 7 puts it above .detail-handle (z-index 6) so the X never gets
+   covered by the drag bar during the slide-up animation. */
 .detail-header {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 14px;
+  margin: 0 -20px 14px;          /* extend full sheet width for the sticky band */
+  padding: 8px 20px 12px;        /* match the .detail-sheet inset */
+  position: sticky;
+  top: 16px;                     /* sit just below .detail-handle */
+  z-index: 7;
+  background: #ffffff;
+  /* Hairline shadow shown once any content scrolls beneath, signalling the
+     band is floating. Mobile Safari respects this with no jank. */
+  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.6);
 }
 .detail-avatar {
   width: 52px;
@@ -1173,8 +1360,8 @@
 .detail-role     { font-size: 13px; color: #6B7280; margin-top: 2px; }
 .detail-location { font-size: 12px; color: #9CA3AF; margin-top: 4px; }
 .detail-close {
-  width: 32px;
-  height: 32px;
+  width: 36px;                      /* bumped from 32 — Apple HIG ≥44 hit-target */
+  height: 36px;
   border-radius: 50%;
   border: 1.5px solid #E5E7EB;
   background: #F9FAFB;
@@ -1185,6 +1372,17 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  position: relative;               /* establishes own stacking context */
+  z-index: 1;                       /* above any sibling decorations */
+  /* The ::after expands the tap area without changing visual size — closes
+     #17 by giving the X a generous invisible hit target (~48px×48px) so
+     fat-finger taps don't fall on neighboring elements. */
+  -webkit-tap-highlight-color: rgba(107, 114, 128, 0.15);
+}
+.detail-close::after {
+  content: "";
+  position: absolute;
+  inset: -6px;                      /* 12px outward expansion = 48×48 hit area */
 }
 
 .detail-contact-strip {
@@ -1683,13 +1881,24 @@
   max-height: 96vh !important;
 }
 
-/* Header */
+/* Header — sticky so the X close button stays tappable as the user scrolls
+   through long worker profiles (commit 26 fix #17). The horizontal padding
+   matches the sheet's content margins; the negative top margin compensates
+   for `.detail-handle`'s 14px top margin so the sticky band hugs the top of
+   the viewport once the handle scrolls away. */
 .wp-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0 16px 14px;
+  padding: 8px 16px 14px;
   gap: 10px;
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 5;
+  /* Hairline shadow that fades in once the user scrolls and content sits
+     beneath the sticky band — visual cue that the header is floating. */
+  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.6);
 }
 .wp-header-left {
   display: flex;
@@ -3986,4 +4195,1165 @@ select.wp-edit-input {
   letter-spacing: 0.04em;
   flex-shrink: 0;
   margin-top: auto;
+}
+
+/* ── Worker Cockpit ─────────────────────────────────────────────────────────
+   Unified worker page. Sheet/modal style overlay. Role-adaptive panel order.
+   See: components/WorkerCockpit.tsx
+*/
+/* Pass 3 architectural rule — same shell-bounded pattern as .detail-overlay.
+   Pass 2 (67a84d9) made this position:fixed inset:0 z:9000 (covered shell).
+   Pass 3 bounds it between header and bottom-nav, centered in the 430px
+   frame, with z-index BELOW the shell. */
+.wc-overlay {
+  position: fixed;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.wc-sheet {
+  width: 100%;
+  max-width: 430px;
+  background: #ffffff;
+  border-radius: 24px 24px 0 0;
+  /* Overlay bounds limit height; max-height is a safety net only. */
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 14px 0 20px;
+  -webkit-overflow-scrolling: touch;
+  animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  position: relative;
+}
+@media (min-width: 520px) {
+  .wc-sheet { border-radius: 24px 24px 32px 32px; }
+}
+
+.wc-loading,
+.wc-error {
+  padding: 60px 20px;
+  text-align: center;
+  color: #6B7280;
+  font-size: 14px;
+}
+.wc-error { color: #DC2626; }
+
+.wc-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: #F3F4F6;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6B7280;
+}
+.wc-close:hover { background: #E5E7EB; }
+
+.wc-header {
+  padding: 0 20px 10px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wc-header-info { min-width: 0; flex: 1; }
+.wc-name {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1B2A4A;
+}
+.wc-subtitle {
+  font-size: 12px;
+  color: #6B7280;
+  line-height: 1.4;
+}
+
+.wc-contact-strip {
+  padding: 0 20px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wc-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: #F3F4F6;
+  border-radius: 999px;
+  color: #374151;
+  font-size: 12px;
+  text-decoration: none;
+}
+.wc-contact:hover { background: #E5E7EB; }
+
+.wc-contact-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px dashed #D1D5DB;
+  border-radius: 999px;
+  color: #6B7280;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wc-contact-edit-btn:hover {
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+.wc-contact-edit {
+  flex: 1;
+  min-width: 140px;
+  padding: 5px 10px;
+  font-size: 12px;
+  border: 1px solid #BFDBFE;
+  border-radius: 999px;
+  background: #F0F9FF;
+  color: #1B2A4A;
+}
+.wc-contact-edit:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.wc-contact-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #3B82F6;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.wc-contact-save:hover:not(:disabled) {
+  background: #2563EB;
+}
+.wc-contact-save:disabled,
+.wc-contact-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.wc-contact-cancel {
+  padding: 5px 8px;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 999px;
+  color: #6B7280;
+  cursor: pointer;
+}
+.wc-contact-cancel:hover:not(:disabled) {
+  background: #E5E7EB;
+}
+
+.wc-alert-strip {
+  margin: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wc-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  border: 1.5px solid;
+  background: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: default;
+  transition: filter 0.15s, transform 0.15s;
+}
+.wc-alert-clickable {
+  cursor: pointer;
+}
+.wc-alert-clickable:hover {
+  filter: brightness(0.96);
+  transform: translateX(2px);
+}
+.wc-alert-clickable:active {
+  filter: brightness(0.9);
+}
+.wc-alert:disabled {
+  cursor: default;
+}
+.wc-alert-red {
+  background: #FEF2F2;
+  color: #DC2626;
+  border-color: #FCA5A5;
+}
+.wc-alert-amber {
+  background: #FFFBEB;
+  color: #D97706;
+  border-color: #FCD34D;
+}
+.wc-alert-green-soft {
+  background: #ECFDF5;
+  color: #059669;
+  border-color: #6EE7B7;
+}
+.wc-alert-msg { flex: 1; }
+.wc-alert-date { font-size: 11px; opacity: 0.8; }
+
+.wc-panels {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wc-panel {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.wc-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+}
+.wc-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1B2A4A;
+}
+.wc-panel-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #3B82F6;
+  color: #FFFFFF;
+  border-radius: 9px;
+}
+.wc-panel-open {
+  background: transparent;
+  border: none;
+  color: #3B82F6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wc-panel-open:hover { text-decoration: underline; }
+
+.wc-panel-body {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #F3F4F6;
+}
+.wc-row:last-child { border-bottom: none; }
+.wc-row-label {
+  color: #6B7280;
+  flex-shrink: 0;
+}
+.wc-row-value {
+  color: #1B2A4A;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+.wc-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.wc-empty {
+  padding: 8px 0;
+  font-size: 12px;
+  color: #9CA3AF;
+  font-style: italic;
+}
+
+.wc-doc-list,
+.wc-note-list,
+.wc-history-list,
+.wc-payroll-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wc-doc-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.wc-doc-field {
+  font-weight: 600;
+  color: #1B2A4A;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.wc-doc-name {
+  color: #6B7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wc-doc-date {
+  color: #9CA3AF;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.wc-doc-more {
+  font-size: 11px;
+  color: #6B7280;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.wc-note {
+  border-left: 3px solid #E5E7EB;
+  padding: 4px 0 4px 10px;
+  margin-left: 2px;
+}
+.wc-note-trc { border-left-color: #3B82F6; }
+.wc-note-worker { border-left-color: #9CA3AF; }
+.wc-note-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: #6B7280;
+  margin-bottom: 2px;
+}
+.wc-note-kind {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wc-note-content {
+  font-size: 12px;
+  color: #1B2A4A;
+  line-height: 1.4;
+}
+
+.wc-note-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.wc-note-input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 12px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #1B2A4A;
+}
+.wc-note-input:focus {
+  outline: none;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.wc-note-input:disabled {
+  background: #F9FAFB;
+  color: #9CA3AF;
+}
+.wc-note-submit {
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #3B82F6;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.wc-note-submit:hover:not(:disabled) {
+  background: #2563EB;
+}
+.wc-note-submit:disabled {
+  background: #9CA3AF;
+  cursor: not-allowed;
+}
+
+.wc-payroll-recent {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #F3F4F6;
+}
+.wc-payroll-recent-label {
+  font-size: 11px;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.wc-payroll-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.wc-history-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 8px;
+  font-size: 11px;
+  align-items: center;
+  padding: 2px 0;
+}
+.wc-history-action {
+  font-weight: 600;
+  color: #1B2A4A;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wc-history-field { color: #6B7280; }
+.wc-history-actor {
+  color: #9CA3AF;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wc-history-at { color: #9CA3AF; white-space: nowrap; }
+
+.wc-ai-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6B7280;
+  font-style: italic;
+}
+.wc-ai-error {
+  font-size: 12px;
+  color: #DC2626;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wc-ai-retry,
+.wc-ai-refresh {
+  background: transparent;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #3B82F6;
+  cursor: pointer;
+}
+.wc-ai-retry:hover,
+.wc-ai-refresh:hover {
+  background: #F3F4F6;
+}
+.wc-ai-summary {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1B2A4A;
+  background: linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 100%);
+  border-left: 3px solid #3B82F6;
+  padding: 10px 12px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+.wc-ai-meta {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+/* AI-suggested actions — tap-to-act buttons under the summary */
+.wc-ai-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.wc-ai-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #FFFFFF;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: filter 0.15s, transform 0.15s;
+}
+.wc-ai-action:hover {
+  filter: brightness(0.98);
+  transform: translateX(2px);
+}
+.wc-ai-action-high { border-color: #FCA5A5; background: #FEF2F2; }
+.wc-ai-action-med  { border-color: #FCD34D; background: #FFFBEB; }
+.wc-ai-action-low  { border-color: #BFDBFE; background: #F0F9FF; }
+.wc-ai-action-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.wc-ai-action-high .wc-ai-action-dot { background: #DC2626; }
+.wc-ai-action-med  .wc-ai-action-dot { background: #D97706; }
+.wc-ai-action-low  .wc-ai-action-dot { background: #3B82F6; }
+.wc-ai-action-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1B2A4A;
+}
+.wc-ai-action-priority {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #6B7280;
+}
+.wc-ai-action-high .wc-ai-action-priority { color: #DC2626; }
+.wc-ai-action-med  .wc-ai-action-priority { color: #D97706; }
+.wc-ai-action-low  .wc-ai-action-priority { color: #3B82F6; }
+
+.wc-ai-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wc-ai-history-row {
+  padding: 6px 8px;
+  background: #FAFAFA;
+  border-left: 3px solid #3B82F6;
+  border-radius: 6px;
+}
+.wc-ai-history-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.wc-ai-history-type {
+  font-weight: 700;
+  color: #1B2A4A;
+  text-transform: capitalize;
+}
+.wc-ai-history-confidence {
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+.wc-c-high { background: #ECFDF5; color: #059669; }
+.wc-c-mid  { background: #FFFBEB; color: #D97706; }
+.wc-c-low  { background: #FEF2F2; color: #DC2626; }
+.wc-ai-history-at {
+  margin-left: auto;
+  font-size: 10px;
+  color: #9CA3AF;
+}
+.wc-ai-history-detail {
+  font-size: 11px;
+  color: #6B7280;
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  line-height: 1.4;
+}
+.wc-ai-history-action {
+  margin-left: auto;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+}
+.wc-ai-action-applied { background: #ECFDF5; color: #059669; }
+.wc-ai-action-pending_review { background: #FFFBEB; color: #D97706; }
+.wc-ai-action-rejected { background: #FEF2F2; color: #DC2626; }
+.wc-ai-action-unknown { background: #F3F4F6; color: #6B7280; }
+
+/* WhatsApp panel */
+.wc-wa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wc-wa-row {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+}
+.wc-wa-in {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+}
+.wc-wa-out {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+}
+.wc-wa-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #6B7280;
+  margin-bottom: 3px;
+}
+.wc-wa-direction {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1B2A4A;
+}
+.wc-wa-status {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 9px;
+}
+.wc-wa-status-sent { background: #ECFDF5; color: #059669; }
+.wc-wa-status-delivered { background: #DBEAFE; color: #1E40AF; }
+.wc-wa-status-read { background: #D1FAE5; color: #047857; }
+.wc-wa-status-draft { background: #F3F4F6; color: #6B7280; }
+.wc-wa-status-failed { background: #FEF2F2; color: #DC2626; }
+.wc-wa-at {
+  margin-left: auto;
+  color: #9CA3AF;
+}
+.wc-wa-body {
+  font-size: 12px;
+  color: #1B2A4A;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* CandidateHome — worker self-service status grid */
+.my-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.my-status-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid;
+}
+.my-status-red {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+  color: #DC2626;
+}
+.my-status-amber {
+  background: #FFFBEB;
+  border-color: #FCD34D;
+  color: #D97706;
+}
+.my-status-green {
+  background: #ECFDF5;
+  border-color: #6EE7B7;
+  color: #059669;
+}
+.my-status-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.my-status-days {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.my-status-date {
+  font-size: 10px;
+  margin-top: 3px;
+  opacity: 0.85;
+}
+
+/* ── LegalHome — Liza's dashboard ─────────────────────────────────────────── */
+.lh-error {
+  margin: 8px 16px 16px;
+  padding: 8px 12px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #DC2626;
+}
+.lh-empty {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: #9CA3AF;
+  font-style: italic;
+  text-align: center;
+  background: #FAFAFA;
+  border: 1px dashed #E5E7EB;
+  border-radius: 8px;
+}
+.lh-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+  margin: 4px 0 4px;
+}
+.lh-status-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-align: center;
+}
+.lh-status-count {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+.lh-status-label {
+  font-size: 11px;
+  margin-top: 2px;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+.lh-clickable {
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: inherit;
+}
+.lh-clickable:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.lh-clickable:not(:disabled):hover {
+  filter: brightness(0.98);
+}
+.lh-revenue-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.lh-revenue-card {
+  padding: 10px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  text-align: center;
+}
+.lh-revenue-label {
+  font-size: 10px;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.lh-revenue-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1B2A4A;
+}
+
+/* ── Document Scan Flow ──────────────────────────────────────────────────
+   AI extracts entities → user picks match (or creates new) → applied.
+   See: components/DocumentScanFlow.tsx
+*/
+/* Pass 3 architectural rule — same shell-bounded pattern. Pass 2 made
+   this fixed inset:0 z:9000 (covered shell). Pass 3 bounds between
+   header and bottom-nav, centered in the 430px frame, z below shell. */
+.ds-overlay {
+  position: fixed;
+  top: var(--shell-header-height, 76px);
+  bottom: var(--shell-bottom-nav-height, 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  background: rgba(0,0,0,0.55);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.ds-sheet {
+  width: 100%;
+  max-width: 430px;
+  background: #FFFFFF;
+  border-radius: 24px 24px 0 0;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 14px 0 20px;
+  animation: slideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  position: relative;
+}
+.ds-header {
+  padding: 0 20px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ds-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1B2A4A;
+  margin: 0 0 4px;
+}
+.ds-subtitle {
+  font-size: 12px;
+  color: #6B7280;
+}
+.ds-close {
+  background: #F3F4F6;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6B7280;
+  flex-shrink: 0;
+}
+.ds-close:hover { background: #E5E7EB; }
+
+.ds-body {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ds-center {
+  align-items: center;
+  text-align: center;
+  padding: 30px 20px;
+  gap: 16px;
+}
+.ds-status {
+  font-size: 14px;
+  color: #6B7280;
+}
+.ds-error {
+  font-size: 13px;
+  color: #DC2626;
+  max-width: 320px;
+  line-height: 1.5;
+}
+.ds-done-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1B2A4A;
+}
+.ds-done-sub {
+  font-size: 12px;
+  color: #6B7280;
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+.ds-spin {
+  color: #3B82F6;
+  animation: ds-pulse 1.5s ease-in-out infinite;
+}
+@keyframes ds-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.95); }
+  50%      { opacity: 1.0; transform: scale(1.05); }
+}
+
+.ds-drop {
+  background: #F9FAFB;
+  border: 2px dashed #D1D5DB;
+  border-radius: 14px;
+  padding: 30px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #6B7280;
+  min-height: 180px;
+  overflow: hidden;
+}
+.ds-drop:hover {
+  background: #F3F4F6;
+  border-color: #3B82F6;
+  color: #3B82F6;
+}
+.ds-drop-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1B2A4A;
+}
+.ds-drop-sub {
+  font-size: 11px;
+  color: #9CA3AF;
+}
+.ds-preview {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.ds-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.ds-primary,
+.ds-secondary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+.ds-primary {
+  background: #3B82F6;
+  color: #FFFFFF;
+}
+.ds-primary:hover:not(:disabled) {
+  background: #2563EB;
+}
+.ds-primary:disabled {
+  background: #9CA3AF;
+  cursor: not-allowed;
+}
+.ds-secondary {
+  background: #F3F4F6;
+  color: #374151;
+  border: 1px solid #E5E7EB;
+}
+.ds-secondary:hover {
+  background: #E5E7EB;
+}
+
+.ds-doc-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 10px;
+}
+.ds-doc-type-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6B7280;
+}
+.ds-doc-type-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1B2A4A;
+}
+.ds-confidence {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+.ds-c-high { background: #ECFDF5; color: #059669; }
+.ds-c-mid  { background: #FFFBEB; color: #D97706; }
+.ds-c-low  { background: #FEF2F2; color: #DC2626; }
+
+.ds-section-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6B7280;
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.ds-fields {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 6px 12px;
+}
+.ds-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+  padding: 5px 0;
+  border-bottom: 1px dashed #F3F4F6;
+}
+.ds-row:last-child { border-bottom: none; }
+.ds-row-label { color: #6B7280; }
+.ds-row-value {
+  color: #1B2A4A;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+.ds-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.ds-no-match {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #92400E;
+}
+
+.ds-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ds-match {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.ds-match:hover {
+  border-color: #3B82F6;
+  background: #F0F9FF;
+}
+.ds-match-info { flex: 1; min-width: 0; }
+.ds-match-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1B2A4A;
+}
+.ds-match-meta {
+  font-size: 11px;
+  color: #6B7280;
+  margin-top: 1px;
+}
+.ds-match-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ds-match-score {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.ds-overwrite-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #92400E;
+}
+.ds-overwrite-toggle input { cursor: pointer; }
+.ds-overwrite-toggle label { cursor: pointer; }
+
+/* LegalHome (and other home pages): big "scan a document" CTA */
+.lh-scan-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 4px 0 14px;
+  background: linear-gradient(135deg, #EFF6FF 0%, #F0F9FF 100%);
+  border: 1.5px solid #BFDBFE;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #1B2A4A;
+  text-align: left;
+}
+.lh-scan-btn:hover {
+  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
+}
+.lh-scan-text { flex: 1; min-width: 0; }
+.lh-scan-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.lh-scan-sub {
+  font-size: 11px;
+  color: #6B7280;
+  margin-top: 1px;
 }

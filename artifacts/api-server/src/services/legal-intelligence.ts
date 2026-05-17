@@ -20,6 +20,8 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+// Item 2.2 — friendly error mapping for the 9 route catches below.
+import { mapErrorToFriendlyResponse } from "./document-format.js";
 
 const router = Router();
 
@@ -106,6 +108,10 @@ async function callClaude(prompt: string, system: string, maxTokens = 1200): Pro
     );
     return resp.content[0]?.type === "text" ? resp.content[0].text : "";
   } catch (err: any) {
+    // Item 2.2 — preserve "[AI error: ...]" string contract (callers check
+    // .startsWith("[AI") to detect failure) but also log the raw error so
+    // server logs carry the masked signal.
+    console.error("[legal-intelligence] Claude call failed:", err?.message ?? err);
     return `[AI error: ${err.message}]`;
   }
 }
@@ -122,13 +128,20 @@ async function callPerplexity(system: string, query: string): Promise<{ answer: 
         messages: [{ role: "system", content: system }, { role: "user", content: query }],
       }),
     });
-    if (!resp.ok) return { answer: `[Perplexity ${resp.status}]`, sources: [] };
+    if (!resp.ok) {
+      // Item 2.2 — was silent on non-OK HTTP; log so ops can see Perplexity
+      // throttling / outages without scraping the answer-string prefix.
+      console.warn(`[legal-intelligence] Perplexity HTTP ${resp.status}`);
+      return { answer: `[Perplexity ${resp.status}]`, sources: [] };
+    }
     const data = await resp.json() as any;
     return {
       answer: data.choices?.[0]?.message?.content ?? "",
       sources: (data.citations ?? []).map((c: any) => typeof c === "string" ? c : c.url ?? "").filter(Boolean),
     };
   } catch (err: any) {
+    // Item 2.2 — preserve "[Perplexity error: ...]" string contract; also log.
+    console.error("[legal-intelligence] Perplexity call failed:", err?.message ?? err);
     return { answer: `[Perplexity error: ${err.message}]`, sources: [] };
   }
 }
@@ -159,10 +172,17 @@ router.post("/legal-intelligence/research", authenticateToken, async (req, res) 
       RETURNING *
     `);
     return res.json({ memo: rows.rows[0] });
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
-router.get("/legal-intelligence/research", authenticateToken, async (_req, res) => {
+router.get("/legal-intelligence/research", authenticateToken, async (req, res) => {
   try {
     const rows = await db.execute(sql`SELECT * FROM research_memos ORDER BY created_at DESC LIMIT 30`);
     res.json({ memos: rows.rows });
@@ -181,17 +201,17 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
     const hasRejection = !!(rejectionText?.trim());
     const providerStatus = { perplexity: "not_called", claude: "not_called" };
 
-    // Perplexity research
-    let research = "";
-    let sources: string[] = [];
-    const perp = await callPerplexity(
-      "Research Polish administrative appeal procedures for immigration decisions. Cite official sources.",
-      hasRejection ? `Appeal procedures for: ${rejectionText.substring(0, 500)}` : "General TRC appeal procedures under KPA Art. 127"
-    );
-    research = perp.answer; sources = perp.sources;
-    providerStatus.perplexity = perp.answer.startsWith("[") ? "error" : "success";
-
-    // Claude analysis
+    // Item 2.A — Perplexity research + Claude analysis run concurrently.
+    // Both are independent: Perplexity researches general appeal procedures
+    // (uses rejectionText or KPA Art. 127 fallback), Claude analyzes the
+    // worker context for grounds/evidence/articles (uses the `context`
+    // string only — does NOT read perp.answer). Saves the slower of the two
+    // (~15-30s) off appeal-route wait time.
+    //
+    // Both callPerplexity and callClaude catch their own errors internally
+    // (Item 2.2 pattern — return "[Perplexity error: ...]" / "[AI error: ...]"
+    // string contracts), so Promise.all will NOT reject and providerStatus
+    // tracking still fires correctly after each promise resolves.
     let appealGrounds: string[] = [];
     let missingEvidence: string[] = [];
     let lawyerNote = "";
@@ -203,10 +223,23 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
 
     const context = `Worker: ${w.name}, ${w.nationality ?? "N/A"}\nPermit: ${w.trc_expiry ?? w.work_permit_expiry ?? "N/A"}\n${hasRejection ? `Rejection: ${rejectionText.substring(0, 2000)}` : "No rejection text."}`;
 
-    const aiRaw = await callClaude(
-      `${context}\n\nAnalyze and return JSON: {appealGrounds:[], missingEvidence:[], lawyerReviewNote:"", appealOutline:"", workerExplanation:"", clientExplanation:"", relevantArticles:[{article:"",relevance:""}]}.\n${hasRejection ? "" : "No rejection text — provide general guidance only."}`,
-      "You are a Polish immigration law analyst. DRAFT only. Never guarantee success. Never invent articles.", 2500
-    );
+    const [perp, aiRaw] = await Promise.all([
+      callPerplexity(
+        "Research Polish administrative appeal procedures for immigration decisions. Cite official sources.",
+        hasRejection ? `Appeal procedures for: ${rejectionText.substring(0, 500)}` : "General TRC appeal procedures under KPA Art. 127"
+      ),
+      callClaude(
+        `${context}\n\nAnalyze and return JSON: {appealGrounds:[], missingEvidence:[], lawyerReviewNote:"", appealOutline:"", workerExplanation:"", clientExplanation:"", relevantArticles:[{article:"",relevance:""}]}.\n${hasRejection ? "" : "No rejection text — provide general guidance only."}`,
+        "You are a Polish immigration law analyst. DRAFT only. Never guarantee success. Never invent articles.", 2500
+      ),
+    ]);
+
+    // Perplexity result
+    const research = perp.answer;
+    const sources = perp.sources;
+    providerStatus.perplexity = perp.answer.startsWith("[") ? "error" : "success";
+
+    // Claude result
     providerStatus.claude = aiRaw.startsWith("[AI") ? "error" : "success";
 
     try {
@@ -230,7 +263,11 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
           );
         }
       }
-    } catch { /* parse failed */ }
+    } catch (err) {
+      // Item 2.2 — appeal AI JSON parse silent failure now logged so we can
+      // see when Claude returns non-JSON in the appeal-analysis path.
+      console.warn("[legal-intelligence/appeal] AI JSON parse failed:", err instanceof Error ? err.message : err);
+    }
 
     const rows = await db.execute(sql`
       INSERT INTO appeal_outputs (worker_id, case_id, rejection_text, appeal_draft_pl, appeal_draft_en,
@@ -242,7 +279,14 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
       RETURNING *
     `);
     return res.json({ output: rows.rows[0] });
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
 // --- POA Generator ---
@@ -273,7 +317,14 @@ router.post("/legal-intelligence/poa", authenticateToken, async (req, res) => {
       RETURNING *
     `);
     return res.json({ poa: rows.rows[0] });
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
 // --- Authority Drafting ---
@@ -301,7 +352,14 @@ router.post("/legal-intelligence/authority-draft", authenticateToken, async (req
       RETURNING *
     `);
     return res.json({ draft: rows.rows[0] });
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
 // --- Worker Intelligence (Next Action + Risk) ---
@@ -353,14 +411,21 @@ router.get("/legal-intelligence/worker/:workerId", authenticateToken, async (req
         },
       },
     });
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
 // --- Fleet Signals (cached 60s) ---
 let fleetCache: { data: any; ts: number } | null = null;
 const FLEET_CACHE_TTL = 60000; // 60 seconds
 
-router.get("/legal-intelligence/fleet-signals", authenticateToken, async (_req, res) => {
+router.get("/legal-intelligence/fleet-signals", authenticateToken, async (req, res) => {
   try {
     // Return cache if fresh
     if (fleetCache && Date.now() - fleetCache.ts < FLEET_CACHE_TTL) {
@@ -388,7 +453,14 @@ router.get("/legal-intelligence/fleet-signals", authenticateToken, async (_req, 
     };
     fleetCache = { data: response, ts: Date.now() };
     return res.json(response);
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
 // --- Legal References ---
@@ -414,7 +486,14 @@ router.post("/legal-intelligence/copilot", authenticateToken, async (req, res) =
     );
 
     return res.json({ answer, source: answer.startsWith("[AI") ? "fallback" : "ai", requiresReview: true });
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
 // --- Approve (parameterized — no sql.raw) ---
@@ -444,7 +523,14 @@ router.post("/legal-intelligence/approve", authenticateToken, async (req, res) =
         return res.status(400).json({ error: `Unknown entityType: ${entityType}` });
     }
     return res.json({ success: true, status: "approved" });
-  } catch (err: any) { return res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    // Item 2.2 — friendly-error mapping (P5 pattern). Logs raw err with route
+    // path so ops can identify which legal-intelligence route failed; returns
+    // shaped {error, code, userMessage} body.
+    console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
+    return res.status(mapped.httpStatus).json(mapped.body);
+  }
 });
 
 export default router;

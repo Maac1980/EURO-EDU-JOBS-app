@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Clock, Shield, FileText, MapPin, DollarSign, Bell, AlertTriangle, CheckCircle, Search } from "lucide-react";
 
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 
 const ICONS: Record<string, any> = { hire: CheckCircle, document: FileText, legal: Shield, payroll: DollarSign, site_change: MapPin, alert: Bell, case: AlertTriangle, notification: Bell };
 const COLORS: Record<string, string> = { info: "#3b82f6", warning: "#f59e0b", critical: "#ef4444", success: "#22c55e" };

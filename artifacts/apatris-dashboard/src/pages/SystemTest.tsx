@@ -127,7 +127,12 @@ export default function SystemTest() {
 
   const runAll = async () => {
     setRunning(true);
-    const updated = TESTS.map(t => ({ name: t.name, category: t.category, status: "running" as const, detail: "" }));
+    // Item 2.16 — annotate as TestResult[] so subsequent assignments
+    // of status: "pass" / "fail" (lines 138 + 140) widen cleanly. The
+    // `as const` narrowed status to literal "running", which broke
+    // the post-run mutations even though TestResult.status accepts
+    // all four values.
+    const updated: TestResult[] = TESTS.map(t => ({ name: t.name, category: t.category, status: "running", detail: "" }));
     setResults([...updated]);
 
     for (let i = 0; i < TESTS.length; i++) {

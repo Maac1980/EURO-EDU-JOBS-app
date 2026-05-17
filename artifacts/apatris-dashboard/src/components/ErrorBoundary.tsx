@@ -32,7 +32,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   handleReport = async () => {
     const { error } = this.state;
     try {
-      const token = localStorage.getItem("token") ?? localStorage.getItem("apatris_jwt");
+      const token = localStorage.getItem("token") ?? sessionStorage.getItem("eej_token");
       await fetch("/api/first-contact/ocr-feedback", {
         method: "POST",
         headers: {

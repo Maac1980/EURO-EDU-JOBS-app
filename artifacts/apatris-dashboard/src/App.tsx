@@ -11,6 +11,7 @@ import GlobalDropZone from "@/components/GlobalDropZone";
 // Pages
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import WorkersPage from "@/pages/WorkersPage";
 import Apply from "@/pages/Apply";
 import WorkerPortal from "@/pages/WorkerPortal";
 import AdminSettings from "@/pages/AdminSettings";
@@ -115,6 +116,37 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * Tier 1 closeout #32 + audit-2026-05-16 finding C — scroll reset on
+ * every route change. Wouter doesn't ship scroll-restoration. Each page
+ * is the scroll container (.app-content-wrapper > * { overflow-y: auto }),
+ * but pages may nest their own overflow:auto regions (tables, panels)
+ * whose scrollTop persists across route changes.
+ *
+ * The selector is widened defensively: query the wrapper PLUS every
+ * descendant with overflow:auto/scroll classes (the patterns Tailwind +
+ * inline styles tend to use). Setting scrollTop on a non-scrolling
+ * element is harmless, so the wider sweep is safe.
+ */
+function ScrollResetOnRouteChange() {
+  const [location] = useLocation();
+  useEffect(() => {
+    const wrapper = document.querySelector(".app-content-wrapper");
+    if (wrapper) {
+      // Top-level page scroll container.
+      const page = wrapper.firstElementChild as HTMLElement | null;
+      if (page) page.scrollTop = 0;
+      // Nested scroll containers (tables, side panels, etc.) — defensive
+      // sweep covers any page that nests its own overflow region.
+      wrapper.querySelectorAll<HTMLElement>(
+        "[data-scroll-container], .overflow-y-auto, .overflow-auto, .overflow-y-scroll"
+      ).forEach((el) => { el.scrollTop = 0; });
+    }
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
+
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
@@ -136,6 +168,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <AppShell>
+      <ScrollResetOnRouteChange />
       <GlobalDropZone>
       <Switch>
         <Route path="/login">
@@ -413,6 +446,9 @@ function Router() {
         </Route>
         <Route path="/test/ingest-diagnostics">
           {() => <ProtectedRoute component={IngestDiagnostics} />}
+        </Route>
+        <Route path="/workers">
+          {() => <ErrorBoundary><ProtectedRoute component={WorkersPage} /></ErrorBoundary>}
         </Route>
         <Route path="/">
           {() => <ErrorBoundary><ProtectedRoute component={Dashboard} /></ErrorBoundary>}

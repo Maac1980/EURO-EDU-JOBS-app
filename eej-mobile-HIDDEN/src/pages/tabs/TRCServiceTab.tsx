@@ -1,14 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   FileText, Plus, ChevronDown, ChevronUp, Send, Bell,
   Receipt, Sparkles, AlertTriangle, CheckCircle, Clock, X,
 } from "lucide-react";
 import { useToast } from "@/lib/toast";
+import { useDeepLinkWorker, clearDeepLinkWorker } from "@/lib/navContext";
 
 /* ── Types ────────────────────────────────────────────────── */
 interface TRCCase {
   id: string;
+  worker_id?: string | null;
   workerName: string;
+  worker_name?: string;
   nationality: string;
   employer: string;
   status: string;
@@ -84,17 +87,37 @@ export default function TRCServiceTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [filter, setFilter] = useState("all");
 
+  // Deep-link from cockpit: when set, the tab opens pre-filtered to that
+  // worker's cases. User can clear via the banner's "Show all" button.
+  const deepLink = useDeepLinkWorker();
+
   const loadData = () => {
     setLoading(true);
     Promise.all([api("/api/trc/cases"), api("/api/trc/summary")])
-      .then(([c, s]) => { setCases(c); setSummary(s); })
+      .then(([c, s]) => {
+        const normalised = ((c.cases ?? c) as TRCCase[]).map((row) => ({
+          ...row,
+          workerName: row.workerName ?? row.worker_name ?? "",
+        }));
+        setCases(normalised);
+        setSummary(s);
+      })
       .catch(() => showToast("Failed to load TRC data", "error"))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { loadData(); }, []);
 
-  const filtered = filter === "all" ? cases : cases.filter((c) => c.status === filter);
+  const filtered = useMemo(() => {
+    let rows = cases;
+    if (deepLink) {
+      rows = rows.filter((c) => c.worker_id === deepLink.id);
+    }
+    if (filter !== "all") {
+      rows = rows.filter((c) => c.status === filter);
+    }
+    return rows;
+  }, [cases, filter, deepLink]);
 
   return (
     <div className="tab-page">
@@ -108,6 +131,45 @@ export default function TRCServiceTab() {
           <Plus size={14} /> New Case
         </button>
       </div>
+
+      {/* Deep-link banner: when the cockpit deep-linked into this tab with
+          a worker, show a clear-able filter chip. */}
+      {deepLink && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 12px",
+            background: "#EFF6FF",
+            border: "1px solid #BFDBFE",
+            borderRadius: 10,
+            marginBottom: 10,
+            fontSize: 12,
+            color: "#1B2A4A",
+          }}
+        >
+          <Sparkles size={14} strokeWidth={2.2} />
+          <span style={{ flex: 1 }}>
+            Showing cases for <strong>{deepLink.name ?? "selected worker"}</strong>
+          </span>
+          <button
+            onClick={clearDeepLinkWorker}
+            style={{
+              background: "transparent",
+              border: "1px solid #BFDBFE",
+              borderRadius: 6,
+              padding: "2px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#3B82F6",
+              cursor: "pointer",
+            }}
+          >
+            Show all
+          </button>
+        </div>
+      )}
 
       {/* Summary Cards */}
       {summary && <SummaryHeader summary={summary} />}
@@ -344,7 +406,10 @@ function CreateCaseModal({ onClose, onCreated }: { onClose: () => void; onCreate
   };
 
   return (
-    <div style={overlayStyle}>
+    /* Pass 3 architectural rule — use canonical .shell-overlay
+       so the modal sits between header + bottom-nav within the
+       430px frame. */
+    <div className="shell-overlay" style={{ alignItems: "center" }}>
       <div style={modalStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: "#1B2A4A" }}>New TRC Case</div>
@@ -406,10 +471,9 @@ const inputStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 3, display: "block",
 };
-const overlayStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000,
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
-};
+/* P2 — removed dead `overlayStyle` const (legacy Pass-3 migration leftover).
+   The modal renders via `<div className="shell-overlay">` above; this inline
+   style hasn't been referenced since the Pass 3 refactor. */
 const modalStyle: React.CSSProperties = {
   background: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 400,
   maxHeight: "85vh", overflowY: "auto",

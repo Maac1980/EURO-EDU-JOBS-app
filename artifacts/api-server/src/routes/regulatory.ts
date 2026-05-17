@@ -6,6 +6,9 @@ import { analyzeText } from "../lib/ai.js";
 import { authenticateToken, requireCoordinatorOrAdmin } from "../lib/authMiddleware.js";
 import { sendEmail } from "../lib/alerter.js";
 import { toWorker } from "../lib/compliance.js";
+// Item 2.2 — reuse P5 friendly-error mapping primitive so regulatory + immigration
+// routes return shaped {error, code, userMessage} bodies instead of generic 500s.
+import { mapErrorToFriendlyResponse } from "../services/document-format.js";
 
 const router = Router();
 
@@ -21,7 +24,11 @@ interface SearchResult {
 
 async function searchRegulatory(query: string): Promise<SearchResult | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    // Item 2.2 — was silent null; log so ops can distinguish "no key" from "SDK error".
+    console.warn("[regulatory-search] ANTHROPIC_API_KEY not set — returning null");
+    return null;
+  }
   try {
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic({ apiKey });
@@ -74,12 +81,23 @@ Rules:
 - workersAffected: estimate realistically based on the change type`;
 
   const result = await analyzeText(prompt);
-  if (!result) return null;
+  if (!result) {
+    // Item 2.2 — analyzeText already logs (no-key or SDK error); add specificity
+    // so the regulatory pipeline shows up cleanly in the log stream.
+    console.warn("[regulatory] analyzeImpact: analyzeText returned null — skipping update");
+    return null;
+  }
   try {
     const match = result.match(/\{[\s\S]*\}/);
-    if (!match) return null;
+    if (!match) {
+      console.warn("[regulatory] analyzeImpact: no JSON object in AI response");
+      return null;
+    }
     return JSON.parse(match[0]);
-  } catch { return null; }
+  } catch (err) {
+    console.warn("[regulatory] analyzeImpact: JSON parse failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 // ── Build email alert HTML ──────────────────────────────────────────────────
@@ -350,7 +368,9 @@ router.get("/regulatory/updates", authenticateToken, async (req, res) => {
 
     return res.json({ updates, total: updates.length, limit, offset });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load updates" });
+    console.error("[regulatory/updates] list failed:", err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+    return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
 
@@ -383,7 +403,9 @@ router.get("/regulatory/summary", authenticateToken, async (_req, res) => {
       })),
     });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load summary" });
+    console.error("[regulatory/summary] failed:", err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+    return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
 
@@ -393,7 +415,9 @@ router.post("/regulatory/scan", authenticateToken, requireCoordinatorOrAdmin, as
     const result = await runRegulatoryCheck();
     return res.json({ success: true, ...result });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Scan failed" });
+    console.error("[regulatory/scan] manual scan failed:", err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+    return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
 
@@ -434,7 +458,9 @@ router.post("/immigration/search", authenticateToken, async (req, res) => {
     const result = await immigrationSearch(question.trim(), req.user?.email ?? req.user?.id);
     return res.json(result);
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Search failed" });
+    console.error("[immigration/search] failed:", err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+    return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
 
@@ -492,7 +518,17 @@ router.get("/immigration/search/stream", authenticateToken, async (req, res) => 
     res.end();
     return;
   } catch (err) {
-    if (!res.headersSent) return res.status(500).json({ error: err instanceof Error ? err.message : "Stream failed" });
+    console.error("[immigration/search/stream] stream failed:", err);
+    if (!res.headersSent) {
+      const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+      return res.status(mapped.httpStatus).json(mapped.body);
+    }
+    // Headers already sent — best-effort SSE error event before close.
+    // Mid-stream SSE friendly-error events are out of Item 2.2 scope; tracked
+    // as a separate follow-up. For now, signal failure + close cleanly.
+    try {
+      res.write(`data: ${JSON.stringify({ type: "error", message: "Stream failed mid-response" })}\n\n`);
+    } catch { /* socket may already be closed */ }
     res.end();
     return;
   }
@@ -515,7 +551,9 @@ router.get("/immigration/history", authenticateToken, async (req, res) => {
       .limit(limit);
     return res.json({ searches });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load history" });
+    console.error("[immigration/history] list failed:", err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+    return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
 
@@ -527,7 +565,9 @@ router.get("/immigration/history/:id", authenticateToken, async (req, res) => {
     if (!search) return res.status(404).json({ error: "Search not found" });
     return res.json({ search });
   } catch (err) {
-    return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to load search" });
+    console.error("[immigration/history/:id] fetch failed:", err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+    return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
 
@@ -579,7 +619,17 @@ router.get("/regulatory/copilot", authenticateToken, async (req, res) => {
     res.end();
     return;
   } catch (err) {
-    if (!res.headersSent) return res.status(500).json({ error: err instanceof Error ? err.message : "Copilot error" });
+    console.error("[regulatory/copilot] failed:", err);
+    if (!res.headersSent) {
+      const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
+      return res.status(mapped.httpStatus).json(mapped.body);
+    }
+    // SSE mid-stream — best-effort error event (see /immigration/search/stream
+    // note above for the same follow-up rationale).
+    try {
+      res.write(`data: ${JSON.stringify({ type: "error", text: "Stream failed mid-response" })}\n\n`);
+    } catch { /* socket may already be closed */ }
+    res.end();
     return;
   }
 });

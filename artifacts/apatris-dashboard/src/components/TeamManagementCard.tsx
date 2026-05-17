@@ -15,6 +15,12 @@ interface TeamUser {
   name: string;
   role: "admin" | "coordinator" | "manager";
   site: string | null;
+  // PENDING-5 aggregation (May 14): server now aggregates legacy `users` +
+  // `system_users` tables. system_users rows are read-only from this card
+  // (edit/delete via /eej/auth/* flows, not /admin/users/:id which only
+  // operates on the legacy users table). Frontend hides edit/delete buttons
+  // for system_users rows. Full CRUD across both tables = iteration N+1.
+  sourceTable?: "users" | "system_users";
 }
 
 function getApiBase() {
@@ -186,7 +192,7 @@ export function TeamManagementCard() {
                     </div>
                     <p className="text-xs font-mono text-gray-500 truncate">{u.email}</p>
                   </div>
-                  {u.role !== "admin" && (
+                  {u.role !== "admin" && u.sourceTable !== "system_users" && (
                     <div className="flex items-center gap-1">
                       <button onClick={() => { setEditingId(u.id); setEditForm({}); }} className="p-1.5 rounded hover:bg-white/10 text-gray-500 hover:text-white transition-colors">
                         <Pencil className="w-3 h-3" />
@@ -201,6 +207,14 @@ export function TeamManagementCard() {
                         </button>
                       )}
                     </div>
+                  )}
+                  {u.sourceTable === "system_users" && u.role !== "admin" && (
+                    <span
+                      className="text-[9px] font-mono text-gray-500 italic"
+                      title="System user — manage via mobile auth flow. Edit/delete from this card lands in iteration N+1."
+                    >
+                      managed
+                    </span>
                   )}
                 </>
               )}

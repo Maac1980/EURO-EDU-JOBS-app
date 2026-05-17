@@ -127,6 +127,25 @@ async function buildWorkerContext(workerId: string) {
   if (wRows.rows.length === 0) return null;
   const w = wRows.rows[0] as any;
 
+  // Latest TRC case (commit 19 — May 14 walkthrough finding #6). The engine
+  // was reasoning blind to actual case state — only the worker row's expiry
+  // dates + smart_documents inferred signals. When a worker has a REJECTED
+  // TRC case (Andriy's walkthrough scenario), the case row is the ground
+  // truth and must surface in the prompt so Claude can advise specifically
+  // about the rejection + Mazowieckie decision + Art. 127 appeal window.
+  // Same query shape as the cockpit aggregator (workers.ts:548-557).
+  const trcCaseResult = await db.execute(sql`
+    SELECT c.id, c.status, c.permit_type, c.voivodeship,
+           c.application_date, c.actual_decision_date, c.expected_decision_date,
+           c.appointment_date, c.renewal_deadline, c.payment_status,
+           (SELECT COUNT(*)::int FROM trc_documents d
+            WHERE d.case_id = c.id AND d.is_required = true AND d.is_uploaded = false) AS missing_required_count
+    FROM trc_cases c
+    WHERE c.worker_id = ${workerId}
+    ORDER BY c.created_at DESC LIMIT 1
+  `);
+  const trcCase = trcCaseResult.rows[0] ?? null;
+
   // Smart documents (AI context from ingestion) — centralized in migrate.ts
   const sdRows = await db.execute(sql`
     SELECT id, doc_type, confidence, rationale, extracted_data, legal_impact, ai_context,
@@ -169,6 +188,16 @@ async function buildWorkerContext(workerId: string) {
     }
   }
 
+  // Surface a TRC case rejection signal into the legal engine input (commit
+  // 19). A REJECTED case in trc_cases is the canonical signal — independent
+  // of whether a rejection document was OCR-scanned into smart_documents.
+  // Treating it as a formal defect drives the engine's appeal-related
+  // outputs (warnings, required actions, art108 evaluation).
+  if (trcCase && typeof trcCase.status === "string" &&
+      ["REJECTED", "DENIED", "rejected", "denied"].includes(trcCase.status)) {
+    legalInput.formalDefect = true;
+  }
+
   const legalOutput: LegalOutput = evaluateLegalStatus(legalInput);
 
   // Schengen 90/180 check (border_crossings centralized in migrate.ts)
@@ -186,7 +215,7 @@ async function buildWorkerContext(workerId: string) {
     schengenData = calculateSchengen90180(crossings, undefined, legalOutput.art108Applied);
   }
 
-  return { worker: w, smartDocs, legalInput, legalOutput, schengenData };
+  return { worker: w, trcCase, smartDocs, legalInput, legalOutput, schengenData };
 }
 
 // ═══ AI ANSWER GENERATION ═══════════════════════════════════════════════════
@@ -215,12 +244,31 @@ CRITICAL RULES:
 7. If no data is available, say so and set confidence low`;
 
 async function generateAnswer(question: string, context: any): Promise<LegalAnswer> {
-  const { worker: w, smartDocs, legalOutput, schengenData } = context;
+  const { worker: w, trcCase, smartDocs, legalOutput, schengenData } = context;
 
   // Build context string for AI
   const docContext = smartDocs.map((d: any) =>
     `- ${d.doc_type} (confidence: ${d.confidence}) — ${d.rationale ?? "no rationale"}`
   ).join("\n") || "No documents analyzed yet.";
+
+  // TRC CASE section (commit 19 — May 14 walkthrough finding #6). The case
+  // row is the ground truth on TRC status; without it Claude is blind to
+  // rejections and cannot advise on appeal strategy. When present, this
+  // section surfaces status + decision date + appeal window (renewal_deadline
+  // doubles as Art. 127 KPA 14-day reckoning point) + missing-doc count.
+  const trcCaseContext = trcCase ? `
+TRC CASE (latest, ground truth — refer to this for any TRC question):
+Status: ${trcCase.status ?? "N/A"}
+Permit type: ${trcCase.permit_type ?? "N/A"}
+Voivodeship (issuing authority): ${trcCase.voivodeship ?? "N/A"}
+Application date: ${trcCase.application_date ?? "N/A"}
+Decision date: ${trcCase.actual_decision_date ?? "N/A"}
+Expected decision date: ${trcCase.expected_decision_date ?? "N/A"}
+Appointment date: ${trcCase.appointment_date ?? "N/A"}
+Renewal / appeal deadline: ${trcCase.renewal_deadline ?? "N/A"}
+Payment status: ${trcCase.payment_status ?? "N/A"}
+Missing required documents: ${trcCase.missing_required_count ?? 0}` : `
+TRC CASE: No TRC case row on file for this worker.`;
 
   const workerContext = `WORKER DATA (source of truth):
 Name: ${w.name}
@@ -232,6 +280,7 @@ BHP expires: ${w.bhp_status ?? "N/A"}
 Medical expires: ${w.badania_lek_expiry ?? "N/A"}
 ZUS status: ${w.zus_status ?? "N/A"}
 Visa type: ${w.visa_type ?? "N/A"}
+${trcCaseContext}
 
 LEGAL ENGINE STATUS: ${legalOutput.legalStatus}
 RISK LEVEL: ${legalOutput.riskLevel}

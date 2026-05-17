@@ -8,6 +8,16 @@ export interface BilingualText {
   pl: string;
   en: string;
   originalLanguage: "pl" | "en";
+  /**
+   * Item 2.2 — distinguishes successful translation from placeholder fallback.
+   *   'ok'      = AI translation succeeded; both pl + en are real translations
+   *               (or both already present in input markers)
+   *   'pending' = AI call returned empty; placeholder "[Translation pending]"
+   *               written for the non-original side
+   *   'failed'  = AI call threw; placeholder written + error logged server-side
+   * Optional field — undefined means caller predates Item 2.2 instrumentation.
+   */
+  translationStatus?: 'ok' | 'pending' | 'failed';
 }
 
 /**
@@ -22,7 +32,7 @@ export async function completeBilingual(text: string, preferredOriginal: "pl" | 
   const enMatch = text.match(/=== ENGLISH ===\s*([\s\S]*?)(?:=== POLISH ===|$)/i);
 
   if (plMatch && enMatch) {
-    return { pl: plMatch[1].trim(), en: enMatch[1].trim(), originalLanguage: "pl" };
+    return { pl: plMatch[1].trim(), en: enMatch[1].trim(), originalLanguage: "pl", translationStatus: 'ok' };
   }
 
   // Single language — generate other
@@ -39,13 +49,17 @@ export async function completeBilingual(text: string, preferredOriginal: "pl" | 
     });
     const translation = resp.content[0].type === "text" ? resp.content[0].text.trim() : "";
 
+    // Item 2.2 — distinguish "AI returned empty" (pending) from "AI returned text" (ok)
+    const status: 'ok' | 'pending' = translation ? 'ok' : 'pending';
     return preferredOriginal === "pl"
-      ? { pl: original, en: translation || `[Translation pending]\n${original}`, originalLanguage: "pl" }
-      : { pl: translation || `[Tłumaczenie oczekuje]\n${original}`, en: original, originalLanguage: "en" };
-  } catch {
+      ? { pl: original, en: translation || `[Translation pending]\n${original}`, originalLanguage: "pl", translationStatus: status }
+      : { pl: translation || `[Tłumaczenie oczekuje]\n${original}`, en: original, originalLanguage: "en", translationStatus: status };
+  } catch (err) {
+    // Item 2.2 — previously silent; surface in server logs for ops visibility.
+    console.warn("[bilingual] Translation failed:", err instanceof Error ? err.message : err);
     return preferredOriginal === "pl"
-      ? { pl: original, en: `[Translation pending]\n${original}`, originalLanguage: "pl" }
-      : { pl: `[Tłumaczenie oczekuje]\n${original}`, en: original, originalLanguage: "en" };
+      ? { pl: original, en: `[Translation pending]\n${original}`, originalLanguage: "pl", translationStatus: 'failed' }
+      : { pl: `[Tłumaczenie oczekuje]\n${original}`, en: original, originalLanguage: "en", translationStatus: 'failed' };
   }
 }
 

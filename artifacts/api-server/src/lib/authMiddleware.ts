@@ -17,11 +17,25 @@ export interface AuthUser {
   role: UserRole;
   site: string | null;
   tenantId: string;
-  // T23 — per-user permission flags (only present on mobile-app JWTs from
-  // /eej/auth/login). Admin-side JWTs (auth.ts /auth/login) don't include them;
-  // gates treat absence as unrestricted (admin path bypasses the flag).
+  // T23 — per-user permission flags. Originally only present on mobile-app
+  // JWTs from /eej/auth/login. Dashboard auth unification (May 14) added
+  // them to /auth/login JWTs when the login resolves via system_users.
+  // Absence = pre-unification token (Anna's existing portal token). Gates
+  // treat absence as unrestricted for admin role (preserves Anna's access).
   canViewFinancials?: boolean;
   nationalityScope?: string | null;
+  // Dashboard auth unification (May 14) — finer-grained worker-edit gate.
+  // Only consulted for manager role (T3→manager users). Admin/coordinator
+  // pass requireCoordinatorOrAdmin on role alone, independent of this flag.
+  canEditWorkers?: boolean;
+  // Dashboard auth unification (May 14) — UI display only. Pulled from
+  // system_users.designation when login resolves via that table.
+  designation?: string | null;
+  // Dashboard auth unification (May 14) — transition debug flag. Identifies
+  // which table the login resolved through. Used by /auth/change-password
+  // to dispatch to the correct table. Removable post-data-model-unification
+  // (FUTURE.md section 1).
+  sourceTable?: "system_users" | "users";
 }
 
 declare global {
@@ -51,13 +65,56 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
-  if (req.user.role !== "admin") { res.status(403).json({ error: "Admin access required." }); return; }
+  // Accept both dashboard "admin" and mobile "executive" — the same T1 users
+  // (Manish, Anna) hit this gate from both surfaces. Pre-unification their
+  // mobile tokens (role="executive") got 403 on /admin/stats etc; this
+  // dual-accept is the PENDING-2 Stats 403 fix. Semantically: dashboard admin
+  // and mobile executive are the same tier-1 founder accounts. Coordinator,
+  // manager, legal, operations, candidate roles all still rejected.
+  // String-cast pattern matches existing requireT1T2 below.
+  const role = req.user.role as string;
+  if (role !== "admin" && role !== "executive") {
+    res.status(403).json({ error: "Admin access required." });
+    return;
+  }
   next();
 }
 
 export function requireCoordinatorOrAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) { res.status(401).json({ error: "Unauthorized." }); return; }
-  if (req.user.role === "manager") { res.status(403).json({ error: "Coordinator or Admin access required." }); return; }
+  const role = req.user.role as string;
+
+  // Explicit reject: T4 candidate-tier (mobile workers logged in as themselves)
+  // should NEVER edit worker records, contracts, invoices, payroll, etc. from
+  // any surface. Pre-May-14 the gate was deny-list-only (rejected just
+  // "manager") and let candidate fall through to next() — caught by CE.2
+  // integration test, fixed here as a security-flavored hardening across the
+  // 25 routes using this gate.
+  if (role === "candidate") {
+    res.status(403).json({ error: "Coordinator or Admin access required." });
+    return;
+  }
+
+  if (role === "manager") {
+    // Dashboard auth unification (May 14): T3→manager users (Karan, Marjorie,
+    // Yana) carry canEditWorkers=true on system_users. Manager-tier users
+    // pass this gate iff the flag is explicitly true. Admin and coordinator
+    // are unaffected — their role grants worker-edit independent of the flag.
+    if (req.user.canEditWorkers === true) {
+      next();
+      return;
+    }
+    res.status(403).json({ error: "Coordinator or Admin access required." });
+    return;
+  }
+
+  // admin, coordinator (dashboard); executive, legal, operations (mobile T1/T2/T3
+  // pre-translation surfaces) all fall through. The 25 callsites of this gate
+  // are accessed from both dashboard AND mobile; the executive/legal/operations
+  // pass-through preserves mobile-side worker edits (Anna's inline cockpit
+  // contact edit, Liza's TRC actions, Karan's recruitment data entry).
+  // Allow-list pattern was considered and rejected as too narrow — would have
+  // broken mobile flows currently working.
   next();
 }
 

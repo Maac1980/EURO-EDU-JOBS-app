@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode, FileEdit } from "lucide-react";
+import { X, Mail, Phone, FileText, Download, Upload, CheckCircle2, Loader2, Pencil, Save, XCircle, MapPin, Link2, Copy, Check, ClipboardList, MessageCircle, QrCode, FileEdit, Send } from "lucide-react";
 import { calcComplianceScore, scoreColor, scoreBg } from "@/lib/complianceScore";
+import { WorkerComplianceSections } from "./WorkerComplianceSections";
+import { WorkerDocumentsList } from "./WorkerDocumentsList";
 import { PIPInspectionModal } from "./PIPInspectionModal";
 import { WorkerQRModal } from "./WorkerQRModal";
 import { format, parseISO } from "date-fns";
@@ -18,6 +20,14 @@ interface WorkerProfilePanelProps {
   onClose: () => void;
   onRenew: (worker: any) => void;
   onNotify: (worker: any) => void;
+  /**
+   * Opens the unified worker cockpit (11-panel view) for the same worker.
+   * Coexistence with this slide-over: this panel keeps admin affordances
+   * (portal-link send, document uploads, PIP modal, QR modal); cockpit
+   * provides the unified read view + AI summary + thread-3 legal Q&A.
+   * Option (i) full replacement queued as iteration item post-walkthrough.
+   */
+  onOpenCockpit?: (workerId: string) => void;
 }
 
 function DocRow({ label, date }: { label: string; date?: string | null }) {
@@ -166,6 +176,7 @@ export function WorkerProfilePanel({
   onClose,
   onRenew,
   onNotify,
+  onOpenCockpit,
 }: WorkerProfilePanelProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -183,6 +194,13 @@ export function WorkerProfilePanel({
   const [copyingLink, setCopyingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [sendingWA, setSendingWA] = useState(false);
+  // PENDING-1 (May 14) — upload-link surfacing. The /worker/:id/update
+  // self-upload page + backend + AI pipeline exist since April 14
+  // (commit 039adb5). Team-side "Copy link" + "Send via WhatsApp" buttons
+  // were the missing piece. Mirrors the portal-link pattern below.
+  const [copyingUploadLink, setCopyingUploadLink] = useState(false);
+  const [uploadLinkCopied, setUploadLinkCopied] = useState(false);
+  const [sendingUploadWA, setSendingUploadWA] = useState(false);
   const [isPipOpen, setIsPipOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [noteContent, setNoteContent] = useState("");
@@ -214,6 +232,68 @@ export function WorkerProfilePanel({
       toast({ title: "WhatsApp failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally {
       setSendingWA(false);
+    }
+  };
+
+  // PENDING-1 — copy the self-upload URL to clipboard. No token needed;
+  // the /worker/:id/update endpoint is public by design (workers reach
+  // it via WhatsApp without an app account).
+  const handleCopyUploadLink = async () => {
+    if (!workerId) return;
+    setCopyingUploadLink(true);
+    try {
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const uploadUrl = `${window.location.origin}${base}/worker/${workerId}/update`;
+      await navigator.clipboard.writeText(uploadUrl);
+      setUploadLinkCopied(true);
+      toast({
+        title: "\u2713 Upload link copied!",
+        description: "Share with the worker to collect their documents.",
+        variant: "success" as any,
+      });
+      setTimeout(() => setUploadLinkCopied(false), 3000);
+    } catch (err) {
+      toast({
+        title: "Failed to copy link",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingUploadLink(false);
+    }
+  };
+
+  // PENDING-1 — send the self-upload URL to the worker via WhatsApp.
+  // Backend endpoint posts a Polish-language message with the URL to the
+  // worker's phone (Twilio). Body includes `origin` so server composes
+  // the right host URL.
+  const handleSendUploadWhatsApp = async () => {
+    if (!workerId) return;
+    setSendingUploadWA(true);
+    try {
+      const token = sessionStorage.getItem("eej_token");
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const origin = `${window.location.origin}${base}`;
+      const res = await fetch(`${base}/api/workers/${workerId}/send-upload-link-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ origin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      toast({
+        title: "\u2713 Upload link sent",
+        description: `Document-upload link delivered to ${data.sentTo}`,
+        variant: "success" as any,
+      });
+    } catch (err) {
+      toast({
+        title: "WhatsApp failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingUploadWA(false);
     }
   };
 
@@ -350,91 +430,157 @@ export function WorkerProfilePanel({
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="px-5 pt-4 pb-4 border-b border-white/10 bg-slate-800/50">
-              {/* Top row: avatar + name + action buttons */}
+            {/* Header — restructured into three visual clusters with breathing room
+                between them (walkthrough finding #1-remainder + #11). Pre-fix the
+                avatar / name+badges / actions were all in one horizontal flex row,
+                which squished the name-and-badges column narrow whenever the
+                action-buttons cluster had 6+ icons (after commit 12's upload
+                buttons). The narrow column truncated the worker name to "A…" and
+                made the Full Cockpit button render in a ~120px-wide portrait shape
+                that Manish reported as "vertical." Now: row 1 = avatar + name +
+                action-icons; row 2 = chip cluster (specialization, status, score);
+                row 3 = Full Cockpit horizontal button (its own row, wide rectangle). */}
+            <div className="px-5 pt-4 pb-4 border-b border-white/10 bg-slate-800/50 space-y-3">
+              {/* Row 1: avatar + name + X close ONLY. Pre-fix #13: action buttons
+                  shared this row, eating ~280px of the 448px panel width — name
+                  column shrank to ~26px and `break-words` forced per-character
+                  vertical wrap of "Ahmed Al-Rashid". Fix: actions move to their
+                  own row (row 2), name uses whitespace-nowrap + ellipsis instead
+                  of wrap (Manish's explicit spec). */}
               <div className="flex items-center gap-3">
-                {/* Avatar / Initials */}
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-black uppercase flex-shrink-0" style={{ background: "rgba(233,255,112,0.12)", border: "1px solid rgba(233,255,112,0.3)", color: "#E9FF70" }}>
                   {worker.name.split(" ").map((n: string) => n[0]).join("").slice(0, 3)}
                 </div>
-                {/* Name + badges */}
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-black text-white leading-tight truncate">{worker.name}</h2>
-                  <div className="flex items-center flex-wrap gap-1.5 mt-1">
-                    {worker.specialization && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/10 text-gray-300 border border-white/10">
-                        {worker.specialization}
-                      </span>
-                    )}
-                    <StatusBadge status={worker.complianceStatus} />
-                    {(() => {
-                      const score = calcComplianceScore(worker);
-                      const color = scoreColor(score);
-                      const bg = scoreBg(score);
-                      return (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: bg, color, border: `1px solid ${color}40` }}>
-                          {score}/100
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </div>
-                {/* Action buttons */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {!isEditing && (
-                    <>
-                      <button
-                        onClick={() => setShowQR(true)}
-                        className="p-2 rounded-full transition-colors"
-                        style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.3)" }}
-                        title="Show worker QR code"
-                      >
-                        <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
-                      </button>
-                      <button
-                        onClick={handleSendPortalWhatsApp}
-                        disabled={sendingWA}
-                        className="p-2 rounded-full transition-colors disabled:opacity-50"
-                        style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}
-                        title={worker?.phone ? "Send portal link via WhatsApp" : "No phone number on file — add in Airtable first"}
-                      >
-                        {sendingWA
-                          ? <Loader2 className="w-4 h-4 animate-spin text-green-400" />
-                          : <MessageCircle className="w-4 h-4 text-green-400" />}
-                      </button>
-                      <button
-                        onClick={handleCopyPortalLink}
-                        disabled={copyingLink}
-                        className="p-2 rounded-full transition-colors disabled:opacity-50"
-                        style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
-                        title="Copy worker portal link"
-                      >
-                        {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditSpec(worker.specialization || "");
-                          setEditProfession(worker.specialization || "");
-                          setEditSiteLocation((worker as any).siteLocation || "");
-                          setEditIban((worker as any).iban || "");
-                          setIsEditing(true);
-                        }}
-                        className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
-                        title={t("panel.editWorkerDetails")}
-                      >
-                        <Pencil className="w-4 h-4 text-amber-400" />
-                      </button>
-                    </>
-                  )}
+                <h2
+                  className="flex-1 min-w-0 text-xl font-black text-white leading-tight overflow-hidden text-ellipsis"
+                  style={{ whiteSpace: "nowrap", writingMode: "horizontal-tb", wordBreak: "normal", overflowWrap: "normal" }}
+                  title={worker.name}
+                >
+                  {worker.name}
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors flex-shrink-0"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-gray-300" />
+                </button>
+              </div>
+
+              {/* Row 2: action buttons in their own horizontal strip — flex-wrap
+                  so they reflow on narrow widths instead of compressing row 1.
+                  Two WhatsApp actions use distinct icons (MessageCircle green for
+                  portal-link / Send blue for upload-link) — Manish flagged the
+                  duplicate-icon as a UX bug in #13. */}
+              {!isEditing && (
+                <div className="flex items-center flex-wrap gap-1.5">
                   <button
-                    onClick={onClose}
-                    className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                    onClick={() => setShowQR(true)}
+                    className="p-2 rounded-full transition-colors"
+                    style={{ background: "rgba(233,255,112,0.1)", border: "1px solid rgba(233,255,112,0.3)" }}
+                    title="Show worker QR code"
                   >
-                    <X className="w-5 h-5 text-gray-300" />
+                    <QrCode className="w-4 h-4" style={{ color: "#E9FF70" }} />
+                  </button>
+                  <button
+                    onClick={handleSendPortalWhatsApp}
+                    disabled={sendingWA}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)" }}
+                    title={worker?.phone ? "Send portal link via WhatsApp" : "No phone number on file — add in Airtable first"}
+                  >
+                    {sendingWA
+                      ? <Loader2 className="w-4 h-4 animate-spin text-green-400" />
+                      : <MessageCircle className="w-4 h-4 text-green-400" />}
+                  </button>
+                  <button
+                    onClick={handleCopyPortalLink}
+                    disabled={copyingLink}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{ background: linkCopied ? "rgba(34,197,94,0.15)" : "rgba(233,255,112,0.1)", border: linkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(233,255,112,0.3)" }}
+                    title="Copy worker portal link (time-tracking, 30-day token)"
+                  >
+                    {copyingLink ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#E9FF70" }} /> : linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" style={{ color: "#E9FF70" }} />}
+                  </button>
+                  {/* Send icon (paper plane) — distinct from MessageCircle above.
+                      Both trigger WhatsApp, but action is different: this one
+                      sends the document-upload link (passport / TRC / BHP /
+                      contract), the green MessageCircle sends the portal link. */}
+                  <button
+                    onClick={handleSendUploadWhatsApp}
+                    disabled={sendingUploadWA}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.4)" }}
+                    title={worker?.phone ? "Send document-upload link via WhatsApp" : "No phone number on file"}
+                  >
+                    {sendingUploadWA
+                      ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      : <Send className="w-4 h-4 text-blue-400" />}
+                  </button>
+                  <button
+                    onClick={handleCopyUploadLink}
+                    disabled={copyingUploadLink}
+                    className="p-2 rounded-full transition-colors disabled:opacity-50"
+                    style={{
+                      background: uploadLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.1)",
+                      border: uploadLinkCopied ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(59,130,246,0.4)",
+                    }}
+                    title="Copy document-upload link (worker submits passport / TRC / BHP / contract)"
+                  >
+                    {copyingUploadLink
+                      ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      : uploadLinkCopied
+                        ? <Check className="w-4 h-4 text-green-400" />
+                        : <Upload className="w-4 h-4 text-blue-400" />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditSpec(worker.specialization || "");
+                      setEditProfession(worker.specialization || "");
+                      setEditSiteLocation((worker as any).siteLocation || "");
+                      setEditIban((worker as any).iban || "");
+                      setIsEditing(true);
+                    }}
+                    className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-full transition-colors"
+                    title={t("panel.editWorkerDetails")}
+                  >
+                    <Pencil className="w-4 h-4 text-amber-400" />
                   </button>
                 </div>
+              )}
+
+              {/* Row 3: chip cluster (specialization + status + score). */}
+              <div className="flex items-center flex-wrap gap-2">
+                {worker.specialization && (
+                  <span className="px-2.5 py-1 rounded text-[10px] font-mono bg-white/10 text-gray-300 border border-white/10">
+                    {worker.specialization}
+                  </span>
+                )}
+                <StatusBadge status={worker.complianceStatus} />
+                {(() => {
+                  const score = calcComplianceScore(worker);
+                  const color = scoreColor(score);
+                  const bg = scoreBg(score);
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black" style={{ background: bg, color, border: `1px solid ${color}40` }}>
+                      {score}/100
+                    </span>
+                  );
+                })()}
               </div>
+
+              {/* Row 4: Full Cockpit button — its own row, full-width rectangle. */}
+              {onOpenCockpit && workerId && (
+                <button
+                  onClick={() => onOpenCockpit(workerId)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-500 border border-blue-400 transition-all hover:brightness-110 active:scale-95"
+                  style={{ boxShadow: "0 2px 12px rgba(59,130,246,0.35)" }}
+                  title="Open the unified worker cockpit (AI summary, all 11 panels, Ask AI about appeal, deep-link nav)"
+                >
+                  Full Cockpit →
+                </button>
+              )}
+
               {/* IBAN display strip (when not editing) */}
               {!isEditing && (worker as any).iban && (
                 <div className="mt-3 px-3 py-2 rounded-lg flex items-center gap-2" style={{ background: "rgba(233,255,112,0.05)", border: "1px solid rgba(233,255,112,0.15)" }}>
@@ -625,6 +771,12 @@ export function WorkerProfilePanel({
                   </div>
                 </div>
               </div>
+
+              {/* Tier 1 closeout #20 — owner-side UPO + Schengen viewer. */}
+              {workerId && <WorkerComplianceSections workerId={workerId} />}
+
+              {/* Tier 1 closeout #25 — real documents list (smart_documents). */}
+              {workerId && <WorkerDocumentsList workerId={workerId} />}
 
               {/* Polish Legal Info */}
               {((worker as any).pesel || (worker as any).nip || (worker as any).zusStatus || (worker as any).visaType || (worker as any).rodoConsentDate || (worker as any).iso9606Process) && (

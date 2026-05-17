@@ -103,6 +103,21 @@ export async function runMigrations(): Promise<void> {
     -- nationality_scope filters worker-listing queries when set (e.g., "Ukrainian" → Yana sees only UA workers).
     ALTER TABLE system_users ADD COLUMN IF NOT EXISTS can_view_financials BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE system_users ADD COLUMN IF NOT EXISTS nationality_scope TEXT;
+    -- Dashboard auth unification (May 14) — finer-grained gate than role for worker-edit.
+    -- Default TRUE: existing rows (Manish, Anna, Liza, Karan, Marjorie, Yana, Marta, Piotr)
+    -- all retain worker-edit access on column addition. T4 candidate-tier seeds must
+    -- explicitly set FALSE (none currently seeded). Honored by requireCoordinatorOrAdmin
+    -- to allow T3→manager users to PATCH /workers/:id when flag is set.
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS can_edit_workers BOOLEAN NOT NULL DEFAULT TRUE;
+    -- 2FA on system_users (May 15, commit 4). Migration of TOTP from the legacy
+    -- users table so the unified auth path can verify against the same row.
+    -- All four columns additive; existing rows get the defaults.
+    -- requires_2fa default FALSE; backfilled TRUE for admin-tier T1 (Manish, Anna)
+    -- below per mandatory-for-admin / opt-in-for-others decision (audit doc §13.4).
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT;
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS requires_2fa BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE system_users ADD COLUMN IF NOT EXISTS recovery_codes_hashed TEXT;
 
     CREATE TABLE IF NOT EXISTS clients (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -699,6 +714,27 @@ export async function runMigrations(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_a1_certificates_status ON a1_certificates(status);
     CREATE INDEX IF NOT EXISTS idx_a1_certificates_expiry ON a1_certificates(valid_until);
 
+    -- AI Reasoning Log — provenance for AI-driven decisions. See schema.ts
+    -- and docs/EOD_WEEK_MAY_12.md for the design rationale. Append-only.
+    CREATE TABLE IF NOT EXISTS ai_reasoning_log (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      decision_type TEXT NOT NULL,
+      worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
+      input_summary TEXT,
+      input_hash TEXT,
+      output JSONB,
+      confidence NUMERIC(4,3),
+      decided_action TEXT,
+      reviewed_by TEXT,
+      model TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'production' REFERENCES tenants(slug) ON DELETE RESTRICT,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_worker ON ai_reasoning_log(worker_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_decision ON ai_reasoning_log(decision_type);
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_tenant ON ai_reasoning_log(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_ai_reasoning_created ON ai_reasoning_log(created_at DESC);
+
     CREATE TABLE IF NOT EXISTS legal_documents (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       worker_id UUID REFERENCES workers(id) ON DELETE SET NULL,
@@ -1108,7 +1144,34 @@ export async function runMigrations(): Promise<void> {
         '["permitStatus","updateDate"]'::jsonb, FALSE),
       ('production', 'payment_reminder', 'pl',
         'Przypominamy o fakturze {{invoiceNumber}} na kwote {{amount}} {{currency}}. Termin: {{dueDate}}.',
-        '["invoiceNumber","amount","currency","dueDate"]'::jsonb, FALSE)
+        '["invoiceNumber","amount","currency","dueDate"]'::jsonb, FALSE),
+      -- TRC expiry reminder: triggered by the cockpit's AI-suggested action
+      -- "Send document reminder" when a worker's TRC is approaching expiry.
+      -- workerName auto-fills from worker.name; trcExpiry from worker.trcExpiry;
+      -- daysLeft from the alert computation. All variables match the cockpit's
+      -- pre-fill heuristic in WorkerCockpit.tsx so Yana/Liza don't have to
+      -- type anything when sending.
+      --
+      -- Naming convention: name suffix _pl / _en because the unique index is
+      -- on (tenant_id, name) only — same name across two languages would
+      -- silently drop one row. Two distinct names lets Yana pick the right
+      -- language for the worker in the cockpit picker.
+      ('production', 'trc_expiry_reminder_pl', 'pl',
+        'Witaj {{workerName}}. Twoja karta pobytu (TRC) wygasa {{trcExpiry}} — za {{daysLeft}} dni. Skontaktuj sie z nami pilnie, zeby zlozyc wniosek o przedluzenie.',
+        '["workerName","trcExpiry","daysLeft"]'::jsonb, FALSE),
+      ('production', 'trc_expiry_reminder_en', 'en',
+        'Hi {{workerName}}. Your TRC residence card expires on {{trcExpiry}} — in {{daysLeft}} days. Please contact us urgently to file the renewal.',
+        '["workerName","trcExpiry","daysLeft"]'::jsonb, FALSE),
+      -- Generic document-missing reminder for the cockpit's missing-docs alert.
+      -- Used when the AI suggests "Send document reminder" because TRC docs
+      -- are incomplete (not just expiring). Single-variable so Yana can fire
+      -- it with one tap regardless of which doc is missing.
+      ('production', 'documents_missing_pl', 'pl',
+        'Witaj {{workerName}}. Brakuje nam kilku dokumentow do Twojego dossier. Przeslij je tak szybko, jak to mozliwe — pomoze nam to zakonczyc Twoja sprawe szybciej.',
+        '["workerName"]'::jsonb, FALSE),
+      ('production', 'documents_missing_en', 'en',
+        'Hi {{workerName}}. We''re missing a few documents for your file. Please send them as soon as possible — it helps us close your case faster.',
+        '["workerName"]'::jsonb, FALSE)
     ON CONFLICT (tenant_id, name) DO NOTHING;
   `);
 
@@ -1881,17 +1944,24 @@ export async function seedInitialData(): Promise<void> {
       shortName: string;
       canViewFinancials: boolean;
       nationalityScope: string | null;
+      canEditWorkers: boolean;
+      requires2fa: boolean;
     }> = [
-      // T23 — real team (Day 23 rollout)
-      { name: "Manish Shetty", email: "manish.s@edu-jobs.eu", role: "T1", designation: "Founder & Executive", shortName: "Executive", canViewFinancials: true, nationalityScope: null },
-      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive", canViewFinancials: true, nationalityScope: null },
-      { name: "Liza Yelyzaveta Chubarova", email: "liza.c@edu-jobs.eu", role: "T1", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null },
-      { name: "Karan Chauhan", email: "karan.c@edu-jobs.eu", role: "T3", designation: "Recruitment & People Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
-      { name: "Marjorie Isla Ramones", email: "marjorie.r@edu-jobs.eu", role: "T3", designation: "Recruitment Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
-      { name: "Yana Zielinska", email: "yana.z@edu-jobs.eu", role: "T3", designation: "Contracts & UA Liaison", shortName: "Operations", canViewFinancials: false, nationalityScope: "Ukrainian" },
+      // T23 — real team (Day 23 rollout). canEditWorkers explicit per dashboard
+      // auth unification (May 14): T1/T2/T3 all do worker data entry; T4 (none
+      // seeded) would set FALSE.
+      // requires2fa per audit doc §13.4 (mandatory-for-admin / opt-in-for-others):
+      // TRUE for admin-tier (T1 non-Legal → Manish, Anna); FALSE for everyone
+      // else (Liza coordinator, T3 manager) — they can opt in via Profile UI.
+      { name: "Manish Shetty", email: "manish.s@edu-jobs.eu", role: "T1", designation: "Founder & Executive", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true, requires2fa: true },
+      { name: "Anna Bondarenko", email: "anna.b@edu-jobs.eu", role: "T1", designation: "Executive Board & Finance", shortName: "Executive", canViewFinancials: true, nationalityScope: null, canEditWorkers: true, requires2fa: true },
+      { name: "Liza Yelyzaveta Chubarova", email: "liza.c@edu-jobs.eu", role: "T1", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Karan Chauhan", email: "karan.c@edu-jobs.eu", role: "T3", designation: "Recruitment & People Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Marjorie Isla Ramones", email: "marjorie.r@edu-jobs.eu", role: "T3", designation: "Recruitment Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Yana Zielinska", email: "yana.z@edu-jobs.eu", role: "T3", designation: "Contracts & UA Liaison", shortName: "Operations", canViewFinancials: false, nationalityScope: "Ukrainian", canEditWorkers: true, requires2fa: false },
       // Historical accounts kept until Manish deactivates post-deploy.
-      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null },
-      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null },
+      { name: "Marta Wi\u015Bniewska", email: "legal@euro-edu-jobs.eu", role: "T2", designation: "Head of Legal & Client Relations", shortName: "Legal & Compliance", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
+      { name: "Piotr Nowak", email: "ops@euro-edu-jobs.eu", role: "T3", designation: "Workforce & Commercial Operations", shortName: "Operations", canViewFinancials: false, nationalityScope: null, canEditWorkers: true, requires2fa: false },
     ];
 
     for (const u of seedUsers) {
@@ -1909,22 +1979,42 @@ export async function seedInitialData(): Promise<void> {
           shortName: u.shortName,
           canViewFinancials: u.canViewFinancials,
           nationalityScope: u.nationalityScope,
+          canEditWorkers: u.canEditWorkers,
+          requires2fa: u.requires2fa,
         });
-        console.log(`[db] Seeded system user: ${u.email} (${u.role}, canViewFinancials=${u.canViewFinancials})`);
+        console.log(`[db] Seeded system user: ${u.email} (${u.role}, canViewFinancials=${u.canViewFinancials}, canEditWorkers=${u.canEditWorkers}, requires2fa=${u.requires2fa})`);
       }
     }
 
-    // T23 — backfill canViewFinancials for users who pre-existed before this
-    // migration. The seedUsers INSERT path only fires on first-creation, so
-    // existing rows (e.g., Anna's pre-T23 anna.b@edu-jobs.eu) keep the
-    // ALTER TABLE default (FALSE). This idempotent UPDATE corrects that.
-    // The `AND can_view_financials = FALSE` filter makes subsequent runs no-op.
-    await db.execute(sql`
-      UPDATE system_users
-      SET can_view_financials = TRUE
-      WHERE email IN ('manish.s@edu-jobs.eu', 'anna.b@edu-jobs.eu')
-        AND can_view_financials = FALSE
-    `);
+    // ──── ONE-TIME BACKFILLS — INTENTIONALLY REMOVED (Commit 25, May 14) ────
+    //
+    // Two backfill UPDATEs lived here previously:
+    //
+    //   1) UPDATE system_users SET can_view_financials = TRUE WHERE email IN
+    //      ('manish.s@edu-jobs.eu', 'anna.b@edu-jobs.eu') AND can_view_financials = FALSE
+    //   2) UPDATE system_users SET requires_2fa = TRUE WHERE role = 'T1'
+    //      AND (designation IS NULL OR designation NOT ILIKE '%legal%')
+    //      AND requires_2fa = FALSE
+    //
+    // Both were written to one-time-correct rows that pre-existed the
+    // columns being added. The original comments claimed idempotence because
+    // `AND col = FALSE` filtered subsequent runs.
+    //
+    // That reasoning broke in practice: any later operator flip (e.g.,
+    // manually toggling requires_2fa = FALSE on staging to bypass a Login UI
+    // gap) re-satisfied the filter, and the next deploy re-clobbered the
+    // operator's state. Manish hit this three times running on May 14 — every
+    // staging deploy re-flipped requires_2fa to TRUE and locked admin login
+    // out until the Login.tsx 2FA-setup UI gap closed (Commit 25 Part B).
+    //
+    // Both columns are now bootstrapped at INSERT time by seedUsers above
+    // (canViewFinancials + requires2fa fields on the seed objects). Existing
+    // production rows are already in their target state from the prior runs.
+    // New admin rows added to the seedUsers list pick up the right values
+    // on first creation. No post-INSERT correction needed.
+    //
+    // HB-14 forbids DELETE migrations, but this is source-code deletion of an
+    // idempotent UPDATE that's no longer needed — no rows are touched at all.
   }
 
   // ── Seed sample workers if < 5 exist ──────────────────────────────────────

@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const API = "/api";
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("eej_jwt");
+  const token = sessionStorage.getItem("eej_token");
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : {};
 }
 

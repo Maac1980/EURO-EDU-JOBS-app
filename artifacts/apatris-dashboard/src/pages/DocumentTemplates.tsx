@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Shield, FileText, Users, Clock, AlertTriangle, CheckCircle } from "lucide-react";
 
 const TOKEN_KEY = "eej_token";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem(TOKEN_KEY) ?? ""; }
+function getToken() { return sessionStorage.getItem(TOKEN_KEY) ?? ""; }
 function headers() { return { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" }; }
 
 const ENDPOINTS: Record<string, string> = {
@@ -37,7 +37,7 @@ export default function DocumentTemplates() {
   const { t } = useTranslation();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const pageName = "DocumentTemplates";
+  const pageName: string = "DocumentTemplates"; // Item 2.16 — widen literal for shared-template comparisons
   const Icon = ICONS[pageName] ?? Shield;
 
   useEffect(() => {

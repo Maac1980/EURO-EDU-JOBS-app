@@ -2,10 +2,11 @@
  * Smart Document Ingest — upload document, AI reads and classifies it.
  * Includes Developer Feedback / Correct Data button for Anna to log OCR errors.
  */
-import React, { useState, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { authHeaders, BASE } from "@/lib/api";
-import { Upload, Loader2, FileText, CheckCircle2, AlertTriangle, Eye, MessageSquareWarning, Send, X } from "lucide-react";
+import { Loader2, CheckCircle2, MessageSquareWarning, Send, X } from "lucide-react";
+import { DocumentUploadDropzone } from "@/components/DocumentUploadDropzone";
 
 export default function SmartIngestPage() {
   const [workerId, setWorkerId] = useState("");
@@ -19,7 +20,6 @@ export default function SmartIngestPage() {
   const [feedbackNotes, setFeedbackNotes] = useState("");
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: workers } = useQuery<any[]>({
     queryKey: ["workers-ingest"], queryFn: async () => {
@@ -86,16 +86,22 @@ export default function SmartIngestPage() {
         <div><h1 className="text-xl font-bold text-white">Smart Document Ingest</h1>
           <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mt-1">AI Document Analysis &middot; OCR &middot; Classification</p></div>
 
+        {/* Tier 1 closeout #26 — uses the same DocumentUploadDropzone as
+            DocumentWorkflow. Single source of truth for the upload
+            affordance. Worker dropdown stays here because SmartIngest is
+            the dev/testing tool and explicit pick is the expected flow. */}
         <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-4 space-y-3">
           <select value={workerId} onChange={e => setWorkerId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm">
             <option value="">— Select Worker —</option>
             {(workers ?? []).map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
-          <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
-          <button onClick={() => fileRef.current?.click()} disabled={uploading || !workerId}
-            className="w-full py-3 rounded-lg border-2 border-dashed border-slate-600 hover:border-blue-500/50 text-sm font-bold text-slate-400 hover:text-blue-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-            {uploading ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : <><Upload className="w-4 h-4" /> Drop or click to upload document</>}
-          </button>
+          <DocumentUploadDropzone
+            onFileSelected={handleUpload}
+            disabled={!workerId}
+            busy={uploading}
+            busyLabel="Analyzing with Claude Vision…"
+            label={workerId ? "Drop document or click to choose" : "Select a worker first"}
+          />
         </div>
 
         {result && (

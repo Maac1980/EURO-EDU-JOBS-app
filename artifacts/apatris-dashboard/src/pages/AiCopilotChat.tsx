@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Shield, Users, MapPin, Sparkles, ClipboardCheck, Briefcase } from "lucide-react";
 
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 function headers() { return { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" }; }
 
 const PAGE_CONFIG: Record<string, { title: string; endpoint: string; icon: any }> = {
@@ -15,7 +15,12 @@ const PAGE_CONFIG: Record<string, { title: string; endpoint: string; icon: any }
 
 export default function AiCopilotChat() {
   const { t } = useTranslation();
-  const config = PAGE_CONFIG["AiCopilotChat"];
+  // Item 2.16 — typed `string` so the shared-template comparisons below
+  // (pageName === "CrmPipeline" / "GeofenceMap") typecheck even though
+  // the runtime branch is statically known dead. Template is shared
+  // with sibling pages — keep the comparison shape, fix the type.
+  const pageName: string = "AiCopilotChat";
+  const config = PAGE_CONFIG[pageName];
   const Icon = config?.icon ?? Shield;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +50,7 @@ export default function AiCopilotChat() {
         <Icon className="w-6 h-6 text-primary" /> {config?.title ?? "AiCopilotChat"}
       </h1>
 
-      {"AiCopilotChat" === "AiCopilotChat" ? (
+      {pageName === "AiCopilotChat" ? (
         <div className="space-y-4">
           <div className="bg-card border border-border rounded-xl p-5">
             <div className="flex gap-3">
@@ -65,7 +70,7 @@ export default function AiCopilotChat() {
             </div>
           )}
         </div>
-      ) : "AiCopilotChat" === "CrmPipeline" ? (
+      ) : pageName === "CrmPipeline" ? (
         <div className="grid grid-cols-5 gap-3">
           {["lead", "proposal", "negotiation", "won", "active"].map(stage => (
             <div key={stage} className="bg-card border border-border rounded-xl p-3">
@@ -83,7 +88,7 @@ export default function AiCopilotChat() {
             </div>
           ))}
         </div>
-      ) : "AiCopilotChat" === "GeofenceMap" ? (
+      ) : pageName === "GeofenceMap" ? (
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="space-y-3">
             {(data?.sites ?? []).map((s: any) => (

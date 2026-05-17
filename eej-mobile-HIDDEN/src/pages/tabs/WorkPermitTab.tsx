@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { FileCheck, Clock, AlertTriangle, ChevronDown, ChevronUp, CheckCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { FileCheck, Clock, AlertTriangle, ChevronDown, ChevronUp, CheckCircle, Sparkles } from "lucide-react";
 import { fetchPermits, fetchPermitDeadlines } from "@/lib/api";
+import { useDeepLinkWorker, clearDeepLinkWorker } from "@/lib/navContext";
 
 interface Permit {
   id: string;
@@ -48,6 +49,7 @@ export default function WorkPermitTab() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const deepLink = useDeepLinkWorker();
 
   useEffect(() => {
     Promise.all([fetchPermits(), fetchPermitDeadlines()])
@@ -59,7 +61,19 @@ export default function WorkPermitTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = filter === "all" ? permits : permits.filter((p) => p.status === filter);
+  const filtered = useMemo(() => {
+    let rows = permits;
+    if (deepLink) {
+      // /permits returns `worker: { name }` shape — filter by name match
+      // (id not exposed in the flattened type). Name in the same tenant is
+      // unique enough for this UX gesture.
+      rows = rows.filter((p) => p.worker?.name === deepLink.name);
+    }
+    if (filter !== "all") {
+      rows = rows.filter((p) => p.status === filter);
+    }
+    return rows;
+  }, [permits, filter, deepLink]);
 
   return (
     <div className="tab-page">
@@ -70,6 +84,44 @@ export default function WorkPermitTab() {
         </div>
         <div style={{ fontSize: 13, color: "#6B7280" }}>{permits.length} permits</div>
       </div>
+
+      {/* Deep-link banner */}
+      {deepLink && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 12px",
+            background: "#EFF6FF",
+            border: "1px solid #BFDBFE",
+            borderRadius: 10,
+            marginBottom: 10,
+            fontSize: 12,
+            color: "#1B2A4A",
+          }}
+        >
+          <Sparkles size={14} strokeWidth={2.2} />
+          <span style={{ flex: 1 }}>
+            Showing permits for <strong>{deepLink.name ?? "selected worker"}</strong>
+          </span>
+          <button
+            onClick={clearDeepLinkWorker}
+            style={{
+              background: "transparent",
+              border: "1px solid #BFDBFE",
+              borderRadius: 6,
+              padding: "2px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#3B82F6",
+              cursor: "pointer",
+            }}
+          >
+            Show all
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>

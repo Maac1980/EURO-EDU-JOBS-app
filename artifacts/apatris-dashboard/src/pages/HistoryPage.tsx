@@ -11,7 +11,7 @@ import { format, parseISO } from "date-fns";
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("eej_jwt");
+  const token = sessionStorage.getItem("eej_token");
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : {};
 }
 

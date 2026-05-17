@@ -18,6 +18,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { sql } from "drizzle-orm";
 import { authenticateToken } from "../lib/authMiddleware.js";
+import { assertWorkerReadable } from "../lib/worker-scope.js";
 
 const router = Router();
 
@@ -162,6 +163,10 @@ router.post("/schengen/worker/:workerId/crossing", authenticateToken, async (req
 router.get("/schengen/worker/:workerId", authenticateToken, async (req, res) => {
   try {
     const wid = Array.isArray(req.params.workerId) ? req.params.workerId[0] : req.params.workerId;
+    // Tier 1 #3 hardening: mobile MySchengenTab calls this with URL workerId.
+    // Scope to the authenticated worker or staff bypass — see worker-scope.ts.
+    const guard = await assertWorkerReadable(req, wid);
+    if (!guard.ok) return res.status(guard.status).json({ error: guard.error });
 
     const rows = await db.execute(sql`
       SELECT id, crossing_date, direction, country, notes, entered_by, created_at

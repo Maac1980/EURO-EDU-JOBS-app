@@ -6,7 +6,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("eej_jwt");
+  const token = sessionStorage.getItem("eej_token");
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : {};
 }
 
@@ -57,6 +57,28 @@ export default function ImmigrationSearch() {
         body: JSON.stringify({ query: searchQuery, language }),
       });
       const data = await res.json();
+      // Item 2.2-followup-FE — was: setResult(data) regardless of status.
+      // On error the backend returns {error, code, userMessage} (Item 2.2 +
+      // 2.2-followup-BE shape); rendering that as a result silently corrupts
+      // the UI. Now: check res.ok, surface userMessage in the toast on
+      // failure, render the same "unavailable" fallback result.
+      if (!res.ok) {
+        const friendly = data.userMessage ?? data.error ?? (isPl
+          ? "Nie udalo sie przeprowadzic wyszukiwania."
+          : "Search failed.");
+        toast({
+          title: isPl ? "Blad wyszukiwania" : "Search Failed",
+          description: friendly,
+          variant: "destructive",
+        });
+        setResult({
+          answer: isPl ? "Wyszukiwanie niedostepne. Sprobuj ponownie pozniej." : "Search unavailable. Try again later.",
+          sources: [],
+          confidence: 0,
+          actionItems: [],
+        });
+        return;
+      }
       setResult(data);
     } catch (err) {
       console.error("[ImmigrationSearch] Search failed:", err);
@@ -67,8 +89,9 @@ export default function ImmigrationSearch() {
         confidence: 0,
         actionItems: [],
       });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

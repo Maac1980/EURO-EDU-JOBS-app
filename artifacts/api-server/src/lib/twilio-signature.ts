@@ -16,6 +16,20 @@
  *   - Never throws
  */
 
+// Use the named import. Verified working under:
+//   - tsx ESM dev runtime (Node 24 + twilio 5.x has proper CJS-named-export
+//     interop; the Tuesday SyntaxError-on-named-import that prompted the
+//     default-import-destructure workaround no longer reproduces)
+//   - esbuild production bundle (standard CJS interop)
+//   - vitest mock at integration.test.ts file scope (the mock factory
+//     explicitly preserves validateRequest as a named export; the mocked
+//     default is a vi.fn for the dispatch tests and does NOT carry
+//     validateRequest as a property — which is why the prior
+//     default-import-destructure pattern caused 5 webhook integration
+//     tests (L1-L4, L8) to 403 in CI: validateRequest resolved to
+//     undefined, the TypeError was swallowed by the try/catch in
+//     verifyTwilioSignature, signature verification returned false,
+//     webhook rejected as "invalid signature").
 import { validateRequest } from "twilio";
 
 export interface VerifyTwilioSignatureInput {

@@ -7,8 +7,9 @@ import {
   FileSignature, FileCheck, MapPin, BarChart3, Sparkles,
   Shield, Search, CalendarDays, Clock, Award, TrendingUp,
   Globe, Building2, UserPlus, Briefcase, Receipt, FileText, Stamp,
-  LayoutGrid, ChevronDown, X, ArrowLeft, Link2, Check,
+  LayoutGrid, ChevronDown, X, ArrowLeft,
 } from "lucide-react";
+import { RecruitmentLinkShare } from "./RecruitmentLinkShare";
 
 // ── Grouped Navigation ──────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
     hoverBg: "hover:bg-blue-500/10",
     activeBg: "bg-blue-500/15 text-blue-400",
     items: [
-      { path: "/",                   label: "All Workers",   icon: Users },
+      { path: "/workers",            label: "All Workers",   icon: Users },
       { path: "/worker-timeline",   label: "Timeline",      icon: Clock },
       { path: "/onboarding-checklist", label: "Onboarding", icon: Users },
       { path: "/bulk-upload",       label: "Bulk Upload",   icon: Users },
@@ -158,22 +159,22 @@ const NAV_GROUPS: NavGroup[] = [
 // Quick-access tabs shown directly in the top bar
 const QUICK_TABS: NavItem[] = [
   { path: "/",                  label: "Dashboard",   icon: BarChart3 },
+  { path: "/workers",           label: "Workers",     icon: Users },
   { path: "/candidates",       label: "Recruit",     icon: UserPlus },
   { path: "/payroll",           label: "Payroll",     icon: Calculator },
   { path: "/legal-dashboard",  label: "Compliance",  icon: Shield },
   { path: "/doc-workflow",     label: "Documents",   icon: FileCheck },
   { path: "/ai-copilot-chat",  label: "Research",    icon: Sparkles },
-  { path: "/legal-intelligence", label: "Legal AI",  icon: Shield },
 ];
 
 // Flat list for mobile bottom bar (top 7 most used)
 const MOBILE_TABS: NavItem[] = [
-  { path: "/",                  label: "Workers",   icon: Users },
+  { path: "/",                  label: "Home",      icon: BarChart3 },
+  { path: "/workers",           label: "Workers",   icon: Users },
   { path: "/payroll",           label: "Payroll",   icon: Calculator },
   { path: "/compliance-alerts", label: "Alerts",    icon: AlertTriangle },
   { path: "/immigration",       label: "Permits",   icon: Stamp },
   { path: "/contracts",         label: "Contracts", icon: FileSignature },
-  { path: "/analytics",         label: "Analytics", icon: BarChart3 },
 ];
 
 function findActiveGroup(location: string): NavGroup | undefined {
@@ -192,7 +193,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const toggleLang = () => i18n.changeLanguage(currentLang === "pl" ? "en" : "pl");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
-  const [adLinkCopied, setAdLinkCopied] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -410,25 +410,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           )}
 
-          {/* Language toggle */}
-          {/* Copy Recruitment Link — for Facebook Ads */}
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText("https://eej-jobs-api.replit.app/apply").then(() => {
-                setAdLinkCopied(true);
-                setTimeout(() => setAdLinkCopied(false), 3000);
-              });
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-colors"
-            style={{
-              background: adLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.1)",
-              borderColor: adLinkCopied ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.25)",
-              color: adLinkCopied ? "#22c55e" : "#60A5FA",
-            }}
-            title="Copy recruitment form link for Facebook Ads"
-          >
-            {adLinkCopied ? <><Check className="w-3 h-3" /> Copied for Ads</> : <><Link2 className="w-3 h-3" /> Ad Link</>}
-          </button>
+          {/* Recruitment Link — Tier 1 closeout #21. Was "Ad Link" (copy-only,
+              mislabeled). Now opens a Share dialog (Copy / WhatsApp / SMS /
+              Email). The shared component (RecruitmentLinkShare.tsx) is also
+              mounted on Dashboard home and the mobile app, so all three
+              surfaces present a single consistent affordance. */}
+          <RecruitmentLinkShare variant="compact" />
 
           <button
             onClick={toggleLang}

@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- viewport-fit=cover (P1) — REQUIRED to enable env(safe-area-inset-*)
+         on iOS PWA in black-translucent status-bar mode. Without it the
+         insets return 0 and the safe-area CSS becomes a no-op — which
+         explains Manish's "macOS dock visible above the app" screenshot
+         even though .dash-header already had safe-area-inset-top padding. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1B2A4A" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

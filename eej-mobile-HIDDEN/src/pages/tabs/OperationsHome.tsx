@@ -1,17 +1,57 @@
 import { useState, useEffect, useMemo } from "react";
-import { UserPlus, Upload, CheckCircle, Clock, Users, Building2 } from "lucide-react";
+import { UserPlus, Upload, CheckCircle, Clock, Users, Building2, Sparkles, ChevronRight, CalendarClock, UserCheck } from "lucide-react";
 import { OPS_PIPELINE, B2B_CONTRACTS } from "@/data/mockData";
 import { useCandidates } from "@/lib/candidateContext";
-import { fetchApplications } from "@/lib/api";
-import CandidateDetail from "./CandidateDetail";
+import { fetchApplications, fetchClients, type ClientRow } from "@/lib/api";
+import WorkerCockpit from "@/components/WorkerCockpit";
+import DocumentScanFlow from "@/components/DocumentScanFlow";
 import AddCandidateModal from "@/components/AddCandidateModal";
+import RecruitmentLinkShare from "@/components/RecruitmentLinkShare";
 import type { Candidate } from "@/data/mockData";
+import type { ActiveTab } from "@/types";
 
-export default function OperationsHome() {
-  const { candidates } = useCandidates();
+interface Props {
+  onNavigate?: (tab: ActiveTab) => void;
+}
+
+export default function OperationsHome({ onNavigate }: Props = {}) {
+  const { candidates, refresh } = useCandidates();
   const [selected, setSelected]       = useState<Candidate | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showScanFlow, setShowScanFlow] = useState(false);
   const [pipeline, setPipeline] = useState(OPS_PIPELINE);
+  const [clients, setClients] = useState<ClientRow[]>([]);
+
+  useEffect(() => {
+    fetchClients().then(setClients).catch(() => setClients([]));
+  }, []);
+
+  // Bench workers — placed-status candidates with no current site assignment.
+  // High-leverage for Karan/Marj/Yana: these are paid + ready but not billing.
+  const bench = useMemo(
+    () =>
+      candidates.filter(
+        (c) =>
+          c.status === "cleared" &&
+          (!c.siteLocation || c.siteLocation.trim() === ""),
+      ),
+    [candidates],
+  );
+
+  // Contracts ending within 30 days — need replacement plans or renewals.
+  const contractsEnding = useMemo(() => {
+    const horizon = Date.now() + 30 * 86_400_000;
+    return candidates
+      .filter((c) => {
+        if (!c.contractEndDate) return false;
+        const t = new Date(c.contractEndDate).getTime();
+        return !isNaN(t) && t > Date.now() - 86_400_000 && t <= horizon;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.contractEndDate!).getTime() - new Date(b.contractEndDate!).getTime(),
+      );
+  }, [candidates]);
 
   useEffect(() => {
     fetchApplications()
@@ -53,6 +93,9 @@ export default function OperationsHome() {
         </div>
       </div>
 
+      {/* Tier 1 closeout #18/#21 — visible Recruitment Link share. */}
+      <RecruitmentLinkShare />
+
       <div className="ops-kpi-strip">
         <div className="ops-kpi-item">
           <CheckCircle size={16} color="#10B981" strokeWidth={2} />
@@ -82,6 +125,15 @@ export default function OperationsHome() {
           <div className="ops-add-sub">Register to the workforce pipeline</div>
         </div>
         <div className="ops-add-arrow">+</div>
+      </button>
+
+      <button className="lh-scan-btn" onClick={() => setShowScanFlow(true)}>
+        <Sparkles size={16} strokeWidth={2.2} />
+        <div className="lh-scan-text">
+          <div className="lh-scan-title">Scan a document</div>
+          <div className="lh-scan-sub">AI extracts fields and matches to a worker</div>
+        </div>
+        <ChevronRight size={14} strokeWidth={2.2} />
       </button>
 
       <button className="ops-upload-btn">
@@ -138,41 +190,156 @@ export default function OperationsHome() {
         })}
       </div>
 
+      {/* Bench — placed but unassigned workers. Karan/Marj's leverage zone. */}
+      {bench.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: 22 }}>
+            <UserCheck size={13} color="#10B981" strokeWidth={2} />
+            Bench — ready to place
+            <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#10B981" }}>
+              {bench.length} available
+            </span>
+          </div>
+          <div className="ops-candidate-list">
+            {bench.slice(0, 6).map((c) => (
+              <button key={c.id} className="ops-candidate-row" onClick={() => setSelected(c)}>
+                <div className="ops-cand-flag">{c.flag}</div>
+                <div className="ops-cand-info">
+                  <div className="ops-cand-name">{c.name}</div>
+                  <div className="ops-cand-role">{c.role}</div>
+                </div>
+                <div className="ops-cand-right">
+                  <span className="ops-ready-badge ops-ready">✓ Bench</span>
+                  <span className="ops-doc-count">{c.documents.length} docs</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Contracts ending within 30 days — need plans for renewal or replacement. */}
+      {contractsEnding.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: 22 }}>
+            <CalendarClock size={13} color="#D97706" strokeWidth={2} />
+            Contracts ending soon
+            <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#D97706" }}>
+              {contractsEnding.length}
+            </span>
+          </div>
+          <div className="ops-candidate-list">
+            {contractsEnding.slice(0, 6).map((c) => {
+              const days = c.contractEndDate
+                ? Math.max(0, Math.ceil((new Date(c.contractEndDate).getTime() - Date.now()) / 86_400_000))
+                : null;
+              return (
+                <button key={c.id} className="ops-candidate-row" onClick={() => setSelected(c)}>
+                  <div className="ops-cand-flag">{c.flag}</div>
+                  <div className="ops-cand-info">
+                    <div className="ops-cand-name">{c.name}</div>
+                    <div className="ops-cand-role">{c.siteLocation ?? c.role}</div>
+                  </div>
+                  <div className="ops-cand-right">
+                    <span className={`ops-ready-badge ${days !== null && days <= 7 ? "ops-pending" : "ops-ready"}`}>
+                      {days !== null ? `${days}d left` : "—"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       <div className="section-label" style={{ marginTop: 22 }}>
         <Building2 size={13} color="#9CA3AF" strokeWidth={2} />
-        B2B Client Contracts
+        B2B Clients
+        <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "#6366F1" }}>
+          {clients.length || B2B_CONTRACTS.length}
+        </span>
       </div>
       <div className="contract-list">
-        {B2B_CONTRACTS.map((c, i) => (
-          <div key={i} className="contract-card">
-            <div className="contract-left">
-              <div className="contract-client">{c.client}</div>
-              <div className="contract-role">{c.role}</div>
-            </div>
-            <div className="contract-right">
-              <div className="contract-headcount">{c.headcount} workers</div>
-              <div className={`contract-status ${c.status === "active" ? "green-badge" : "amber-badge"}`}>
-                {c.status === "active" ? "✓ Active" : "⏳ Pending"}
+        {clients.length > 0 ? (
+          clients.map((c) => {
+            // Compute how many of our candidates are placed at this client (by
+            // string match on siteLocation — imperfect but useful directionally).
+            const headcount = candidates.filter(
+              (cand) =>
+                cand.siteLocation &&
+                cand.siteLocation.toLowerCase().includes(c.name.toLowerCase()),
+            ).length;
+            return (
+              <div key={c.id} className="contract-card">
+                <div className="contract-left">
+                  <div className="contract-client">{c.name}</div>
+                  <div className="contract-role">
+                    {c.contactPerson ?? "—"}
+                    {c.billingRate ? ` · ${c.billingRate} PLN/h` : ""}
+                  </div>
+                </div>
+                <div className="contract-right">
+                  <div className="contract-headcount">{headcount} worker{headcount === 1 ? "" : "s"}</div>
+                  <div className={`contract-status ${headcount > 0 ? "green-badge" : "amber-badge"}`}>
+                    {headcount > 0 ? "✓ Active" : "⏳ Idle"}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          // Fallback to mock data only if the API returned an empty array.
+          B2B_CONTRACTS.map((c, i) => (
+            <div key={i} className="contract-card">
+              <div className="contract-left">
+                <div className="contract-client">{c.client}</div>
+                <div className="contract-role">{c.role}</div>
+              </div>
+              <div className="contract-right">
+                <div className="contract-headcount">{c.headcount} workers</div>
+                <div className={`contract-status ${c.status === "active" ? "green-badge" : "amber-badge"}`}>
+                  {c.status === "active" ? "✓ Active" : "⏳ Pending"}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       <div style={{ height: 100 }} />
 
       {selected && (
-        <CandidateDetail
-          candidate={selected}
+        <WorkerCockpit
+          workerId={selected.id}
           onClose={() => setSelected(null)}
-          seeFinancials={false}
-          canViewFullProfile={true}
-          canEdit={true}
+          onOpenModule={
+            onNavigate
+              ? (module) => {
+                  const tabMap: Record<string, ActiveTab> = {
+                    trc: "trc",
+                    permits: "permits",
+                    payroll: "payroll",
+                  };
+                  const target = tabMap[module];
+                  if (target) {
+                    setSelected(null);
+                    onNavigate(target);
+                  }
+                }
+              : undefined
+          }
         />
       )}
 
       {showAddModal && (
         <AddCandidateModal onClose={() => setShowAddModal(false)} />
+      )}
+
+      {showScanFlow && (
+        <DocumentScanFlow
+          onClose={() => setShowScanFlow(false)}
+          onApplied={() => refresh()}
+        />
       )}
     </div>
   );

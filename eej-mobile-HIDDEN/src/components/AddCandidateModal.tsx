@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Save } from "lucide-react";
 import { useToast } from "@/lib/toast";
 import { useCandidates } from "@/lib/candidateContext";
+import { fetchClients, type ClientRow } from "@/lib/api";
 import type { Candidate } from "@/data/mockData";
 
 const FLAG_MAP: Record<string, string> = {
@@ -13,7 +14,9 @@ const FLAG_MAP: Record<string, string> = {
 const JOB_ROLES     = ["TIG Welder", "MIG Welder", "MAG Welder", "MMA / ARC Welder", "Fabricator", "Teacher", "Nurse", "Healthcare Assistant", "Caregiver", "Engineer", "IT Specialist", "Logistics Coordinator", "Warehouse Operative", "Machine Operator", "Construction Worker", "Other"];
 const NATIONALITIES = ["Polish", "Ukrainian", "Georgian", "Belarusian", "Russian", "Romanian", "Moldovan", "Azerbaijani", "Turkish", "Filipino", "Indian", "Vietnamese", "Other"];
 const PIPELINE      = ["New Applications", "Docs Submitted", "Under Review", "Cleared to Deploy", "On Assignment"];
-const SITES         = ["BuildPro Sp. z o.o.", "MediCare PL", "LogiTrans Wrocław", "Other"];
+// Fallback site list — used only if /clients returns empty. Real clients are
+// fetched on mount so Karan/Marj see actual options, not hardcoded mocks.
+const FALLBACK_SITES = ["Other"];
 const LOCATIONS     = ["Warsaw, PL", "Kraków, PL", "Wrocław, PL", "Łódź, PL", "Gdańsk, PL", "Poznań, PL", "Katowice, PL", "Lublin, PL", "Szczecin, PL", "Other"];
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -38,6 +41,17 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
   const [location,    setLocation]    = useState("");
   const [stage,       setStage]       = useState("New Applications");
   const [saving,      setSaving]      = useState(false);
+  const [clients,     setClients]     = useState<ClientRow[]>([]);
+
+  useEffect(() => {
+    fetchClients().then(setClients).catch(() => setClients([]));
+  }, []);
+
+  // Site dropdown options: real clients from /clients, plus "Other".
+  // Falls back to FALLBACK_SITES if no clients returned (fresh tenant).
+  const siteOptions = clients.length > 0
+    ? [...clients.map((c) => c.name), "Other"]
+    : FALLBACK_SITES;
 
   async function handleSave() {
     if (!name.trim()) { showToast("Full name is required", "error"); return; }
@@ -64,11 +78,18 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
     setSaving(true);
     try {
       await addCandidate(newCandidate);
-      showToast(`"${name}" saved to Airtable`, "success");
+      showToast(`"${name}" added to your worker pipeline.`, "success");
       onClose();
-    } catch {
-      showToast("Saved locally — will sync when online", "success");
-      onClose();
+    } catch (err) {
+      // Surface real errors — don't claim success on failure (the previous
+      // "saved locally — will sync when online" was misleading; there's no
+      // offline-sync mechanism, the save just failed).
+      showToast(
+        err instanceof Error
+          ? `Could not save: ${err.message}`
+          : "Could not save candidate. Try again.",
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -123,7 +144,7 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
           <Field label="Assigned Client / Site">
             <select className={sel} value={site} onChange={e => setSite(e.target.value)}>
               <option value="">— select —</option>
-              {SITES.map(s => <option key={s} value={s}>{s}</option>)}
+              {siteOptions.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
           <Field label="Pipeline Stage">
@@ -139,7 +160,7 @@ export default function AddCandidateModal({ onClose }: { onClose: () => void }) 
             onClick={handleSave}
             disabled={saving}
           >
-            <Save size={15} strokeWidth={2.5} /> {saving ? "Saving to Airtable…" : "Save Candidate"}
+            <Save size={15} strokeWidth={2.5} /> {saving ? "Saving…" : "Save Candidate"}
           </button>
           <button
             style={{ flex: 1, padding: "13px 0", background: "#F3F4F6", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, color: "#6B7280", cursor: "pointer", fontFamily: "inherit" }}

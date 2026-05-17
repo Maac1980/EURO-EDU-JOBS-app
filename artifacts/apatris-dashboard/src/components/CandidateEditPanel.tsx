@@ -307,9 +307,12 @@ export function CandidateEditPanel({ workerId, onClose }: CandidateEditPanelProp
 
   return (
     <>
-      <div onClick={onClose} className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`} />
+      <div onClick={onClose} className={`fixed inset-0 top-[52px] bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`} />
 
-      <div className={`fixed right-0 top-0 bottom-0 w-full max-w-md bg-slate-900 border-l shadow-2xl z-50 overflow-y-auto transform transition-transform duration-300 ease-out flex flex-col ${isOpen ? "translate-x-0" : "translate-x-full"}`} style={{ borderColor: LIME_BORDER }}>
+      {/* top-[52px] clears the 52px fixed dashboard top nav; without it the
+          panel header rendered behind the nav (walkthrough finding #2). Matches
+          WorkerProfilePanel's positioning pattern. */}
+      <div className={`fixed right-0 top-[52px] bottom-0 w-full max-w-md bg-slate-900 border-l shadow-2xl z-50 overflow-y-auto transform transition-transform duration-300 ease-out flex flex-col ${isOpen ? "translate-x-0" : "translate-x-full"}`} style={{ borderColor: LIME_BORDER }}>
 
         {/* Header */}
         <div className="px-6 py-5 border-b flex items-center justify-between flex-shrink-0" style={{ background: "rgba(233,255,112,0.04)", borderColor: LIME_BORDER }}>

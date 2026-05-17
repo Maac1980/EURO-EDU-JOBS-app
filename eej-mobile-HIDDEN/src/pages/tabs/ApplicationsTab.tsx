@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { UserPlus, Mail, Phone, Globe, Briefcase, ChevronRight, Clock, FileText } from "lucide-react";
 import { fetchApplications, fetchWorkers, updateApplicationStage } from "@/lib/api";
 import { useToast } from "@/lib/toast";
+import WorkerCockpit from "@/components/WorkerCockpit";
 
 interface Application {
   id: string;
@@ -18,6 +19,7 @@ export default function ApplicationsTab() {
   const [newWorkers, setNewWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"pipeline" | "recent">("recent");
+  const [openWorkerId, setOpenWorkerId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -112,7 +114,7 @@ export default function ApplicationsTab() {
                 <div style={{ fontSize: 11, color: "#9CA3AF", display: "flex", alignItems: "center", gap: 3 }}>
                   <Clock size={11} /> {w.createdAt ? new Date(w.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
                 </div>
-                <button style={actionBtn} onClick={() => showToast("Open candidate profile to review", "info")}>
+                <button style={actionBtn} onClick={() => setOpenWorkerId(w.id)}>
                   Review <ChevronRight size={12} />
                 </button>
               </div>
@@ -131,7 +133,11 @@ export default function ApplicationsTab() {
             </div>
           )}
           {newApps.map((app) => (
-            <div key={app.id} style={cardStyle}>
+            <div
+              key={app.id}
+              style={{ ...cardStyle, cursor: app.worker?.id ? "pointer" : "default" }}
+              onClick={() => app.worker?.id && setOpenWorkerId(app.worker.id)}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>{app.worker?.name ?? "Unknown"}</div>
@@ -157,7 +163,13 @@ export default function ApplicationsTab() {
                 <div style={{ fontSize: 11, color: "#9CA3AF" }}>
                   {app.appliedAt ? new Date(app.appliedAt).toLocaleDateString("en-GB") : ""}
                 </div>
-                <button onClick={() => moveToScreening(app.id)} style={{ ...actionBtn, background: "#059669", borderColor: "#059669" }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveToScreening(app.id);
+                  }}
+                  style={{ ...actionBtn, background: "#059669", borderColor: "#059669" }}
+                >
                   Move to Screening <ChevronRight size={12} />
                 </button>
               </div>
@@ -166,6 +178,13 @@ export default function ApplicationsTab() {
         </>
       )}
       <div style={{ height: 100 }} />
+
+      {openWorkerId && (
+        <WorkerCockpit
+          workerId={openWorkerId}
+          onClose={() => setOpenWorkerId(null)}
+        />
+      )}
     </div>
   );
 }

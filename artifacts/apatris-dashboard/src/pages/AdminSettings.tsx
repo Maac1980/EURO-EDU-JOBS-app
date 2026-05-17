@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("eej_jwt");
+  const token = sessionStorage.getItem("eej_token");
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 }
 import { Shield, Save, ArrowLeft, User, Mail, Phone, CheckCircle2, AlertCircle, Loader2, Bell, ClipboardList, Clock, Users, Trash2, Plus, Building2, Lock, Wifi, WifiOff, KeyRound, Eye, EyeOff, RefreshCcw } from "lucide-react";
@@ -57,7 +57,7 @@ interface SiteCoordinator {
   assignedSite: string;
 }
 
-type Tab = "profiles" | "notifications" | "audit" | "site-coordinators";
+type Tab = "profiles" | "notifications" | "audit" | "site-coordinators" | "security";
 
 export default function AdminSettings() {
   const { user, logout } = useAuth();
@@ -93,6 +93,38 @@ export default function AdminSettings() {
     smtp: { configured: boolean; fields: Record<string, string> };
     adminPasswords: { manish: boolean; akshay: boolean; allSet: boolean };
   } | null>(null);
+
+  // Admin reset 2FA (commit 6 — security tab). Form state for the
+  // "reset another user's 2FA" action. Backend gate: requireAdmin.
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSourceTable, setResetSourceTable] = useState<"system_users" | "users">("system_users");
+  const [resetConfirming, setResetConfirming] = useState(false);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetResult, setResetResult] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+
+  async function handleAdminReset() {
+    setResetSaving(true);
+    setResetResult(null);
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/2fa/admin-reset`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ targetEmail: resetEmail.trim(), sourceTable: resetSourceTable }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setResetResult({ kind: "error", message: data.error ?? "Reset failed." });
+        return;
+      }
+      setResetResult({ kind: "success", message: `2FA cleared for ${resetEmail} (${data.sourceTable}). They will re-set-up on next login if mandatory.` });
+      setResetEmail("");
+      setResetConfirming(false);
+    } catch (err) {
+      setResetResult({ kind: "error", message: err instanceof Error ? err.message : "Network error." });
+    } finally {
+      setResetSaving(false);
+    }
+  }
 
   useEffect(() => { loadAdmins(); loadSysStatus(); }, []);
 
@@ -279,6 +311,9 @@ export default function AdminSettings() {
     { id: "notifications", label: "Notification History", icon: Bell },
     { id: "audit", label: "Audit Log", icon: ClipboardList },
     { id: "site-coordinators", label: "Site Coordinators", icon: Users },
+    // Security tab (admin reset 2FA for other users) — only visible to admin role.
+    // Backend gate (requireAdmin) is the security boundary; this hide is UX-only.
+    ...(user?.role === "admin" ? [{ id: "security" as Tab, label: "Security", icon: KeyRound }] : []),
   ];
 
   return (
@@ -756,6 +791,99 @@ export default function AdminSettings() {
                 </table>
               </div>
             )}
+          </>
+        )}
+
+        {/* Security Tab — admin reset 2FA (admin-only) */}
+        {activeTab === "security" && user?.role === "admin" && (
+          <>
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-white tracking-tight">Security</h2>
+              <p className="text-gray-400 text-sm mt-1">Reset another team member&apos;s two-factor authentication. Use this only after confirming the user&apos;s identity out-of-band (call, in person). The user will be prompted to set up 2FA again on their next login if they have the mandatory flag.</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-6 max-w-2xl">
+              <div className="flex items-center gap-2 mb-4">
+                <KeyRound className="w-5 h-5 text-yellow-400" />
+                <h3 className="text-lg font-bold text-white">Reset Another User&apos;s 2FA</h3>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Target user email</label>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="e.g. karan.c@edu-jobs.eu"
+                    disabled={resetConfirming || resetSaving}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-900/60 border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">User table</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setResetSourceTable("system_users")}
+                      disabled={resetConfirming || resetSaving}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${resetSourceTable === "system_users" ? "bg-yellow-500/20 border border-yellow-500/50 text-yellow-100" : "bg-slate-900/60 border border-white/10 text-gray-400 hover:text-white"}`}
+                    >
+                      system_users (team)
+                    </button>
+                    <button
+                      onClick={() => setResetSourceTable("users")}
+                      disabled={resetConfirming || resetSaving}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${resetSourceTable === "users" ? "bg-yellow-500/20 border border-yellow-500/50 text-yellow-100" : "bg-slate-900/60 border border-white/10 text-gray-400 hover:text-white"}`}
+                    >
+                      users (legacy)
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Team members (Liza, Karan, Marjorie, Yana, Manish, Anna) live in <code className="text-yellow-400">system_users</code>. Pre-T23 admin rows live in <code className="text-yellow-400">users</code>.</p>
+                </div>
+
+                {!resetConfirming ? (
+                  <button
+                    onClick={() => { setResetResult(null); setResetConfirming(true); }}
+                    disabled={!resetEmail.trim()}
+                    className="px-4 py-2 rounded-lg bg-yellow-500/20 border border-yellow-500/50 text-yellow-100 font-bold text-sm hover:bg-yellow-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Reset 2FA
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4">
+                    <p className="text-sm text-yellow-100 mb-3 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      Confirm: reset 2FA for <strong>{resetEmail}</strong> in <strong>{resetSourceTable}</strong>? This clears their TOTP secret, disables 2FA, and removes any recovery codes. The user&apos;s requires_2fa flag (if set) stays — they will be forced to set up 2FA again on their next login.
+                    </p>
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => { setResetConfirming(false); setResetResult(null); }}
+                        disabled={resetSaving}
+                        className="px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white border border-white/10"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAdminReset}
+                        disabled={resetSaving}
+                        className="px-4 py-2 rounded-lg bg-red-500 text-white font-bold text-sm hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {resetSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                        Confirm Reset
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {resetResult && (
+                  <div className={`rounded-lg border p-3 flex items-start gap-2 ${resetResult.kind === "success" ? "border-green-500/30 bg-green-500/10 text-green-100" : "border-red-500/30 bg-red-500/10 text-red-100"}`}>
+                    {resetResult.kind === "success" ? <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-400" /> : <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />}
+                    <p className="text-sm">{resetResult.message}</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
       </main>

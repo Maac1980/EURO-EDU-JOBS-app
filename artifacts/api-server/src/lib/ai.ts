@@ -4,8 +4,21 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY ?? "",
 });
 
+/**
+ * Item 2.2 — null-return convention:
+ *   null = ANTHROPIC_API_KEY not set OR Anthropic SDK error.
+ *   Server logs distinguish the two via console.warn (no-key) vs
+ *   console.error (SDK error). Callers that need to disambiguate
+ *   should check the logs OR use a higher-level helper that wraps
+ *   this with FriendlyError mapping (e.g. mapErrorToFriendlyResponse
+ *   in services/document-format.ts). Future Tier 2/5 candidate:
+ *   widen the return shape to Result<string, FriendlyError>.
+ */
 export async function analyzeImage(base64: string, mimeType: string, prompt: string): Promise<string | null> {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn("[ai] analyzeImage: ANTHROPIC_API_KEY not set — returning null");
+    return null;
+  }
   try {
     const mediaType = mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
     const response = await anthropic.messages.create({
@@ -28,7 +41,10 @@ export async function analyzeImage(base64: string, mimeType: string, prompt: str
 }
 
 export async function analyzeText(prompt: string, systemPrompt?: string): Promise<string | null> {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn("[ai] analyzeText: ANTHROPIC_API_KEY not set — returning null");
+    return null;
+  }
   try {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",

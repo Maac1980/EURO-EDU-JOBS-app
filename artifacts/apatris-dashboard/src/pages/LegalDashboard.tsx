@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Shield, AlertTriangle, CheckCircle, Clock, Users, FileText, TrendingUp } from "lucide-react";
 
 const TOKEN_KEY = "eej_token";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem(TOKEN_KEY) ?? ""; }
+function getToken() { return sessionStorage.getItem(TOKEN_KEY) ?? ""; }
 function headers() { return { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" }; }
 
 export default function LegalDashboard() {

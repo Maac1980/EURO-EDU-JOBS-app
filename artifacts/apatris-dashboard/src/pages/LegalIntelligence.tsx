@@ -597,7 +597,7 @@ function AppealTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
     setUploadingDecision(true);
     try {
       // 1. Store file via worker-files endpoint
-      const token = localStorage.getItem("apatris_jwt");
+      const token = sessionStorage.getItem("eej_token");
       const form = new FormData();
       form.append("file", file);
       form.append("docType", "rejection_letter");

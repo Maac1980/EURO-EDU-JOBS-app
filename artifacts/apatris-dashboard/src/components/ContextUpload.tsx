@@ -62,7 +62,7 @@ export function ContextUpload({
     setLastFileName(file.name);
 
     try {
-      const token = localStorage.getItem("apatris_jwt");
+      const token = sessionStorage.getItem("eej_token");
       const form = new FormData();
       form.append("file", file);
       form.append("docType", docType);

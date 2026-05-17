@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Settings, Building2, Mail } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 export default function AgencySettings() {
   const [profile, setProfile] = useState<any>(null);
   useEffect(() => { fetch("/api/admin/profile", { headers: { Authorization: `Bearer ${getToken()}` } }).then(r => r.json()).then(setProfile).catch(() => {}); }, []);

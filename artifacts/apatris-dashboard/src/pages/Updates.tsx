@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Bell } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 export default function Updates() {
   const [notifs, setNotifs] = useState<any[]>([]);
   useEffect(() => { fetch("/api/legal/notifications", { headers: { Authorization: `Bearer ${getToken()}` } }).then(r => r.json()).then(d => setNotifs(d.notifications ?? [])).catch(() => {}); }, []);

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Shield, Users, MapPin, Sparkles, ClipboardCheck, Briefcase } from "lucide-react";
 
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 function headers() { return { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" }; }
 
 const PAGE_CONFIG: Record<string, { title: string; endpoint: string; icon: any }> = {

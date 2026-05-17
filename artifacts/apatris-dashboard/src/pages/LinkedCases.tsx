@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link2, Search, FileText, Shield } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 export default function LinkedCases() {
   const [workers, setWorkers] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState("");

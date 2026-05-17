@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, DollarSign, MapPin, Shield } from "lucide-react";
 
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 function fmt(n: number) { return n.toLocaleString("en", { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
 
 export default function FinesRiskReport() {

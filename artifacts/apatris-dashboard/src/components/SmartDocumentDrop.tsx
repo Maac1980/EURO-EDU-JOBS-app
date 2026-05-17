@@ -6,7 +6,7 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, Loader2, CheckCircle, AlertTriangle, User, X } from "lucide-react";
 
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 
 interface SmartDocResult {
   documentType: string;

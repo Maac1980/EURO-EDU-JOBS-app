@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ClipboardCheck, CheckCircle, Circle, Search } from "lucide-react";
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 export default function OnboardingChecklist() {
   const [workers, setWorkers] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState("");

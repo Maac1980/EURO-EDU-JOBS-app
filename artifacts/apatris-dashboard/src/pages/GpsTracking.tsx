@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const API = "/api";
 function authHeaders() {
-  const token = localStorage.getItem("eej_jwt");
+  const token = sessionStorage.getItem("eej_token");
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
@@ -51,7 +51,7 @@ export default function GpsTracking() {
 
   // WebSocket for live GPS updates
   useEffect(() => {
-    const token = localStorage.getItem("eej_jwt");
+    const token = sessionStorage.getItem("eej_token");
     if (!token) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";

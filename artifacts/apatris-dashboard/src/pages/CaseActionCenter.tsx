@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, AlertTriangle, CheckCircle, Clock, Shield, ChevronRight, XCircle, Package, Upload, Eye } from "lucide-react";
 
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 function headers() { return { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" }; }
 
 const STATUS_COLORS: Record<string, string> = {

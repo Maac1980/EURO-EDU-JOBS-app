@@ -71,7 +71,7 @@ export function CopilotPanel({ workerId, panelContext = "general", compact = fal
 
   const ask = useMutation({
     mutationFn: async (q: string) => {
-      const token = localStorage.getItem("apatris_jwt");
+      const token = sessionStorage.getItem("eej_token");
       const res = await fetch(`${import.meta.env.BASE_URL}api/v1/legal/copilot/ask`, {
         method: "POST",
         headers: {

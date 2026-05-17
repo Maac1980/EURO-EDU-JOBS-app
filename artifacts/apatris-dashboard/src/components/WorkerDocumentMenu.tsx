@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { X, FileText, CheckCircle, AlertTriangle, XCircle, ChevronRight, Loader2, Upload, Clock, Shield } from "lucide-react";
 
-function getToken() { return localStorage.getItem("apatris_jwt") ?? sessionStorage.getItem("eej_token") ?? ""; }
+function getToken() { return sessionStorage.getItem("eej_token") ?? ""; }
 
 interface Props {
   workerId: string;

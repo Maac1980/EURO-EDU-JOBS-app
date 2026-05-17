@@ -4,7 +4,7 @@ import { Bot, Send, Loader2, Sparkles, User } from "lucide-react";
 
 const API = "/api";
 function authHeaders() {
-  const token = localStorage.getItem("eej_jwt");
+  const token = sessionStorage.getItem("eej_token");
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 

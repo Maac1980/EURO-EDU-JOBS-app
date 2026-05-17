@@ -76,7 +76,7 @@ async function extractWithVision(imageBase64: string, mimeType: string, fileName
     if (err instanceof FriendlyError) {
       return { error: err.message, userMessage: err.message, code: err.code };
     }
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'upload');
     return { error: mapped.body.error, userMessage: mapped.body.userMessage, code: mapped.body.code };
   }
   const arr = Array.isArray(normalized) ? normalized : [normalized];
@@ -100,7 +100,7 @@ async function extractWithVision(imageBase64: string, mimeType: string, fileName
     return match ? JSON.parse(match[0]) : { error: "AI response could not be parsed", userMessage: "We couldn't read the AI's response. Please try again." };
   } catch (err: any) {
     // Log raw error server-side, return friendly userMessage to caller.
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'upload');
     console.warn(`[smart-doc/process] Claude call failed: ${mapped.body.code} — ${mapped.body.error?.slice(0, 200)}`);
     return { error: mapped.body.error, userMessage: mapped.body.userMessage, code: mapped.body.code };
   }

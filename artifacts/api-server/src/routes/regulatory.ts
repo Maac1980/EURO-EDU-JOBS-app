@@ -369,7 +369,7 @@ router.get("/regulatory/updates", authenticateToken, async (req, res) => {
     return res.json({ updates, total: updates.length, limit, offset });
   } catch (err) {
     console.error("[regulatory/updates] list failed:", err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -404,7 +404,7 @@ router.get("/regulatory/summary", authenticateToken, async (_req, res) => {
     });
   } catch (err) {
     console.error("[regulatory/summary] failed:", err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -416,7 +416,7 @@ router.post("/regulatory/scan", authenticateToken, requireCoordinatorOrAdmin, as
     return res.json({ success: true, ...result });
   } catch (err) {
     console.error("[regulatory/scan] manual scan failed:", err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -459,7 +459,7 @@ router.post("/immigration/search", authenticateToken, async (req, res) => {
     return res.json(result);
   } catch (err) {
     console.error("[immigration/search] failed:", err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -520,7 +520,7 @@ router.get("/immigration/search/stream", authenticateToken, async (req, res) => 
   } catch (err) {
     console.error("[immigration/search/stream] stream failed:", err);
     if (!res.headersSent) {
-      const mapped = mapErrorToFriendlyResponse(err);
+      const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
       return res.status(mapped.httpStatus).json(mapped.body);
     }
     // Headers already sent — best-effort SSE error event before close.
@@ -552,7 +552,7 @@ router.get("/immigration/history", authenticateToken, async (req, res) => {
     return res.json({ searches });
   } catch (err) {
     console.error("[immigration/history] list failed:", err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -566,7 +566,7 @@ router.get("/immigration/history/:id", authenticateToken, async (req, res) => {
     return res.json({ search });
   } catch (err) {
     console.error("[immigration/history/:id] fetch failed:", err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -621,7 +621,7 @@ router.get("/regulatory/copilot", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error("[regulatory/copilot] failed:", err);
     if (!res.headersSent) {
-      const mapped = mapErrorToFriendlyResponse(err);
+      const mapped = mapErrorToFriendlyResponse(err, 'regulatory');
       return res.status(mapped.httpStatus).json(mapped.body);
     }
     // SSE mid-stream — best-effort error event (see /immigration/search/stream

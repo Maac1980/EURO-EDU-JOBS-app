@@ -1161,7 +1161,7 @@ router.post(
       // shaped {error, code, userMessage} body so the mobile UI can render
       // the friendly text instead of "Document scan failed".
       const { mapErrorToFriendlyResponse } = await import("../services/document-format.js");
-      const mapped = mapErrorToFriendlyResponse(err);
+      const mapped = mapErrorToFriendlyResponse(err, 'upload');
       return res.status(mapped.httpStatus).json(mapped.body);
     }
   },

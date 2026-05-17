@@ -243,8 +243,50 @@ export async function normalizeForClaudeVision(
  * server-side (with full detail) but never reach the user verbatim.
  *
  * The returned object is intended to be sent as `res.status(httpStatus).json(body)`.
+ *
+ * Item 2.2-followup-BE — `domain` lets callers tell the helper which
+ * route surface they're on, so the fallback `userMessage` (for errors
+ * that don't match any specific Anthropic SDK pattern) doesn't leak
+ * upload-domain copy ("Something went wrong reading this file") onto
+ * regulatory / legal routes. Some pattern-matched messages also adapt
+ * their wording per domain (e.g. AI_TIMEOUT, AI_TOO_LARGE) where the
+ * upload-specific phrasing doesn't fit.
+ *
+ * Default `'generic'` preserves call-site backward compatibility for any
+ * caller that hasn't specified a domain yet.
  */
-export function mapErrorToFriendlyResponse(err: unknown): { httpStatus: number; body: { error: string; code: string; userMessage: string } } {
+export type FriendlyErrorDomain = 'upload' | 'regulatory' | 'legal' | 'generic';
+
+const GENERIC_FALLBACK_MESSAGES: Record<FriendlyErrorDomain, string> = {
+  upload:     "Something went wrong reading this file. Please try again or contact support if it keeps happening.",
+  regulatory: "Something went wrong loading regulatory data. Please try again.",
+  legal:      "Something went wrong processing your legal request. Please try again.",
+  generic:    "Something went wrong. Please try again or contact support.",
+};
+
+// Per-domain phrasing for the two pattern-matched messages whose upload-
+// wording bleeds into non-upload routes. Other matchers (AI_RATE_LIMITED,
+// AI_AUTH, AI_FORMAT_REJECTED) keep their original copy across domains —
+// rate limits and auth issues read fine everywhere; AI_FORMAT_REJECTED
+// only fires on upload paths in practice.
+const TIMEOUT_MESSAGES: Record<FriendlyErrorDomain, string> = {
+  upload:     "The AI took too long to read this file. Please try again or upload a smaller version.",
+  regulatory: "The AI took too long to load regulatory data. Please try again.",
+  legal:      "The AI took too long to process your request. Please try again.",
+  generic:    "The AI took too long. Please try again.",
+};
+
+const TOO_LARGE_MESSAGES: Record<FriendlyErrorDomain, string> = {
+  upload:     "This file is too large for the AI to process. Please split it into smaller pieces and try again.",
+  regulatory: "The regulatory data was too large for the AI to process. Please narrow the scope and try again.",
+  legal:      "The legal request was too large for the AI to process. Please narrow the scope and try again.",
+  generic:    "The request was too large for the AI to process. Please try a smaller request.",
+};
+
+export function mapErrorToFriendlyResponse(
+  err: unknown,
+  domain: FriendlyErrorDomain = 'generic',
+): { httpStatus: number; body: { error: string; code: string; userMessage: string } } {
   if (err instanceof FriendlyError) {
     return {
       httpStatus: err.httpStatus,
@@ -284,7 +326,7 @@ export function mapErrorToFriendlyResponse(err: unknown): { httpStatus: number; 
       body: {
         error: message,
         code: "AI_TIMEOUT",
-        userMessage: "The AI took too long to read this file. Please try again or upload a smaller version.",
+        userMessage: TIMEOUT_MESSAGES[domain],
       },
     };
   }
@@ -294,7 +336,7 @@ export function mapErrorToFriendlyResponse(err: unknown): { httpStatus: number; 
       body: {
         error: message,
         code: "AI_TOO_LARGE",
-        userMessage: "This file is too large for the AI to process. Please split it into smaller pieces and try again.",
+        userMessage: TOO_LARGE_MESSAGES[domain],
       },
     };
   }
@@ -309,13 +351,14 @@ export function mapErrorToFriendlyResponse(err: unknown): { httpStatus: number; 
     };
   }
 
-  // Generic fallback — never leak the raw message
+  // Generic fallback — never leak the raw message. Per-domain copy
+  // chosen so non-upload routes don't talk about "this file."
   return {
     httpStatus: 500,
     body: {
       error: message,
       code: "AI_UNKNOWN",
-      userMessage: "Something went wrong reading this file. Please try again or contact support if it keeps happening.",
+      userMessage: GENERIC_FALLBACK_MESSAGES[domain],
     },
   };
 }

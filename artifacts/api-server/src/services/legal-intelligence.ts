@@ -177,7 +177,7 @@ router.post("/legal-intelligence/research", authenticateToken, async (req, res) 
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -271,7 +271,7 @@ router.post("/legal-intelligence/appeal", authenticateToken, async (req, res) =>
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -309,7 +309,7 @@ router.post("/legal-intelligence/poa", authenticateToken, async (req, res) => {
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -344,7 +344,7 @@ router.post("/legal-intelligence/authority-draft", authenticateToken, async (req
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -403,7 +403,7 @@ router.get("/legal-intelligence/worker/:workerId", authenticateToken, async (req
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -445,7 +445,7 @@ router.get("/legal-intelligence/fleet-signals", authenticateToken, async (req, r
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -478,7 +478,7 @@ router.post("/legal-intelligence/copilot", authenticateToken, async (req, res) =
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });
@@ -515,7 +515,7 @@ router.post("/legal-intelligence/approve", authenticateToken, async (req, res) =
     // path so ops can identify which legal-intelligence route failed; returns
     // shaped {error, code, userMessage} body.
     console.error(`[legal-intelligence ${req.method} ${req.path}] failed:`, err?.message ?? err);
-    const mapped = mapErrorToFriendlyResponse(err);
+    const mapped = mapErrorToFriendlyResponse(err, 'legal');
     return res.status(mapped.httpStatus).json(mapped.body);
   }
 });

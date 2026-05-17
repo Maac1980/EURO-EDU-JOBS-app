@@ -218,6 +218,13 @@ function OutputActions({ title, contentPl, contentEn, entityType, entityId, stat
         body: JSON.stringify({ entityType, entityId }),
       });
       const data = await res.json();
+      // Item 2.2-followup-FE — surface friendly userMessage on failure
+      // (Item 2.2 + 2.2-followup-BE response shape). Was: data parsed and
+      // setApprovalResult called regardless of status, so a 500 body
+      // {error, code, userMessage} got rendered as { by: undefined, at: undefined }.
+      if (!res.ok) {
+        throw new Error(data.userMessage ?? data.error ?? `Approval failed (${res.status})`);
+      }
       setApprovalResult({ by: data.result?.approvedBy, at: data.result?.approvedAt });
       onApproved?.();
     } catch { /* failed */ }
@@ -451,7 +458,12 @@ function ResearchTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
         method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ title, memoType, prompt, linkedWorkerId: workerId || undefined, linkedEmployer: employer || undefined, linkedCity: city || undefined }),
       });
-      return res.json();
+      // Item 2.2-followup-FE — was: return res.json() regardless of status.
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.userMessage ?? data.error ?? `Memo creation failed (${res.status})`);
+      }
+      return data;
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["research-memos"] });
@@ -585,7 +597,12 @@ function AppealTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
         method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ workerId, caseId: caseId || undefined, rejectionText: rejectionText || undefined }),
       });
-      return res.json();
+      // Item 2.2-followup-FE — was: return res.json() regardless of status.
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.userMessage ?? data.error ?? `Appeal generation failed (${res.status})`);
+      }
+      return data;
     },
     onSuccess: (data) => { setResult(data.output); setOutputView("pl"); },
   });
@@ -875,7 +892,12 @@ function PoaTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
         method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ workerId, caseId: caseId || undefined, poaType, representativeName: repName, representativeAddress: repAddress || undefined, representativeBarNumber: repBar || undefined }),
       });
-      return res.json();
+      // Item 2.2-followup-FE — was: return res.json() regardless of status.
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.userMessage ?? data.error ?? `POA generation failed (${res.status})`);
+      }
+      return data;
     },
     onSuccess: (data) => setResult(data.poa),
   });
@@ -952,7 +974,12 @@ function AuthorityTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
         method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ workerId, caseId: caseId || undefined, draftType, authorityName: authority || undefined, caseReference: caseRef || undefined, specificIssue: issue }),
       });
-      return res.json();
+      // Item 2.2-followup-FE — was: return res.json() regardless of status.
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.userMessage ?? data.error ?? `Authority draft generation failed (${res.status})`);
+      }
+      return data;
     },
     onSuccess: (data) => setResult(data.draft),
   });
@@ -1137,7 +1164,12 @@ function BriefTab({ initialWorkerId = "" }: { initialWorkerId?: string }) {
         method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ workerId, rejectionText: rejectionText || undefined }),
       });
-      return res.json();
+      // Item 2.2-followup-FE — was: return res.json() regardless of status.
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.userMessage ?? data.error ?? `Research brief failed (${res.status})`);
+      }
+      return data;
     },
     onSuccess: (data) => setResult(data.brief),
   });

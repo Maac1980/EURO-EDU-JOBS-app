@@ -55,8 +55,22 @@ export default function RegulatoryIntelligence() {
     setLoading(true);
     const q = category !== "all" ? `?category=${category}` : "";
     fetch(`${BASE}api/regulatory/updates${q}`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((d) => setUpdates(d.updates ?? []))
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({} as any));
+        // Item 2.2-followup-FE — was: .then(r => r.json()) regardless of
+        // status, then .catch only fired on network throws. Server 4xx/5xx
+        // with {error, code, userMessage} body slipped through with empty
+        // updates and no user-visible toast. Now: explicit res.ok branch.
+        if (!r.ok) {
+          const friendly = d.userMessage ?? d.error ?? (isPl
+            ? "Nie udalo sie zaladowac aktualizacji regulacyjnych"
+            : "Failed to load regulatory updates");
+          setUpdates([]);
+          toast({ title: isPl ? "Blad" : "Error", description: friendly, variant: "destructive" });
+          return;
+        }
+        setUpdates(d.updates ?? []);
+      })
       .catch((err) => {
         console.error("[RegulatoryIntelligence] Failed to load updates:", err);
         setUpdates([]);
@@ -68,13 +82,24 @@ export default function RegulatoryIntelligence() {
   async function handleScan() {
     setScanning(true);
     try {
-      await fetch(`${BASE}api/regulatory/scan`, { method: "POST", headers: authHeaders() });
+      const res = await fetch(`${BASE}api/regulatory/scan`, { method: "POST", headers: authHeaders() });
+      // Item 2.2-followup-FE — was: await fetch(...) with no status check.
+      // Backend 5xx silently passed through; user saw "scan succeeded" UX.
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as any));
+        const friendly = body.userMessage ?? body.error ?? (isPl
+          ? "Nie udalo sie przeprowadzic skanowania regulacyjnego"
+          : "Failed to run regulatory scan. Please try again.");
+        toast({ title: isPl ? "Skanowanie nieudane" : "Scan Failed", description: friendly, variant: "destructive" });
+        return;
+      }
       loadUpdates();
     } catch (err) {
       console.error("[RegulatoryIntelligence] Scan failed:", err);
       toast({ title: isPl ? "Skanowanie nieudane" : "Scan Failed", description: isPl ? "Nie udalo sie przeprowadzic skanowania regulacyjnego" : "Failed to run regulatory scan. Please try again.", variant: "destructive" });
+    } finally {
+      setScanning(false);
     }
-    setScanning(false);
   }
 
   async function markRead(id: string) {

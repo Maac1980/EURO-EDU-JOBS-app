@@ -411,27 +411,72 @@ Current AI Copilot UX is a single rectangular chat container — looks like a ch
 | **Effort** | M — focused UX rebuild; existing backend reuse. Source citations may be S-extra if Phase 11 not landed yet (MVP can ship without). |
 | **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. |
 
-### Phase 13 — Legal Command Page + LegalCaseCockpit (Finding #52, STRATEGIC PIVOT)
+### Phase 13 — Legal Command Page + LegalCaseCockpit (Finding #52, STRATEGIC PIVOT — expanded Day 28 second-pass v2)
 
-**Highest strategic value feature in the plan.** This is where EEJ becomes a domain-specific legal-AI platform vs a generic HR tool. Current legal pages (CaseManagement / ClientPortal / DocumentTemplates / LegalQueue) are scattered with no unified entry. Build a Legal Command Page as the legal-tier hub + LegalCaseCockpit per case mirroring WorkerCockpit's 11-panel role-adaptive design.
+**Highest strategic value feature in the plan.** This is where EEJ becomes a domain-specific legal-AI platform vs a generic HR tool.
+
+**Day 28 Layer 2 walkthrough confirmed current state:** the `LegalIntelligence` page renders as **flat tabs** (six action types — RESEARCH / APPEAL / POA / AUTHORITY / LEGAL BRIEF / TIMELINE). Each tab operates standalone, no shared case context, no central hub, cases scattered across the page rather than unified into a per-case workspace. **Phase 13 is the LegalIntelligence v2** with proper case-centric architecture; the current flat-tabs page becomes LegalIntelligence v1 (keep / replace decision in Q15c below).
+
+#### Required architecture (two new surfaces)
+
+**(1) Legal Command Page — central hub for legal-tier role**
+- Lists all active legal cases (filtered by status / jurisdiction / urgency)
+- Shows AI-prioritized queue (most urgent first — sorted by Phase 11 Three-Layer compliance signals + deadline proximity)
+- Quick-create new case from worker context OR standalone (no worker linked yet)
+- Search + filter by case_no / worker / employer / jurisdiction / status / assigned-lawyer
+- Links to Three-Layer Compliance Engine (Phase 11) for rule reference inline
+- This is the legal-tier user's landing page (Piotr's app-open default)
+
+**(2) LegalCaseCockpit — opens when a case is tapped**
+- Mirrors WorkerCockpit's role-adaptive panel pattern
+- **All six action types** (RESEARCH / APPEAL / POA / AUTHORITY / LEGAL BRIEF / TIMELINE) become **panels within the cockpit**, sharing the case's context — NOT separate pages
+- Case context (worker, employer, jurisdiction, history, prior memos) flows automatically into each action — RESEARCH form pre-fills with case worker; APPEAL form pre-fills with prior rejection text from TIMELINE; POA form pre-fills with worker + assigned lawyer
+- **AI-generated outputs from one action become inputs to another** — e.g., RESEARCH memo informs the APPEAL draft's grounds list; APPEAL draft informs AUTHORITY correspondence reference; LEGAL BRIEF synthesizes across all priors. This interconnection is the substance of "case-centric architecture"
+- Lawyer (Piotr) sign-off workflow integrated at panel level — each AI-generated artifact has an approve/edit/reject control that flips it from DRAFT to APPROVED + recorded in the AI decisions audit log
+
+#### Proposed panel set (15 candidates — final W1/W2 split per Q15a/b/c)
+
+| # | Panel | Source / Notes |
+|---|---|---|
+| 1 | Case header | status, jurisdiction, deadline, priority, assigned lawyer |
+| 2 | AI summary (multi-scenario) | Per North Star — surfaces multiple legal pathways, NOT a single answer; e.g. "(a) appeal grounds X, success likelihood 60%; (b) re-file with corrected docs, 80%; (c) accept rejection + reapply under different basis, 40%" |
+| 3 | AI action recommendations | Prioritized HIGH / MED / LOW next-steps |
+| 4 | **RESEARCH** (Memo panel) | Memos generated for this case via Phase 13's `/legal-cases/:id/research` (existing `legal-intelligence/research` route adapted to take case context) |
+| 5 | **APPEAL** (Draft panel) | Appeal drafts in progress / submitted for this case; pre-filled with case worker + linked RESEARCH memo + linked TIMELINE rejection events |
+| 6 | **POA** (POA panel) | Powers of attorney issued for this case; pre-filled with worker + assigned lawyer |
+| 7 | **AUTHORITY** (Correspondence panel) | Authority correspondence drafts for this case (filing-status query, deadline extension request, etc.) |
+| 8 | **LEGAL BRIEF** (Synthesis panel) | Briefs generated for this case — synthesizes RESEARCH + APPEAL + AUTHORITY into a coherent legal narrative |
+| 9 | **TIMELINE** (Event-log panel) | Case events chronologically — submissions, rejections, AI-generated artifacts, lawyer sign-offs, notifications fired |
+| 10 | Document library | All docs attached to case (passport, contracts, prior decisions, evidence) — deep-links to existing `legal-documents` routes |
+| 11 | Linked workers | Workers connected to this case (typically 1; some cases involve multiple — e.g., posted-worker A1 disputes) |
+| 12 | Communication log | Worker / authority / client comms (email, WhatsApp, push, in-app chat from Phase 8) |
+| 13 | Compliance check | Phase 11 Three-Layer Compliance Engine output for this case's worker — surfaces rule conflicts, expiry risks, jurisdiction-specific requirements |
+| 14 | AI decisions audit log | Piotr's sign-off trail — every AI output's draft → approved transition recorded with timestamp + reviewer |
+| 15 | Notes | Free-text lawyer notes |
+
+**Panel count exceeds the 11 of WorkerCockpit's pattern (because RESEARCH/APPEAL/POA/AUTHORITY/LEGAL BRIEF/TIMELINE are 6 net-new panels not in WorkerCockpit).** Final W1 vs W2 selection per Q15a/Q15b open questions in Section 6 + new Q15c below.
+
+#### Role-adaptive ordering
+
+| Viewer role | Top-of-cockpit panels (in order) |
+|---|---|
+| **Lawyer (legal-tier)** | TIMELINE → RESEARCH → APPEAL → AUTHORITY → LEGAL BRIEF → POA → (others below) |
+| **Paralegal (tier 2 / operations)** | TIMELINE → RESEARCH → Document library → Notes → (others below) |
+| **Executive** | AI summary → AI action recommendations → Compliance check → Linked workers → (others below) |
+
+#### Data model + API (expanded for case-centric architecture)
 
 | Field | Detail |
 |---|---|
-| **Purpose** | Unified legal-tier UX. Lawyer opens app → lands on Legal Command Page → sees prioritized cases, deadlines, AI suggestions → clicks a case → opens LegalCaseCockpit with role-adaptive panels (lawyer view vs paralegal view vs executive view). |
-| **Minimum implementation (W1 — initial cockpit)** | New page `LegalCommandPage.tsx` (entry hub). New component `LegalCaseCockpit.tsx` (per-case detail). W1 panels: case header, AI summary, AI action recommendations, document library, timeline / activity log, compliance check (Three-Layer dep), linked workers. |
-| **Full panel set (W2)** | Add: client portal status, AI decisions audit log, communication log, notes — total 11 panels matching WorkerCockpit pattern. |
-| **Role-adaptive ordering** | Lawyer (legal-tier): case header + AI summary + AI action recs + compliance check first. Paralegal: documents + timeline + tasks first. Executive: AI summary + linked workers + AI action recs first. |
-| **User roles** | Legal (primary); executive (secondary, summary view); operations (tertiary, only if linked workers visible). |
-| **Expected behavior** | Legal-tier user opens Legal Command Page → sees active cases with priority/deadline badges → clicks → cockpit opens → all info about case in one view, panel order per role. AI summary auto-generates on case open (cached). Compliance check pulls from Phase 11 Three-Layer Engine. Document library deep-links to existing legal-documents routes. |
-| **Data model** | New: `legal_cases` table (id, tenant_id FK, case_no, title, status, priority, deadline, jurisdiction, assigned_to, created_at, updated_at). New: `legal_case_documents` (case_id FK, document_id FK or path, role ENUM). New: `legal_case_activity` (case_id FK, actor, action, payload JSONB, created_at) — INSERT-only audit trail. Existing notes/audit/AI-reasoning tables reused via case_id FK. |
-| **API** | GET `/api/legal/cases`, GET `/api/legal/cases/:id/cockpit` (mirror of `/workers/:id/cockpit` shape), PATCH `/api/legal/cases/:id`, POST `/api/legal/cases/:id/notes`, GET `/api/legal/cases/:id/activity`, etc. (~12 endpoints). |
-| **UI** | New page + new component (LegalCaseCockpit). Existing scattered legal pages (CaseManagement/ClientPortal/DocumentTemplates/LegalQueue) deep-link **into** the cockpit OR are gradually absorbed (W2 decision). Pass 3 `.shell-overlay` + dashboard equivalent for any modals. |
-| **AI** | AI summary (per-case role-tuned 3-sentence narrative) + AI action recommendations (next-steps with priority labels). Backed by Phase 11 Three-Layer Engine for compliance-check panel. Sources cited via Phase 12 pattern. |
-| **Notifications** | Push/email on case deadline (24h / 72h), case status change, new AI action recommendation. Channel routing via Phase 2 W1.3 notification.service. |
-| **Polish-legal-risk** | **GREEN** — legal-tier internal UI; lawyer-signed outputs only; AI is decision-support not auto-action. |
-| **Effort** | **L** — significant design + build. Estimate 4-6 work units across W1 (initial cockpit) + W2 (full panel set + role-ordering). |
-| **Strategic note** | This is where EEJ stops being "another HR tool with AI bolt-ons" and becomes "the AI platform for cross-border legal compliance." Highest leverage in the plan. |
-| **Prerequisite** | Phase 11 Three-Layer Compliance Engine (for compliance-check panel). Phase 12 AI Copilot UX (for source-citation pattern reuse). |
+| **Data model** | New: `legal_cases` (id, tenant_id FK, case_no, title, status, priority, deadline, jurisdiction, assigned_lawyer_id, created_at, updated_at); `legal_case_documents` (case_id FK, document_id or path, role ENUM); `legal_case_activity` (case_id FK, actor, action, payload JSONB, created_at — INSERT-only); `legal_case_artifacts` (case_id FK, artifact_type ENUM `'research'|'appeal'|'poa'|'authority'|'brief'`, artifact_id, status ENUM `'draft'|'approved'|'rejected'`, approved_by, approved_at) — this is the connective tissue that makes RESEARCH/APPEAL/POA/AUTHORITY/BRIEF case-scoped instead of standalone. Existing notes/audit/AI-reasoning tables reused via case_id FK. |
+| **API** | `GET /api/legal/cases` (Command Page list); `POST /api/legal/cases` (quick-create); `GET /api/legal/cases/:id/cockpit` (cockpit aggregate, mirror of `/workers/:id/cockpit` shape — single round-trip for all 15 panels); `PATCH /api/legal/cases/:id`; `POST /api/legal/cases/:id/notes`; `GET /api/legal/cases/:id/activity`; **`POST /api/legal/cases/:id/research|appeal|poa|authority|brief`** (case-scoped variants of the 5 existing standalone legal-intelligence routes — these are the interconnection points where action outputs auto-attach to the case); `PATCH /api/legal/cases/:id/artifacts/:artifactId/approve|reject` (lawyer sign-off). Total ~18 endpoints (up from ~12 in the v1 plan). |
+| **UI** | New page `LegalCommandPage.tsx` + new component `LegalCaseCockpit.tsx`. The 6 existing flat-tab actions in `LegalIntelligence.tsx` are **either deep-linked into the cockpit OR absorbed into cockpit panels** (Q15c). Pass 3 `.shell-overlay` (mobile) + dashboard-equivalent shell-bounding for any modals. |
+| **AI** | AI summary panel: per-case role-tuned multi-scenario narrative (surfaces alternative pathways, not single answer — per North Star). AI action recommendations panel: HIGH/MED/LOW prioritized next-steps. Compliance check panel: backed by Phase 11 Three-Layer Engine. Source citations across all AI-generated artifacts via Phase 12 pattern. |
+| **Notifications** | Push + email on: case deadline (24h / 72h), case status change, new AI action recommendation, lawyer sign-off completed, new linked communication arrived. Channel routing via Phase 2 W1.3 notification.service. |
+| **Polish-legal-risk** | **GREEN** — legal-tier internal UI; lawyer-signed outputs only; AI is decision-support not auto-action. Multi-scenario AI summary is HELP-aligned (shows options, doesn't pick one). |
+| **Effort** | **L** — significant design + build. Estimate 4-6 work units across W1 (initial cockpit with subset of panels) + W2 (full panel set + role-adaptive ordering + interconnection wiring). Effort estimate unchanged from v1 spec because the interconnection requirement was implicit in the original "mirror WorkerCockpit pattern" framing; the v2 spec just makes it explicit. |
+| **Prerequisite** | Phase 11 Three-Layer Compliance Engine (Compliance check panel + multi-scenario AI summary backing). Phase 12 AI Copilot UX (source-citation pattern reuse). |
+| **Strategic note** | The current flat-tabs `LegalIntelligence.tsx` is the v1; Phase 13 is the v2 with proper case-centric architecture. EEJ stops being "another HR tool with AI bolt-ons" and becomes "the AI platform for cross-border legal compliance." Highest leverage in the plan. |
 | **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. EEJ leads this primitive — APATRIS has no LegalCaseCockpit equivalent (the closest is `legal-cases`/`legal-copilot` routes but no unified cockpit). |
 
 ### Phase 14 — Brand token consolidation (P6 Tier A — promoted from survey)
@@ -492,7 +537,7 @@ Captured as future build — **not deferred indefinitely.** APATRIS has the prim
 | **Net-new** — Operational hygiene runbook | N/A (operator work) | **Phase 10** — parallel with Phase 1 |
 | **Finding #49** — Three-Layer Compliance Engine | EEJ-original (no APATRIS equivalent at this shape) | **Phase 11** — forward-reference placeholder; spec lands separately. Prerequisite for Phase 13 compliance-check panel + Phase 12 source-citation backbone |
 | **Finding #51** — AI Copilot UX as search-engine | partial: APATRIS has `ai-copilot` route but no search-engine UX surface | **Phase 12** — EEJ leads the UX pattern; reuses existing backend + Phase 11 engine when available |
-| **Finding #52** — Legal Command Page + LegalCaseCockpit | partial: APATRIS has scattered `legal-cases` / `legal-copilot` / `legal-status` routes but **no unified cockpit** — closest analog is APATRIS's `WorkerProfilePanel` (the source comparison in Day-30 APATRIS audit showed APATRIS's worker profile is 2 tabs vs EEJ's 11 panels; LegalCaseCockpit is the same shape applied to legal cases) | **Phase 13 — STRATEGIC PIVOT** to domain-specific legal-AI platform. EEJ leads. APATRIS implements from EEJ as reference later. |
+| **Finding #52** — Legal Command Page + LegalCaseCockpit | partial: APATRIS has scattered `legal-cases` / `legal-copilot` / `legal-status` routes but **no unified cockpit** — closest analog is APATRIS's `WorkerProfilePanel` (the source comparison in Day-30 APATRIS audit showed APATRIS's worker profile is 2 tabs vs EEJ's 11 panels; LegalCaseCockpit is the same shape applied to legal cases). **Day 28 Layer 2 walkthrough of EEJ's current `LegalIntelligence.tsx` confirmed flat-tabs (RESEARCH / APPEAL / POA / AUTHORITY / LEGAL BRIEF / TIMELINE) with no shared case context — this is the v1 state Phase 13 v2 replaces.** | **Phase 13 — STRATEGIC PIVOT** to domain-specific legal-AI platform with explicit case-centric interconnection (6 action types become cockpit panels sharing case context; AI outputs from one action feed inputs to another). EEJ leads. APATRIS implements from EEJ as reference later. |
 | **P6 Tier A** — brand token consolidation | N/A (internal refactor) | **Phase 14** — promoted from P6 survey to a phase (theme.ts single source of truth; ~275 file touches) |
 | **Finding #50** — GPS/Geofence/Sites nav-invisibility | N/A (UI hygiene) | **Phase 3 expanded** — Tier 3 scaffold-404 scope widened from backend-only to backend + UI surfacing (nav-menu entries + search-index registration) |
 
@@ -530,7 +575,7 @@ This list is intentionally **shorter** than the Day 28 v1 — items previously h
 12. **Phase 9 Mobile install testing — Manish solo or with team (Liza/Karan/Marj/Yana)?** Solo = faster, less coordination; team = better device coverage + role-specific findings (e.g. Yana on Ukrainian-language flows, Karan on operations-tier surfaces).
 13. **Phase 10 Neon password rotation timing:** rotate NOW (before further work to limit blast radius of the leaked credential) or end-of-Tier-2 (after hardening lands so rotation only fires once)? Recommendation: rotate NOW (10.1 + 10.2 + 10.5) — the credential leak is a today-class risk and Tier 2 hardening doesn't touch DB credentials.
 14. **Phase 12 AI Copilot UX redesign priority — before or after Phase 6 Tier W2?** Phase 12 currently sits at slot 11 in the build order (after Tier 4/5/W3 + Phase 11 Three-Layer). If the AI Copilot is a leverage point for staff productivity TODAY, an argument exists for pulling it earlier (e.g., after Phase 4 Tier W2 worker expansion). Trade-off: pulling forward stretches the Phase 11 Three-Layer dependency (source citations may have to ship MVP-without). Recommendation pending Manish: hold at Phase 12 slot unless staff productivity becomes the dominant signal.
-15. **Phase 13 Legal Command Page panel scope — which 11 panels in W1 vs W2?** The full panel set (per the Phase 13 detail above) is 11 panels mirroring WorkerCockpit. W1 ships 7 (case header + AI summary + AI action recs + document library + timeline + compliance check + linked workers); W2 ships the remaining 4 (client portal status + AI decisions audit log + communication log + notes). **Q15a:** is this W1/W2 split right, or should compliance check be deferred to W2 (gated on Phase 11 Three-Layer Engine landing)? **Q15b:** is "linked workers" W1 (cross-tier integration) or W2 (after Phase 13 W1 stabilizes)?
+15. **Phase 13 Legal Command Page panel scope — which 11 panels in W1 vs W2?** The full panel set (per the Phase 13 detail above) is now **15 candidate panels** (Day 28 second-pass v2 expansion added the 6 action-type panels: RESEARCH / APPEAL / POA / AUTHORITY / LEGAL BRIEF / TIMELINE). W1 ship-list candidate: case header + AI summary + AI action recs + TIMELINE + RESEARCH + APPEAL + document library (7 panels). W2 candidate: POA + AUTHORITY + LEGAL BRIEF + compliance check + linked workers + communication log + AI decisions audit log + notes (8 panels). **Q15a:** is the W1/W2 split right? Are RESEARCH + APPEAL both required for W1 (likely yes — they're the most-used actions), or can APPEAL move to W2? **Q15b:** is "linked workers" W1 (cross-tier integration with WorkerCockpit) or W2 (after Phase 13 W1 stabilizes)? **Q15c (NEW Day 28 second-pass v2):** should the current flat-tabs `LegalIntelligence.tsx` page stay as v1 alongside Phase 13 v2 (parallel coexistence — users can choose either entry point), OR be replaced entirely when v2 ships (v2 is the only entry point; existing v1 deep-links break)? Trade-off: parallel coexistence = no breakage but two surfaces to maintain + risk of operator confusion; replacement = cleaner end-state but every existing bookmark / muscle-memory breaks on cutover.
 
 ---
 
@@ -781,9 +826,14 @@ Step-by-step for the parallel operational-hygiene thread. Designed to be runnabl
 - **Phase 2 unified plan v2 (added Phases 8-11 + Section 9):** committed `fa6da6b`
 - **Phase 1 Item 2.1 token-key unification:** committed `b479fa6`
 - **Phase 1 Item 2.16 typecheck-drift cleanup:** committed `2f6c71b`
-- **Phase 2 unified plan v3 (this revision — adds Findings #50/#51/#52 as Phase 3-expansion + Phases 11/12/13/14; renumbers prior Phase 11 → Phase 15):** this document, committing next.
+- **Phase 2 unified plan v3 (Findings #50/#51/#52 as Phase 3-expansion + Phases 11/12/13/14; renumbers prior Phase 11 → Phase 15):** committed `46bb86f`
+- **Phase 1 Item 2.2 error-mask sweep (Layer 1):** committed `0922af9`
+- **Item 2.2-followup-BE (domain-aware mapErrorToFriendlyResponse):** committed `d6e4d77`
+- **Item 2.2-followup-FE (mobile):** committed `0b7d50c`
+- **Item 2.2-followup-FE (dashboard):** committed `677666f`
+- **Phase 2 unified plan v3.1 (this revision — Phase 13 expanded with explicit case-centric interconnection requirement per Day 28 Layer 2 walkthrough; adds Q15c):** this document, committing next.
 - **Phase 3 next-step prompt:** drafted in Section 8, NOT auto-sent.
-- **Awaiting Manish:** open questions Q1-Q15 in Section 6 + Section 8 chat-Claude-check items before further execution.
+- **Awaiting Manish:** open questions Q1-Q15 (Q15 now has Q15a/Q15b/Q15c sub-questions) in Section 6 + Section 8 chat-Claude-check items before further execution.
 
 ---
 
@@ -804,3 +854,17 @@ Step-by-step for the parallel operational-hygiene thread. Designed to be runnabl
 3. **Verification mechanism.** Each new phase carries: purpose, minimum implementation, user roles, expected behavior, data model, API surface, UI specifics, AI dependency, notification logic, Polish-legal-risk flag, effort estimate, Architecture A note, prerequisites where relevant. Section 4 cross-reference table updated with rows for every new phase. Section 6 open questions surface Phase 12 priority + Phase 13 panel-split decisions before execution starts.
 4. **What was NOT verified.** Phase 11 Three-Layer Compliance Engine is a forward-reference placeholder — Finding #49's full spec hasn't landed in the EEJ repo yet, so Phase 11's effort estimate is "TBD." Phase 12 source-citation requirement may force MVP-without-citations if Phase 11 isn't ready when Phase 12 ships. Phase 13 panel scope (W1 7 panels vs W2 4 panels) is a proposal — Q15a/Q15b must resolve before Phase 13 W1 scoping. Phase 14 brand-token effort (M, ~275 file touches) assumes the theme.ts approach surveyed in P6; if Manish prefers a different pattern (e.g., Tailwind config tokens), effort and scope both change.
 5. **Risks.** (i) **Phase numbering reconciliation discrepancy.** The Day 28 prompt referenced "Current Phase 12 (brand token consolidation) → renumber to Phase 14" and "Current Phase 13 (post-KRAZ-defense AMBER features) → renumber to Phase 15" — but the prior plan version did NOT have a Phase 12 or Phase 13 (mood/wellness was the actual Phase 11; brand token was unphased, only P6-surveyed). Best-faith reconciliation: added Phase 11 (Three-Layer placeholder), Phase 12 (AI Copilot), Phase 13 (Legal Command), Phase 14 (Brand token — promoted from P6 to phase status), and renumbered prior Phase 11 → Phase 15. **Manish + chat-Claude should confirm this reconciliation matches the intent; if not, the phase numbers can be re-shuffled in a follow-up revision without disturbing phase content.** (ii) Phase 13 effort (L, 4-6 work units) is a strategic-pivot estimate — actual scope is likely bigger once Q15a/Q15b resolve and the role-adaptive ordering matrix is fully specified. (iii) Phase 12 search-engine UX may collide with Phase 8 Live Chat UX paradigm — both are "ask AI / talk to someone" surfaces but with different mental models; if users conflate them, a UX consolidation pass may need a separate phase. (iv) Finding #50 nav/search wiring is **not** automatically picked up by the GPS/Geofence/Sites backend builds (3.2) — every other Tier 3 surface (3.1 Analytics, 3.3 ContractHub, 3.4 Skills, 3.5 Shifts, 3.6 Calendar) likely has the same invisibility risk; the Phase 3 expansion note implies but doesn't enumerate this. **Should Phase 3 scope add "nav-menu + search-index" as a per-surface requirement for ALL six Tier 3 items, not just GPS/Geofence/Sites?** Logged as an implicit Q16 — flag in next chat-Claude review.
+
+---
+
+## 5-element self-review (v3.1 revision — Phase 13 case-centric expansion)
+
+1. **What changed.** Phase 13 spec expanded from "mirror WorkerCockpit's 11-panel pattern" generic framing to explicit case-centric architecture: two new surfaces (Legal Command Page hub + LegalCaseCockpit per-case detail), 15 candidate panels (six of them — RESEARCH / APPEAL / POA / AUTHORITY / LEGAL BRIEF / TIMELINE — are the existing flat-tab actions ABSORBED into the cockpit as case-scoped panels with interconnection), explicit data model addition (`legal_case_artifacts` table as the connective tissue making action outputs case-scoped), expanded API surface (~18 endpoints up from ~12 — net-new: case-scoped variants of the 5 standalone legal-intelligence routes + lawyer-sign-off endpoints), three-role role-adaptive ordering matrix, multi-scenario AI summary requirement (per North Star — alternatives, not single answer). Section 4 Phase 13 row updated to reflect v2 expansion. Section 6 Q15c added (parallel-coexistence vs replacement decision for current flat-tabs page).
+
+2. **Why this scope.** Day 28 Layer 2 walkthrough confirmed current `LegalIntelligence.tsx` is flat tabs without shared case context — every action standalone, no interconnection. The v1 Phase 13 spec implied this architecture via "mirror WorkerCockpit pattern" but didn't make the interconnection requirement explicit. The v3.1 expansion captures Manish's vision verbatim: case is the unit; all actions become panels of the case; outputs feed inputs across actions. Effort estimate unchanged because the interconnection was implicit in the original "case-centric cockpit" framing; v3.1 just promotes it to explicit requirement so execution-time scoping doesn't lose it.
+
+3. **Verification mechanism.** New Phase 13 spec table-form preserves the existing per-field discipline (purpose / data model / API / UI / AI / notifications / Polish-legal / effort / prerequisite / Architecture A / strategic note) and adds new fields explicitly enumerating: the two-surface architecture, the 15 candidate panels in a table, the role-adaptive ordering matrix, and the artifact-interconnection wiring (`legal_case_artifacts` table). Section 4 cross-reference Phase 13 row updated with Day 28 Layer 2 walkthrough finding. Section 6 Q15c surfaces the v1-vs-v2-coexistence decision explicitly.
+
+4. **What was NOT verified.** Whether the 15 candidate panels are the right set — Q15a/Q15b/Q15c gate the final selection. Whether the existing 5 standalone legal-intelligence routes (`research`, `appeal`, `poa`, `authority-draft`, `legal-brief`) can be cleanly extended to take case context, or whether they need rewrites — assumed extensible based on Item 2.2 audit which showed the routes accept worker context already; case context is a similar shape. Whether the `legal_case_artifacts` table needs additional columns for cross-artifact references (e.g., "this APPEAL draft was informed by RESEARCH memo X") — captured implicitly via `payload JSONB` but not formalized as FK columns; final shape Phase 13 W1 design decision. Lawyer-sign-off UX (panel-level approve/edit/reject) is mentioned but not designed — Phase 13 W1 design pass needed.
+
+5. **Risks.** (i) **Effort estimate may understate.** v1 was L (4-6 work units); v3.1 expansion adds 6 case-scoped route variants + artifact-interconnection wiring + multi-scenario AI summary. Realistic estimate may be L+ or XL — Q15a/Q15b/Q15c resolution will clarify, but flag as risk. (ii) **Q15c (parallel-coexistence vs replacement) is the load-bearing decision** for migration cost. Parallel coexistence doubles maintenance during cutover; replacement breaks every bookmark + muscle-memory on day-of-cutover. Mitigation: deprecation banner on v1 + 30-day window before replacement is a possible third option not in the question — surface in Q15c discussion. (iii) **Multi-scenario AI summary** depends on Phase 11 Three-Layer Engine being capable of producing alternative-pathway analysis (not just single answer). If Phase 11 ships as single-answer engine, Phase 13's AI summary panel degrades to single-scenario — strategic value reduced. Mitigation: Phase 11 spec (Finding #49) needs to explicitly support multi-scenario reasoning. (iv) **Interconnection between artifacts** (RESEARCH memo informs APPEAL grounds list) requires deterministic data wiring OR AI-assisted re-synthesis. Deterministic = simpler but inflexible; AI re-synthesis = flexible but introduces latency + AI-cost per artifact view. v3.1 spec doesn't pick; flag for Phase 13 design pass. (v) **Lawyer (Piotr) sign-off workflow** introduces blocking dependency on a single human reviewer. If Piotr is unavailable, all AI-generated artifacts stay DRAFT — can't be sent to clients/authorities. Mitigation: paralegal-tier sign-off fallback per case-type (e.g., POA pre-templated = paralegal OK; APPEAL substantive = lawyer required). Out of v3.1 scope; flag for Phase 13 W1 RBAC design.

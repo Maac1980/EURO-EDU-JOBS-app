@@ -20,8 +20,9 @@ class ApiError extends Error {
 }
 
 async function throwForStatus(res: Response): Promise<never> {
-  const err = await res.json().catch(() => ({})) as { error?: string };
-  throw new ApiError(res.status, err.error ?? `Server error ${res.status}`);
+  // Item 2.2-followup-FE — prefer userMessage from friendly-error shape.
+  const err = await res.json().catch(() => ({})) as { error?: string; userMessage?: string };
+  throw new ApiError(res.status, err.userMessage ?? err.error ?? `Server error ${res.status}`);
 }
 
 export async function apiFetchCandidates(): Promise<Candidate[]> {

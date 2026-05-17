@@ -41,6 +41,18 @@ function forceLogout() {
   window.location.reload();
 }
 
+/**
+ * Item 2.2-followup-FE — read response body on error so callers see the
+ * friendly userMessage (Item 2.2 + 2.2-followup-BE shape:
+ * `{ error, code, userMessage }`) instead of just "API 500". Falls back
+ * through userMessage → error → "API <status>" for endpoints that
+ * predate the friendly-error shape.
+ */
+async function errorFromResponse(res: Response, defaultMsg: string): Promise<Error> {
+  const body = await res.json().catch(() => ({} as { error?: string; userMessage?: string }));
+  return new Error(body.userMessage ?? body.error ?? defaultMsg);
+}
+
 /** Handle 401 responses: try refresh, retry once — don't force logout for API data calls */
 async function handleUnauthorized<T>(method: () => Promise<Response>): Promise<T> {
   const res = await method();
@@ -49,12 +61,12 @@ async function handleUnauthorized<T>(method: () => Promise<Response>): Promise<T
     if (refreshed) {
       const retryRes = await method();
       if (retryRes.ok) return retryRes.json() as Promise<T>;
-      throw new Error(`API ${retryRes.status}`);
+      throw await errorFromResponse(retryRes, `API ${retryRes.status}`);
     }
     // Don't force logout — just throw so the UI can handle it gracefully
-    throw new Error("Unauthorized");
+    throw await errorFromResponse(res, "Unauthorized");
   }
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (!res.ok) throw await errorFromResponse(res, `API ${res.status}`);
   return res.json() as Promise<T>;
 }
 
@@ -402,8 +414,9 @@ export async function uploadWorkerDocument(
     },
   );
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
-    throw new Error(body.error ?? `Upload failed (${res.status})`);
+    // Item 2.2-followup-FE — prefer userMessage from friendly-error shape.
+    const body = await res.json().catch(() => ({} as { error?: string; userMessage?: string }));
+    throw new Error(body.userMessage ?? body.error ?? `Upload failed (${res.status})`);
   }
   return res.json();
 }

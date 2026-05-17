@@ -12,7 +12,7 @@
 
 ## Section 1 — Executive summary
 
-EEJ is post-P5 + P6-survey closed. The Day 28 revision (this version) captures **every feature in the plan as part of the future build — nothing parked, nothing deferred-indefinitely.** The plan sequences **Phase 10 Operational Hygiene in parallel with Phase 1 Tier 2 hardening** (Neon rotation, Fly secret rotation, readonly role, CI credential), then **Phase 9 Mobile Install Testing** (validation pass on real iPhone + Android), then **Phase 2 Tier W1 worker essentials** (hours + late/absence + docs-with-push — three highest-leverage worker surfaces, all GREEN on Polish-legal), **Phase 3 Tier 3 scaffold-404 backends** (build, don't hide), **Phase 4 Tier W2 worker expansion** (no-show engine + leave + complaints + worker-AI), **Phase 8 Live Chat (#34)** (in-app real-time chat for worker↔team and applicant↔team — XL premium-tier SaaS surface), **Phase 5 Tier 4 mocks**, **Phase 6 Tier 5 schema cleanup**, **Phase 7 Tier W3 KRAZ-defense gated** (reliability/points with explicit prerequisite "KRAZ classification settled"; scenario simulator with prerequisite "W1+W2 in production"), and **Phase 11 Mood/Wellness** (post-W3, design-pass-required, legal-advisor-reviewed). Polish-legal-risk flag on every worker-side item; AMBER items design-checked before scope-locking; RED items reframed as Phase 11 with explicit gating. Architecture A is locked — every cross-codebase reference is "build in EEJ; APATRIS implements from EEJ as reference later."
+EEJ is post-P5 + P6-survey closed and post-Items-2.1+2.16 typecheck-clean. The Day 28 revision (this version, second-pass) captures **every feature in the plan as part of the future build — nothing parked, nothing deferred-indefinitely** and adds three Layer 2 findings (#50 GPS/Geofence/Sites nav-invisibility, #51 AI Copilot UX-as-search-engine, #52 Legal Command Page + LegalCaseCockpit). The plan sequences **Phase 10 Operational Hygiene in parallel with Phase 1 Tier 2 hardening** (Neon rotation, Fly secret rotation, readonly role, CI credential), then **Phase 9 Mobile Install Testing**, then **Phase 2 Tier W1 worker essentials** (hours + late/absence + docs-with-push), **Phase 3 Tier 3 scaffold-404 backends** (now includes Finding #50: GPS/Geofence/Sites UI surfacing alongside backend), **Phase 4 Tier W2 worker expansion** (no-show + leave + complaints + worker-AI), **Phase 8 Live Chat (#34)** (in-app real-time chat for worker↔team and applicant↔team — XL premium-tier SaaS surface), **Phase 5 Tier 4 mocks**, **Phase 6 Tier 5 schema cleanup**, **Phase 7 Tier W3 KRAZ-defense gated**, **Phase 11 Three-Layer Compliance Engine** (Finding #49 — forward-reference placeholder; spec lands separately), **Phase 12 AI Copilot UX redesign as search-engine pattern** (Finding #51 — input top + suggestions + streaming answers + sources cited + history sidebar), **Phase 13 Legal Command Page + LegalCaseCockpit** (Finding #52 — central legal-tier hub with WorkerCockpit-style role-adaptive panel architecture per legal case; **this is where EEJ becomes a domain-specific legal-AI platform vs generic HR tool — highest strategic value feature**), **Phase 14 Brand token consolidation** (P6 Tier A — promoted from P6 survey to a phase per Day 28 second-pass numbering), and **Phase 15 Mood/Wellness** (post-W3, design-pass-required). Polish-legal-risk flag on every worker-side item; AMBER items design-checked before scope-locking. Architecture A is locked — every cross-codebase reference is "build in EEJ; APATRIS implements from EEJ as reference later."
 
 ---
 
@@ -49,7 +49,24 @@ Sequence (top = build next):
                   (W3.1 Reliability/points — gated on KRAZ classification;
                    W3.2 Scenario simulator — gated on W1+W2 in prod)
                                 ↓
-                  Phase 11 — Mood/Wellness (post-W3, design-pass-required)
+                  Phase 11 — Three-Layer Compliance Engine (Finding #49)
+                  (FORWARD-REF PLACEHOLDER — full spec lands separately;
+                   prerequisite for Phase 13 Legal Command Page)
+                                ↓
+                  Phase 12 — AI Copilot UX redesign (Finding #51)
+                  (Search-engine pattern: input top + suggestions +
+                   streaming answers + source citations + history)
+                                ↓
+                  Phase 13 — Legal Command Page + LegalCaseCockpit (#52)
+                  (Central legal-tier hub + WorkerCockpit-style role-
+                   adaptive panel architecture per case — STRATEGIC
+                   PIVOT to domain-specific legal-AI platform)
+                                ↓
+                  Phase 14 — Brand token consolidation (P6 Tier A)
+                  (theme.ts single-source-of-truth; ~275 file touches
+                   to migrate hardcoded #1B2A4A / #FFD600 → var()/import)
+                                ↓
+                  Phase 15 — Mood/Wellness (post-W3, design-pass-required)
                   (Mood entries, Wellness, Voice — legal-advisor-reviewed
                    opt-in/anonymized/no-manager-visibility design)
 ```
@@ -64,7 +81,11 @@ Reasoning for the order:
 - **Phase 5 Tier 4 seventh** — static-mock cleanup is honesty work, but lower urgency than functional gaps and the premium chat feature.
 - **Phase 6 Tier 5 eighth** — schema/enum consolidation is "rates" work; pays dividends across all surfaces but has no user-facing urgency.
 - **Phase 7 Tier W3 ninth — KRAZ-defense gated, NOT deferred indefinitely.** W3.1 Reliability/points has explicit prerequisite "KRAZ classification settled" — when that prerequisite resolves, W3.1 builds. W3.2 Scenario simulator has prerequisite "W1+W2 in production for shape-data."
-- **Phase 11 Mood/Wellness last — post-W3, design-pass-required, NOT deferred indefinitely.** Capture as future build with explicit gate: opt-in + anonymized + no-manager-visibility design pass reviewed by legal advisor BEFORE scoping execution.
+- **Phase 11 Three-Layer Compliance Engine tenth (Finding #49)** — forward-reference placeholder. The Three-Layer engine is the backing layer for AI legal/compliance answers (Phase 12 AI Copilot consumes it; Phase 13 Legal Command Page consumes it). Full spec lands separately; this slot reserves position so downstream phases have a named prerequisite.
+- **Phase 12 AI Copilot UX redesign eleventh (Finding #51)** — current UX is a single rectangular chat container. Redesign to search-engine pattern: search-style input at top, suggested questions below, streaming answers with source citations, history sidebar. Reuses Phase 11 Three-Layer Engine as the compliance backbone.
+- **Phase 13 Legal Command Page + LegalCaseCockpit twelfth (Finding #52)** — central legal-tier hub + LegalCaseCockpit mirroring WorkerCockpit's 11-panel role-adaptive design, per legal case. **This is the strategic pivot from generic-HR-tool to domain-specific legal-AI platform** — highest strategic value feature in the plan. Depends on Phase 11 Three-Layer Engine for compliance-check panel.
+- **Phase 14 Brand token consolidation thirteenth (P6 Tier A)** — promoted from P6 survey to a phase. `theme.ts` single source of truth; replace ~186 hardcoded `#1B2A4A` and 89 `#FFD600` literals with imports/CSS vars. Pure refactor.
+- **Phase 15 Mood/Wellness last — post-W3, design-pass-required, NOT deferred indefinitely.** Capture as future build with explicit gate: opt-in + anonymized + no-manager-visibility design pass reviewed by legal advisor BEFORE scoping execution.
 
 ---
 
@@ -178,10 +199,12 @@ APATRIS reference: `lib/init-db.ts:540` (push_subscriptions shape), `services/pu
 
 From CLAUDE.md `## CURRENT PRIORITY LIST` Tier 3. Architect decision per CLAUDE.md: **build, don't hide**.
 
+> **Finding #50 (Day 28 Layer 2):** GPS / Geofence / Sites pages exist as source files but are **not visible in the dashboard nav menu nor returned by the in-app search index** — users can't reach them. Phase 3 scope is hereby **explicitly widened from backend-only to backend + UI surfacing**: every endpoint built below also gets a corresponding nav-menu entry + search-index registration. Without this widening, building the backends solves half the problem.
+
 | Endpoint | Surface | Polish-legal | Effort |
 |---|---|---|---|
 | 3.1 `/api/analytics/heatmap` + `/predictive` + `/report/pdf` | AnalyticsPage | GREEN | L |
-| 3.2 `/api/gps/active` + `/api/geofences` + `/api/gps/anomalies` | GpsTracking | **AMBER** — staff-side GPS tracking is heavier than worker self-check-in (W1.1) | M |
+| 3.2 `/api/gps/active` + `/api/geofences` + `/api/gps/anomalies` | GpsTracking + GeofenceMap + (new Sites view) — **Finding #50: also add nav-menu entries + search-index entries for all three** | **AMBER** — staff-side GPS tracking is heavier than worker self-check-in (W1.1); design carefully per W1.1 shift-bounded pattern (no continuous monitoring) | M (backend) + S (nav/search wiring) |
 | 3.3 `/api/contracts` + `/api/poa` + `/api/contracts/:id/pdf` | ContractHub list | GREEN | M |
 | 3.4 `/api/workers/:id/skills` | SkillsAssessmentTab | GREEN | S |
 | 3.5 `/api/shifts` | ShiftScheduleTab — **P3d helper already wired to display voivodeship; just needs the backend** | GREEN | M |
@@ -357,7 +380,76 @@ Production-prep operational work. NOT feature work — operator/secrets/infrastr
 
 **Why parallel to Phase 1:** operational hygiene must not be blocked by feature backlog; same goes the other way. Different execution threads, different evaluators, no shared critical path.
 
-### Phase 11 — Mood/Wellness (post-W3, design-pass-required)
+### Phase 11 — Three-Layer Compliance Engine (Finding #49 — forward-reference placeholder)
+
+**Placeholder.** Finding #49's Three-Layer Compliance Engine is referenced by Phase 12 (AI Copilot's answer backbone) and Phase 13 (Legal Command Page's compliance-check panel). The full spec is being drafted separately and will replace this stub when committed.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | (placeholder) Provide the staged compliance-rule layer (likely: declarative-rule layer + jurisdiction layer + Claude-reasoning layer) that backs AI compliance answers across legal/AI/copilot surfaces. |
+| **Polish-legal-risk** | **GREEN** (backing infra; correctness layer for downstream surfaces). |
+| **Prerequisite (explicit gate)** | Finding #49 spec lands as `docs/Finding_49_Three_Layer_Engine.md` (or similar). Until then, Phase 12 + Phase 13 cite this as a dependency but can plan in parallel. |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. |
+| **Effort** | TBD (depends on spec). |
+
+### Phase 12 — AI Copilot UX redesign as search-engine pattern (Finding #51)
+
+Current AI Copilot UX is a single rectangular chat container — looks like a chat window, not a discovery surface. Redesign to a search-engine mental model: input top, suggestions below input, streaming answers with source citations, history accessible.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Reposition AI Copilot from "another chat box" to "the primary AI discovery surface for staff to ask legal/compliance questions." Search-engine UX matches the actual usage pattern (lookup-style questions, not conversational ones). |
+| **Minimum implementation** | Redesigned `AiCopilotChat.tsx` (or new sibling) with: (a) search-style input centered at top; (b) suggested-questions list below input (curated per role); (c) streaming answer area with inline source citations; (d) history sidebar (recent searches, click-to-reload); (e) "ask again" / refine input affordance. Reuses existing backend endpoint (`/api/eej-copilot/chat` per CLAUDE.md). |
+| **User roles** | All staff (executive / legal / operations); restricted from candidate-tier per existing copilot RBAC. |
+| **Expected behavior** | Staff opens AI Copilot → sees search input + suggested questions (e.g., "What's the TRC renewal deadline for a Ukrainian worker?", "Calculate ZUS for 160h month") → types or taps suggestion → streaming answer appears with citations to source (Polish labor code articles, EEJ internal docs, regulatory updates); history sidebar updates. |
+| **Data model** | None new for MVP. Existing `ai_reasoning_log` + `ai_audit_log` capture history. Phase 2: optionally add `ai_copilot_sessions` table for thread-style memory if user research shows demand. |
+| **API** | POST `/api/eej-copilot/chat` (existing, no changes for MVP). GET `/api/eej-copilot/history?role=&limit=` for sidebar (may need new endpoint or filter on existing reasoning-log query). |
+| **UI** | Redesigned `AiCopilotChat.tsx`. Reference: Perplexity / Phind / Claude search-mode visuals. Tailwind utility classes only — no new design-system additions. |
+| **AI** | Backed by Phase 11 Three-Layer Engine when it lands. MVP can use the current Claude-direct path. Source citations require structured response from the backend (likely a Phase 11 deliverable). |
+| **Notifications** | None. |
+| **Polish-legal-risk** | **GREEN.** Sources cited + AI label visible + "Verify with legal team" disclaimer (already present in current copy). |
+| **Effort** | M — focused UX rebuild; existing backend reuse. Source citations may be S-extra if Phase 11 not landed yet (MVP can ship without). |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. |
+
+### Phase 13 — Legal Command Page + LegalCaseCockpit (Finding #52, STRATEGIC PIVOT)
+
+**Highest strategic value feature in the plan.** This is where EEJ becomes a domain-specific legal-AI platform vs a generic HR tool. Current legal pages (CaseManagement / ClientPortal / DocumentTemplates / LegalQueue) are scattered with no unified entry. Build a Legal Command Page as the legal-tier hub + LegalCaseCockpit per case mirroring WorkerCockpit's 11-panel role-adaptive design.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Unified legal-tier UX. Lawyer opens app → lands on Legal Command Page → sees prioritized cases, deadlines, AI suggestions → clicks a case → opens LegalCaseCockpit with role-adaptive panels (lawyer view vs paralegal view vs executive view). |
+| **Minimum implementation (W1 — initial cockpit)** | New page `LegalCommandPage.tsx` (entry hub). New component `LegalCaseCockpit.tsx` (per-case detail). W1 panels: case header, AI summary, AI action recommendations, document library, timeline / activity log, compliance check (Three-Layer dep), linked workers. |
+| **Full panel set (W2)** | Add: client portal status, AI decisions audit log, communication log, notes — total 11 panels matching WorkerCockpit pattern. |
+| **Role-adaptive ordering** | Lawyer (legal-tier): case header + AI summary + AI action recs + compliance check first. Paralegal: documents + timeline + tasks first. Executive: AI summary + linked workers + AI action recs first. |
+| **User roles** | Legal (primary); executive (secondary, summary view); operations (tertiary, only if linked workers visible). |
+| **Expected behavior** | Legal-tier user opens Legal Command Page → sees active cases with priority/deadline badges → clicks → cockpit opens → all info about case in one view, panel order per role. AI summary auto-generates on case open (cached). Compliance check pulls from Phase 11 Three-Layer Engine. Document library deep-links to existing legal-documents routes. |
+| **Data model** | New: `legal_cases` table (id, tenant_id FK, case_no, title, status, priority, deadline, jurisdiction, assigned_to, created_at, updated_at). New: `legal_case_documents` (case_id FK, document_id FK or path, role ENUM). New: `legal_case_activity` (case_id FK, actor, action, payload JSONB, created_at) — INSERT-only audit trail. Existing notes/audit/AI-reasoning tables reused via case_id FK. |
+| **API** | GET `/api/legal/cases`, GET `/api/legal/cases/:id/cockpit` (mirror of `/workers/:id/cockpit` shape), PATCH `/api/legal/cases/:id`, POST `/api/legal/cases/:id/notes`, GET `/api/legal/cases/:id/activity`, etc. (~12 endpoints). |
+| **UI** | New page + new component (LegalCaseCockpit). Existing scattered legal pages (CaseManagement/ClientPortal/DocumentTemplates/LegalQueue) deep-link **into** the cockpit OR are gradually absorbed (W2 decision). Pass 3 `.shell-overlay` + dashboard equivalent for any modals. |
+| **AI** | AI summary (per-case role-tuned 3-sentence narrative) + AI action recommendations (next-steps with priority labels). Backed by Phase 11 Three-Layer Engine for compliance-check panel. Sources cited via Phase 12 pattern. |
+| **Notifications** | Push/email on case deadline (24h / 72h), case status change, new AI action recommendation. Channel routing via Phase 2 W1.3 notification.service. |
+| **Polish-legal-risk** | **GREEN** — legal-tier internal UI; lawyer-signed outputs only; AI is decision-support not auto-action. |
+| **Effort** | **L** — significant design + build. Estimate 4-6 work units across W1 (initial cockpit) + W2 (full panel set + role-ordering). |
+| **Strategic note** | This is where EEJ stops being "another HR tool with AI bolt-ons" and becomes "the AI platform for cross-border legal compliance." Highest leverage in the plan. |
+| **Prerequisite** | Phase 11 Three-Layer Compliance Engine (for compliance-check panel). Phase 12 AI Copilot UX (for source-citation pattern reuse). |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. EEJ leads this primitive — APATRIS has no LegalCaseCockpit equivalent (the closest is `legal-cases`/`legal-copilot` routes but no unified cockpit). |
+
+### Phase 14 — Brand token consolidation (P6 Tier A — promoted from survey)
+
+Promoted from P6 survey (where it was a Tier A recommendation pending Manish confirmation) to a phase in this Day 28 second-pass revision. Pure refactor — no visual change.
+
+| Field | Detail |
+|---|---|
+| **Purpose** | Single source of truth for brand colors. `--navy: #1B2A4A` and `--yellow: #FFD600` are defined as CSS vars in `index.css:38-42` but **never consumed** — every component hardcodes the hex value (186 occurrences `#1B2A4A`, 89 occurrences `#FFD600`) or redefines `const NAVY = "#1B2A4A"` locally per file. |
+| **Minimum implementation** | New `theme.ts` module exporting `NAVY`, `YELLOW`, `YELLOW_DARK`, `BLUE` constants. CSS rules switch to `var(--navy)`. Inline-style TSX consumers switch to `import { NAVY } from "@/lib/theme"`. Per-file `const NAVY = ...` redefinitions removed. |
+| **Scope** | ~275 file touches across mobile + dashboard. Pure mechanical replacement. |
+| **Polish-legal-risk** | **GREEN** (pure refactor). |
+| **Effort** | M — large file count but mechanical. Can split into mobile-only commit + dashboard-only commit per the Item-2.1 pattern. |
+| **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. |
+
+### Phase 15 — Mood/Wellness (post-W3, design-pass-required)
+
+(Renumbered from Phase 11 in the Day 28 second-pass revision to make room for Phases 11-14 above.)
 
 Captured as future build — **not deferred indefinitely.** APATRIS has the primitives (`mood_entries` table, `MoodTab.tsx`, `WellnessTab.tsx`, `voice_checkins` table per Phase 1 audit findings W1/W2/W3/W14). EEJ can incorporate them ONLY after KRAZ defense is settled AND an opt-in/anonymized/no-manager-visibility design pass is reviewed by a legal advisor.
 
@@ -367,9 +459,9 @@ Captured as future build — **not deferred indefinitely.** APATRIS has the prim
 | **Polish-legal-risk (default)** | **AMBER** for mood/wellness; **AMBER→RED** for voice biometrics. Reframed as "design-pass-required" — meaning the AMBER flag is dropped to GREEN only after the design-pass criteria below are met. |
 | **Prerequisite (explicit gate, both required)** | (a) KRAZ classification settled (same as W3.1); (b) design pass reviewed by legal advisor against the three design-pass criteria below |
 | **Design-pass criteria** | (1) **Opt-in:** worker explicitly enables the feature; default OFF; (2) **Anonymized aggregation:** if surfaced to manager, only as anonymized rollup (site-level / team-level averages, never per-worker); (3) **No manager visibility on raw entries:** raw mood entries / voice transcripts are worker-only or accessible only to a designated wellness lead role (not the worker's coordinator); (4) **Retention policy:** explicit retention window (suggested: 90 days for raw entries, indefinite for opt-in anonymized aggregates); (5) **Voice biometric handling:** if voice_checkins ship, full Polish RODO consent flow + transcript-only retention (drop raw audio after transcription). |
-| **Items in scope** | 11.1 `mood_entries` (weekly self-report); 11.2 `MoodTab.tsx` (worker UI); 11.3 `WellnessTab.tsx` (worker UI); 11.4 `voice_checkins` (only if criterion 5 satisfied; otherwise defer further). |
+| **Items in scope** | 15.1 `mood_entries` (weekly self-report); 15.2 `MoodTab.tsx` (worker UI); 15.3 `WellnessTab.tsx` (worker UI); 15.4 `voice_checkins` (only if criterion 5 satisfied; otherwise defer further). |
 | **Architecture A** | build in EEJ; APATRIS implements from EEJ as reference later. (EEJ ports APATRIS's schema shape first.) |
-| **Effort** | M for 11.1-11.3 combined when unblocked; +M for 11.4 if shipped. |
+| **Effort** | M for 15.1-15.3 combined when unblocked; +M for 15.4 if shipped. |
 
 ---
 
@@ -390,14 +482,19 @@ Captured as future build — **not deferred indefinitely.** APATRIS has the prim
 | E5 worker-legal-view.service | (b) reference | Phase 3 scaffold-404 backends — back EEJ's MyUPO/MySchengen (Tier 1 fix from CLAUDE.md priority list) |
 | E6 notification.service router | (b) incorporate | Phase 2 W1.3 (channel-routing infra) |
 | C1 site-coordinators route + coordinator role | (b) incorporate | Phase 2-4 — needs CLAUDE.md RBAC review (coordinator-tier vs operations-tier; see Q7) |
-| W1/W2/W3 mood / wellness | (d) flag | **Phase 11 — post-W3 design-pass-required** (NOT deferred indefinitely; gate = KRAZ settled + 3 design-pass criteria) |
-| W14 voice_checkins | (d) flag → biometric | **Phase 11 sub-item 11.4** — ships only if design-pass criterion 5 (voice biometric handling: full Polish RODO consent + transcript-only retention) is satisfied; otherwise defer further |
+| W1/W2/W3 mood / wellness | (d) flag | **Phase 15 — post-W3 design-pass-required** (renumbered from Phase 11 in Day 28 second-pass revision; NOT deferred indefinitely; gate = KRAZ settled + 3 design-pass criteria) |
+| W14 voice_checkins | (d) flag → biometric | **Phase 15 sub-item 15.4** — ships only if design-pass criterion 5 (voice biometric handling: full Polish RODO consent + transcript-only retention) is satisfied; otherwise defer further |
 | C4 face-auth | (d) RED | Out of scope (Section 5) |
 | Audit #3 ai-audit dedicated route | (b) incorporate | Phase 1 2.x (small, fits hardening) |
 | Audit #4 per-worker activity-log route | (b) incorporate | Phase 1 2.x |
 | **Net-new (no APATRIS source)** — Live Chat (#34) | N/A (EEJ-leads) | **Phase 8** — EEJ builds the primitive; APATRIS implements from EEJ as reference later |
 | **Net-new** — Mobile install testing | N/A (validation, not feature) | **Phase 9** — gates Phase 2 W1 |
 | **Net-new** — Operational hygiene runbook | N/A (operator work) | **Phase 10** — parallel with Phase 1 |
+| **Finding #49** — Three-Layer Compliance Engine | EEJ-original (no APATRIS equivalent at this shape) | **Phase 11** — forward-reference placeholder; spec lands separately. Prerequisite for Phase 13 compliance-check panel + Phase 12 source-citation backbone |
+| **Finding #51** — AI Copilot UX as search-engine | partial: APATRIS has `ai-copilot` route but no search-engine UX surface | **Phase 12** — EEJ leads the UX pattern; reuses existing backend + Phase 11 engine when available |
+| **Finding #52** — Legal Command Page + LegalCaseCockpit | partial: APATRIS has scattered `legal-cases` / `legal-copilot` / `legal-status` routes but **no unified cockpit** — closest analog is APATRIS's `WorkerProfilePanel` (the source comparison in Day-30 APATRIS audit showed APATRIS's worker profile is 2 tabs vs EEJ's 11 panels; LegalCaseCockpit is the same shape applied to legal cases) | **Phase 13 — STRATEGIC PIVOT** to domain-specific legal-AI platform. EEJ leads. APATRIS implements from EEJ as reference later. |
+| **P6 Tier A** — brand token consolidation | N/A (internal refactor) | **Phase 14** — promoted from P6 survey to a phase (theme.ts single source of truth; ~275 file touches) |
+| **Finding #50** — GPS/Geofence/Sites nav-invisibility | N/A (UI hygiene) | **Phase 3 expanded** — Tier 3 scaffold-404 scope widened from backend-only to backend + UI surfacing (nav-menu entries + search-index registration) |
 
 ---
 
@@ -432,6 +529,8 @@ This list is intentionally **shorter** than the Day 28 v1 — items previously h
 11. **Phase 8 Live Chat WebSocket infrastructure choice:** Pusher / Ably / self-hosted Socket.IO / Anthropic MCP transport (per Phase 8 ARCHITECTURE DECISION block)? Recommendation pending: Pusher for premium-tier MVP, migrate to self-hosted Socket.IO if vendor cost becomes blocker at scale.
 12. **Phase 9 Mobile install testing — Manish solo or with team (Liza/Karan/Marj/Yana)?** Solo = faster, less coordination; team = better device coverage + role-specific findings (e.g. Yana on Ukrainian-language flows, Karan on operations-tier surfaces).
 13. **Phase 10 Neon password rotation timing:** rotate NOW (before further work to limit blast radius of the leaked credential) or end-of-Tier-2 (after hardening lands so rotation only fires once)? Recommendation: rotate NOW (10.1 + 10.2 + 10.5) — the credential leak is a today-class risk and Tier 2 hardening doesn't touch DB credentials.
+14. **Phase 12 AI Copilot UX redesign priority — before or after Phase 6 Tier W2?** Phase 12 currently sits at slot 11 in the build order (after Tier 4/5/W3 + Phase 11 Three-Layer). If the AI Copilot is a leverage point for staff productivity TODAY, an argument exists for pulling it earlier (e.g., after Phase 4 Tier W2 worker expansion). Trade-off: pulling forward stretches the Phase 11 Three-Layer dependency (source citations may have to ship MVP-without). Recommendation pending Manish: hold at Phase 12 slot unless staff productivity becomes the dominant signal.
+15. **Phase 13 Legal Command Page panel scope — which 11 panels in W1 vs W2?** The full panel set (per the Phase 13 detail above) is 11 panels mirroring WorkerCockpit. W1 ships 7 (case header + AI summary + AI action recs + document library + timeline + compliance check + linked workers); W2 ships the remaining 4 (client portal status + AI decisions audit log + communication log + notes). **Q15a:** is this W1/W2 split right, or should compliance check be deferred to W2 (gated on Phase 11 Three-Layer Engine landing)? **Q15b:** is "linked workers" W1 (cross-tier integration) or W2 (after Phase 13 W1 stabilizes)?
 
 ---
 
@@ -679,16 +778,29 @@ Step-by-step for the parallel operational-hygiene thread. Designed to be runnabl
 
 - **Phase 1 audit:** committed `26012a6`
 - **Phase 2 unified plan v1:** committed `c0e68f9`
-- **Phase 2 unified plan v2 (this revision — adds Phases 8-11 + Section 9):** this document, committing next.
+- **Phase 2 unified plan v2 (added Phases 8-11 + Section 9):** committed `fa6da6b`
+- **Phase 1 Item 2.1 token-key unification:** committed `b479fa6`
+- **Phase 1 Item 2.16 typecheck-drift cleanup:** committed `2f6c71b`
+- **Phase 2 unified plan v3 (this revision — adds Findings #50/#51/#52 as Phase 3-expansion + Phases 11/12/13/14; renumbers prior Phase 11 → Phase 15):** this document, committing next.
 - **Phase 3 next-step prompt:** drafted in Section 8, NOT auto-sent.
-- **Awaiting Manish:** open questions Q1-Q13 in Section 6 + Section 8 chat-Claude-check items before execution starts.
+- **Awaiting Manish:** open questions Q1-Q15 in Section 6 + Section 8 chat-Claude-check items before further execution.
 
 ---
 
-## 5-element self-review (per methodology template)
+## 5-element self-review (per methodology template — v2 revision, Phases 8-11)
 
 1. **What changed.** Day 28 plan revised to capture every feature as part of the future build — nothing parked, nothing deferred-indefinitely. Added Phase 8 (Live Chat #34), Phase 9 (Mobile Install Testing), Phase 10 (Operational Hygiene parallel with Tier 2), Phase 11 (Mood/Wellness post-W3). Reframed Phase 7 W3 from "deferred" to "KRAZ-defense gated" with explicit prerequisites. Added APATRIS-porting note ("build in EEJ; APATRIS implements from EEJ as reference later") to W1.1, W1.2, W1.3, W2.1, W2.2, W3.1, W3.2, Phase 8, Phase 11. Updated Section 4 cross-reference with new rows. Shrunk Section 5 OUT-of-scope to truly-out items (face-auth biometric, APATRIS-specific business surfaces). Added Q11/Q12/Q13 to Section 6. Added Section 9 — six-step Operational Hygiene runbook.
 2. **Why this scope.** Manish + chat-Claude explicitly required nothing be parked. Previous draft had W3 framed as "deferred" and mood/wellness as "out of scope" — both are now part of the plan with explicit gating prerequisites, so the operator can see exactly what unblocks each. Live Chat (#34) added as a premium-tier feature for paying agencies. Operational hygiene split into its own parallel phase because the Neon credential leak today is a today-class risk that cannot wait for feature work.
 3. **Verification mechanism.** Every new phase has acceptance criteria + Polish-legal-risk flag + Architecture A note + APATRIS-source-reference where applicable. Section 9 runbook is step-by-step with explicit checkpoints. Section 6 open questions cover the architecture decisions that must resolve before Phase 8 execution + the Phase 9 testing-team scope + the Phase 10 timing decision.
 4. **What was NOT verified.** Phase 8 effort estimate (XL) is a rough order-of-magnitude — could be larger depending on Phase 8 ARCHITECTURE DECISION outcome (self-hosted Socket.IO is significantly bigger than Pusher integration). Phase 10.7 production audit-tier survey scope is unknown until the survey runs. Phase 11 design-pass criteria (5 items listed) are draft — legal advisor may add or modify them. Phase 9 testing matrix doesn't enumerate every P0-P6 sub-fix because the post-P0-P6 commit hash is the source of truth; testing reads from that.
 5. **Risks.** (i) Phase 8 Live Chat scope creep — XL is honest but bigger if AI auto-categorization Phase 2 absorbs scope from MVP. Mitigation: ARCHITECTURE DECISION gate before scoping execution. (ii) Phase 10.1 + 10.2 + 10.5 rotation order matters — rotating Fly secrets before Neon password is rotated leaks the new secret to whoever still has the old password. Section 9 enforces order Step 1 → Step 2 → Step 3 explicitly. (iii) Phase 11 design-pass criteria may shift after legal review; the gate is the legal review itself, not the current criteria draft. (iv) Phase 7 W3.1 prerequisite "KRAZ classification settled" depends on APATRIS's legal posture resolving — EEJ doesn't control that timeline; W3.1 could remain gated indefinitely if APATRIS's KRAZ resolution drifts.
+
+---
+
+## 5-element self-review (v3 revision — Findings #50/#51/#52)
+
+1. **What changed.** Added Finding #50 (GPS/Geofence/Sites nav-invisibility) as a Phase 3 expansion — Tier 3 scaffold-404 scope explicitly widened from backend-only to backend + UI surfacing (nav-menu entries + search-index registration). Added Phase 11 Three-Layer Compliance Engine (Finding #49) as a forward-reference placeholder. Added Phase 12 AI Copilot UX redesign (Finding #51 — search-engine pattern). Added Phase 13 Legal Command Page + LegalCaseCockpit (Finding #52 — flagged as strategic pivot to domain-specific legal-AI platform). Added Phase 14 Brand token consolidation (promoted from P6 survey). Renumbered prior Phase 11 (Mood/Wellness) → Phase 15. Updated Section 1 exec summary, Section 2 build-phase diagram + reasoning, Section 4 cross-reference, Section 6 open questions (added Q14 + Q15a + Q15b). 
+2. **Why this scope.** Manish + chat-Claude surfaced three Layer 2 findings today (#50/#51/#52). The plan was explicit that nothing gets parked — these findings get their own phases with the same discipline as the existing ones (Polish-legal flags, Architecture A notes, prerequisites, effort estimates). Phase 13 specifically called out as the strategic pivot because the LegalCaseCockpit pattern is what differentiates EEJ from a generic HR tool. Phase 14 brand token was promoted because v2 status section explicitly noted "lands in Phase 6 sub-item only if confirmed" — second-pass formalizes the confirmation.
+3. **Verification mechanism.** Each new phase carries: purpose, minimum implementation, user roles, expected behavior, data model, API surface, UI specifics, AI dependency, notification logic, Polish-legal-risk flag, effort estimate, Architecture A note, prerequisites where relevant. Section 4 cross-reference table updated with rows for every new phase. Section 6 open questions surface Phase 12 priority + Phase 13 panel-split decisions before execution starts.
+4. **What was NOT verified.** Phase 11 Three-Layer Compliance Engine is a forward-reference placeholder — Finding #49's full spec hasn't landed in the EEJ repo yet, so Phase 11's effort estimate is "TBD." Phase 12 source-citation requirement may force MVP-without-citations if Phase 11 isn't ready when Phase 12 ships. Phase 13 panel scope (W1 7 panels vs W2 4 panels) is a proposal — Q15a/Q15b must resolve before Phase 13 W1 scoping. Phase 14 brand-token effort (M, ~275 file touches) assumes the theme.ts approach surveyed in P6; if Manish prefers a different pattern (e.g., Tailwind config tokens), effort and scope both change.
+5. **Risks.** (i) **Phase numbering reconciliation discrepancy.** The Day 28 prompt referenced "Current Phase 12 (brand token consolidation) → renumber to Phase 14" and "Current Phase 13 (post-KRAZ-defense AMBER features) → renumber to Phase 15" — but the prior plan version did NOT have a Phase 12 or Phase 13 (mood/wellness was the actual Phase 11; brand token was unphased, only P6-surveyed). Best-faith reconciliation: added Phase 11 (Three-Layer placeholder), Phase 12 (AI Copilot), Phase 13 (Legal Command), Phase 14 (Brand token — promoted from P6 to phase status), and renumbered prior Phase 11 → Phase 15. **Manish + chat-Claude should confirm this reconciliation matches the intent; if not, the phase numbers can be re-shuffled in a follow-up revision without disturbing phase content.** (ii) Phase 13 effort (L, 4-6 work units) is a strategic-pivot estimate — actual scope is likely bigger once Q15a/Q15b resolve and the role-adaptive ordering matrix is fully specified. (iii) Phase 12 search-engine UX may collide with Phase 8 Live Chat UX paradigm — both are "ask AI / talk to someone" surfaces but with different mental models; if users conflate them, a UX consolidation pass may need a separate phase. (iv) Finding #50 nav/search wiring is **not** automatically picked up by the GPS/Geofence/Sites backend builds (3.2) — every other Tier 3 surface (3.1 Analytics, 3.3 ContractHub, 3.4 Skills, 3.5 Shifts, 3.6 Calendar) likely has the same invisibility risk; the Phase 3 expansion note implies but doesn't enumerate this. **Should Phase 3 scope add "nav-menu + search-index" as a per-surface requirement for ALL six Tier 3 items, not just GPS/Geofence/Sites?** Logged as an implicit Q16 — flag in next chat-Claude review.
